@@ -1,0 +1,30 @@
+{
+  "name": "copy-of-acs-therapyhub-ivalt-v2",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.8.2",
+    "@google/genai": "^1.16.0",
+    "react-dropzone": "^14.3.8",
+    "lucide-react": "^0.542.0",
+    "@supabase/supabase-js": "2",
+    "uuid": "9",
+    "vite": "^7.3.1",
+    "@vitejs/plugin-react": "^5.1.2",
+    "framer-motion": "^12.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}

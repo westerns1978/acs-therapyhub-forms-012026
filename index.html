@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src *;">
+    <title>GeMyndFlow | AI-Driven Clinical Orchestration</title>
+    <meta name="theme-color" content="#8B1E24" />
+    <script>
+      // PROACTIVE KILL-SWITCH: Unregister any existing service workers immediately
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister().then(function(success) {
+              if (success) console.log('Service Worker unregistered successfully.');
+            });
+          }
+        });
+      }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontSize: {
+              'h1': ['2.25rem', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+            },
+            colors: {
+              primary: {
+                DEFAULT: '#8B1E24',
+                focus: '#70181D',
+                content: '#FFFFFF'
+              },
+              secondary: {
+                DEFAULT: '#4F46E5',
+                focus: '#4338CA',
+                content: '#FFFFFF'
+              },
+              accent: {
+                DEFAULT: '#06B6D4',
+                content: '#FFFFFF'
+              },
+              background: {
+                DEFAULT: '#F8FAFC',
+              },
+              surface: { 
+                DEFAULT: 'rgba(255, 255, 255, 0.8)',
+                content: '#0F172A',
+                secondary: '#64748B'
+              },
+              border: {
+                DEFAULT: 'rgba(226, 232, 240, 0.8)',
+              },
+              dark: {
+                primary: {
+                  DEFAULT: '#F87171',
+                  focus: '#EF4444',
+                },
+                secondary: {
+                  DEFAULT: '#818CF8',
+                },
+                background: {
+                  DEFAULT: '#020617',
+                },
+                surface: { 
+                  DEFAULT: 'rgba(15, 23, 42, 0.8)',
+                  content: '#F1F5F9',
+                  secondary: '#94A3B8'
+                },
+                border: {
+                    DEFAULT: 'rgba(30, 41, 59, 0.5)',
+                }
+              }
+            },
+            keyframes: {
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(15px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              aurora: {
+                '0%': { backgroundPosition: '0% 50%' },
+                '50%': { backgroundPosition: '100% 50%' },
+                '100%': { backgroundPosition: '0% 50%' },
+              }
+            },
+            animation: {
+              'fade-in-up': 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'aurora': 'aurora 30s ease infinite', 
+            },
+            backdropBlur: {
+              'xl': '24px',
+            }
+          },
+        },
+      }
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.8.2",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.16.0",
+    "react-dropzone": "https://aistudiocdn.com/react-dropzone@^14.3.8",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.542.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
+    "uuid": "https://esm.sh/uuid@9",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "framer-motion": "https://esm.sh/framer-motion@^12.27.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-background text-surface-content dark:bg-dark-background dark:text-dark-surface-content transition-colors duration-500 ease-in-out text-base leading-normal font-sans antialiased selection:bg-primary/20">
+    <div id="root"></div>
+    <script type="module" crossorigin src="/index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
