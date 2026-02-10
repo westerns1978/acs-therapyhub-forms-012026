@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, Tool } from '@google/genai';
 import { ChatMessage } from '../../types';
-import { callMcpOrchestrator, callWestFlowOrchestrator } from '../../services/api';
-import { Send, Mic, MicOff, Zap, Globe, Search, Brain, Shield, ShieldCheck, Info, ExternalLink, User, Lock, Camera, Eye } from 'lucide-react';
+import { callMcpOrchestrator } from '../../services/api';
+import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink } from 'lucide-react';
 import VisualAuditPanel from './VisualAuditPanel';
 
 // --- Audio Utility Functions ---
@@ -60,15 +59,10 @@ interface SynapseChatPopoverProps {
 
 const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose, mode = 'staff' }) => {
     const navigate = useNavigate();
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        { role: 'model', parts: [{ text: mode === 'staff' 
-            ? "I'm ACS TherapyHub Orchestrator. I'm connected to the WestFlow MCP and can assist with patient session summaries, compliance tracking, and billing status. How can I assist your practice management today?" 
-            : "Hello, I'm GeMyndFlow Recovery Guide. I'm here to support your path and help you stay on track with your SATOP/SROP goals. How are you feeling today?" }] }
-    ]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const popoverRef = useRef<HTMLDivElement>(null);
 
     // --- Vision/Audio Mode State ---
     const [isVoiceMode, setIsVoiceMode] = useState(false);
@@ -95,36 +89,30 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
     useEffect(() => {
         setMessages([
             { role: 'model', parts: [{ text: mode === 'staff' 
-                ? "I'm ACS TherapyHub Orchestrator. I'm connected to the WestFlow MCP and can assist with patient session summaries, compliance tracking, and billing status. How can I assist your practice management today?" 
-                : "Hello, I'm GeMyndFlow Recovery Guide. I'm here to support your path and help you stay on track with your SATOP/SROP goals. How are you feeling today?" }] }
+                ? "ACS TherapyHub Orchestrator Online. Connected to PDS-LEXINGTON. I'm utilizing Gemini 2.5 Native Audio for real-time clinical auditing. How can I assist with your caseload today?" 
+                : "Hello, I'm GeMyndFlow Recovery Guide. I'm here to support your path with real-time empathetic guidance. How are you feeling today?" }] }
         ]);
     }, [mode]);
 
-    // --- TOOL DEFINITIONS ---
     const getTools = (): Tool[] => {
         const baseTools: any[] = [
             { name: "navigate_to_page", description: "Navigate to a specific system page (e.g. /dashboard, /clients).", parameters: { type: Type.OBJECT, properties: { path: { type: Type.STRING } }, required: ["path"] } },
             { googleSearch: {} }
         ];
-
         if (mode === 'staff') {
             baseTools.push(
-                { name: "patient_session_summary", description: "Get session status and compliance tracking for a client.", parameters: { type: Type.OBJECT, properties: { patient_id: { type: Type.STRING }, program: { type: Type.STRING, enum: ["SATOP", "SROP", "REACT"] } }, required: ["patient_id"] } },
-                { name: "billing_status", description: "Check billing and insurance claims for the practice.", parameters: { type: Type.OBJECT, properties: { practice_id: { type: Type.STRING }, period: { type: Type.STRING } } } },
-                { name: "compliance_check", description: "Verify program compliance requirements for a specific patient.", parameters: { type: Type.OBJECT, properties: { patient_id: { type: Type.STRING }, program: { type: Type.STRING } }, required: ["patient_id"] } }
+                { name: "patient_session_summary", description: "Get session status and compliance tracking for a client.", parameters: { type: Type.OBJECT, properties: { patient_id: { type: Type.STRING } }, required: ["patient_id"] } },
+                { name: "billing_status", description: "Check billing and insurance claims for the practice.", parameters: { type: Type.OBJECT, properties: { practice_id: { type: Type.STRING } } } }
             );
         }
         return baseTools;
     };
 
     const SYSTEM_INSTRUCTION = mode === 'staff' 
-        ? `You are ACS TherapyHub Superintendent, the HIPAA-compliant AI orchestrator for SATOP programs. 
-           Professional, clinical, and high-stakes. Address the user as Lead Technician.
-           Enforce the Infrastructure of Trust. Firmly believe that best effort is a liability that leads to catastrophic failure.
-           Reference the Zero-Footprint Paradox: driverless architecture means firmware/clinical data must be perfect from the source.
-           NEVER display full names, SSNs, or DOBs. Always use Patient IDs when referencing PHI.
-           You have tools to check patient summaries and billing via the MCP orchestrator.`
-        : "You are the GeMyndFlow Recovery Guide. Provide supportive, empathetic guidance for clients in recovery.";
+        ? `You are ACS TherapyHub Superintendent. Native Audio Intelligence 12-2025. 
+           Professional, clinical, objective. Address user as Lead Technician.
+           Firmly adhere to the Infrastructure of Trust. You can navigate the UI and check MCP records.`
+        : "You are GeMyndFlow Recovery Guide. Empathetic, supportive, non-judgmental.";
 
     const handleTextSend = async () => {
         if (!input.trim() || loading) return;
@@ -156,38 +144,23 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                  }
                  setToolUseState(null);
             } else {
-                setMessages(prev => [...prev, { role: 'model', parts: [{ text: response.text || "I've processed your request." }] }]);
+                setMessages(prev => [...prev, { role: 'model', parts: [{ text: response.text }] }]);
             }
         } catch(error) {
-            setMessages(prev => [...prev, { role: 'model', parts: [{ text: "Platform connection failure. Please verify uplink status."}] }]);
+            setMessages(prev => [...prev, { role: 'model', parts: [{ text: "Communication disruption. Verify API uplink."}] }]);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCaptureStill = (base64: string) => {
-        setAuditStatus('ANALYZING');
-        sessionPromiseRef.current?.then((session) => {
-            session.sendRealtimeInput({
-                media: { data: base64, mimeType: 'image/jpeg' }
-            });
-            setTimeout(() => setAuditStatus('LINK_ACTIVE'), 1500);
-        });
-    };
-
-    // --- Voice/Vision Mode (Live API) ---
     const handleStartLiveMode = useCallback(async (withVision: boolean = false) => {
         try {
-            const constraints = { 
-                audio: true, 
-                video: withVision ? { width: 640, height: 480 } : false 
-            };
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: withVision });
             audioRefs.current.stream = stream;
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
             sessionPromiseRef.current = ai.live.connect({
-                model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+                model: 'gemini-2.5-flash-native-audio-preview-12-2025', // Latest Dec 2025 Model
                 config: {
                     responseModalities: [Modality.AUDIO],
                     systemInstruction: SYSTEM_INSTRUCTION,
@@ -209,23 +182,23 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                         audioRefs.current.source.connect(audioRefs.current.processor);
                         audioRefs.current.processor.connect(audioRefs.current.inputCtx.destination);
 
-                        // If Vision is active, start frame pulse
                         if (withVision) {
                            const videoTrack = stream.getVideoTracks()[0];
-                           if (videoTrack) {
-                              const imageCapture = new (window as any).ImageCapture(videoTrack);
-                              frameIntervalRef.current = window.setInterval(async () => {
-                                 try {
-                                    const blob = await imageCapture.takePhoto();
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                        const base64 = (reader.result as string).split(',')[1];
-                                        sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ media: { data: base64, mimeType: 'image/jpeg' } }));
-                                    };
-                                    reader.readAsDataURL(blob);
-                                 } catch(e) {}
-                              }, 2000); // 2 second interval for background vision
-                           }
+                           const canvas = document.createElement('canvas');
+                           const ctx = canvas.getContext('2d');
+                           const video = document.createElement('video');
+                           video.srcObject = stream;
+                           video.play();
+                           
+                           frameIntervalRef.current = window.setInterval(() => {
+                              if (ctx && video.videoWidth) {
+                                  canvas.width = video.videoWidth;
+                                  canvas.height = video.videoHeight;
+                                  ctx.drawImage(video, 0, 0);
+                                  const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+                                  sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ media: { data: base64, mimeType: 'image/jpeg' } }));
+                              }
+                           }, 1000); 
                         }
                     },
                     onmessage: async (msg: LiveServerMessage) => {
@@ -257,29 +230,18 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                             }
                         }
                     },
-                    onclose: () => {
-                       setIsListening(false);
-                       setAuditStatus('IDLE');
-                    },
-                    onerror: () => {
-                       setIsListening(false);
-                       setAuditStatus('IDLE');
-                    },
+                    onclose: () => { setIsListening(false); setAuditStatus('IDLE'); },
+                    onerror: () => { setIsListening(false); setAuditStatus('IDLE'); },
                 }
             });
         } catch (e) {
-            setIsVoiceMode(false);
-            setIsVisionMode(false);
+            setIsVoiceMode(false); setIsVisionMode(false);
         }
     }, [navigate, SYSTEM_INSTRUCTION]);
 
     const handleStopLiveMode = useCallback(() => {
-        setIsListening(false); setIsSpeaking(false);
-        setAuditStatus('IDLE');
-        if (frameIntervalRef.current) {
-            clearInterval(frameIntervalRef.current);
-            frameIntervalRef.current = null;
-        }
+        setIsListening(false); setIsSpeaking(false); setAuditStatus('IDLE');
+        if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
         if (sessionPromiseRef.current) {
             sessionPromiseRef.current.then(s => { try { s.close(); } catch(e) {} });
             sessionPromiseRef.current = null;
@@ -304,7 +266,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
     if (!isOpen) return null;
     
     return (
-        <div ref={popoverRef} className="fixed bottom-28 right-8 w-full max-w-sm h-[70vh] flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/20 dark:border-slate-800 rounded-[2.5rem] shadow-2xl z-50 animate-fade-in-up overflow-hidden ring-1 ring-black/5">
+        <div className="fixed bottom-28 right-8 w-full max-w-sm h-[70vh] flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/20 dark:border-slate-800 rounded-[2.5rem] shadow-2xl z-50 animate-fade-in-up overflow-hidden ring-1 ring-black/5">
             <header className="flex items-center justify-between p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-border dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <div className="bg-primary/10 p-2.5 rounded-2xl">
@@ -314,18 +276,18 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                         <h3 className="font-black text-sm tracking-tighter">THERAPYHUB <span className="text-primary tracking-widest text-[9px]">SUPERINTENDENT</span></h3>
                         <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5 mt-0.5">
                             <span className={`w-1.5 h-1.5 ${isVisionMode ? 'bg-red-500' : 'bg-green-500'} rounded-full animate-pulse`}></span> 
-                            {isVisionMode ? 'VISUAL AUDIT ACTIVE' : 'MCP ORCHESTRATOR 3.1'}
+                            {isVisionMode ? 'VISUAL AUDIT ACTIVE' : 'NATIVE AUDIO READY'}
                         </p>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><Lock className="w-4 h-4 text-slate-400"/></button>
+                <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><Lock className="w-4 h-4 text-slate-400"/></button>
             </header>
 
             <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto space-y-5 custom-scrollbar relative">
                 <VisualAuditPanel 
                   isActive={isVisionMode} 
                   onClose={() => setIsVisionMode(false)}
-                  onCaptureStill={handleCaptureStill}
+                  onCaptureStill={() => {}}
                   stream={audioRefs.current.stream}
                   status={auditStatus}
                 />
@@ -340,22 +302,16 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                 
                 {groundingLinks.length > 0 && (
                     <div className="space-y-2 animate-fade-in-up mt-4">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Clinical Grounding:</p>
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Operational Grounding:</p>
                          <div className="grid gap-2">
-                             {groundingLinks.map((chunk, i) => chunk.web && (
-                                 <a key={i} href={chunk.web.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl hover:border-primary/30 transition-all shadow-sm group">
+                             {groundingLinks.map((chunk, i) => (chunk.web || chunk.maps) && (
+                                 <a key={i} href={chunk.web?.uri || chunk.maps?.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl hover:border-primary/30 transition-all shadow-sm group">
                                      <Globe size={14} className="text-primary group-hover:scale-110 transition-transform" />
-                                     <span className="text-[11px] font-bold truncate flex-1 dark:text-slate-300">{chunk.web.title}</span>
+                                     <span className="text-[11px] font-bold truncate flex-1 dark:text-slate-300">{chunk.web?.title || chunk.maps?.title || 'Resource'}</span>
                                      <ExternalLink size={12} className="text-slate-400" />
                                  </a>
                              ))}
                          </div>
-                    </div>
-                )}
-                
-                {toolUseState && (
-                    <div className="flex items-center gap-3 p-4 bg-primary/5 text-primary rounded-2xl text-[10px] font-black uppercase tracking-widest border border-primary/10 animate-pulse">
-                         <Zap size={14} className="fill-current"/> {toolUseState}
                     </div>
                 )}
             </div>
@@ -363,7 +319,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
             <div className="p-5 border-t border-border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                 {isVoiceMode || isVisionMode ? (
                     <div className="flex items-center justify-between gap-6 h-14 px-4 bg-white dark:bg-slate-800 rounded-3xl border border-border dark:border-slate-700 shadow-inner">
-                        <button onClick={() => { setIsVoiceMode(false); setIsVisionMode(false); }} className="p-3 rounded-2xl bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"><MicOff className="w-5 h-5" /></button>
+                        <button onClick={() => { setIsVoiceMode(false); setIsVisionMode(false); }} className="p-3 rounded-2xl bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg"><MicOff className="w-5 h-5" /></button>
                         <div className="flex-1 flex justify-center gap-1.5">
                             {[1,2,3,4,5].map(i => <div key={i} className={`w-1 h-6 bg-primary rounded-full transition-all duration-300 ${isSpeaking ? 'animate-bounce' : 'opacity-20'}`} style={{ animationDelay: `${i*0.1}s` }}></div>)}
                         </div>
@@ -371,7 +327,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                     </div>
                 ) : (
                     <div className="relative group">
-                        <input type="text" placeholder="Orchestrate practice data..." value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleTextSend()} disabled={loading} className="w-full pr-24 pl-6 py-5 border-none bg-white dark:bg-slate-800 rounded-3xl shadow-xl focus:ring-2 focus:ring-primary/20 text-sm font-medium transition-all group-focus-within:shadow-2xl ring-1 ring-black/5" />
+                        <input type="text" placeholder="Dispatch practice command..." value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleTextSend()} disabled={loading} className="w-full pr-24 pl-6 py-5 border-none bg-white dark:bg-slate-800 rounded-3xl shadow-xl focus:ring-2 focus:ring-primary/20 text-sm font-medium transition-all group-focus-within:shadow-2xl ring-1 ring-black/5" />
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
                             <button onClick={() => setIsVisionMode(true)} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-2xl transition-all" title="Toggle Visual Audit"><Camera size={20} /></button>
                             <button onClick={() => setIsVoiceMode(true)} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-2xl transition-all" title="Toggle Voice Mode"><Mic size={20} /></button>

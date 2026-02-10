@@ -134,7 +134,7 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
                         <option value="All">All Categories</option>
                         <option value="Intake">Intake</option>
                         <option value="Compliance">Compliance</option>
-                    </select>
+                    </option>
                 </div>
             </div>
 

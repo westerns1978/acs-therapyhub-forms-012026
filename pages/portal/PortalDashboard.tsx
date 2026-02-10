@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PortalLayout from '../../layouts/PortalLayout';
@@ -6,7 +7,7 @@ import Card from '../../components/ui/Card';
 import { getClient, getClientAppointments, getClientActivityFeed, searchCommunityResources } from '../../services/api';
 import { Client, Appointment, ClientActivity } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { FileText, DollarSign, BarChart, Calendar, ArrowRight, Video, Award, ClipboardList, MapPin, Search, X, HeartHandshake, Brain } from 'lucide-react';
+import { FileText, DollarSign, BarChart, Calendar, ArrowRight, Video, Award, ClipboardList, MapPin, Search, X, HeartHandshake, Brain, ExternalLink, MessageSquare } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 
 interface ActionCardProps {
@@ -35,13 +36,29 @@ const ResourceFinderModal: React.FC<{ isOpen: boolean, onClose: () => void }> = 
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<{text: string, chunks: any[]} | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isLocating, setIsLocating] = useState(false);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!query.trim()) return;
         setIsLoading(true);
         try {
-            const data = await searchCommunityResources(query);
+            let coords: { latitude: number, longitude: number } | undefined;
+            
+            // Attempt to get user location for better Maps grounding
+            try {
+                setIsLocating(true);
+                const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
+                });
+                coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            } catch (err) {
+                console.warn("Location permission denied or unavailable.");
+            } finally {
+                setIsLocating(false);
+            }
+
+            const data = await searchCommunityResources(query, coords);
             setResults(data);
         } catch (error) {
             console.error(error);
@@ -56,20 +73,73 @@ const ResourceFinderModal: React.FC<{ isOpen: boolean, onClose: () => void }> = 
         <Modal isOpen={isOpen} onClose={onClose} title="Recovery Intelligence Finder">
             <div className="p-6">
                 <form onSubmit={handleSearch} className="relative mb-6">
-                    <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search local resources via Google Maps..." className="w-full pl-5 pr-14 py-4 border-none bg-slate-100 dark:bg-slate-800 rounded-2xl focus:ring-2 focus:ring-primary/20 text-sm font-medium" />
-                    <button type="submit" disabled={isLoading} className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-primary text-white rounded-xl hover:bg-primary-focus disabled:opacity-50"><Search size={20} /></button>
+                    <input 
+                        type="text" 
+                        value={query} 
+                        onChange={(e) => setQuery(e.target.value)} 
+                        placeholder="Search local resources (e.g. food, support groups)..." 
+                        className="w-full pl-5 pr-14 py-4 border-none bg-slate-100 dark:bg-slate-800 rounded-2xl focus:ring-2 focus:ring-primary/20 text-sm font-medium" 
+                    />
+                    <button type="submit" disabled={isLoading} className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-primary text-white rounded-xl hover:bg-primary-focus disabled:opacity-50">
+                        <Search size={20} />
+                    </button>
                 </form>
-                {isLoading && <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div><p className="text-xs font-black uppercase text-slate-400 mt-4 tracking-widest">Grounding with Google Maps...</p></div>}
+
+                {(isLoading || isLocating) && (
+                    <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                        <p className="text-[10px] font-black uppercase text-slate-400 mt-4 tracking-[0.2em]">
+                            {isLocating ? 'Determining Geolocation...' : 'Grounding with Google Maps...'}
+                        </p>
+                    </div>
+                )}
+
                 {results && (
                     <div className="space-y-6 animate-fade-in-up">
-                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{results.text}</p>
-                        <div className="grid gap-3">
-                            {results.chunks.map((chunk, i) => chunk.maps?.uri || chunk.web?.uri ? (
-                                <a key={i} href={chunk.maps?.uri || chunk.web.uri} target="_blank" rel="noopener noreferrer" className="block p-4 border border-slate-100 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-sm hover:shadow-md">
-                                    <h4 className="font-black text-primary text-sm">{chunk.maps?.title || chunk.web?.title || 'Resource Found'}</h4>
-                                    <p className="text-[10px] text-slate-400 font-mono mt-1 truncate">{chunk.maps?.uri || chunk.web?.uri}</p>
-                                </a>
-                            ) : null)}
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">"{results.text}"</p>
+                        </div>
+                        
+                        <div className="grid gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                            {results.chunks.map((chunk, i) => {
+                                const maps = chunk.maps;
+                                const web = chunk.web;
+                                const uri = maps?.uri || web?.uri;
+                                const title = maps?.title || web?.title || 'Clinical Resource';
+                                
+                                if (!uri) return null;
+
+                                return (
+                                    <div key={i} className="p-4 border border-slate-100 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition shadow-sm group">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <h4 className="font-black text-primary text-sm flex items-center gap-2">
+                                                    {maps ? <MapPin size={14}/> : <ExternalLink size={14}/>}
+                                                    {title}
+                                                </h4>
+                                                <p className="text-[10px] text-slate-400 font-mono mt-1 truncate max-w-[200px] sm:max-w-xs">{uri}</p>
+                                            </div>
+                                            <a href={uri} target="_blank" rel="noopener noreferrer" className="p-2 bg-white dark:bg-slate-700 rounded-xl shadow-sm hover:scale-110 transition-transform text-slate-400 hover:text-primary">
+                                                <ExternalLink size={16} />
+                                            </a>
+                                        </div>
+                                        
+                                        {/* Review Snippets from Maps Grounding */}
+                                        {maps?.placeAnswerSources?.reviewSnippets?.length > 0 && (
+                                            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                                    <MessageSquare size={10}/> Community Insights:
+                                                </p>
+                                                {maps.placeAnswerSources.reviewSnippets.map((snippet: string, j: number) => (
+                                                    <p key={j} className="text-[11px] text-slate-500 italic leading-snug">
+                                                        "{snippet.length > 100 ? snippet.substring(0, 100) + '...' : snippet}"
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 )}

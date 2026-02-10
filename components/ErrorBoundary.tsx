@@ -14,6 +14,7 @@ interface State {
 /**
  * ErrorBoundary class component to catch rendering errors in its children.
  */
+// Fix: Using named Component import to ensure setState and props are correctly recognized by the TypeScript compiler
 class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
@@ -38,6 +39,7 @@ class ErrorBoundary extends Component<Props, State> {
    * Resets the error state and reloads the application.
    */
   public handleReload = () => {
+    // Fix: setState is a member of the inherited React Component class
     this.setState({ hasError: false, error: null });
     window.location.reload();
   }
@@ -72,6 +74,7 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
+    // Fix: props is correctly inherited from the Component base class
     return this.props.children;
   }
 }

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import Card from '../components/ui/Card';
-import { Search, MapPin, ExternalLink, Video, FileText, Phone, ShieldAlert } from 'lucide-react';
+import { Search, MapPin, ExternalLink, Video, FileText, Phone, ShieldAlert, MessageSquare, Loader2 } from 'lucide-react';
 import { searchCommunityResources } from '../services/api';
 
 const therapists = [
@@ -33,6 +33,7 @@ const Resources: React.FC = () => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<{text: string, chunks: any[]} | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isLocating, setIsLocating] = useState(false);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,7 +42,22 @@ const Resources: React.FC = () => {
         setIsLoading(true);
         setResults(null);
         try {
-            const data = await searchCommunityResources(query);
+            let coords: { latitude: number, longitude: number } | undefined;
+            
+            // Geolocate user for Maps grounding
+            try {
+                setIsLocating(true);
+                const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
+                });
+                coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            } catch (err) {
+                console.warn("Location services restricted.");
+            } finally {
+                setIsLocating(false);
+            }
+
+            const data = await searchCommunityResources(query, coords);
             setResults(data);
         } catch (error) {
             console.error(error);
@@ -51,7 +67,7 @@ const Resources: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in-up">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card title="Crisis Hotlines" className="border-l-4 border-red-500">
                     <div className="space-y-4">
@@ -99,40 +115,73 @@ const Resources: React.FC = () => {
                 </div>
             </div>
 
-            <Card title="Community Resource Finder" subtitle="Powered by Google Maps Grounding">
+            <Card title="Community Resource Finder" subtitle="Powered by Google Maps Grounding & Gemini 2.5 Flash">
                 <form onSubmit={handleSearch} className="relative mb-6">
                     <input 
                         type="text" 
                         value={query} 
                         onChange={(e) => setQuery(e.target.value)} 
-                        placeholder="Search for resources (e.g., 'Food pantries near 63126', 'Shelters')" 
-                        className="w-full pl-4 pr-12 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-background dark:bg-dark-surface-secondary"
+                        placeholder="Search for local resources (e.g., 'Recovery centers near 63126', 'Clinics')" 
+                        className="w-full pl-4 pr-12 py-4 border border-border rounded-2xl focus:ring-2 focus:ring-primary/20 bg-background dark:bg-dark-surface-secondary shadow-inner"
                     />
-                    <button type="submit" disabled={isLoading} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary text-white rounded-md hover:bg-primary-focus disabled:opacity-50">
+                    <button type="submit" disabled={isLoading} className="absolute right-2 top-1/2 -translate-y-1/2 p-3 bg-primary text-white rounded-xl hover:bg-primary-focus disabled:opacity-50 shadow-lg shadow-primary/20">
                         <Search size={20} />
                     </button>
                 </form>
 
-                {isLoading && <div className="text-center p-8"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div><p className="mt-4 text-sm text-on-surface-secondary">Searching Google Maps...</p></div>}
+                {(isLoading || isLocating) && (
+                    <div className="text-center p-12">
+                        <Loader2 className="animate-spin text-primary mx-auto w-10 h-10 mb-4" />
+                        <p className="text-xs font-black uppercase text-slate-400 tracking-[0.2em]">
+                            {isLocating ? 'Accessing Local Uplink...' : 'Querying Google Maps Infrastructure...'}
+                        </p>
+                    </div>
+                )}
 
                 {results && (
-                    <div className="space-y-6 animate-fade-in-up">
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                            <p>{results.text}</p>
+                    <div className="space-y-8 animate-fade-in-up">
+                        <div className="prose prose-sm dark:prose-invert max-w-none p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                            <p className="text-slate-700 dark:text-slate-200 font-medium leading-relaxed">{results.text}</p>
                         </div>
                         
                         {results.chunks.length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {results.chunks.map((chunk, i) => {
-                                    if (chunk.web?.uri) {
-                                        return (
-                                            <a key={i} href={chunk.web.uri} target="_blank" rel="noopener noreferrer" className="block p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 transition group">
-                                                <h4 className="font-bold text-primary group-hover:underline">{chunk.web.title}</h4>
-                                                <p className="text-xs text-gray-500 truncate">{chunk.web.uri}</p>
-                                            </a>
-                                        );
-                                    }
-                                    return null;
+                                    const maps = chunk.maps;
+                                    const web = chunk.web;
+                                    const uri = maps?.uri || web?.uri;
+                                    const title = maps?.title || web?.title || 'Resource Found';
+                                    
+                                    if (!uri) return null;
+
+                                    return (
+                                        <div key={i} className="group p-5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm hover:shadow-xl hover:border-primary/20 transition-all">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="bg-primary/5 p-2 rounded-xl text-primary">
+                                                    {maps ? <MapPin size={20}/> : <ExternalLink size={20}/>}
+                                                </div>
+                                                <a href={uri} target="_blank" rel="noopener noreferrer" className="p-2 bg-slate-50 dark:bg-slate-800 rounded-xl hover:bg-primary hover:text-white transition-all">
+                                                    <ExternalLink size={18} />
+                                                </a>
+                                            </div>
+                                            <h4 className="font-black text-slate-800 dark:text-white text-lg tracking-tight mb-1 group-hover:text-primary transition-colors">{title}</h4>
+                                            <p className="text-[10px] text-slate-400 font-mono truncate mb-4">{uri}</p>
+                                            
+                                            {/* Review Snippets from Maps Grounding */}
+                                            {maps?.placeAnswerSources?.reviewSnippets?.length > 0 && (
+                                                <div className="space-y-2 pt-4 border-t border-slate-50 dark:border-slate-800">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                        <MessageSquare size={12}/> Place Reviews
+                                                    </p>
+                                                    {maps.placeAnswerSources.reviewSnippets.map((snippet: string, j: number) => (
+                                                        <p key={j} className="text-xs text-slate-600 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-800/30 p-2 rounded-lg leading-relaxed">
+                                                            "{snippet}"
+                                                        </p>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
                                 })}
                             </div>
                         )}

@@ -3,7 +3,8 @@
   "description": "Next-generation AI orchestration platform for clinical workflow management, integrated with Gemini 3 Deep Reasoning and multimodal analysis.",
   "requestFramePermissions": [
     "camera",
-    "microphone"
+    "microphone",
+    "geolocation"
   ],
   "externalApis": [
     "https://ldzzlndsspkyohvzfiiu.supabase.co",
