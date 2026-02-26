@@ -49,6 +49,7 @@ const PortalFormPage = lazy(() => import('./pages/portal/PortalFormPage'));
 const PortalAppointments = lazy(() => import('./pages/portal/PortalAppointments'));
 const RecoveryPlanForm = lazy(() => import('./pages/portal/RecoveryPlanForm'));
 
+
 function App() {
   return (
     <HashRouter>
@@ -62,6 +63,7 @@ function App() {
                   {/* Public & Login Routes */}
                   <Route path="/login" element={<Login />} />
                   <Route path="/portal/login" element={<ClientLogin />} />
+
                   <Route path="/visitor-resources" element={<PortalLayout><Resources /></PortalLayout>} />
 
                   {/* Counselor-facing App */}
