@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import PortalLayout from '../../layouts/PortalLayout';
 import Header from '../../components/ui/Header';
 import Card from '../../components/ui/Card';
-import { getClient, getClientAppointments, getClientActivityFeed, searchCommunityResources } from '../../services/api';
-import { Client, Appointment, ClientActivity } from '../../types';
+import { searchCommunityResources } from '../../services/api';
+import { supabase } from '../../services/supabase';
+import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { FileText, DollarSign, BarChart, Calendar, ArrowRight, Video, Award, ClipboardList, MapPin, Search, X, HeartHandshake, Brain, ExternalLink, MessageSquare } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
@@ -149,37 +150,57 @@ const ResourceFinderModal: React.FC<{ isOpen: boolean, onClose: () => void }> = 
 }
 
 const PortalDashboard: React.FC = () => {
-    const [client, setClient] = useState<Client | null>(null);
-    const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
-    const [activityFeed, setActivityFeed] = useState<ClientActivity[]>([]);
+    const portalClient = usePortalClient();
+    const [dashboardData, setDashboardData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
-        const fetchClientData = async () => {
-            const clientId = '1';
-            const [clientData, appointmentsData, activityData] = await Promise.all([
-                getClient(clientId),
-                getClientAppointments(clientId),
-                getClientActivityFeed(clientId)
-            ]);
-            setClient(clientData || null);
-            if (appointmentsData && appointmentsData.length > 0) {
-                const upcoming = appointmentsData
-                    .map(a => ({ ...a, date: new Date(a.date) }))
-                    .filter(a => a.date >= new Date())
-                    .sort((a, b) => a.date.getTime() - b.date.getTime());
-                setNextAppointment(upcoming[0] || null);
+        if (!portalClient) return;
+        const fetchData = async () => {
+            try {
+                // Get client details
+                const { data: clientData } = await supabase
+                    .from('clients')
+                    .select('*')
+                    .eq('id', portalClient.id)
+                    .single();
+
+                // Get upcoming appointments
+                const { data: upcomingAppts } = await supabase
+                    .from('appointments')
+                    .select('*')
+                    .eq('client_id', portalClient.id)
+                    .eq('status', 'scheduled')
+                    .order('start_time')
+                    .limit(3);
+
+                // Get pending forms
+                const { data: pendingForms } = await supabase
+                    .from('form_submissions')
+                    .select('*')
+                    .eq('client_id', portalClient.id)
+                    .eq('status', 'pending');
+
+                setDashboardData({
+                    client: clientData,
+                    upcomingAppointments: upcomingAppts || [],
+                    pendingForms: pendingForms || [],
+                });
+            } catch (err) {
+                console.warn('Portal dashboard error:', err);
             }
-            setActivityFeed(activityData.map(act => ({...act, timestamp: new Date(act.timestamp)})));
             setIsLoading(false);
         };
-        fetchClientData();
-    }, []);
+        fetchData();
+    }, [portalClient]);
 
     if (isLoading) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
-    if (!client) return <PortalLayout><div className="text-center p-12">Session Expired.</div></PortalLayout>;
+    if (!dashboardData?.client) return <PortalLayout><div className="text-center p-12">Session Expired.</div></PortalLayout>;
+
+    const { client, upcomingAppointments, pendingForms } = dashboardData;
+    const nextAppointment = upcomingAppointments[0];
 
     return (
         <PortalLayout>
@@ -196,9 +217,9 @@ const PortalDashboard: React.FC = () => {
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                             <div className="space-y-1">
                                 <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Up Next</p>
-                                <h3 className="text-3xl font-black tracking-tight">{nextAppointment.title}</h3>
+                                <h3 className="text-3xl font-black tracking-tight">{nextAppointment.appointment_type}</h3>
                                 <p className="font-bold flex items-center gap-2 opacity-90 text-sm">
-                                    <Calendar size={14} /> {new Date(nextAppointment.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {nextAppointment.startTime}
+                                    <Calendar size={14} /> {new Date(nextAppointment.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {new Date(nextAppointment.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                             </div>
                             <button className="w-full sm:w-auto px-8 py-3 bg-white text-primary rounded-2xl font-black text-sm shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-2">
@@ -211,35 +232,38 @@ const PortalDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <Card title="Program Progression">
                         <div className="flex items-center justify-between mb-2">
-                             <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Mastery Level</span>
-                             <span className="text-4xl font-black text-primary">{client.completionPercentage}%</span>
+                             <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Compliance Score</span>
+                             <span className="text-4xl font-black text-primary">{client.compliance_score}%</span>
                         </div>
                         <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-4 overflow-hidden mb-6">
-                            <div className="bg-gradient-to-r from-primary to-accent h-full transition-all duration-1000" style={{ width: `${client.completionPercentage}%` }}></div>
+                            <div className="bg-gradient-to-r from-primary to-accent h-full transition-all duration-1000" style={{ width: `${client.compliance_score}%` }}></div>
                         </div>
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex justify-around">
                             <div className="text-center">
-                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">Points</p>
-                                <p className="text-2xl font-black text-amber-500">{client.gamification.points}</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">SROP Progress</p>
+                                <p className="text-2xl font-black text-amber-500">{client.srop_hours_completed || 0} / 75 hrs</p>
                             </div>
                             <div className="w-px bg-slate-200 dark:bg-slate-700"></div>
                             <div className="text-center">
-                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">Milestones</p>
-                                <p className="text-2xl font-black text-slate-700 dark:text-slate-300">{client.gamification.badges.length}</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">Pending Forms</p>
+                                <p className="text-2xl font-black text-slate-700 dark:text-slate-300">{pendingForms.length}</p>
                             </div>
                         </div>
                     </Card>
-                    <Card title="Activity Log">
+                    <Card title="Upcoming Schedule">
                         <ul className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar">
-                           {activityFeed.map(item => (
+                           {upcomingAppointments.map((item: any) => (
                                <li key={item.id} className="flex items-start gap-4 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-2xl transition-colors">
-                                   <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl"><Award size={18} className="text-primary"/></div>
+                                   <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-xl"><Calendar size={18} className="text-primary"/></div>
                                    <div>
-                                       <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.description}</p>
-                                       <p className="text-[10px] font-black text-slate-400 uppercase mt-0.5">{new Date(item.timestamp).toLocaleDateString()}</p>
+                                       <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.appointment_type}</p>
+                                       <p className="text-[10px] font-black text-slate-400 uppercase mt-0.5">{new Date(item.start_time).toLocaleString()}</p>
                                    </div>
                                </li>
                            ))}
+                           {upcomingAppointments.length === 0 && (
+                               <p className="text-sm text-slate-500 text-center py-8">No upcoming appointments.</p>
+                           )}
                         </ul>
                     </Card>
                 </div>

@@ -44,7 +44,7 @@ const AIBriefingModal: React.FC<AIBriefingModalProps> = ({ isOpen, onClose }) =>
                             <img src="https://storage.googleapis.com/westerns1978-digital-assets/ACS%20TherapyHub/clara2-announcement.png" alt="Clara" className="w-12 h-12 rounded-xl" />
                         </div>
                         <div>
-                            <h2 className="text-3xl font-bold tracking-tight">Clinical Command Center</h2>
+                            <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
                             <p className="text-blue-100 text-sm font-medium tracking-wide opacity-80">DAILY INTELLIGENCE BRIEFING • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}</p>
                         </div>
                     </div>

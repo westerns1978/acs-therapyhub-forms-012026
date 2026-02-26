@@ -42,13 +42,15 @@ export const CONSENT_TREATMENT_DEFINITION: FormDefinition<ConsentForTreatmentDat
   description: 'Legal authorization and policy acknowledgment for clinical services.',
   category: 'Legal',
   initialState,
-  steps: [ConsentSection],
-  validateStep: (step, data) => {
+  validateStep: (data) => {
+
     const errs: FormErrors<ConsentForTreatmentData> = {};
     if (!data.clientName) errs.clientName = 'Required.';
     return errs;
   },
   fieldDefinitions: [
-    { key: 'clientName', label: 'Client Name' }
+    { id: 'clientName', label: 'Full Name', type: 'text', required: true },
+    { id: 'understandsAttendancePolicy', label: 'Attendance Policy', type: 'boolean', required: true },
+    { id: 'agreesToFee', label: 'Fee Agreement', type: 'boolean', required: true }
   ]
 };

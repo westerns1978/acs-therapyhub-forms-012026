@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface FormFieldProps {
@@ -9,8 +10,6 @@ interface FormFieldProps {
   error?: string;
   required?: boolean;
   maxLength?: number;
-  datalistId?: string;
-  datalistOptions?: string[];
   placeholder?: string;
 }
 
@@ -23,8 +22,6 @@ export const FormField: React.FC<FormFieldProps> = ({
   error,
   required = true,
   maxLength,
-  datalistId,
-  datalistOptions,
   placeholder,
 }) => {
   const commonProps = {
@@ -35,39 +32,32 @@ export const FormField: React.FC<FormFieldProps> = ({
     required,
     maxLength,
     placeholder,
-    className: `w-full p-3 bg-white/5 dark:bg-slate-800/50 text-slate-800 dark:text-white border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-300 placeholder:text-slate-400 ${
-      error ? 'border-red-500/50' : 'border-black/10 dark:border-white/10'
+    className: `w-full p-4 bg-white/5 dark:bg-slate-800/50 text-slate-900 dark:text-white border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all duration-300 placeholder:text-slate-400 font-bold tracking-tight shadow-inner ${
+      error ? 'border-red-500/50 bg-red-50/50' : 'border-black/5 dark:border-white/5'
     }`,
   };
 
   const remainingChars = maxLength && typeof value === 'string' ? maxLength - value.length : null;
 
   return (
-    <div className="mb-6">
-      <div className="flex justify-between items-baseline mb-2">
-        <label htmlFor={id} className="flex items-center text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+    <div className="mb-8 group">
+      <div className="flex justify-between items-baseline mb-2 px-1">
+        <label htmlFor={id} className="flex items-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 group-focus-within:text-primary transition-colors">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span className="text-red-500 ml-1.5 opacity-50">*</span>}
         </label>
-        {type === 'textarea' && maxLength && remainingChars !== null && (
-          <span className={`text-[10px] font-mono font-bold ${remainingChars < 0 ? 'text-red-400' : 'text-slate-400'}`}>
-            {remainingChars}
+        {maxLength && remainingChars !== null && (
+          <span className={`text-[9px] font-black tracking-widest ${remainingChars < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+            {remainingChars} BYTES REMAINING
           </span>
         )}
       </div>
       {type === 'textarea' ? (
         <textarea {...commonProps} rows={4}></textarea>
       ) : (
-        <input {...commonProps} type={type} list={datalistId} />
+        <input {...commonProps} type={type} />
       )}
-      {datalistId && datalistOptions && (
-        <datalist id={datalistId}>
-          {datalistOptions.map((option, index) => (
-            <option key={index} value={option} />
-          ))}
-        </datalist>
-      )}
-      {error && <p className="mt-2 text-xs text-red-500 font-bold uppercase tracking-tighter">{error}</p>}
+      {error && <p className="mt-2 text-[10px] font-black text-red-500 uppercase tracking-widest animate-fade-in-up ml-1">{error}</p>}
     </div>
   );
 };

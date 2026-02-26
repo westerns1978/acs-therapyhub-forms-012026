@@ -109,8 +109,8 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
     };
 
     const SYSTEM_INSTRUCTION = mode === 'staff' 
-        ? `You are ACS TherapyHub Superintendent. Native Audio Intelligence 12-2025. 
-           Professional, clinical, objective. Address user as Lead Technician.
+        ? `You are ACS TherapyHub Superintendent. You are a highly advanced, real-time clinical AI. 
+           Be concise, professional, and objective. Address user as Lead Technician.
            Firmly adhere to the Infrastructure of Trust. You can navigate the UI and check MCP records.`
         : "You are GeMyndFlow Recovery Guide. Empathetic, supportive, non-judgmental.";
 
@@ -160,9 +160,12 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
             sessionPromiseRef.current = ai.live.connect({
-                model: 'gemini-2.5-flash-native-audio-preview-12-2025', // Latest Dec 2025 Model
+                model: 'gemini-2.5-flash-native-audio-preview-09-2025',
                 config: {
                     responseModalities: [Modality.AUDIO],
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
+                    },
                     systemInstruction: SYSTEM_INSTRUCTION,
                     tools: getTools(),
                 },
@@ -202,6 +205,18 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                         }
                     },
                     onmessage: async (msg: LiveServerMessage) => {
+                        if (msg.serverContent?.interrupted) {
+                            audioRefs.current.sources.forEach(source => {
+                                try { source.stop(); } catch (e) {}
+                            });
+                            audioRefs.current.sources.clear();
+                            if (audioRefs.current.outputCtx) {
+                                audioRefs.current.nextStartTime = audioRefs.current.outputCtx.currentTime;
+                            }
+                            setIsSpeaking(false);
+                            return;
+                        }
+
                         if (msg.toolCall) {
                             for (const fc of msg.toolCall.functionCalls) {
                                 let result: any = { status: "OK" };

@@ -1,97 +1,146 @@
-
 import React, { useState, useEffect } from 'react';
 import PortalLayout from '../../layouts/PortalLayout';
 import Header from '../../components/ui/Header';
 import Card from '../../components/ui/Card';
-// Fix: Correctly import getClientAssignments from the services API.
-import { getClient, getSROPData, getClientAssignments } from '../../services/api';
-import { Client, SROPProgress, ClientAssignment } from '../../types';
-
-const TrophyIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
-const CheckSquareIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>;
+import { supabase } from '../../services/supabase';
+import { usePortalClient } from '../../hooks/usePortalClient';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { BarChart, Award, CheckCircle2, Circle, Trophy, Target, Zap } from 'lucide-react';
 
 const PortalCompliance: React.FC = () => {
-    const [client, setClient] = useState<Client | null>(null);
-    const [sropData, setSropData] = useState<SROPProgress | null>(null);
-    const [assignments, setAssignments] = useState<ClientAssignment[]>([]);
+    const portalClient = usePortalClient();
+    const [complianceData, setComplianceData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchData = async () => {
+        if (!portalClient) return;
+        const fetchCompliance = async () => {
             setIsLoading(true);
-            const clientId = '1'; // Hardcoded for demo
-            const [clientData, srop, userAssignments] = await Promise.all([
-                getClient(clientId),
-                getSROPData(clientId),
-                getClientAssignments(clientId),
-            ]);
-            setClient(clientData);
-            setSropData(srop);
-            setAssignments(userAssignments);
+            try {
+                // Get client data
+                const { data: client } = await supabase
+                    .from('clients')
+                    .select('*')
+                    .eq('id', portalClient.id)
+                    .single();
+
+                // Get SROP data
+                const { data: srop } = await supabase
+                    .from('srop_data')
+                    .select('*')
+                    .eq('client_id', portalClient.id)
+                    .single();
+
+                // Get assigned tasks/milestones
+                const { data: tasks } = await supabase
+                    .from('client_assignments')
+                    .select('*')
+                    .eq('client_id', portalClient.id);
+
+                setComplianceData({
+                    client,
+                    srop,
+                    tasks: tasks || []
+                });
+            } catch (err) {
+                console.warn('Failed to fetch compliance:', err);
+            }
             setIsLoading(false);
         };
-        fetchData();
-    }, []);
+        fetchCompliance();
+    }, [portalClient]);
 
-    if (isLoading || !client || !sropData) {
-        return <PortalLayout><div className="text-center">Loading your compliance dashboard...</div></PortalLayout>;
-    }
-    
-    const totalCompleted = sropData.phase1.completedHours + sropData.phase2.completedHours;
-    const overallProgress = (totalCompleted / sropData.totalHours) * 100;
+    if (isLoading || !portalClient) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
+
+    const { client, srop, tasks } = complianceData;
 
     return (
         <PortalLayout>
-            <div className="max-w-4xl mx-auto">
-                <Header title="My Compliance Dashboard" subtitle="Track your progress and stay on top of your requirements." />
-                
-                <Card title="SROP 75-Hour Program Progress" className="mb-6">
-                    <div className="space-y-4">
-                        <div>
-                            <div className="flex justify-between items-baseline mb-1">
-                                <h4 className="font-semibold text-on-surface">Overall Progress</h4>
-                                <span className="font-bold text-2xl text-on-surface">{totalCompleted.toFixed(1)}<span className="text-lg font-medium text-on-surface-secondary"> / {sropData.totalHours} hrs</span></span>
-                            </div>
-                            <div className="w-full bg-gray-200/50 dark:bg-slate-700/50 rounded-full h-4 overflow-hidden">
-                                <div className="bg-gradient-to-r from-blue-400 to-purple-500 h-4 rounded-full transition-all duration-500" style={{ width: `${overallProgress}%` }}></div>
-                            </div>
-                        </div>
-                    </div>
-                </Card>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card title="Gamification & Achievements">
-                        <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg">
-                            <span className="font-bold text-amber-800 dark:text-amber-300">Total Points</span>
-                            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{client.gamification.points}</span>
-                        </div>
-                        <div className="mt-4">
-                            <h5 className="font-semibold text-sm mb-2">Badges Earned</h5>
-                            <div className="flex flex-wrap gap-2">
-                                {client.gamification.badges.length > 0 ? client.gamification.badges.map(badge => (
-                                    <span key={badge} className="text-xs font-medium bg-gray-200 dark:bg-slate-700 text-on-surface dark:text-slate-200 px-2.5 py-1 rounded-full flex items-center gap-1.5">
-                                        <TrophyIcon className="w-3 h-3 text-yellow-500" /> {badge}
-                                    </span>
-                                )) : <p className="text-xs text-on-surface-secondary">No badges earned yet.</p>}
-                            </div>
-                        </div>
-                    </Card>
-                    
-                    <Card title="Assigned Tasks">
-                        <ul className="space-y-3">
-                            {assignments.map(task => (
-                                <li key={task.id} className={`p-3 rounded-lg flex items-start gap-3 ${task.isComplete ? 'bg-green-50 dark:bg-green-900/20' : 'bg-surface dark:bg-slate-800/50'}`}>
-                                    <CheckSquareIcon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${task.isComplete ? 'text-green-500' : 'text-on-surface-secondary'}`} />
-                                    <div>
-                                        <p className={`text-sm ${task.isComplete ? 'line-through text-on-surface-secondary' : 'font-medium'}`}>{task.task}</p>
-                                        {!task.isComplete && <p className="text-xs text-on-surface-secondary">Due: {new Date(task.dueDate).toLocaleDateString()}</p>}
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    </Card>
-                </div>
+            <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
+                <Header title="My Progress" subtitle="Track your program requirements and achievements." />
 
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 space-y-8">
+                        <Card title="Program Completion">
+                            <div className="flex items-center justify-between mb-4">
+                                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Overall Progress</p>
+                                <p className="text-4xl font-black text-primary">{client.compliance_score}%</p>
+                            </div>
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-6 overflow-hidden shadow-inner">
+                                <div className="bg-gradient-to-r from-primary via-accent to-indigo-500 h-full transition-all duration-1000" style={{ width: `${client.compliance_score}%` }}></div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mt-8">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SROP Hours</p>
+                                    <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{client.srop_hours_completed || 0} / 75</p>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Days Clean</p>
+                                    <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{client.days_clean || 0}</p>
+                                </div>
+                            </div>
+                        </Card>
+
+                        <Card title="Required Tasks">
+                            <div className="space-y-4">
+                                {tasks.map((task: any) => (
+                                    <div key={task.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all">
+                                        <div className="flex items-center gap-4">
+                                            {task.status === 'completed' ? (
+                                                <CheckCircle2 className="text-green-500 w-6 h-6" />
+                                            ) : (
+                                                <Circle className="text-slate-300 w-6 h-6" />
+                                            )}
+                                            <div>
+                                                <p className={`font-bold ${task.status === 'completed' ? 'text-slate-400 line-through' : 'text-slate-800 dark:text-slate-100'}`}>
+                                                    {task.title}
+                                                </p>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Due: {new Date(task.due_date).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        {task.status !== 'completed' && (
+                                            <button className="text-primary font-black text-xs uppercase tracking-widest hover:underline">Complete</button>
+                                        )}
+                                    </div>
+                                ))}
+                                {tasks.length === 0 && (
+                                    <p className="text-center py-8 text-slate-500 italic">No pending tasks assigned.</p>
+                                )}
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="space-y-8">
+                        <Card className="bg-gradient-to-br from-amber-400 to-orange-500 text-white border-none shadow-xl shadow-amber-500/20">
+                            <div className="flex items-center gap-4">
+                                <Trophy size={48} className="opacity-50" />
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Recovery Points</p>
+                                    <h3 className="text-4xl font-black">1,250</h3>
+                                </div>
+                            </div>
+                            <div className="mt-6 pt-6 border-t border-white/20">
+                                <p className="text-xs font-bold opacity-90">Next Reward: $10 Session Credit</p>
+                                <div className="w-full bg-white/20 rounded-full h-2 mt-2">
+                                    <div className="bg-white h-full rounded-full" style={{ width: '75%' }}></div>
+                                </div>
+                            </div>
+                        </Card>
+
+                        <Card title="Achievements">
+                            <div className="grid grid-cols-3 gap-4">
+                                {[1, 2, 3, 4, 5].map(i => (
+                                    <div key={i} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center group cursor-help relative">
+                                        <Award className={`w-8 h-8 ${i <= 3 ? 'text-primary' : 'text-slate-300'}`} />
+                                        {i > 3 && <div className="absolute inset-0 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Zap size={16} className="text-slate-400" />
+                                        </div>}
+                                    </div>
+                                ))}
+                            </div>
+                        </Card>
+                    </div>
+                </div>
             </div>
         </PortalLayout>
     );

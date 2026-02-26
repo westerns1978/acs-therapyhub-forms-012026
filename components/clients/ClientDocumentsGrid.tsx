@@ -82,21 +82,21 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
         if (!client || !user) return;
         setIsUploading(true);
-        setTransmissionLogs(['UPLINK_STABLE: PDS_VAULT_LEXINGTON']);
+        setTransmissionLogs(['Connecting to storage...']);
 
         for (const file of acceptedFiles) {
             try {
-                setTransmissionLogs(prev => [...prev, `HANDSHAKE: ${file.name}`]);
+                setTransmissionLogs(prev => [...prev, `Uploading: ${file.name}`]);
                 
                 const savedDoc = await saveDocumentFile(
                     { clientId: client.id } as any, 
                     file
                 );
                 
-                setTransmissionLogs(prev => [...prev, `NEURAL_INGESTION_COMPLETE: ${savedDoc.id}`]);
+                setTransmissionLogs(prev => [...prev, `Upload complete: ${savedDoc.id}`]);
                 setDocuments(prev => [savedDoc, ...prev]);
             } catch (error: any) {
-                setTransmissionLogs(prev => [...prev, `TRANSMISSION_FAILURE: ${error.message}`]);
+                setTransmissionLogs(prev => [...prev, `Upload failed: ${error.message}`]);
                 break;
             }
         }
@@ -107,7 +107,14 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
         }, 2000);
     }, [client, user]);
 
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, disabled: isUploading });
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        onDrop,
+        disabled: isUploading,
+        multiple: true, // Assuming multiple files can be dropped
+        onDragEnter: () => {},
+        onDragOver: () => {},
+        onDragLeave: () => {},
+    });
 
     const filteredDocuments = useMemo(() => {
         const docs = documents || [];
@@ -119,10 +126,10 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
         <div className="space-y-6">
             <div className="flex justify-between items-end">
                 <div>
-                    <h3 className="text-2xl font-black tracking-tighter">Neural Vault</h3>
+                    <h3 className="text-2xl font-black tracking-tighter">Documents</h3>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${uplinkStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                        Uplink: {uplinkStatus === 'connected' ? 'PDS LEXINGTON STABLE' : 'OFFLINE'}
+                        Uplink: {uplinkStatus === 'connected' ? 'Database Connected' : 'OFFLINE'}
                     </p>
                 </div>
                 <div className="flex gap-3">
@@ -134,7 +141,7 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
                         <option value="All">All Categories</option>
                         <option value="Intake">Intake</option>
                         <option value="Compliance">Compliance</option>
-                    </option>
+                    </select>
                 </div>
             </div>
 
@@ -163,7 +170,7 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
                             <div className="p-4 bg-[#FFB800]/10 rounded-2xl mb-2 text-[#FFB800]">
                                 <UploadCloud size={32} />
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ingest Document</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Upload Document</span>
                         </>
                     )}
                 </div>

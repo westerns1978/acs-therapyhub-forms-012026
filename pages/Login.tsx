@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
-// Fix: Updated import casing to strictly match 'components/IValtMfaModal.tsx' and resolve ambiguous file name error in TypeScript
+// Fix: Updated import casing to strictly match 'components/iValtMfaModal.tsx' and resolve ambiguous file name error in TypeScript
 import IValtMfaModal from '../components/IValtMfaModal';
 import { Smartphone, Lock, ShieldCheck, Mail, AlertTriangle, Zap, Loader2, UserCheck } from 'lucide-react';
 

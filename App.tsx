@@ -30,6 +30,7 @@ const Financials = lazy(() => import('./pages/Financials'));
 const VideoSessions = lazy(() => import('./pages/VideoSessions'));
 const VideoGreenRoom = lazy(() => import('./pages/VideoGreenRoom'));
 const Resources = lazy(() => import('./pages/Resources')); 
+const DocumentIntelligence = lazy(() => import('./pages/DocumentIntelligence'));
 
 // Admin Pages
 const Reporting = lazy(() => import('./pages/Reporting'));
@@ -44,6 +45,7 @@ const PortalDocuments = lazy(() => import('./pages/portal/PortalDocuments'));
 const PortalBilling = lazy(() => import('./pages/portal/PortalBilling'));
 const PortalSignDocument = lazy(() => import('./pages/portal/PortalSignDocument'));
 const PortalCompliance = lazy(() => import('./pages/portal/PortalCompliance'));
+const PortalFormPage = lazy(() => import('./pages/portal/PortalFormPage'));
 const PortalAppointments = lazy(() => import('./pages/portal/PortalAppointments'));
 const RecoveryPlanForm = lazy(() => import('./pages/portal/RecoveryPlanForm'));
 
@@ -80,6 +82,7 @@ function App() {
                   <Route path="/fee-ledger/:clientId" element={<ProtectedRoute><FeeLedger /></ProtectedRoute>} />
                   <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
+                  <Route path="/document-intelligence" element={<ProtectedRoute><DocumentIntelligence /></ProtectedRoute>} />
                   
                   {/* Admin-only Routes */}
                   <Route path="/reporting" element={<AdminRoute><Reporting /></AdminRoute>} />
@@ -94,6 +97,7 @@ function App() {
                   <Route path="/portal/documents/sign/:docId" element={<PortalSignDocument />} />
                   <Route path="/portal/compliance" element={<PortalCompliance />} />
                   <Route path="/portal/appointments" element={<PortalAppointments />} />
+                  <Route path="/portal/forms/:formId" element={<PortalFormPage />} />
                   <Route path="/portal/recovery-plan" element={<RecoveryPlanForm />} />
                   <Route path="/portal" element={<Navigate to="/portal/dashboard" replace />} />
                 </Routes>

@@ -6,10 +6,37 @@ const ClientLogin: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
+    const demoClients = [
+        { 
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 
+          name: 'Alice Johnson', 
+          email: 'alice@email.com', 
+          program: 'SATOP' 
+        },
+        { 
+          id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 
+          name: 'Bob Smith', 
+          email: 'bob@email.com', 
+          program: 'REACT' 
+        },
+      ];
+      
+      const handleDemoLogin = (client: typeof demoClients[0]) => {
+        sessionStorage.setItem('portal_client', JSON.stringify(client));
+        navigate('/portal/dashboard');
+      };
+
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
-        // Mock login - in a real app, validate against a client user database
         if (email && password) {
+            // For demo: log in as Alice
+            const client = {
+              id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+              name: 'Alice Johnson',
+              email: email,
+              program: 'SATOP'
+            };
+            sessionStorage.setItem('portal_client', JSON.stringify(client));
             navigate('/portal/dashboard');
         }
     };
@@ -63,6 +90,24 @@ const ClientLogin: React.FC = () => {
                         </button>
                     </div>
                 </form>
+
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">
+                        Demo Access
+                    </p>
+                    {demoClients.map(client => (
+                        <button
+                            key={client.id}
+                            onClick={() => handleDemoLogin(client)}
+                            className="w-full text-left px-4 py-3 mb-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all"
+                        >
+                            <div className="font-semibold text-sm">{client.name}</div>
+                            <div className="text-xs text-gray-500">
+                                {client.program} Program
+                            </div>
+                        </button>
+                    ))}
+                </div>
                  <div className="text-center text-sm space-y-2">
                     <Link to="/login" className="block font-medium text-primary hover:text-primary-focus">
                         Are you a counselor? Log in here

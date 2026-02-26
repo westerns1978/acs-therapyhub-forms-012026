@@ -40,7 +40,8 @@ export interface Client {
   folder_link?: string;
 }
 
-// Shared types for all forms
+// ====== FORMS SYSTEM TYPES ======
+
 export type FormErrors<T> = {
   [K in keyof T]?: string;
 };
@@ -52,9 +53,14 @@ export interface FormSectionProps<T> {
 }
 
 export type FieldDefinition = {
-  key: string;
+  id: string;
   label: string;
-  type?: 'boolean' | 'string' | 'date' | 'object' | 'rating';
+  type: 'text' | 'number' | 'textarea' | 'tel' | 'date' | 'rating' | 'boolean' | 'object' | 'email' | 'password';
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  options?: { value: string; label: string }[];
+  required?: boolean;
 };
 
 export type FormDefinition<T> = {
@@ -63,8 +69,8 @@ export type FormDefinition<T> = {
   description: string;
   category: 'Intake' | 'Assessment' | 'Treatment' | 'Legal' | 'Clinical' | 'Testing';
   initialState: T;
-  steps: React.FC<FormSectionProps<T>>[];
-  validateStep: (step: number, data: T) => FormErrors<T>;
+  steps?: React.FC<FormSectionProps<T>>[];
+  validateStep: (data: T) => FormErrors<T>;
   fieldDefinitions: FieldDefinition[];
   successScreen?: {
     googleReview?: boolean;
@@ -77,6 +83,9 @@ export type FormDefinition<T> = {
 };
 
 // --- Form Data Interfaces ---
+
+export type FormCategory = 'Intake' | 'Assessment' | 'Treatment' | 'Legal' | 'Clinical' | 'Testing';
+export type FormField = FieldDefinition;
 
 export interface RecoveryPlanData {
   clientName: string;
@@ -193,20 +202,20 @@ export interface DischargeSummaryData {
 export interface TelehealthFeedbackData {
   clientName: string;
   clientEmail: string;
-  phoneClarity: number | null;
-  phoneResponsiveness: number | null;
-  phoneHelpfulness: number | null;
-  assessmentConvenience: number | null;
-  assessmentCommunication: number | null;
-  assessmentConnection: number | null;
-  groupConvenience: number | null;
-  groupParticipation: number | null;
-  groupHelpfulness: number | null;
-  groupTechnology: number | null;
-  oneOnOneConvenience: number | null;
-  oneOnOneConnection: number | null;
-  oneOnOneListening: number | null;
-  oneOnOneHelpfulness: number | null;
+  phoneClarity: number;
+  phoneResponsiveness: number;
+  phoneHelpfulness: number;
+  assessmentConvenience: number;
+  assessmentCommunication: number;
+  assessmentConnection: number;
+  groupConvenience: number;
+  groupParticipation: number;
+  groupHelpfulness: number;
+  groupTechnology: number;
+  oneOnOneConvenience: number;
+  oneOnOneConnection: number;
+  oneOnOneListening: number;
+  oneOnOneHelpfulness: number;
   feltRespected: boolean | null;
   wouldRecommend: boolean | null;
   likelyToRefer: boolean | null;

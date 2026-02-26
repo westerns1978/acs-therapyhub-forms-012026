@@ -46,14 +46,22 @@ export const RECOVERY_PLAN_DEFINITION: FormDefinition<RecoveryPlanData> = {
   description: 'A comprehensive plan for maintaining long-term sobriety and wellness.',
   category: 'Treatment',
   initialState,
-  steps: [Section1, Section2],
-  validateStep: (step, data) => {
+  validateStep: (data) => {
+
     const errs: FormErrors<RecoveryPlanData> = {};
-    if (step === 1 && !data.clientName) errs.clientName = 'Required.';
+    if (!data.clientName) errs.clientName = 'Required.';
+    if (data.remainSober === null) errs.remainSober = 'Required.';
+    if (!data.problemsToAddress) errs.problemsToAddress = 'Required.';
+    if (!data.relapsePreventionSteps) errs.relapsePreventionSteps = 'Required.';
+    if (!data.whoSupportsRecovery) errs.whoSupportsRecovery = 'Required.';
+
     return errs;
   },
   fieldDefinitions: [
-    { key: 'clientName', label: 'Client Name' },
-    { key: 'remainSober', label: 'Sober Intent', type: 'boolean' }
+    { id: 'clientName', label: 'Client Name', type: 'text', required: true },
+    { id: 'remainSober', label: 'Do you intend to remain sober?', type: 'boolean', required: true },
+    { id: 'problemsToAddress', label: 'What problems do you need to address?', type: 'textarea', required: true },
+    { id: 'relapsePreventionSteps', label: 'What steps will you take to prevent relapse?', type: 'textarea', required: true },
+    { id: 'whoSupportsRecovery', label: 'Who supports your recovery?', type: 'textarea', required: true }
   ]
 };

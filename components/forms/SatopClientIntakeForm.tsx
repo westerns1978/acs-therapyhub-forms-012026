@@ -76,7 +76,7 @@ const SatopIntakeSection: React.FC<FormSectionProps<SatopClientIntakeData>> = ({
 
 export const SATOP_INTAKE_DEFINITION: FormDefinition<SatopClientIntakeData> = {
   id: 'satop-intake',
-  title: 'SATOP Client Intake Protocol',
+  title: 'SATOP Client Intake',
   description: 'Primary intake document for all SATOP Recidivism Reduction Programs. Mandatory for Level IV certification.',
   category: 'Intake',
   tags: ['Required', 'SATOP'],
@@ -85,8 +85,8 @@ export const SATOP_INTAKE_DEFINITION: FormDefinition<SatopClientIntakeData> = {
   isNew: true,
   isRecommended: true,
   initialState,
-  steps: [SatopIntakeSection],
-  validateStep: (step, data) => {
+  validateStep: (data) => {
+
     const errs: FormErrors<SatopClientIntakeData> = {};
     if (!data.clientName) errs.clientName = 'Mandatory field missing.';
     if (!data.clientEmail) errs.clientEmail = 'Mandatory field missing.';
@@ -95,10 +95,16 @@ export const SATOP_INTAKE_DEFINITION: FormDefinition<SatopClientIntakeData> = {
     return errs;
   },
   fieldDefinitions: [
-    { key: 'dob', label: "Date of Birth", type: 'date' },
-    { key: 'clientPhone', label: "Mobile" },
-    { key: 'caseNumber', label: "Case ID" },
-    { key: 'programType', label: "Classification" },
-    { key: 'previousSatop', label: "Prior Record", type: 'boolean' }
+    { id: 'clientName', label: 'Client Full Name', type: 'text', required: true },
+    { id: 'dob', label: 'Date of Birth', type: 'date', required: true },
+    { id: 'clientPhone', label: 'Uplink Mobile', type: 'tel', required: true },
+    { id: 'clientEmail', label: 'Secure Email', type: 'email', required: true },
+    { id: 'caseNumber', label: 'Court Case Number', type: 'text', required: true },
+    { id: 'offenseDate', label: 'Offense Date', type: 'date', required: true },
+    { id: 'convictionDate', label: 'Conviction Date', type: 'date', required: true },
+    { id: 'programType', label: 'Program Classification', type: 'text', required: true, options: [{ value: '12-week', label: '12-Week Track' }, { value: '16-week', label: '16-Week Track' }] },
+    { id: 'referralSource', label: 'Referral Source', type: 'text', required: false },
+    { id: 'previousSatop', label: 'Previous SATOP Protocol Commitments', type: 'boolean', required: true },
+    { id: 'paymentMethod', label: 'Fiscal Ledger Category', type: 'text', required: true }
   ]
 };

@@ -5,83 +5,111 @@ import { useNavigate } from 'react-router-dom';
 import PortalLayout from '../../layouts/PortalLayout';
 import Header from '../../components/ui/Header';
 import Card from '../../components/ui/Card';
-// Fix: Correctly import getClientDocuments from the services API.
-import { getClientDocuments, getClient } from '../../services/api';
-import { ClientDocument, Client } from '../../types';
+import { supabase } from '../../services/supabase';
+import { usePortalClient } from '../../hooks/usePortalClient';
 
-const EditIcon = (props: React.ComponentProps<'svg'>) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const CheckCircleIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
-
+// Form definitions for the client-facing forms
+const CLIENT_FORMS = [
+  { id: 'consent-treatment', name: 'Consent for Treatment', 
+    category: 'Legal', description: 'Authorization for program participation' },
+  { id: 'emergency-contact', name: 'Emergency Contact Form', 
+    category: 'Intake', description: 'Emergency contact information' },
+  { id: 'recovery-plan', name: 'Continuing Recovery Plan', 
+    category: 'Treatment', description: 'Your personal recovery plan' },
+  { id: 'telehealth-feedback', name: 'Telehealth Session Feedback', 
+    category: 'Clinical', description: 'Rate your telehealth experience' },
+];
 
 const PortalDocuments: React.FC = () => {
-    const [client, setClient] = useState<Client | null>(null);
-    const [documents, setDocuments] = useState<ClientDocument[]>([]);
+    const portalClient = usePortalClient();
+    const [submissions, setSubmissions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const navigate = useNavigate();
 
     useEffect(() => {
+        if (!portalClient) return;
         const fetchData = async () => {
             setIsLoading(true);
-            const [clientData, docsData] = await Promise.all([
-                getClient('1'),
-                getClientDocuments('1')
-            ]);
-            setClient(clientData);
-            setDocuments(docsData);
+            try {
+                const { data } = await supabase
+                    .from('form_submissions')
+                    .select('*')
+                    .eq('client_id', portalClient.id)
+                    .order('created_at', { ascending: false });
+                setSubmissions(data || []);
+            } catch (err) {
+                console.warn('Failed to load documents:', err);
+            }
             setIsLoading(false);
         };
         fetchData();
-    }, []);
+    }, [portalClient]);
 
-    if (isLoading || !client) {
-        return <PortalLayout><div className="text-center">Loading documents...</div></PortalLayout>;
+    if (isLoading || !portalClient) {
+        return <PortalLayout><div className="text-center p-12">Loading documents...</div></PortalLayout>;
     }
 
     return (
         <PortalLayout>
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto space-y-8">
                 <Header title="My Documents" subtitle="Please review and sign any pending documents." />
                 
-                <Card noPadding>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-border">
-                            <thead className="bg-surface">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-on-surface-secondary uppercase">Document Title</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-on-surface-secondary uppercase">Status</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-on-surface-secondary uppercase">Last Updated</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-on-surface-secondary uppercase">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-background divide-y divide-border">
-                                {documents.map(doc => (
-                                    <tr key={doc.id}>
-                                        <td className="px-6 py-4 font-medium">{doc.title}</td>
-                                        <td className="px-6 py-4">
-                                            {doc.status === 'Pending Signature' ? (
-                                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
-                                            ) : (
-                                                 <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 flex items-center gap-1 w-fit">
-                                                    <CheckCircleIcon className="w-4 h-4" /> Completed
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">{doc.lastModified}</td>
-                                        <td className="px-6 py-4 text-right">
-                                            {doc.status === 'Pending Signature' && (
-                                                <button 
-                                                    onClick={() => navigate(`/portal/documents/sign/${doc.id}`)}
-                                                    className="flex items-center gap-2 bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-focus transition text-sm font-semibold ml-auto"
-                                                >
-                                                    <EditIcon className="w-4 h-4" />
-                                                    Sign Now
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                {/* Pending / Available Forms */}
+                <Card title="Forms to Complete">
+                    <div className="space-y-3">
+                        {CLIENT_FORMS.filter(form => 
+                            !submissions.some(s => 
+                                s.form_name === form.name && s.status === 'completed'
+                            )
+                        ).map(form => (
+                            <div key={form.id} 
+                                className="flex items-center justify-between p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl">
+                                <div>
+                                    <h4 className="font-bold text-amber-900 dark:text-amber-100">{form.name}</h4>
+                                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                                        {form.description}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => navigate(`/portal/forms/${form.id}`)}
+                                    className="px-4 py-2 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-primary-focus transition"
+                                >
+                                    Start Form
+                                </button>
+                            </div>
+                        ))}
+                        {CLIENT_FORMS.filter(form => 
+                            !submissions.some(s => 
+                                s.form_name === form.name && s.status === 'completed'
+                            )
+                        ).length === 0 && (
+                            <p className="text-sm text-slate-500 text-center py-4">No pending forms to complete.</p>
+                        )}
+                    </div>
+                </Card>
+
+                {/* Completed Submissions */}
+                <Card title="Completed Forms">
+                    <div className="space-y-3">
+                        {submissions.filter(s => s.status === 'completed')
+                            .map(sub => (
+                            <div key={sub.id} 
+                                className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl">
+                                <div>
+                                    <h4 className="font-bold text-green-900 dark:text-green-100">{sub.form_name}</h4>
+                                    <p className="text-xs text-green-700 dark:text-green-300">
+                                        Submitted {new Date(sub.submitted_at).toLocaleDateString()}
+                                    </p>
+                                </div>
+                                <span className="text-green-600 dark:text-green-400 text-sm font-bold flex items-center gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                    Completed
+                                </span>
+                            </div>
+                        ))}
+                        {submissions.filter(s => s.status === 'completed').length === 0 && (
+                            <p className="text-sm text-slate-500 text-center py-4">No completed forms yet.</p>
+                        )}
                     </div>
                 </Card>
             </div>

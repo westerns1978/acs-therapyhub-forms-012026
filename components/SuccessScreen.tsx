@@ -23,14 +23,14 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ formData, formDefi
          <ShieldCheck className="w-12 h-12 text-emerald-600 dark:text-emerald-400" />
       </div>
 
-      <h2 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white">Neural Handshake Complete</h2>
+      <h2 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white">Form Submitted</h2>
       <p className="mt-4 text-slate-500 font-medium max-w-md mx-auto leading-relaxed">
-        Your protocol <strong>{formDefinition.title}</strong> has been successfully transmitted and encrypted in the ACS Therapy Vault.
+        Your form <strong>{formDefinition.title}</strong> has been successfully saved in the ACS Documents.
       </p>
 
       <div className="mt-10 p-6 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800 text-left space-y-4 max-w-lg mx-auto">
         <div className="flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Protocol ID</span>
+            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Form ID</span>
             <code className="bg-white dark:bg-slate-800 px-3 py-1 rounded-lg font-mono text-xs text-primary font-bold">{submissionId}</code>
         </div>
         <div className="flex items-center gap-3 p-3 bg-blue-500/5 border border-blue-500/10 rounded-2xl">

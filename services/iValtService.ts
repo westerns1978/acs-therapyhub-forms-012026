@@ -68,28 +68,28 @@ class IValtService {
       }
 
       try {
-        const { data, status } = await supabase.functions.invoke('ivalt-auth', {
+        const response = await supabase.functions.invoke('ivalt-auth', {
           body: { action: 'validate', mobile: cleanMobile, request_id: requestId },
         });
 
         // TERMINAL SUCCESS (Priority 1)
-        if (data?.status === 'success' || status === 200) {
+        if (response.data?.status === 'success' || (response as any).status === 200) {
           callback({ step: 7, message: 'Access Approved', status: 'success', request_id: requestId });
           return;
         }
 
         // TERMINAL FAILURE (Priority 2)
-        if (data?.status === 'error' || (status >= 400 && status !== 403)) {
-          callback({ step: 0, message: data?.message || 'Verification Failed', status: 'error', request_id: requestId });
+        if (response.data?.status === 'error' || ((response as any).status >= 400 && (response as any).status !== 403)) {
+          callback({ step: 0, message: response.data?.message || 'Verification Failed', status: 'error', request_id: requestId });
           return;
         }
 
         // PENDING STATE (Priority 3)
         // 403 often indicates device push is successful but biometric scan is pending
-        const currentStep = status === 403 ? 5 : 3;
+        const currentStep = (response as any).status === 403 ? 5 : 3;
         callback({ 
           step: currentStep, 
-          message: data?.message || 'Awaiting mobile biometric...', 
+          message: response.data?.message || 'Awaiting mobile biometric...', 
           status: 'pending', 
           request_id: requestId 
         });

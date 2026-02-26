@@ -57,10 +57,10 @@ export const FormDetailModal: React.FC<FormDetailModalProps> = ({ form, onClose 
             <div className="mt-10 p-6 bg-slate-50 dark:bg-slate-950 rounded-3xl border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-3 mb-3">
                     <Zap size={16} className="text-primary fill-primary" />
-                    <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Protocol Eligibility</h3>
+                    <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Form Eligibility</h3>
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-                    This protocol is typically dispatched during the <strong>{form.category.toLowerCase()}</strong> phase of the client's clinical journey. Requires verified staff credentials for commitment.
+                    This form is typically used during the <strong>{form.category.toLowerCase()}</strong> phase of the client's clinical journey. Requires verified staff credentials for submission.
                 </p>
             </div>
           </div>

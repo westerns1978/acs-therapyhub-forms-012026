@@ -1,78 +1,116 @@
-
-
 import React, { useState, useEffect } from 'react';
 import PortalLayout from '../../layouts/PortalLayout';
 import Header from '../../components/ui/Header';
 import Card from '../../components/ui/Card';
-// Fix: Correctly import getClientAppointments
-import { getClient, getClientAppointments } from '../../services/api';
-import { Client, Appointment } from '../../types';
-
-const VideoIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>;
+import { supabase } from '../../services/supabase';
+import { usePortalClient } from '../../hooks/usePortalClient';
+import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { Calendar, Clock, MapPin, Video, ChevronRight, Plus } from 'lucide-react';
 
 const PortalAppointments: React.FC = () => {
-    const [client, setClient] = useState<Client | null>(null);
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const portalClient = usePortalClient();
+    const [appointments, setAppointments] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchData = async () => {
+        if (!portalClient) return;
+        const fetchAppointments = async () => {
             setIsLoading(true);
-            const clientId = '1'; // Hardcoded for demo
-            const [clientData, aptsData] = await Promise.all([
-                getClient(clientId),
-                getClientAppointments(clientId)
-            ]);
-            setClient(clientData);
-            setAppointments(aptsData.map(a => ({ ...a, date: new Date(a.date) })));
+            try {
+                const { data } = await supabase
+                    .from('appointments')
+                    .select('*')
+                    .eq('client_id', portalClient.id)
+                    .order('start_time', { ascending: true });
+                setAppointments(data || []);
+            } catch (err) {
+                console.warn('Failed to fetch appointments:', err);
+            }
             setIsLoading(false);
         };
-        fetchData();
-    }, []);
+        fetchAppointments();
+    }, [portalClient]);
 
-    if (isLoading || !client) {
-        return <PortalLayout><div className="text-center">Loading your appointments...</div></PortalLayout>;
-    }
-    
-    const sortedAppointments = appointments.sort((a,b) => a.date.getTime() - b.date.getTime());
+    if (isLoading || !portalClient) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
+
+    const upcoming = appointments.filter(a => new Date(a.start_time) >= new Date());
+    const past = appointments.filter(a => new Date(a.start_time) < new Date());
 
     return (
         <PortalLayout>
-            <div className="max-w-4xl mx-auto">
-                <Header title="My Appointments" subtitle="Here is your schedule of upcoming sessions." />
-                
-                <Card>
-                    {sortedAppointments.length > 0 ? (
-                        <ul className="space-y-4">
-                            {sortedAppointments.map(apt => (
-                                <li key={apt.id} className="p-4 bg-surface dark:bg-slate-800/50 rounded-lg flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-center bg-gray-100 dark:bg-slate-700 p-2 rounded-md w-16 flex-shrink-0">
-                                            <p className="text-xs font-bold text-primary uppercase">{apt.date.toLocaleString('default', { month: 'short' })}</p>
-                                            <p className="text-2xl font-bold">{apt.date.getDate()}</p>
+            <div className="max-w-4xl mx-auto space-y-8 animate-fade-in-up">
+                <div className="flex justify-between items-center">
+                    <Header title="Appointments" subtitle="Manage your upcoming sessions and view history." />
+                    <button className="bg-primary text-white px-5 py-2.5 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all flex items-center gap-2">
+                        <Plus size={18} /> Request New Session
+                    </button>
+                </div>
+
+                <div className="space-y-6">
+                    <h3 className="text-xl font-black tracking-tight flex items-center gap-2">
+                        <Clock className="text-primary" /> Upcoming Sessions
+                    </h3>
+                    <div className="grid gap-4">
+                        {upcoming.map(appt => (
+                            <Card key={appt.id} className="hover:shadow-xl transition-all group">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div className="flex items-start gap-4">
+                                        <div className="p-3 bg-primary/10 rounded-2xl">
+                                            <Calendar className="w-6 h-6 text-primary" />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-xl">{apt.title}</h3>
-                                            <p className="text-sm text-on-surface-secondary">{apt.startTime} - {apt.endTime}</p>
-                                            <p className="text-xs text-on-surface-secondary">Facilitator: {apt.therapist}</p>
+                                            <h4 className="text-lg font-black">{appt.appointment_type}</h4>
+                                            <p className="text-sm text-slate-500 font-medium">
+                                                {new Date(appt.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                                            </p>
+                                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                                {new Date(appt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(appt.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
                                         </div>
                                     </div>
-                                    <a 
-                                        href={apt.zoomLink} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition font-semibold"
-                                    >
-                                        <VideoIcon className="w-5 h-5"/>
-                                        Join Session
-                                    </a>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="text-center text-on-surface-secondary py-8">You have no upcoming appointments scheduled.</p>
-                    )}
-                </Card>
+                                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                                        {appt.location === 'Telehealth' ? (
+                                            <button className="flex-1 sm:flex-none px-6 py-2.5 bg-accent text-white rounded-xl font-black text-xs shadow-lg shadow-accent/20 hover:scale-105 transition-all flex items-center justify-center gap-2">
+                                                <Video size={16} /> JOIN VIRTUAL ROOM
+                                            </button>
+                                        ) : (
+                                            <div className="flex items-center gap-2 text-slate-500 text-sm font-bold">
+                                                <MapPin size={16} /> {appt.location || 'In-Person'}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+                        {upcoming.length === 0 && (
+                            <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                                <p className="text-slate-500 font-medium">No upcoming sessions scheduled.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <h3 className="text-xl font-black tracking-tight text-slate-400">Past Sessions</h3>
+                    <div className="grid gap-3">
+                        {past.map(appt => (
+                            <div key={appt.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 opacity-60 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                                        <Calendar className="w-5 h-5 text-slate-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold">{appt.appointment_type}</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase">{new Date(appt.start_time).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
+                                    Completed
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
         </PortalLayout>
     );

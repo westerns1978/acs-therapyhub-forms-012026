@@ -292,10 +292,11 @@ export const generateRelapseRiskPrediction = async (client: Client, history: any
  * MILESTONE VIDEO GENERATION: Veo-3.1 Milestone celebrations.
  */
 export const generateMilestoneCelebration = async (clientName: string, milestone: string) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+    // Fix: Moved key selection check and dialog BEFORE creating the GoogleGenAI instance to ensure the latest API key is used.
     if (!(await (window as any).aistudio.hasSelectedApiKey())) {
         await (window as any).aistudio.openSelectKey();
     }
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
     
     let operation = await ai.models.generateVideos({
         model: 'veo-3.1-fast-generate-preview',

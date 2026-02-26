@@ -48,7 +48,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({ childr
 export const useNotification = (): Omit<NotificationContextType, 'notifications' | 'removeNotification'> => {
   const context = useContext(NotificationContext);
   if (!context) {
-    throw new Error('useNotification must be used within a NotificationProvider');
+    return { addNotification: () => {} };
   }
   return { addNotification: context.addNotification };
 };
@@ -56,7 +56,7 @@ export const useNotification = (): Omit<NotificationContextType, 'notifications'
 export const useNotificationState = () => {
     const context = useContext(NotificationContext);
     if (!context) {
-        throw new Error('useNotificationState must be used within a NotificationProvider');
+        return { notifications: [], removeNotification: () => {} };
     }
     return { notifications: context.notifications, removeNotification: context.removeNotification };
 }
