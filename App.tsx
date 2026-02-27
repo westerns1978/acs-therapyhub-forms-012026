@@ -1,4 +1,3 @@
-
 import React, { lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 
@@ -48,7 +47,7 @@ const PortalCompliance = lazy(() => import('./pages/portal/PortalCompliance'));
 const PortalFormPage = lazy(() => import('./pages/portal/PortalFormPage'));
 const PortalAppointments = lazy(() => import('./pages/portal/PortalAppointments'));
 const RecoveryPlanForm = lazy(() => import('./pages/portal/RecoveryPlanForm'));
-
+const WebsitePortalBridge = lazy(() => import('./pages/WebsitePortalBridge'));
 
 function App() {
   return (
@@ -63,11 +62,13 @@ function App() {
                   {/* Public & Login Routes */}
                   <Route path="/login" element={<Login />} />
                   <Route path="/portal/login" element={<ClientLogin />} />
-
+                  <Route path="/website" element={<WebsitePortalBridge />} />
                   <Route path="/visitor-resources" element={<PortalLayout><Resources /></PortalLayout>} />
 
+                  {/* Public Landing Page */}
+                  <Route path="/" element={<WebsitePortalBridge />} />
+
                   {/* Counselor-facing App */}
-                  <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/clients" element={<ProtectedRoute><ClientWorkspace /></ProtectedRoute>} />
                   <Route path="/clients/:clientId" element={<ProtectedRoute><ClientWorkspace /></ProtectedRoute>} />

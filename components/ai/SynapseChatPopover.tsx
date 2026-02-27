@@ -3,8 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, Tool } from '@google/genai';
 import { ChatMessage } from '../../types';
 import { callMcpOrchestrator } from '../../services/api';
-import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink } from 'lucide-react';
+import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink, Heart } from 'lucide-react';
 import VisualAuditPanel from './VisualAuditPanel';
+
+// ============================================================
+// IMPORTANT: Replace this with your actual Gemini API key
+// Get it from: https://aistudio.google.com/apikey
+// ============================================================
+const GEMINI_API_KEY = 'PASTE_YOUR_API_KEY_HERE';
 
 // --- Audio Utility Functions ---
 function encode(bytes: Uint8Array) {
@@ -90,7 +96,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         setMessages([
             { role: 'model', parts: [{ text: mode === 'staff' 
                 ? "ACS TherapyHub Orchestrator Online. Connected to PDS-LEXINGTON. I'm utilizing Gemini 2.5 Native Audio for real-time clinical auditing. How can I assist with your caseload today?" 
-                : "Hello, I'm GeMyndFlow Recovery Guide. I'm here to support your path with real-time empathetic guidance. How are you feeling today?" }] }
+                : "Hi there! I'm Clara, your personal recovery assistant. I'm here to help you with questions about your program, appointments, forms, or anything else you need. How can I help you today?" }] }
         ]);
     }, [mode]);
 
@@ -112,7 +118,12 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         ? `You are ACS TherapyHub Superintendent. You are a highly advanced, real-time clinical AI. 
            Be concise, professional, and objective. Address user as Lead Technician.
            Firmly adhere to the Infrastructure of Trust. You can navigate the UI and check MCP records.`
-        : "You are GeMyndFlow Recovery Guide. Empathetic, supportive, non-judgmental.";
+        : `You are Clara, a warm and supportive recovery assistant for clients at Assessment & Counseling Solutions (ACS) in St. Louis, Missouri.
+           You help clients with questions about their SATOP program, REACT program, DWI Court requirements, appointment scheduling, form completion, payment information, and general recovery support.
+           Be empathetic, encouraging, and use simple language. Never use clinical jargon or technical terms.
+           If someone seems distressed, gently encourage them to reach out to their counselor or call the office at 314-849-2800.
+           You can help navigate them to different pages in the portal like their forms, appointments, billing, or progress tracking.
+           Always be positive and remind them that completing their program is achievable.`;
 
     const handleTextSend = async () => {
         if (!input.trim() || loading) return;
@@ -121,9 +132,9 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         setInput(''); setLoading(true); setGroundingLinks([]);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
             const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
+                model: 'gemini-2.5-flash',
                 contents: userMsgText,
                 config: { systemInstruction: SYSTEM_INSTRUCTION, tools: getTools() }
             });
@@ -135,11 +146,11 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
             const functionCalls = response.functionCalls || [];
             if (functionCalls.length > 0) {
                  for (const fc of functionCalls) {
-                     setToolUseState(`Orchestrating ${fc.name}...`);
+                     setToolUseState(mode === 'staff' ? `Orchestrating ${fc.name}...` : `Looking that up for you...`);
                      if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
                      else {
                         const mcpResult = await callMcpOrchestrator(fc.name, fc.args);
-                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: `[MCP TRANSMISSION]: ${JSON.stringify(mcpResult)}`}] }]);
+                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' ? `[MCP TRANSMISSION]: ${JSON.stringify(mcpResult)}` : `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
                      }
                  }
                  setToolUseState(null);
@@ -147,7 +158,9 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                 setMessages(prev => [...prev, { role: 'model', parts: [{ text: response.text }] }]);
             }
         } catch(error) {
-            setMessages(prev => [...prev, { role: 'model', parts: [{ text: "Communication disruption. Verify API uplink."}] }]);
+            setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' 
+                ? "Communication disruption. Verify API uplink." 
+                : "I'm sorry, I'm having trouble connecting right now. Please try again in a moment, or call our office at 314-849-2800 for immediate help."}] }]);
         } finally {
             setLoading(false);
         }
@@ -157,7 +170,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: withVision });
             audioRefs.current.stream = stream;
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
             sessionPromiseRef.current = ai.live.connect({
                 model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -280,18 +293,37 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
     if (!isOpen) return null;
     
+    // --- Mode-dependent UI text ---
+    const headerTitle = mode === 'staff' 
+        ? <h3 className="font-black text-sm tracking-tighter">THERAPYHUB <span className="text-primary tracking-widest text-[9px]">SUPERINTENDENT</span></h3>
+        : <h3 className="font-black text-sm tracking-tighter">Clara <span className="text-indigo-500 tracking-widest text-[9px]">RECOVERY ASSISTANT</span></h3>;
+    
+    const headerStatus = mode === 'staff'
+        ? (isVisionMode ? 'VISUAL AUDIT ACTIVE' : 'NATIVE AUDIO READY')
+        : (isVisionMode ? 'VIDEO ACTIVE' : 'ONLINE');
+
+    const headerIcon = mode === 'staff' 
+        ? <ShieldCheck className="text-primary w-6 h-6" />
+        : <Heart className="text-indigo-500 w-6 h-6" />;
+
+    const headerIconBg = mode === 'staff' ? 'bg-primary/10' : 'bg-indigo-500/10';
+
+    const placeholderText = mode === 'staff' ? 'Dispatch practice command...' : 'Ask Clara a question...';
+    
+    const groundingLabel = mode === 'staff' ? 'Operational Grounding:' : 'Helpful Resources:';
+
     return (
         <div className="fixed bottom-28 right-8 w-full max-w-sm h-[70vh] flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/20 dark:border-slate-800 rounded-[2.5rem] shadow-2xl z-50 animate-fade-in-up overflow-hidden ring-1 ring-black/5">
-            <header className="flex items-center justify-between p-6 bg-gradient-to-br from-primary/10 to-transparent border-b border-border dark:border-slate-800">
+            <header className={`flex items-center justify-between p-6 ${mode === 'staff' ? 'bg-gradient-to-br from-primary/10 to-transparent' : 'bg-gradient-to-br from-indigo-500/10 to-transparent'} border-b border-border dark:border-slate-800`}>
                 <div className="flex items-center gap-4">
-                    <div className="bg-primary/10 p-2.5 rounded-2xl">
-                        <ShieldCheck className="text-primary w-6 h-6" />
+                    <div className={`${headerIconBg} p-2.5 rounded-2xl`}>
+                        {headerIcon}
                     </div>
                     <div>
-                        <h3 className="font-black text-sm tracking-tighter">THERAPYHUB <span className="text-primary tracking-widest text-[9px]">SUPERINTENDENT</span></h3>
+                        {headerTitle}
                         <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5 mt-0.5">
                             <span className={`w-1.5 h-1.5 ${isVisionMode ? 'bg-red-500' : 'bg-green-500'} rounded-full animate-pulse`}></span> 
-                            {isVisionMode ? 'VISUAL AUDIT ACTIVE' : 'NATIVE AUDIO READY'}
+                            {headerStatus}
                         </p>
                     </div>
                 </div>
@@ -309,7 +341,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
                 {messages.map((msg, index) => (
                     <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-relaxed shadow-sm transition-all ${msg.role === 'user' ? 'bg-primary text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-tl-none text-slate-800 dark:text-slate-200'}`}>
+                        <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-relaxed shadow-sm transition-all ${msg.role === 'user' ? `${mode === 'staff' ? 'bg-primary' : 'bg-indigo-500'} text-white rounded-tr-none` : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-tl-none text-slate-800 dark:text-slate-200'}`}>
                             {msg.parts.map((part, i) => 'text' in part ? <div key={i} className="whitespace-pre-wrap">{part.text}</div> : null)}
                         </div>
                     </div>
@@ -317,7 +349,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                 
                 {groundingLinks.length > 0 && (
                     <div className="space-y-2 animate-fade-in-up mt-4">
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Operational Grounding:</p>
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">{groundingLabel}</p>
                          <div className="grid gap-2">
                              {groundingLinks.map((chunk, i) => (chunk.web || chunk.maps) && (
                                  <a key={i} href={chunk.web?.uri || chunk.maps?.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl hover:border-primary/30 transition-all shadow-sm group">
@@ -342,11 +374,11 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                     </div>
                 ) : (
                     <div className="relative group">
-                        <input type="text" placeholder="Dispatch practice command..." value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleTextSend()} disabled={loading} className="w-full pr-24 pl-6 py-5 border-none bg-white dark:bg-slate-800 rounded-3xl shadow-xl focus:ring-2 focus:ring-primary/20 text-sm font-medium transition-all group-focus-within:shadow-2xl ring-1 ring-black/5" />
+                        <input type="text" placeholder={placeholderText} value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleTextSend()} disabled={loading} className="w-full pr-24 pl-6 py-5 border-none bg-white dark:bg-slate-800 rounded-3xl shadow-xl focus:ring-2 focus:ring-primary/20 text-sm font-medium transition-all group-focus-within:shadow-2xl ring-1 ring-black/5" />
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                            <button onClick={() => setIsVisionMode(true)} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-2xl transition-all" title="Toggle Visual Audit"><Camera size={20} /></button>
+                            {mode === 'staff' && <button onClick={() => setIsVisionMode(true)} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-2xl transition-all" title="Toggle Visual Audit"><Camera size={20} /></button>}
                             <button onClick={() => setIsVoiceMode(true)} className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-2xl transition-all" title="Toggle Voice Mode"><Mic size={20} /></button>
-                            <button onClick={handleTextSend} disabled={loading || !input.trim()} className="bg-primary text-white p-3 rounded-2xl hover:bg-primary-focus transition-all disabled:opacity-50 shadow-lg shadow-primary/20 active:scale-95"><Send size={18} /></button>
+                            <button onClick={handleTextSend} disabled={loading || !input.trim()} className={`${mode === 'staff' ? 'bg-primary shadow-primary/20' : 'bg-indigo-500 shadow-indigo-500/20'} text-white p-3 rounded-2xl hover:opacity-90 transition-all disabled:opacity-50 shadow-lg active:scale-95`}><Send size={18} /></button>
                         </div>
                     </div>
                 )}
