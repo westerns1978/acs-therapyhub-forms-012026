@@ -28,7 +28,7 @@ export const storageService = {
       contents: {
         parts: [
           { inlineData: { mimeType: file.type, data: base64Data } },
-          { text: "Extract Document DNA. Return JSON exactly: {title, summary, tags: []}. Focus on clinical/legal relevance." }
+          { text: "Extract Document DNA. Return JSON exactly: {title, summary, tags: [], isSigned: boolean}. Focus on clinical/legal relevance. Verify if the signature area is actually signed." }
         ]
       },
       config: {
@@ -38,7 +38,8 @@ export const storageService = {
           properties: {
             title: { type: Type.STRING },
             summary: { type: Type.STRING },
-            tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+            tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+            isSigned: { type: Type.BOOLEAN, description: "True if a handwritten signature is detected on the document." }
           }
         }
       }
@@ -82,6 +83,7 @@ export const storageService = {
             clientId,
             summary: dna.summary,
             tags: dna.tags,
+            isSigned: dna.isSigned,
             vault_version: '3.0'
         }
       })

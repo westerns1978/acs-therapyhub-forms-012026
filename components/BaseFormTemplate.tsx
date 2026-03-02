@@ -145,7 +145,7 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                 </button>
             </header>
             <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-3xl border border-white/20 dark:border-slate-800 rounded-[3.5rem] p-8 sm:p-16 shadow-2xl relative overflow-hidden print:bg-transparent print:shadow-none print:border-none print:p-0">
-                <ProgressBar progress={progress} />
+                <ProgressBar progress={progress} step={1} totalSteps={1} />
                 <div className="absolute top-8 right-16 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Form Progress</div>
                 
                 <div className="mt-16 relative min-h-[400px] space-y-6">

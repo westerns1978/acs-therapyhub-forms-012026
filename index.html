@@ -2,19 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src *;">
     <title>ACS TherapyHub</title>
     <meta name="theme-color" content="#8B1E24" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="TherapyHub">
+    <meta name="description" content="Assessment & Counseling Solutions - Client Portal & Clinical Platform">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg">
     <script>
-      // PROACTIVE KILL-SWITCH: Unregister any existing service workers immediately
+      // Register service worker for PWA
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister().then(function(success) {
-              if (success) console.log('Service Worker unregistered successfully.');
-            });
-          }
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
         });
       }
     </script>
@@ -96,29 +98,10 @@
         },
       }
     </script>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.8.2",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.16.0",
-    "react-dropzone": "https://aistudiocdn.com/react-dropzone@^14.3.8",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.542.0",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2",
-    "uuid": "https://esm.sh/uuid@9",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "framer-motion": "https://esm.sh/framer-motion@^12.27.0"
-  }
-}
-</script>
 <link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-background text-surface-content dark:bg-dark-background dark:text-dark-surface-content transition-colors duration-500 ease-in-out text-base leading-normal font-sans antialiased selection:bg-primary/20">
     <div id="root"></div>
     <script type="module" crossorigin src="/index.tsx"></script>
-  <script type="module" src="/index.tsx"></script>
-</body>
+  </body>
 </html>

@@ -367,8 +367,8 @@ export default function DocumentIntelligence() {
   const [error, setError] = useState<string | null>(null);
   
   // API configuration
-  const [apiKey, setApiKey] = useState(process.env.API_KEY || '');
-  const [showApiConfig, setShowApiConfig] = useState(!apiKey);
+  const [apiKey, setApiKey] = useState('YOUR_GEMINI_API_KEY_HERE');
+  const [showApiConfig, setShowApiConfig] = useState(false);
   
   // Scanner integration
   const [availableScanners, setAvailableScanners] = useState<ScannerDevice[]>([]);

@@ -16,15 +16,16 @@
     "@google/genai": "^1.16.0",
     "react-dropzone": "^14.3.8",
     "lucide-react": "^0.542.0",
-    "@supabase/supabase-js": "2",
-    "uuid": "9",
-    "vite": "^7.3.1",
-    "@vitejs/plugin-react": "^5.1.2",
+    "@supabase/supabase-js": "^2.49.1",
+    "uuid": "^9.0.1",
     "framer-motion": "^12.27.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@types/uuid": "^9.0.8",
+    "@vitejs/plugin-react": "^5.1.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

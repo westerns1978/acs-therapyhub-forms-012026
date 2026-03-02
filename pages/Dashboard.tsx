@@ -109,10 +109,12 @@ const Dashboard: React.FC = () => {
 
         fetchData();
 
+        /* 
         if (!sessionStorage.getItem('briefingShown')) {
             setBriefingModalOpen(true);
             sessionStorage.setItem('briefingShown', 'true');
         }
+        */
     }, [user]);
 
     if (isLoading || !metrics) return <DashboardSkeleton />;

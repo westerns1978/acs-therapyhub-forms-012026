@@ -1,0 +1,26 @@
+{
+  "name": "ACS TherapyHub",
+  "short_name": "TherapyHub",
+  "description": "Assessment & Counseling Solutions - Client Portal & Clinical Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#8B1E24",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["medical", "health", "business"],
+  "lang": "en-US"
+}

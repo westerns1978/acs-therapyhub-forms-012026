@@ -51,8 +51,8 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
 
       <div className="space-y-6">
         {formDefinition.fieldDefinitions.map(field => {
-          if (field.key === 'clientName' || field.key === 'clientEmail') return null;
-          return <PrintField key={field.key} label={field.label} value={formData[field.key as keyof typeof formData]} type={field.type} />
+          if (field.id === 'clientName' || field.id === 'clientEmail') return null;
+          return <PrintField key={field.id} label={field.label} value={formData[field.id as keyof typeof formData]} type={field.type} />
         })}
       </div>
 

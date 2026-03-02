@@ -3,7 +3,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FormDefinition } from '../types';
 import { FormDetailModal } from './FormDetailModal';
-import { Search, Star, Info, Plus, Play, CheckCircle, Filter, Zap, LayoutGrid, Clock, ShieldCheck } from 'lucide-react';
+import { Search, Star, Info, Plus, Play, CheckCircle, Filter, Zap, LayoutGrid, Clock, ShieldCheck, UserPlus } from 'lucide-react';
+import { getClients } from '../services/api';
+import { Client } from '../types';
+import AssignFormModal from './forms/AssignFormModal';
 
 // Definitions
 import { SATOP_INTAKE_DEFINITION } from './forms/SatopClientIntakeForm';
@@ -43,9 +46,10 @@ const FormCard: React.FC<{
   onSelect: (form: View) => void;
   onToggleFavorite: (id: string) => void;
   onPreview: (def: FormDefinition<any>) => void;
+  onAssign: (def: FormDefinition<any>) => void;
   isFavorite: boolean;
   index: number;
-}> = ({ form, onSelect, onToggleFavorite, onPreview, isFavorite, index }) => {
+}> = ({ form, onSelect, onToggleFavorite, onPreview, onAssign, isFavorite, index }) => {
   const { definition, view } = form;
   const draft = localStorage.getItem(`draft-${definition.id}`);
   const progress = draft ? JSON.parse(draft).progress : 0;
@@ -118,12 +122,19 @@ const FormCard: React.FC<{
         )}
       </div>
       
-      <div className="p-6 bg-slate-50/50 dark:bg-slate-950/50 border-t border-black/5 dark:border-white/5 mt-auto">
+      <div className="p-6 bg-slate-50/50 dark:bg-slate-950/50 border-t border-black/5 dark:border-white/5 mt-auto flex gap-3">
         <button
           onClick={() => onSelect(view)}
-          className="w-full py-4.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl transition-all transform hover:scale-[1.02] flex items-center justify-center gap-3 group active:scale-95"
+          className="flex-1 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 group active:scale-95"
         >
-          {progress > 0 ? <><Zap size={16} fill="currentColor" className="animate-pulse"/> Continue Draft</> : <><Play size={16} fill="currentColor" className="group-hover:scale-110 transition-transform"/> Start Form</>}
+          {progress > 0 ? <Zap size={14} fill="currentColor" className="animate-pulse"/> : <Play size={14} fill="currentColor" />}
+          {progress > 0 ? 'Continue' : 'Start'}
+        </button>
+        <button
+          onClick={() => onAssign(definition)}
+          className="flex-1 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 active:scale-95"
+        >
+          <UserPlus size={14} /> Assign
         </button>
       </div>
     </motion.div>
@@ -140,6 +151,16 @@ export const FormLibrary: React.FC<FormLibraryProps> = ({ onSelectForm }) => {
     } catch { return []; }
   });
   const [previewingForm, setPreviewingForm] = useState<FormDefinition<any> | null>(null);
+  const [assigningForm, setAssigningForm] = useState<FormDefinition<any> | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  useEffect(() => {
+    const fetchClients = async () => {
+        const data = await getClients();
+        setClients(data || []);
+    };
+    fetchClients();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('favoriteForms', JSON.stringify(favorites));
@@ -241,6 +262,7 @@ export const FormLibrary: React.FC<FormLibraryProps> = ({ onSelectForm }) => {
                 index={index} 
                 onToggleFavorite={toggleFavorite} 
                 onPreview={setPreviewingForm} 
+                onAssign={setAssigningForm}
                 isFavorite={favorites.includes(form.id)} 
             />
           ))
@@ -258,6 +280,16 @@ export const FormLibrary: React.FC<FormLibraryProps> = ({ onSelectForm }) => {
       <AnimatePresence>
         {previewingForm && <FormDetailModal form={previewingForm} onClose={() => setPreviewingForm(null)} />}
       </AnimatePresence>
+
+      {assigningForm && (
+        <AssignFormModal 
+            isOpen={!!assigningForm} 
+            onClose={() => setAssigningForm(null)} 
+            onFormAssigned={() => {}} 
+            clients={clients}
+            forms={[{ id: assigningForm.id, title: assigningForm.title, category: 'Intake', description: assigningForm.description, format: 'electronic' }]}
+        />
+      )}
     </div>
   );
 };

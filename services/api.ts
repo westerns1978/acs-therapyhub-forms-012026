@@ -137,7 +137,64 @@ export const saveClinicalNote = async (clientId: string, note: string) => true;
 export const getMessages = async () => dbMessages || [];
 export const getStaffMessages = async () => (dbMessages || []).filter(m => m.sender === 'counselor' || m.sender === 'system');
 export const getConversation = async (clientId?: string) => dbMessages || [];
-export const getFormTemplates = async () => dbFormTemplates || [];
+export const submitPaperForm = async (clientId: string, formId: string, formName: string, file: File) => {
+    // 1. Upload to Vault (triggers AI DNA extraction)
+    const uploadedFile = await storageService.uploadToVault(file, clientId);
+    
+    // 2. Create Form Submission record
+    const { data, error } = await supabase
+        .from('form_submissions')
+        .insert({
+            client_id: clientId,
+            form_id: formId,
+            form_name: formName,
+            status: 'Completed', // Match FormSubmission['status'] case
+            submitted_at: new Date().toISOString(),
+            data: {
+                is_paper_upload: true,
+                file_id: uploadedFile.id,
+                file_url: uploadedFile.public_url,
+                ai_summary: uploadedFile.metadata?.summary,
+                ai_tags: uploadedFile.metadata?.tags,
+                is_signed: uploadedFile.metadata?.isSigned,
+                requires_review: true,
+                extracted_at: new Date().toISOString()
+            }
+        })
+        .select()
+        .single();
+        
+    if (error) throw error;
+    return data;
+};
+
+export const approveFormSubmission = async (submissionId: string, reviewerName: string) => {
+    const { data, error } = await supabase
+        .from('form_submissions')
+        .update({
+            status: 'Reviewed',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: reviewerName,
+            data: {
+                requires_review: false,
+                approved_at: new Date().toISOString()
+            }
+        })
+        .eq('id', submissionId)
+        .select()
+        .single();
+        
+    if (error) throw error;
+    return data;
+};
+
+export const getFormTemplates = async () => [
+    { id: 'satop-intake', name: 'SATOP Intake Form', title: 'SATOP Intake Form', category: 'Intake' as const, description: 'Initial assessment for SATOP program.', fieldCount: 42, lastModified: '2024-05-15' },
+    { id: 'auth-release', name: 'Authorization for Release', title: 'Authorization for Release', category: 'Compliance' as const, description: 'Consent to share information with courts/probation.', fieldCount: 12, lastModified: '2024-05-10' },
+    { id: 'satop-checklist', name: 'SATOP Checklist', title: 'SATOP Checklist', category: 'Compliance' as const, description: 'Required documentation verification.', fieldCount: 8, lastModified: '2024-05-12' },
+    { id: 'srop-progression', name: 'SROP Progression Requirements', title: 'SROP Progression Requirements', category: 'Assessment' as const, description: 'Tracking hours and compliance for SROP.', fieldCount: 15, lastModified: '2024-05-18' },
+    { id: 'react-intake', name: 'REACT Intake Form', title: 'REACT Intake Form', category: 'Intake' as const, description: 'Initial assessment for REACT program.', fieldCount: 35, lastModified: '2024-05-01' }
+];
 export const getBillingSummary = async (id: string) => dbBillingSummaries[id];
 export const getClientDocuments = async (id: string) => (dbClientDocuments || []).filter(d => d.clientId === id);
 export const getClientAssignments = async (id: string) => (dbClientAssignments || []).filter(a => a.clientId === id);

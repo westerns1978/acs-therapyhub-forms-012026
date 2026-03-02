@@ -206,7 +206,7 @@ const PortalDashboard: React.FC = () => {
         <PortalLayout>
             <div className="max-w-5xl mx-auto relative space-y-8 animate-fade-in-up">
                 <div className="flex justify-between items-center">
-                    <Header title={`Hello, ${client.name.split(' ')[0]}!`} subtitle="Your personalized recovery path orchestrated by GeMyndFlow." />
+                    <Header title={`Hello, ${client.name.split(' ')[0]}!`} subtitle="Welcome to your ACS client portal." />
                     <button onClick={() => setIsResourceModalOpen(true)} className="hidden sm:flex items-center gap-2 bg-accent text-white px-5 py-2.5 rounded-2xl font-bold shadow-lg shadow-accent/20 hover:scale-105 transition-all">
                         <MapPin size={18} /> Find Support Near You
                     </button>
@@ -274,7 +274,7 @@ const PortalDashboard: React.FC = () => {
                      <ActionCard icon={Calendar} title="Session Schedule" description="Manage your virtual and in-person sessions." onClick={() => navigate('/portal/appointments')} />
                      <ActionCard icon={FileText} title="Document Vault" description="E-sign pending forms and review records." onClick={() => navigate('/portal/documents')} />
                      <ActionCard icon={DollarSign} title="Financial Wallet" description="Manage payments and session ledger." onClick={() => navigate('/portal/billing')} />
-                     <ActionCard icon={Brain} title="Platform Support" description="Connect with GeMyndFlow Orchestrator." onClick={() => alert("Connecting to Clara...")} />
+                     <ActionCard icon={Brain} title="Ask Clara" description="Get help with your program questions." onClick={() => document.querySelector<HTMLButtonElement>('[aria-label*="Clara"]')?.click()} />
                 </div>
             </div>
             <ResourceFinderModal isOpen={isResourceModalOpen} onClose={() => setIsResourceModalOpen(false)} />
