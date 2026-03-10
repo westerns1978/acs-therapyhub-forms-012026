@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 
+import { supabase } from './services/supabase';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider } from './contexts/AuthContext';
@@ -85,7 +86,7 @@ function App() {
                   <Route path="/fee-ledger/:clientId" element={<ProtectedRoute><FeeLedger /></ProtectedRoute>} />
                   <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
-                  <Route path="/document-intelligence" element={<ProtectedRoute><DocumentIntelligence /></ProtectedRoute>} />
+                  <Route path="/document-intelligence" element={<ProtectedRoute><DocumentIntelligence supabase={supabase as any} /></ProtectedRoute>} />
                   
                   {/* Admin-only Routes */}
                   <Route path="/reporting" element={<AdminRoute><Reporting /></AdminRoute>} />

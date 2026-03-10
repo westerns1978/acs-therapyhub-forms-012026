@@ -70,7 +70,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
     setIsLoadingDocs(false);
   }
 
-  async function handleOcrComplete(result: OcrExtractionResult, fileId: string) {
+  async function handleOcrComplete(result: OcrExtractionResult) {
     // After OCR, run deep DNA reasoning on extracted text
     const flatText = Object.entries(result.rawJson)
       .map(([k, v]) => `${k}: ${v}`)
@@ -89,20 +89,18 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
       setIsLoadingDNA(true);
       try {
         // Fetch document text from Supabase
-        const { data } = await supabase
+        const { data } = await (supabase as any)
           .from("uploaded_files")
           .select("document_dna, ocr_extracted_json")
           .eq("id", doc.id)
           .single();
 
-        const textContent = data?.document_dna?.summary
-          || JSON.stringify(data?.ocr_extracted_json || {});
+        const textContent = (data && data.document_dna && data.document_dna.summary)
+          || JSON.stringify((data && data.ocr_extracted_json) || {});
 
         if (textContent && textContent !== "{}") {
           const dna = await extractDocumentDNADeep(
-            textContent,
-            doc.file_name,
-            "GENERAL"
+            textContent
           );
           setSelectedDNA(dna);
         }
@@ -136,9 +134,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
             <OcrFormUploader
-              clientId={clientId || ""}
-              onComplete={handleOcrComplete}
-              onSave={(fields) => console.log("Saved fields:", fields)}
+              onFormProcessed={handleOcrComplete}
             />
           </div>
         </div>

@@ -12,6 +12,7 @@ import Card from '../components/ui/Card';
 import { FileManager } from '../components/ui/FileManager';
 import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, HardDrive, Zap } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
+import { supabase } from '../services/supabase';
 
 const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client, history }) => {
     const [prediction, setPrediction] = useState<{ score: number, reasoning: string } | null>(null);
@@ -137,7 +138,7 @@ const ClientWorkspace: React.FC = () => {
     const renderTabContent = () => {
         switch (activeTab) {
             case 'scheduling':
-                return <DispatcherChat clientId={client.id} clientName={client.name} supabase={supabase} onAppointmentChanged={() => loadClientData(clientId)} />;
+                return <DispatcherChat clientId={client.id} clientName={client.name} supabase={supabase as any} onAppointmentChanged={() => loadClientData(clientId)} />;
             case 'documents': 
                 if (loadErrors.documents) return <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />;
                 return <ClientDocumentsGrid client={client} initialDocuments={documents || []} />;

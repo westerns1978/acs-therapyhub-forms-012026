@@ -2,7 +2,7 @@
  * ACS TherapyHub — AI Scheduling Agent (The Dispatcher)
  */
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -59,8 +59,8 @@ export async function processSchedulingRequest(request: SchedulingRequest): Prom
               name: "checkAvailability",
               description: "Check therapist availability for a specific client",
               parameters: {
-                type: "object",
-                properties: { clientId: { type: "string" } },
+                type: Type.OBJECT,
+                properties: { clientId: { type: Type.STRING } },
                 required: ["clientId"],
               },
             },

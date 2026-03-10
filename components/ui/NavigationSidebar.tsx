@@ -5,7 +5,7 @@ import ThemeToggle from './ThemeToggle';
 import GemyndFlowLogo from './GemyndFlowLogo';
 import { checkSupabaseConnection } from '../../services/api';
 import { 
-    Home, Users, MessageSquare, Calendar, ShieldCheck, 
+    Home, Users, MessageSquare, Calendar, ShieldCheck, Shield,
     DollarSign, LogOut, X, BarChart3, FileText, Settings, 
     HardDrive, ClipboardList, Zap, Activity
 } from 'lucide-react';

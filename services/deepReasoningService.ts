@@ -7,12 +7,14 @@ import { GoogleGenAI } from "@google/genai";
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export interface DocumentDNA {
+  summary: string;
   clinicalSignificance: string;
-  riskFlags: string[];
+  riskFlags: { severity: "urgent" | "warning" | "info"; description: string }[];
   complianceStatus: "COMPLIANT" | "NON_COMPLIANT" | "PENDING";
   extractedEntities: string[];
   asamRelevance: string;
   actionItems: string[];
+  tags: string[];
   reasoningTrace: string;
 }
 
@@ -23,12 +25,14 @@ ${documentText}
 
 Return a JSON object with:
 {
+  "summary": "string",
   "clinicalSignificance": "string",
-  "riskFlags": ["string"],
+  "riskFlags": [{"severity": "urgent" | "warning" | "info", "description": "string"}],
   "complianceStatus": "COMPLIANT" | "NON_COMPLIANT" | "PENDING",
   "extractedEntities": ["string"],
   "asamRelevance": "string",
   "actionItems": ["string"],
+  "tags": ["string"],
   "reasoningTrace": "string"
 }`;
 
