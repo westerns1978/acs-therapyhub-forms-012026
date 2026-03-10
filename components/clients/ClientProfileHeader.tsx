@@ -3,6 +3,7 @@ import { Client } from '../../types';
 import ClientAvatar from './ClientAvatar';
 import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap } from 'lucide-react';
 import { generateClinicalSnapshot } from '../../services/api';
+import ClinicalMarkdown from '../ClinicalMarkdown';
 
 interface ClientProfileHeaderProps {
   client: Client;
@@ -119,7 +120,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                     <div className="lg:col-span-3 prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                        {clinicalSnapshot}
+                        {clinicalSnapshot && <ClinicalMarkdown content={clinicalSnapshot} />}
                         <p className="text-[9px] text-slate-400 mt-6 font-mono border-t border-slate-200 dark:border-slate-800 pt-4 uppercase tracking-tighter flex items-center gap-2">
                            <ShieldAlert size={10} /> Clinical use only. Data grounded in PDS records via Gemini 3 Deep Reasoning.
                         </p>

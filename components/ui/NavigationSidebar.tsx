@@ -63,6 +63,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
     { to: '/communication-center', icon: MessageSquare, label: 'Messages', notifications: 3 },
     { to: '/forms', icon: ClipboardList, label: 'Forms' },
     { to: '/document-intelligence', icon: Zap, label: 'AI Documents' },
+    { to: '/risk-monitor', icon: Shield, label: 'Risk Monitor', notifications: 3 },
     { to: '/financials', icon: DollarSign, label: 'Financials' },
   ];
 

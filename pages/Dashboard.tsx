@@ -8,7 +8,9 @@ import AIBriefingModal from '../components/ai/AIBriefingModal';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
-import { Clock, Video, Calendar, CheckCircle, AlertCircle, DollarSign, FileText, AlertTriangle, Zap, Activity, HardDrive, ArrowUpRight, TrendingUp, Sparkles, Brain, ArrowDownRight, ShieldCheck } from 'lucide-react';
+import { Clock, Video, Calendar, CheckCircle, AlertCircle, DollarSign, FileText, AlertTriangle, Zap, Activity, HardDrive, ArrowUpRight, TrendingUp, Sparkles, Brain, ArrowDownRight, ShieldCheck, Shield } from 'lucide-react';
+import RiskDashboard from '../components/RiskDashboard';
+import { generateCohortRiskReport } from '../services/riskModelingService';
 
 const OperationalInsightCard: React.FC<{ title: string, value: string, icon: any, trend: 'up' | 'down', color: string }> = ({ title, value, icon: Icon, trend, color }) => (
     <div className="p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl transition-all hover:scale-[1.02] group">
@@ -176,6 +178,16 @@ const Dashboard: React.FC = () => {
                                 </div>
                             )}
                         </div>
+                    </Card>
+                    
+                    <Card title="Risk Monitor" subtitle="Predictive cohort risk analysis.">
+                        <RiskDashboard 
+                            profiles={[]} 
+                            summary={{ criticalCount: 1, redCount: 2, orangeCount: 4, yellowCount: 8, greenCount: 9, totalClients: 24 }} 
+                            onSelectClient={() => {}} 
+                            onTriggerOutreach={() => {}} 
+                        />
+                        <button onClick={() => generateCohortRiskReport()} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold uppercase">Generate Live Risk Report</button>
                     </Card>
                 </div>
 

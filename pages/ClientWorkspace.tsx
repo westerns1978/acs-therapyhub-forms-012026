@@ -10,7 +10,8 @@ import ClientOverviewTab from '../components/clients/ClientOverviewTab';
 import ClientFormsTab from '../components/clients/ClientFormsTab';
 import Card from '../components/ui/Card';
 import { FileManager } from '../components/ui/FileManager';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, HardDrive } from 'lucide-react';
+import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, HardDrive, Zap } from 'lucide-react';
+import DispatcherChat from '../components/DispatcherChat';
 
 const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client, history }) => {
     const [prediction, setPrediction] = useState<{ score: number, reasoning: string } | null>(null);
@@ -130,10 +131,13 @@ const ClientWorkspace: React.FC = () => {
         { id: 'vault', label: 'Storage Vault', icon: HardDrive },
         { id: 'forms', label: 'Forms', icon: ClipboardList },
         { id: 'sessions', label: 'Sessions', icon: Video },
+        { id: 'scheduling', label: 'Scheduling', icon: Zap },
     ];
     
     const renderTabContent = () => {
         switch (activeTab) {
+            case 'scheduling':
+                return <DispatcherChat clientId={client.id} clientName={client.name} supabase={supabase} onAppointmentChanged={() => loadClientData(clientId)} />;
             case 'documents': 
                 if (loadErrors.documents) return <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />;
                 return <ClientDocumentsGrid client={client} initialDocuments={documents || []} />;
