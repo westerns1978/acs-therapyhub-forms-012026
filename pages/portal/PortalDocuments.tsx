@@ -7,9 +7,10 @@ import Header from '../../components/ui/Header';
 import Card from '../../components/ui/Card';
 import { supabase } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
-import { FileText, CheckCircle2, Clock, ArrowRight, Upload, X, Loader2, FileUp, ExternalLink } from 'lucide-react';
+import { FileText, CheckCircle2, Clock, ArrowRight, Upload, X, Loader2, FileUp, ExternalLink, Camera } from 'lucide-react';
 import { submitPaperForm } from '../../services/api';
 import Modal from '../../components/ui/Modal';
+import MobileDocumentUpload from '../../components/portal/MobileDocumentUpload';
 
 // All client-facing forms — matches the real definitions in components/forms/
 const CLIENT_FORMS = [
@@ -158,6 +159,7 @@ const PortalDocuments: React.FC = () => {
     const [submissions, setSubmissions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [uploadingForm, setUploadingForm] = useState<any | null>(null);
+    const [showMobileScan, setShowMobileScan] = useState(false);
     const navigate = useNavigate();
 
     const fetchData = async () => {
@@ -197,7 +199,16 @@ const PortalDocuments: React.FC = () => {
         <PortalLayout>
             <div className="max-w-4xl mx-auto space-y-8">
                 <Header title="My Forms" subtitle="Complete your required forms online — no paper needed." />
-                
+
+                {/* Scan Document CTA */}
+                <button
+                    onClick={() => setShowMobileScan(true)}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-primary to-primary-focus text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
+                >
+                    <Camera size={20} />
+                    Scan Paper Document
+                </button>
+
                 {/* Progress Summary */}
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -341,13 +352,21 @@ const PortalDocuments: React.FC = () => {
                     </Card>
                 )}
 
-                <PaperUploadModal 
-                    isOpen={!!uploadingForm} 
-                    onClose={() => setUploadingForm(null)} 
-                    form={uploadingForm} 
+                <PaperUploadModal
+                    isOpen={!!uploadingForm}
+                    onClose={() => setUploadingForm(null)}
+                    form={uploadingForm}
                     clientId={portalClient.id}
                     onSuccess={fetchData}
                 />
+
+                {showMobileScan && (
+                    <MobileDocumentUpload
+                        clientId={portalClient.id}
+                        onComplete={fetchData}
+                        onClose={() => setShowMobileScan(false)}
+                    />
+                )}
             </div>
         </PortalLayout>
     );
