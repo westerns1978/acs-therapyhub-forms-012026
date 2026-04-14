@@ -15,6 +15,7 @@ interface IValtMfaModalProps {
 
 
 const IValtMfaModal: React.FC<IValtMfaModalProps> = ({ isOpen, onClose, onSuccess, mobileNumber, demoMode = false }) => {
+  console.log('IValtMfaModal rendered, isOpen:', isOpen);
   const [authStatus, setAuthStatus] = useState<IValtAuthStatus>({
     step: 1,
     message: 'Initializing Secure Link...', 

@@ -19,6 +19,7 @@ const Login: React.FC = () => {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isMfaOpen, setIsMfaOpen] = useState(false);
+    console.log('Login rendered, isMfaOpen:', isMfaOpen);
     const [fieldErrors, setFieldErrors] = useState<{email?: boolean, password?: boolean, mobile?: boolean}>({});
 
     const validateFields = () => {
@@ -200,16 +201,7 @@ const Login: React.FC = () => {
                 </div>
             </div>
             
-            <IValtMfaModal 
-                isOpen={isMfaOpen} 
-                onClose={() => {
-                    setIsMfaOpen(false);
-                    setIsLoading(false);
-                }} 
-                onSuccess={handleMfaSuccess}
-                mobileNumber={mobile} 
-                demoMode={isDemoMode}
-            />
+
         </div>
     );
 };
