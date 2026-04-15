@@ -77,7 +77,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
     const [toolUseState, setToolUseState] = useState<string | null>(null);
     const [groundingLinks, setGroundingLinks] = useState<any[]>([]);
     
-    const sessionPromiseRef = useRef<WebSocket | null>(null);
+    const sessionRef = useRef<any>(null);
     const frameIntervalRef = useRef<number | null>(null);
     const audioRefs = useRef<{
       inputCtx: AudioContext | null;
@@ -183,104 +183,106 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
             console.log('✅ mic stream:', stream.getAudioTracks()[0]?.label);
 
             // Create AudioContexts NOW while we still have user-gesture context
-            // (browsers block AudioContext creation outside of user interaction)
             const inputCtx = new AudioContext({ sampleRate: 16000 });
             const outputCtx = new AudioContext({ sampleRate: 24000 });
             audioRefs.current.inputCtx = inputCtx;
             audioRefs.current.outputCtx = outputCtx;
-            console.log('✅ AudioContexts created — input:', inputCtx.state, 'output:', outputCtx.state);
-
-            // Resume if suspended (Chrome autoplay policy)
             if (inputCtx.state === 'suspended') await inputCtx.resume();
             if (outputCtx.state === 'suspended') await outputCtx.resume();
+            console.log('✅ AudioContexts created — input:', inputCtx.state, 'output:', outputCtx.state);
 
-            const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
-            const ws = new WebSocket(wsUrl);
-            sessionPromiseRef.current = ws;
+            // Dynamic import — only loads SDK when voice mode is activated
+            const { GoogleGenAI, Modality } = await import('@google/genai');
+            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+            console.log('✅ GoogleGenAI SDK loaded');
 
-            ws.onopen = () => {
-                console.log('✅ WS open');
-                ws.send(JSON.stringify({
-                    setup: {
-                        model: `models/${LIVE_MODEL}`,
-                        generation_config: {
-                            response_modalities: ['AUDIO'],
-                            speech_config: { voice_config: { prebuilt_voice_config: { voice_name: 'Aoede' } } }
-                        },
-                        system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }
-                    }
-                }));
-                console.log('✅ setup sent');
-                setIsListening(true);
-                setAuditStatus('LINK_ACTIVE');
+            const session = await ai.live.connect({
+                model: LIVE_MODEL,
+                config: {
+                    responseModalities: [Modality.AUDIO],
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
+                    },
+                    systemInstruction: SYSTEM_INSTRUCTION,
+                },
+                callbacks: {
+                    onopen: () => {
+                        console.log('✅ Live session open');
+                        setIsListening(true);
+                        setAuditStatus('LINK_ACTIVE');
 
-                // Set up audio capture pipeline
-                audioRefs.current.source = inputCtx.createMediaStreamSource(stream);
-                audioRefs.current.processor = inputCtx.createScriptProcessor(4096, 1, 1);
-                audioRefs.current.processor.onaudioprocess = (e) => {
-                    const inputData = e.inputBuffer.getChannelData(0);
-                    const int16 = new Int16Array(inputData.length);
-                    for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
-                    // Chunked base64 encode — avoids call stack overflow from spread operator
-                    const bytes = new Uint8Array(int16.buffer);
-                    let binary = '';
-                    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-                    const b64 = btoa(binary);
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ realtime_input: { media_chunks: [{ data: b64, mime_type: 'audio/pcm;rate=16000' }] } }));
-                        audioChunkCount++;
-                        if (audioChunkCount <= 3) console.log('🎤 audio chunk sent #' + audioChunkCount, 'size:', b64.length);
-                    }
-                };
-                audioRefs.current.source.connect(audioRefs.current.processor);
-                audioRefs.current.processor.connect(inputCtx.destination);
-                console.log('✅ audio pipeline connected');
-            };
+                        // Set up audio capture pipeline
+                        audioRefs.current.source = inputCtx.createMediaStreamSource(stream);
+                        audioRefs.current.processor = inputCtx.createScriptProcessor(4096, 1, 1);
+                        audioRefs.current.processor.onaudioprocess = (e) => {
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            const blob = createBlob(inputData);
+                            if (sessionRef.current) {
+                                sessionRef.current.sendRealtimeInput({ media: blob });
+                                audioChunkCount++;
+                                if (audioChunkCount <= 3) console.log('🎤 audio chunk sent #' + audioChunkCount);
+                            }
+                        };
+                        audioRefs.current.source.connect(audioRefs.current.processor);
+                        audioRefs.current.processor.connect(inputCtx.destination);
+                        console.log('✅ audio pipeline connected');
+                    },
+                    onmessage: async (msg: any) => {
+                        if (msg.serverContent?.interrupted) {
+                            audioRefs.current.sources.forEach(s => { try { s.stop(); } catch (_) {} });
+                            audioRefs.current.sources.clear();
+                            audioRefs.current.nextStartTime = outputCtx.currentTime;
+                            setIsSpeaking(false);
+                            return;
+                        }
 
-            ws.onmessage = async (event) => {
-                const data = JSON.parse(event.data);
-                console.log('📨 WS message:', JSON.stringify(data).slice(0, 200));
-                const audio = data?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-                if (audio) {
-                    console.log('🔊 playing audio, length:', audio.length);
-                    setIsSpeaking(true);
-                    const outCtx = audioRefs.current.outputCtx!;
-                    if (outCtx.state === 'suspended') await outCtx.resume();
-                    const bytes = Uint8Array.from(atob(audio), c => c.charCodeAt(0));
-                    const int16 = new Int16Array(bytes.buffer);
-                    const float32 = new Float32Array(int16.length);
-                    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
-                    const buffer = outCtx.createBuffer(1, float32.length, 24000);
-                    buffer.getChannelData(0).set(float32);
-                    const source = outCtx.createBufferSource();
-                    source.buffer = buffer;
-                    source.connect(outCtx.destination);
-                    source.start();
-                    source.onended = () => setIsSpeaking(false);
+                        if (msg.toolCall) {
+                            for (const fc of msg.toolCall.functionCalls) {
+                                let result: any = { status: "OK" };
+                                if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
+                                else result = await callMcpOrchestrator(fc.name, fc.args);
+                                sessionRef.current?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: result }] });
+                            }
+                        }
+
+                        const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+                        if (audioData) {
+                            console.log('🔊 playing audio, length:', audioData.length);
+                            setIsSpeaking(true);
+                            if (outputCtx.state === 'suspended') await outputCtx.resume();
+                            audioRefs.current.nextStartTime = Math.max(audioRefs.current.nextStartTime, outputCtx.currentTime);
+                            const audioBuffer = await decodeAudioData(decode(audioData), outputCtx, 24000, 1);
+                            const source = outputCtx.createBufferSource();
+                            source.buffer = audioBuffer;
+                            source.connect(outputCtx.destination);
+                            source.addEventListener('ended', () => {
+                                audioRefs.current.sources.delete(source);
+                                if (audioRefs.current.sources.size === 0) setIsSpeaking(false);
+                            });
+                            source.start(audioRefs.current.nextStartTime);
+                            audioRefs.current.nextStartTime += audioBuffer.duration;
+                            audioRefs.current.sources.add(source);
+                        }
+                    },
+                    onclose: () => { console.log('⚠️ Live session closed'); setIsListening(false); setAuditStatus('IDLE'); },
+                    onerror: (e: any) => { console.error('❌ Live session error:', e); setIsListening(false); setAuditStatus('IDLE'); },
                 }
-            };
-
-            ws.onclose = (ev) => {
-                console.log('⚠️ WS closed:', ev.code, ev.reason);
-                setIsListening(false); setAuditStatus('IDLE');
-            };
-            ws.onerror = (ev) => {
-                console.error('❌ WS error:', ev);
-                setIsListening(false); setAuditStatus('IDLE');
-            };
+            });
+            sessionRef.current = session;
+            console.log('✅ Live session connected');
 
         } catch (e) {
             console.error('❌ handleStartLiveMode failed:', e);
             setIsVoiceMode(false); setIsVisionMode(false);
         }
-    }, [SYSTEM_INSTRUCTION]);
+    }, [navigate, SYSTEM_INSTRUCTION]);
 
     const handleStopLiveMode = useCallback(() => {
         setIsListening(false); setIsSpeaking(false); setAuditStatus('IDLE');
         if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-        if (sessionPromiseRef.current && sessionPromiseRef.current instanceof WebSocket) {
-            sessionPromiseRef.current.close();
-            sessionPromiseRef.current = null;
+        if (sessionRef.current) {
+            try { sessionRef.current.close(); } catch (_) {}
+            sessionRef.current = null;
         }
         const { stream, inputCtx, outputCtx, processor, source, sources } = audioRefs.current;
         if (stream) stream.getTracks().forEach(t => t.stop());
