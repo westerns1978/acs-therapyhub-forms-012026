@@ -210,22 +210,6 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                         console.log('✅ Live session open');
                         setIsListening(true);
                         setAuditStatus('LINK_ACTIVE');
-
-                        // Set up audio capture pipeline
-                        audioRefs.current.source = inputCtx.createMediaStreamSource(stream);
-                        audioRefs.current.processor = inputCtx.createScriptProcessor(4096, 1, 1);
-                        audioRefs.current.processor.onaudioprocess = (e) => {
-                            const inputData = e.inputBuffer.getChannelData(0);
-                            const blob = createBlob(inputData);
-                            if (sessionRef.current) {
-                                sessionRef.current.sendRealtimeInput({ media: blob });
-                                audioChunkCount++;
-                                if (audioChunkCount <= 3) console.log('🎤 audio chunk sent #' + audioChunkCount);
-                            }
-                        };
-                        audioRefs.current.source.connect(audioRefs.current.processor);
-                        audioRefs.current.processor.connect(inputCtx.destination);
-                        console.log('✅ audio pipeline connected');
                     },
                     onmessage: async (msg: any) => {
                         if (msg.serverContent?.interrupted) {
@@ -264,12 +248,35 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                             audioRefs.current.sources.add(source);
                         }
                     },
-                    onclose: () => { console.log('⚠️ Live session closed'); setIsListening(false); setAuditStatus('IDLE'); },
+                    onclose: (e: any) => { console.log('⚠️ session closed reason:', e); setIsListening(false); setAuditStatus('IDLE'); },
                     onerror: (e: any) => { console.error('❌ Live session error:', e); setIsListening(false); setAuditStatus('IDLE'); },
                 }
             });
+
+            // Set sessionRef BEFORE starting audio pipeline
+            // (onopen fires before connect() resolves, so sessionRef was null during onaudioprocess)
             sessionRef.current = session;
-            console.log('✅ Live session connected');
+            console.log('✅ Live session connected, setting up audio pipeline');
+
+            // Set up audio capture pipeline — session is guaranteed open and ref is set
+            audioRefs.current.source = inputCtx.createMediaStreamSource(stream);
+            audioRefs.current.processor = inputCtx.createScriptProcessor(4096, 1, 1);
+            audioRefs.current.processor.onaudioprocess = (e) => {
+                const inputData = e.inputBuffer.getChannelData(0);
+                const blob = createBlob(inputData);
+                if (sessionRef.current) {
+                    try {
+                        sessionRef.current.sendRealtimeInput({ media: blob });
+                        audioChunkCount++;
+                        if (audioChunkCount <= 3) console.log('🎤 audio chunk sent #' + audioChunkCount);
+                    } catch (err) {
+                        console.error('❌ sendRealtimeInput failed:', err);
+                    }
+                }
+            };
+            audioRefs.current.source.connect(audioRefs.current.processor);
+            audioRefs.current.processor.connect(inputCtx.destination);
+            console.log('✅ audio pipeline connected');
 
         } catch (e) {
             console.error('❌ handleStartLiveMode failed:', e);
