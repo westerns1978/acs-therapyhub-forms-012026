@@ -4,8 +4,9 @@ import { ChatMessage } from '../../types';
 import { callMcpOrchestrator } from '../../services/api';
 import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink, Heart } from 'lucide-react';
 import VisualAuditPanel from './VisualAuditPanel';
+import { getApiKey } from '../../services/gemini';
 
-const GEMINI_API_KEY = 'PASTE_YOUR_API_KEY_HERE';
+const GEMINI_API_KEY = getApiKey();
 const LIVE_MODEL = 'gemini-2.5-flash-native-audio-dialog-preview-12-2025';
 const TEXT_MODEL = 'gemini-2.5-flash';
 
