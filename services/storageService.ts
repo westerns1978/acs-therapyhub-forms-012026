@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { GoogleGenAI, Type } from '@google/genai';
+import { geminiGenerate } from './gemini';
 
 const STORAGE_BUCKET = 'gemynd-files';
 const DEFAULT_ORG_ID = '71077b47-66e8-4fd9-90e7-709773ea6582';
@@ -22,30 +22,26 @@ export const storageService = {
       reader.readAsDataURL(file);
     });
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          { inlineData: { mimeType: file.type, data: base64Data } },
-          { text: "Extract Document DNA. Return JSON exactly: {title, summary, tags: [], isSigned: boolean}. Focus on clinical/legal relevance. Verify if the signature area is actually signed." }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
+    const { text } = await geminiGenerate('gemini-3-flash-preview', {
+      contents: [{ role: 'user', parts: [
+        { inlineData: { mimeType: file.type, data: base64Data } },
+        { text: "Extract Document DNA. Return JSON exactly: {title, summary, tags: [], isSigned: boolean}. Focus on clinical/legal relevance. Verify if the signature area is actually signed." }
+      ]}],
+      generation_config: {
+        response_mime_type: "application/json",
+        response_schema: {
+          type: "OBJECT",
           properties: {
-            title: { type: Type.STRING },
-            summary: { type: Type.STRING },
-            tags: { type: Type.ARRAY, items: { type: Type.STRING } },
-            isSigned: { type: Type.BOOLEAN, description: "True if a handwritten signature is detected on the document." }
+            title: { type: "STRING" },
+            summary: { type: "STRING" },
+            tags: { type: "ARRAY", items: { type: "STRING" } },
+            isSigned: { type: "BOOLEAN", description: "True if a handwritten signature is detected on the document." }
           }
         }
       }
     });
 
-    return JSON.parse(response.text || "{}");
+    return JSON.parse(text || "{}");
   },
 
   uploadToVault: async (file: File, clientId: string, onProgress?: (status: string) => void) => {

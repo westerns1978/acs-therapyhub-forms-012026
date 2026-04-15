@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
+import { geminiGenerate } from '../services/gemini';
 import Card from '../components/ui/Card';
 import { ChatMessage } from '../types';
 
@@ -81,8 +81,6 @@ const ComplianceAssistant: React.FC = () => {
         setLoading(true);
 
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-
             const apiParts: any[] = [];
             if(currentImage) {
                  const base64Data = currentImage.data.split(',')[1];
@@ -92,15 +90,12 @@ const ComplianceAssistant: React.FC = () => {
                 apiParts.push({text: currentInput});
             }
 
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: { parts: apiParts },
-                config: {
-                    systemInstruction: systemInstruction,
-                }
+            const { text } = await geminiGenerate('gemini-2.5-flash', {
+                contents: [{ role: 'user', parts: apiParts }],
+                system_instruction: { parts: [{ text: systemInstruction }] },
             });
 
-            const modelMessage: ChatMessage = { role: 'model', parts: [{ text: response.text }] };
+            const modelMessage: ChatMessage = { role: 'model', parts: [{ text }] };
             setMessages(prev => [...prev, modelMessage]);
 
         } catch (error) {

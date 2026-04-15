@@ -1,6 +1,6 @@
-import { GoogleGenAI, Type } from '@google/genai';
 import { supabase } from './supabase';
 import { storageService } from './storageService';
+import { geminiText, geminiJSON, geminiGenerate, getApiKey } from './gemini';
 import {
   Client, Appointment, Payment, DocumentFile, FormSubmission,
   SessionRecord, SROPProgress, ClientActivity, NetworkScanner,
@@ -248,72 +248,49 @@ export const resetDemoData = async () => {
  * HIGH-STAKES CLINICAL ANALYSIS: Gemini 3 Pro with Max Thinking Budget.
  */
 export const generateAsamAnalysis = async (notes: string): Promise<AsamAnalysisResult> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-    const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
-        contents: `Perform a High-Fidelity Multidimensional ASAM Analysis. Deliberate on cross-dimensional interactions. Priority: Regulatory Compliance (9 CSR 30-3). Notes: ${notes}`,
-        config: {
-            thinkingConfig: { thinkingBudget: 32768 }, 
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    clinicalSummary: { type: Type.STRING },
-                    recommendedLevel: { type: Type.STRING },
-                    dimensionRisks: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { dimension: { type: Type.STRING }, riskLevel: { type: Type.STRING } } } },
-                    treatmentRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } }
-                },
-                required: ["clinicalSummary", "recommendedLevel", "dimensionRisks", "treatmentRecommendations"]
-            }
+    return geminiJSON('gemini-3-pro-preview',
+        `Perform a High-Fidelity Multidimensional ASAM Analysis. Deliberate on cross-dimensional interactions. Priority: Regulatory Compliance (9 CSR 30-3). Notes: ${notes}`,
+        {
+            type: "OBJECT",
+            properties: {
+                clinicalSummary: { type: "STRING" },
+                recommendedLevel: { type: "STRING" },
+                dimensionRisks: { type: "ARRAY", items: { type: "OBJECT", properties: { dimension: { type: "STRING" }, riskLevel: { type: "STRING" } } } },
+                treatmentRecommendations: { type: "ARRAY", items: { type: "STRING" } }
+            },
+            required: ["clinicalSummary", "recommendedLevel", "dimensionRisks", "treatmentRecommendations"]
         }
-    });
-    return JSON.parse(response.text || "{}");
+    );
 };
 
 /**
  * SPEED-OPTIMIZED CLINICAL SYNTHESIS: Gemini 3 Flash.
  */
 export const generateSoapNoteFromTranscript = async (transcript: string, clientName: string) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Construct a structural SOAP note for ${clientName}. Content must be HIPAA-compliant. Source: ${transcript}`
-    });
-    return response.text || '';
+    return geminiText('gemini-3-flash-preview',
+        `Construct a structural SOAP note for ${clientName}. Content must be HIPAA-compliant. Source: ${transcript}`);
 };
 
 export const generateClinicalSnapshot = async (client: Client) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Synthesize operational intelligence for client ${client.name} (Program: ${client.program}, County: ${client.county}). Identify critical workflow bottlenecks.`
-    });
-    return response.text || '';
+    return geminiText('gemini-3-flash-preview',
+        `Synthesize operational intelligence for client ${client.name} (Program: ${client.program}, County: ${client.county}). Identify critical workflow bottlenecks.`);
 };
 
 /**
  * COMMUNITY RESOURCE FINDER: Google Maps Grounding via Gemini 2.5 Flash.
  */
 export const searchCommunityResources = async (query: string, coords?: { latitude: number, longitude: number }) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Urgently locate verified community recovery resources for: ${query}. Focus on St. Louis/Jefferson County. Provide direct access links and place reviews.`,
-        config: { 
-            tools: [{ googleMaps: {} }],
-            toolConfig: coords ? {
-                retrievalConfig: {
-                    latLng: {
-                        latitude: coords.latitude,
-                        longitude: coords.longitude
-                    }
-                }
-            } : undefined
-        }
-    });
+    const body: any = {
+        contents: [{ role: 'user', parts: [{ text: `Urgently locate verified community recovery resources for: ${query}. Focus on St. Louis/Jefferson County. Provide direct access links and place reviews.` }] }],
+        tools: [{ google_maps: {} }],
+    };
+    if (coords) {
+        body.tool_config = { retrieval_config: { lat_lng: { latitude: coords.latitude, longitude: coords.longitude } } };
+    }
+    const { text, candidates } = await geminiGenerate('gemini-2.5-flash', body);
     return {
-        text: response.text || '',
-        chunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
+        text,
+        chunks: candidates[0]?.groundingMetadata?.groundingChunks || []
     };
 };
 
@@ -321,25 +298,18 @@ export const searchCommunityResources = async (query: string, coords?: { latitud
  * RELAPSE RISK PREDICTION: Gemini 3 reasoning for proactive clinical flagging.
  */
 export const generateRelapseRiskPrediction = async (client: Client, history: any[]) => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Analyze historical telemetry for ${client.name} to predict relapse probability. Signals: ${JSON.stringify(history)}. Return probability (0-100) and rationale.`,
-        config: {
-            thinkingConfig: { thinkingBudget: 4000 },
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: Type.OBJECT,
+    try {
+        return await geminiJSON('gemini-3-pro-preview',
+            `Analyze historical telemetry for ${client.name} to predict relapse probability. Signals: ${JSON.stringify(history)}. Return probability (0-100) and rationale.`,
+            {
+                type: "OBJECT",
                 properties: {
-                    score: { type: Type.NUMBER },
-                    reasoning: { type: Type.STRING }
+                    score: { type: "NUMBER" },
+                    reasoning: { type: "STRING" }
                 },
                 required: ["score", "reasoning"]
             }
-        }
-    });
-    try {
-        return JSON.parse(response.text || '{"score": 0, "reasoning": "Processing error"}');
+        );
     } catch {
         return { score: 0, reasoning: "Orchestration timeout." };
     }
@@ -347,31 +317,36 @@ export const generateRelapseRiskPrediction = async (client: Client, history: any
 
 /**
  * MILESTONE VIDEO GENERATION: Veo-3.1 Milestone celebrations.
+ * Uses REST API for video generation (Imagen/Veo endpoint).
  */
 export const generateMilestoneCelebration = async (clientName: string, milestone: string) => {
-    // Fix: Moved key selection check and dialog BEFORE creating the GoogleGenAI instance to ensure the latest API key is used.
     if (!(await (window as any).aistudio.hasSelectedApiKey())) {
         await (window as any).aistudio.openSelectKey();
     }
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-    
-    let operation = await ai.models.generateVideos({
-        model: 'veo-3.1-fast-generate-preview',
-        prompt: `A vibrant cinematic celebration for ${clientName} completing ${milestone}. Background shows a sunrise over a peaceful road, symbolizing a new path in recovery. Inspirational, cinematic 4k style.`,
-        config: {
-            numberOfVideos: 1,
-            resolution: '1080p',
-            aspectRatio: '16:9'
+    const apiKey = getApiKey();
+    const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-fast-generate-preview:generateVideos?key=${apiKey}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: `A vibrant cinematic celebration for ${clientName} completing ${milestone}. Background shows a sunrise over a peaceful road, symbolizing a new path in recovery. Inspirational, cinematic 4k style.`,
+                config: { numberOfVideos: 1, resolution: '1080p', aspectRatio: '16:9' }
+            })
         }
-    });
-    
+    );
+    let operation = await res.json();
+
     while (!operation.done) {
         await new Promise(resolve => setTimeout(resolve, 10000));
-        operation = await ai.operations.getVideosOperation({ operation });
+        const pollRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/${operation.name}?key=${apiKey}`
+        );
+        operation = await pollRes.json();
     }
-    
+
     const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    return `${downloadLink}&key=${process.env.API_KEY}`;
+    return `${downloadLink}&key=${apiKey}`;
 };
 
 export const addClient = async (clientData: any) => ({ ...clientData, id: uuidv4(), initials: clientData.name ? clientData.name.split(' ').map((n: string) => n[0]).join('') : '??', avatarUrl: `https://i.pravatar.cc/150?u=${uuidv4()}` });

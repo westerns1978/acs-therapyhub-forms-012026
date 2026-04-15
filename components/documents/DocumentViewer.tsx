@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { DocumentFile } from '../../types';
-import { GoogleGenAI } from '@google/genai';
+import { geminiText } from '../../services/gemini';
 import {
     Loader2, Download, Maximize, X, ZoomIn, ZoomOut, RotateCw, ArrowLeft, ArrowRight,
     FileCode, FileSpreadsheet, FileArchive, File as FileIcon,
@@ -102,26 +102,19 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, documentsInFo
         setIsChatLoading(true);
 
         try {
-             if (!process.env.API_KEY) throw new Error("API Key missing");
-             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-             
              const context = `
              DOCUMENT CONTEXT:
              Filename: ${filename}
              Summary: ${document.extractedData.summary}
              Extracted Fields: ${JSON.stringify(document.extractedData.fields)}
-             
+
              USER QUERY: ${userMsg}
-             
+
              Answer the user's question based on the document context provided.
              `;
 
-             const response = await ai.models.generateContent({
-                 model: 'gemini-2.5-flash',
-                 contents: context
-             });
-             
-             setChatHistory(prev => [...prev, { role: 'model', text: response.text }]);
+             const responseText = await geminiText('gemini-2.5-flash', context);
+             setChatHistory(prev => [...prev, { role: 'model', text: responseText }]);
 
         } catch (err) {
             setChatHistory(prev => [...prev, { role: 'model', text: "Sorry, I couldn't process that request." }]);

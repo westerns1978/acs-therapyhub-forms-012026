@@ -2,9 +2,7 @@
  * ACS TherapyHub — Handwritten Form OCR Service
  */
 
-import { GoogleGenAI } from "@google/genai";
-
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+import { geminiVision } from './gemini';
 
 export interface ExtractedFormField {
   fieldName: string;
@@ -47,17 +45,12 @@ Return ONLY a JSON object with this structure:
   "rawJson": { ... }
 }`;
 
-  const result = await genAI.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: {
-      parts: [
-        { text: extractionPrompt },
-        { inlineData: { mimeType, data: imageBase64 } },
-      ],
-    },
-  });
+  const resultText = await geminiVision('gemini-2.0-flash', [
+    { text: extractionPrompt },
+    { inlineData: { mimeType, data: imageBase64 } },
+  ]);
 
-  const cleanJson = result.text!.trim().replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
+  const cleanJson = resultText.trim().replace(/^```json\n?/, "").replace(/\n?```$/, "").trim();
   const parsed = JSON.parse(cleanJson);
 
   return {

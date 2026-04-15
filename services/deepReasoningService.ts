@@ -2,9 +2,7 @@
  * ACS TherapyHub — Deep Reasoning Document Analysis Service
  */
 
-import { GoogleGenAI } from "@google/genai";
-
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+import { geminiText } from './gemini';
 
 export interface DocumentDNA {
   summary: string;
@@ -36,11 +34,6 @@ Return a JSON object with:
   "reasoningTrace": "string"
 }`;
 
-  const result = await genAI.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: prompt,
-  });
-  
-  const json = JSON.parse(result.text || "{}");
-  return json;
+  const text = await geminiText('gemini-3.1-pro-preview', prompt);
+  return JSON.parse(text || "{}");
 }
