@@ -7,7 +7,7 @@ import VisualAuditPanel from './VisualAuditPanel';
 import { getApiKey } from '../../services/gemini';
 
 const GEMINI_API_KEY = getApiKey();
-const LIVE_MODEL = 'gemini-2.5-flash-native-audio-dialog-preview-12-2025';
+const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const TEXT_MODEL = 'gemini-2.5-flash';
 
 // --- Audio Utility Functions ---

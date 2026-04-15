@@ -7,7 +7,7 @@
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export function getApiKey(): string {
-  return process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+  return import.meta.env.VITE_API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY || 'AIzaSyBLU362ndX18qYQO7OiW3mGniyn2Lsk93M';
 }
 
 export async function geminiGenerate(
