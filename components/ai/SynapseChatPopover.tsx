@@ -194,7 +194,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
             // Dynamic import — only loads SDK when voice mode is activated
             const { GoogleGenAI, Modality } = await import('@google/genai');
-            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY, httpOptions: { apiVersion: 'v1alpha' } });
+            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
             console.log('✅ GoogleGenAI SDK loaded');
 
             const session = await ai.live.connect({
