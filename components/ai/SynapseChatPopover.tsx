@@ -5,18 +5,9 @@ import { callMcpOrchestrator } from '../../services/api';
 import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink, Heart } from 'lucide-react';
 import VisualAuditPanel from './VisualAuditPanel';
 
-// Lazy-loaded type stubs — prevents @google/genai from opening WebSockets on mount
-type LiveServerMessage = any;
-type Blob = any;
-type Tool = any;
-const Modality = { AUDIO: 'AUDIO' as const };
-const Type = { OBJECT: 'OBJECT' as const, STRING: 'STRING' as const, ARRAY: 'ARRAY' as const };
-
-// ============================================================
-// IMPORTANT: Replace this with your actual Gemini API key
-// Get it from: https://aistudio.google.com/apikey
-// ============================================================
 const GEMINI_API_KEY = 'PASTE_YOUR_API_KEY_HERE';
+const LIVE_MODEL = 'gemini-2.5-flash-native-audio-dialog-preview-12-2025';
+const TEXT_MODEL = 'gemini-2.5-flash';
 
 // --- Audio Utility Functions ---
 function encode(bytes: Uint8Array) {
@@ -51,7 +42,7 @@ async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: 
   return buffer;
 }
 
-function createBlob(data: Float32Array): Blob {
+function createBlob(data: Float32Array): { data: string; mimeType: string } {
   const l = data.length;
   const int16 = new Int16Array(l);
   for (let i = 0; i < l; i++) {
@@ -86,7 +77,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
     const [toolUseState, setToolUseState] = useState<string | null>(null);
     const [groundingLinks, setGroundingLinks] = useState<any[]>([]);
     
-    const sessionPromiseRef = useRef<Promise<any> | null>(null);
+    const sessionPromiseRef = useRef<{ ws: WebSocket } | null>(null);
     const frameIntervalRef = useRef<number | null>(null);
     const audioRefs = useRef<{
       inputCtx: AudioContext | null;
@@ -106,15 +97,15 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         ]);
     }, [mode]);
 
-    const getTools = (): Tool[] => {
+    const getTools = () => {
         const baseTools: any[] = [
-            { name: "navigate_to_page", description: "Navigate to a specific system page (e.g. /dashboard, /clients).", parameters: { type: Type.OBJECT, properties: { path: { type: Type.STRING } }, required: ["path"] } },
-            { googleSearch: {} }
+            { function_declarations: [{ name: "navigate_to_page", description: "Navigate to a specific system page (e.g. /dashboard, /clients).", parameters: { type: "OBJECT", properties: { path: { type: "STRING" } }, required: ["path"] } }] },
+            { google_search: {} }
         ];
         if (mode === 'staff') {
-            baseTools.push(
-                { name: "patient_session_summary", description: "Get session status and compliance tracking for a client.", parameters: { type: Type.OBJECT, properties: { patient_id: { type: Type.STRING } }, required: ["patient_id"] } },
-                { name: "billing_status", description: "Check billing and insurance claims for the practice.", parameters: { type: Type.OBJECT, properties: { practice_id: { type: Type.STRING } } } }
+            baseTools[0].function_declarations.push(
+                { name: "patient_session_summary", description: "Get session status and compliance tracking for a client.", parameters: { type: "OBJECT", properties: { patient_id: { type: "STRING" } }, required: ["patient_id"] } },
+                { name: "billing_status", description: "Check billing and insurance claims for the practice.", parameters: { type: "OBJECT", properties: { practice_id: { type: "STRING" } } } }
             );
         }
         return baseTools;
@@ -138,23 +129,32 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         setInput(''); setLoading(true); setGroundingLinks([]);
 
         try {
-            const { GoogleGenAI } = await import('@google/genai');
-            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: userMsgText,
-                config: { systemInstruction: SYSTEM_INSTRUCTION, tools: getTools() }
-            });
+            const res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+                        contents: [{ role: 'user', parts: [{ text: userMsgText }] }],
+                        tools: getTools(),
+                    }),
+                }
+            );
+            const json = await res.json();
+            const candidate = json.candidates?.[0];
 
-            if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-                setGroundingLinks(response.candidates[0].groundingMetadata.groundingChunks);
+            if (candidate?.groundingMetadata?.groundingChunks) {
+                setGroundingLinks(candidate.groundingMetadata.groundingChunks);
             }
 
-            const functionCalls = response.functionCalls || [];
+            const parts = candidate?.content?.parts || [];
+            const functionCalls = parts.filter((p: any) => p.functionCall);
             if (functionCalls.length > 0) {
-                 for (const fc of functionCalls) {
+                 for (const part of functionCalls) {
+                     const fc = part.functionCall;
                      setToolUseState(mode === 'staff' ? `Orchestrating ${fc.name}...` : `Looking that up for you...`);
-                     if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
+                     if (fc.name === 'navigate_to_page') navigate(fc.args?.path);
                      else {
                         const mcpResult = await callMcpOrchestrator(fc.name, fc.args);
                         setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' ? `[MCP TRANSMISSION]: ${JSON.stringify(mcpResult)}` : `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
@@ -162,11 +162,12 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                  }
                  setToolUseState(null);
             } else {
-                setMessages(prev => [...prev, { role: 'model', parts: [{ text: response.text }] }]);
+                const text = parts.map((p: any) => p.text || '').join('');
+                setMessages(prev => [...prev, { role: 'model', parts: [{ text }] }]);
             }
         } catch(error) {
-            setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' 
-                ? "Communication disruption. Verify API uplink." 
+            setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff'
+                ? "Communication disruption. Verify API uplink."
                 : "I'm sorry, I'm having trouble connecting right now. Please try again in a moment, or call our office at 314-849-2800 for immediate help."}] }]);
         } finally {
             setLoading(false);
@@ -177,99 +178,119 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: withVision });
             audioRefs.current.stream = stream;
-            const { GoogleGenAI } = await import('@google/genai');
-            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
-            sessionPromiseRef.current = ai.live.connect({
-                model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-                config: {
-                    responseModalities: [Modality.AUDIO],
-                    speechConfig: {
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
-                    },
-                    systemInstruction: SYSTEM_INSTRUCTION,
-                    tools: getTools(),
-                },
-                callbacks: {
-                    onopen: () => {
-                        setIsListening(true);
-                        setAuditStatus('LINK_ACTIVE');
-                        audioRefs.current.inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-                        audioRefs.current.outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-                        audioRefs.current.source = audioRefs.current.inputCtx.createMediaStreamSource(stream);
-                        audioRefs.current.processor = audioRefs.current.inputCtx.createScriptProcessor(4096, 1, 1);
-                        
-                        audioRefs.current.processor.onaudioprocess = (e) => {
-                            const inputData = e.inputBuffer.getChannelData(0);
-                            sessionPromiseRef.current?.then((session) => session.sendRealtimeInput({ media: createBlob(inputData) }));
-                        };
-                        audioRefs.current.source.connect(audioRefs.current.processor);
-                        audioRefs.current.processor.connect(audioRefs.current.inputCtx.destination);
+            const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
+            const ws = new WebSocket(wsUrl);
+            sessionPromiseRef.current = { ws };
 
-                        if (withVision) {
-                           const videoTrack = stream.getVideoTracks()[0];
-                           const canvas = document.createElement('canvas');
-                           const ctx = canvas.getContext('2d');
-                           const video = document.createElement('video');
-                           video.srcObject = stream;
-                           video.play();
-                           
-                           frameIntervalRef.current = window.setInterval(() => {
-                              if (ctx && video.videoWidth) {
-                                  canvas.width = video.videoWidth;
-                                  canvas.height = video.videoHeight;
-                                  ctx.drawImage(video, 0, 0);
-                                  const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-                                  sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ media: { data: base64, mimeType: 'image/jpeg' } }));
-                              }
-                           }, 1000); 
-                        }
-                    },
-                    onmessage: async (msg: LiveServerMessage) => {
-                        if (msg.serverContent?.interrupted) {
-                            audioRefs.current.sources.forEach(source => {
-                                try { source.stop(); } catch (e) {}
-                            });
-                            audioRefs.current.sources.clear();
-                            if (audioRefs.current.outputCtx) {
-                                audioRefs.current.nextStartTime = audioRefs.current.outputCtx.currentTime;
-                            }
-                            setIsSpeaking(false);
-                            return;
-                        }
+            ws.onopen = () => {
+                // Send setup message
+                ws.send(JSON.stringify({
+                    setup: {
+                        model: `models/${LIVE_MODEL}`,
+                        generation_config: {
+                            response_modalities: ['AUDIO'],
+                            speech_config: { voice_config: { prebuilt_voice_config: { voice_name: 'Aoede' } } }
+                        },
+                        system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+                        tools: getTools(),
+                    }
+                }));
+                setIsListening(true);
+                setAuditStatus('LINK_ACTIVE');
 
-                        if (msg.toolCall) {
-                            for (const fc of msg.toolCall.functionCalls) {
-                                let result: any = { status: "OK" };
-                                if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
-                                else result = await callMcpOrchestrator(fc.name, fc.args);
-                                sessionPromiseRef.current?.then((session) => session.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: result }] }));
-                            }
+                // Set up audio capture pipeline
+                audioRefs.current.inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+                audioRefs.current.outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+                audioRefs.current.source = audioRefs.current.inputCtx.createMediaStreamSource(stream);
+                audioRefs.current.processor = audioRefs.current.inputCtx.createScriptProcessor(4096, 1, 1);
+
+                audioRefs.current.processor.onaudioprocess = (e) => {
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    const blob = createBlob(inputData);
+                    if (sessionPromiseRef.current?.ws.readyState === WebSocket.OPEN) {
+                        sessionPromiseRef.current.ws.send(JSON.stringify({
+                            realtime_input: { media_chunks: [{ data: blob.data, mime_type: blob.mimeType }] }
+                        }));
+                    }
+                };
+                audioRefs.current.source.connect(audioRefs.current.processor);
+                audioRefs.current.processor.connect(audioRefs.current.inputCtx.destination);
+
+                // Vision frame capture
+                if (withVision) {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    video.play();
+
+                    frameIntervalRef.current = window.setInterval(() => {
+                        if (ctx && video.videoWidth && sessionPromiseRef.current?.ws.readyState === WebSocket.OPEN) {
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            ctx.drawImage(video, 0, 0);
+                            const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+                            sessionPromiseRef.current.ws.send(JSON.stringify({
+                                realtime_input: { media_chunks: [{ data: base64, mime_type: 'image/jpeg' }] }
+                            }));
                         }
-                        if (msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data) {
-                            setIsSpeaking(true);
-                            const base64Audio = msg.serverContent.modelTurn.parts[0].inlineData.data;
-                            const outputCtx = audioRefs.current.outputCtx!;
-                            if (outputCtx.state !== 'closed') {
-                                audioRefs.current.nextStartTime = Math.max(audioRefs.current.nextStartTime, outputCtx.currentTime);
-                                const audioBuffer = await decodeAudioData(decode(base64Audio), outputCtx, 24000, 1);
-                                const source = outputCtx.createBufferSource();
-                                source.buffer = audioBuffer;
-                                source.connect(outputCtx.destination);
-                                source.addEventListener('ended', () => {
-                                    audioRefs.current.sources.delete(source);
-                                    if (audioRefs.current.sources.size === 0) setIsSpeaking(false);
-                                });
-                                source.start(audioRefs.current.nextStartTime);
-                                audioRefs.current.nextStartTime += audioBuffer.duration;
-                                audioRefs.current.sources.add(source);
-                            }
-                        }
-                    },
-                    onclose: () => { setIsListening(false); setAuditStatus('IDLE'); },
-                    onerror: () => { setIsListening(false); setAuditStatus('IDLE'); },
+                    }, 1000);
                 }
-            });
+            };
+
+            ws.onmessage = async (event) => {
+                const msg = JSON.parse(typeof event.data === 'string' ? event.data : await event.data.text());
+
+                if (msg.serverContent?.interrupted) {
+                    audioRefs.current.sources.forEach(source => {
+                        try { source.stop(); } catch (e) {}
+                    });
+                    audioRefs.current.sources.clear();
+                    if (audioRefs.current.outputCtx) {
+                        audioRefs.current.nextStartTime = audioRefs.current.outputCtx.currentTime;
+                    }
+                    setIsSpeaking(false);
+                    return;
+                }
+
+                if (msg.toolCall) {
+                    for (const fc of msg.toolCall.functionCalls) {
+                        let result: any = { status: "OK" };
+                        if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
+                        else result = await callMcpOrchestrator(fc.name, fc.args);
+                        if (sessionPromiseRef.current?.ws.readyState === WebSocket.OPEN) {
+                            sessionPromiseRef.current.ws.send(JSON.stringify({
+                                tool_response: { function_responses: [{ id: fc.id, name: fc.name, response: result }] }
+                            }));
+                        }
+                    }
+                }
+
+                if (msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data) {
+                    setIsSpeaking(true);
+                    const base64Audio = msg.serverContent.modelTurn.parts[0].inlineData.data;
+                    const outputCtx = audioRefs.current.outputCtx!;
+                    if (outputCtx.state !== 'closed') {
+                        audioRefs.current.nextStartTime = Math.max(audioRefs.current.nextStartTime, outputCtx.currentTime);
+                        const audioBuffer = await decodeAudioData(decode(base64Audio), outputCtx, 24000, 1);
+                        const source = outputCtx.createBufferSource();
+                        source.buffer = audioBuffer;
+                        source.connect(outputCtx.destination);
+                        source.addEventListener('ended', () => {
+                            audioRefs.current.sources.delete(source);
+                            if (audioRefs.current.sources.size === 0) setIsSpeaking(false);
+                        });
+                        source.start(audioRefs.current.nextStartTime);
+                        audioRefs.current.nextStartTime += audioBuffer.duration;
+                        audioRefs.current.sources.add(source);
+                    }
+                }
+            };
+
+            ws.onclose = () => { setIsListening(false); setAuditStatus('IDLE'); };
+            ws.onerror = () => { setIsListening(false); setAuditStatus('IDLE'); };
+
         } catch (e) {
             setIsVoiceMode(false); setIsVisionMode(false);
         }
@@ -279,7 +300,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         setIsListening(false); setIsSpeaking(false); setAuditStatus('IDLE');
         if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
         if (sessionPromiseRef.current) {
-            sessionPromiseRef.current.then(s => { try { s.close(); } catch(e) {} });
+            try { sessionPromiseRef.current.ws.close(); } catch(e) {}
             sessionPromiseRef.current = null;
         }
         const { stream, inputCtx, outputCtx, processor, source, sources } = audioRefs.current;
