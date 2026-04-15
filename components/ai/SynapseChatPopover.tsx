@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleGenAI, LiveServerMessage, Modality, Blob, Type, Tool } from '@google/genai';
 import { ChatMessage } from '../../types';
 import { callMcpOrchestrator } from '../../services/api';
 import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink, Heart } from 'lucide-react';
 import VisualAuditPanel from './VisualAuditPanel';
+
+// Lazy-loaded type stubs — prevents @google/genai from opening WebSockets on mount
+type LiveServerMessage = any;
+type Blob = any;
+type Tool = any;
+const Modality = { AUDIO: 'AUDIO' as const };
+const Type = { OBJECT: 'OBJECT' as const, STRING: 'STRING' as const, ARRAY: 'ARRAY' as const };
 
 // ============================================================
 // IMPORTANT: Replace this with your actual Gemini API key
@@ -132,6 +138,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         setInput(''); setLoading(true); setGroundingLinks([]);
 
         try {
+            const { GoogleGenAI } = await import('@google/genai');
             const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
@@ -170,6 +177,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: withVision });
             audioRefs.current.stream = stream;
+            const { GoogleGenAI } = await import('@google/genai');
             const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
             sessionPromiseRef.current = ai.live.connect({
