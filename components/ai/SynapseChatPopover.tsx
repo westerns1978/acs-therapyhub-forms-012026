@@ -77,7 +77,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
     const [toolUseState, setToolUseState] = useState<string | null>(null);
     const [groundingLinks, setGroundingLinks] = useState<any[]>([]);
     
-    const sessionPromiseRef = useRef<{ ws: WebSocket } | null>(null);
+    const sessionPromiseRef = useRef<WebSocket | null>(null);
     const frameIntervalRef = useRef<number | null>(null);
     const audioRefs = useRef<{
       inputCtx: AudioContext | null;
@@ -174,17 +174,16 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         }
     };
 
-    const handleStartLiveMode = useCallback(async (withVision: boolean = false) => {
+    const handleStartLiveMode = useCallback(async (_withVision: boolean = false) => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: withVision });
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             audioRefs.current.stream = stream;
 
             const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
             const ws = new WebSocket(wsUrl);
-            sessionPromiseRef.current = { ws };
+            sessionPromiseRef.current = ws;
 
             ws.onopen = () => {
-                // Send setup message
                 ws.send(JSON.stringify({
                     setup: {
                         model: `models/${LIVE_MODEL}`,
@@ -192,99 +191,46 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                             response_modalities: ['AUDIO'],
                             speech_config: { voice_config: { prebuilt_voice_config: { voice_name: 'Aoede' } } }
                         },
-                        system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-                        tools: getTools(),
+                        system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }
                     }
                 }));
                 setIsListening(true);
                 setAuditStatus('LINK_ACTIVE');
 
-                // Set up audio capture pipeline
-                audioRefs.current.inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-                audioRefs.current.outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+                // Set up audio capture
+                audioRefs.current.inputCtx = new AudioContext({ sampleRate: 16000 });
                 audioRefs.current.source = audioRefs.current.inputCtx.createMediaStreamSource(stream);
                 audioRefs.current.processor = audioRefs.current.inputCtx.createScriptProcessor(4096, 1, 1);
-
                 audioRefs.current.processor.onaudioprocess = (e) => {
                     const inputData = e.inputBuffer.getChannelData(0);
-                    const blob = createBlob(inputData);
-                    if (sessionPromiseRef.current?.ws.readyState === WebSocket.OPEN) {
-                        sessionPromiseRef.current.ws.send(JSON.stringify({
-                            realtime_input: { media_chunks: [{ data: blob.data, mime_type: blob.mimeType }] }
-                        }));
+                    const int16 = new Int16Array(inputData.length);
+                    for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32768;
+                    const b64 = btoa(String.fromCharCode(...new Uint8Array(int16.buffer)));
+                    if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ realtime_input: { media_chunks: [{ data: b64, mime_type: 'audio/pcm;rate=16000' }] } }));
                     }
                 };
                 audioRefs.current.source.connect(audioRefs.current.processor);
                 audioRefs.current.processor.connect(audioRefs.current.inputCtx.destination);
-
-                // Vision frame capture
-                if (withVision) {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    const video = document.createElement('video');
-                    video.srcObject = stream;
-                    video.play();
-
-                    frameIntervalRef.current = window.setInterval(() => {
-                        if (ctx && video.videoWidth && sessionPromiseRef.current?.ws.readyState === WebSocket.OPEN) {
-                            canvas.width = video.videoWidth;
-                            canvas.height = video.videoHeight;
-                            ctx.drawImage(video, 0, 0);
-                            const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
-                            sessionPromiseRef.current.ws.send(JSON.stringify({
-                                realtime_input: { media_chunks: [{ data: base64, mime_type: 'image/jpeg' }] }
-                            }));
-                        }
-                    }, 1000);
-                }
             };
 
             ws.onmessage = async (event) => {
-                const msg = JSON.parse(typeof event.data === 'string' ? event.data : await event.data.text());
-
-                if (msg.serverContent?.interrupted) {
-                    audioRefs.current.sources.forEach(source => {
-                        try { source.stop(); } catch (e) {}
-                    });
-                    audioRefs.current.sources.clear();
-                    if (audioRefs.current.outputCtx) {
-                        audioRefs.current.nextStartTime = audioRefs.current.outputCtx.currentTime;
-                    }
-                    setIsSpeaking(false);
-                    return;
-                }
-
-                if (msg.toolCall) {
-                    for (const fc of msg.toolCall.functionCalls) {
-                        let result: any = { status: "OK" };
-                        if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
-                        else result = await callMcpOrchestrator(fc.name, fc.args);
-                        if (sessionPromiseRef.current?.ws.readyState === WebSocket.OPEN) {
-                            sessionPromiseRef.current.ws.send(JSON.stringify({
-                                tool_response: { function_responses: [{ id: fc.id, name: fc.name, response: result }] }
-                            }));
-                        }
-                    }
-                }
-
-                if (msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data) {
+                const data = JSON.parse(event.data);
+                const audio = data?.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+                if (audio) {
                     setIsSpeaking(true);
-                    const base64Audio = msg.serverContent.modelTurn.parts[0].inlineData.data;
-                    const outputCtx = audioRefs.current.outputCtx!;
-                    if (outputCtx.state !== 'closed') {
-                        audioRefs.current.nextStartTime = Math.max(audioRefs.current.nextStartTime, outputCtx.currentTime);
-                        const audioBuffer = await decodeAudioData(decode(base64Audio), outputCtx, 24000, 1);
-                        const source = outputCtx.createBufferSource();
-                        source.buffer = audioBuffer;
-                        source.connect(outputCtx.destination);
-                        source.addEventListener('ended', () => {
-                            audioRefs.current.sources.delete(source);
-                            if (audioRefs.current.sources.size === 0) setIsSpeaking(false);
-                        });
-                        source.start(audioRefs.current.nextStartTime);
-                        audioRefs.current.nextStartTime += audioBuffer.duration;
-                        audioRefs.current.sources.add(source);
-                    }
+                    audioRefs.current.outputCtx = audioRefs.current.outputCtx || new AudioContext({ sampleRate: 24000 });
+                    const bytes = Uint8Array.from(atob(audio), c => c.charCodeAt(0));
+                    const int16 = new Int16Array(bytes.buffer);
+                    const float32 = new Float32Array(int16.length);
+                    for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+                    const buffer = audioRefs.current.outputCtx.createBuffer(1, float32.length, 24000);
+                    buffer.getChannelData(0).set(float32);
+                    const source = audioRefs.current.outputCtx.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(audioRefs.current.outputCtx.destination);
+                    source.start();
+                    source.onended = () => setIsSpeaking(false);
                 }
             };
 
@@ -294,13 +240,13 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         } catch (e) {
             setIsVoiceMode(false); setIsVisionMode(false);
         }
-    }, [navigate, SYSTEM_INSTRUCTION]);
+    }, [SYSTEM_INSTRUCTION]);
 
     const handleStopLiveMode = useCallback(() => {
         setIsListening(false); setIsSpeaking(false); setAuditStatus('IDLE');
         if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
-        if (sessionPromiseRef.current) {
-            try { sessionPromiseRef.current.ws.close(); } catch(e) {}
+        if (sessionPromiseRef.current && sessionPromiseRef.current instanceof WebSocket) {
+            sessionPromiseRef.current.close();
             sessionPromiseRef.current = null;
         }
         const { stream, inputCtx, outputCtx, processor, source, sources } = audioRefs.current;
