@@ -123,12 +123,157 @@ export const saveDocumentFile = async (doc: DocumentFile, file?: File): Promise<
 };
 
 export const checkSupabaseConnection = () => storageService.checkConnection();
+
+// --- Appointments: real Supabase persistence -------------------------------------------------
+// The `appointments` table stores when-it-happens as `start_time` (timestamptz) + duration_minutes.
+// The app's Appointment type splits that into date + "HH:MM" startTime/endTime. Map both ways.
+const pad2 = (n: number) => n.toString().padStart(2, '0');
+const timeStrFromDate = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+const combineDateAndTime = (date: Date, hhmm: string): Date => {
+    const [h, m] = hhmm.split(':').map(Number);
+    const out = new Date(date);
+    out.setHours(h || 0, m || 0, 0, 0);
+    return out;
+};
+const diffMinutes = (start: Date, end: Date) => Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+
+const mapAppointmentRowToApp = (row: any): Appointment => {
+    const start = row.start_time ? new Date(row.start_time) : new Date();
+    const end = row.end_time
+        ? new Date(row.end_time)
+        : new Date(start.getTime() + (row.duration_minutes ?? 60) * 60000);
+    return {
+        id: row.id,
+        title: row.title || row.appointment_type || 'Session',
+        type: (row.appointment_type || 'Individual Counseling') as any,
+        date: start,
+        startTime: timeStrFromDate(start),
+        endTime: timeStrFromDate(end),
+        modality: (row.modality || 'In-Person') as any,
+        therapist: row.therapist_name || '',
+        zoomLink: row.zoom_link || undefined,
+        zoomMeetingId: row.zoom_meeting_id || undefined,
+        status: (row.status || 'Scheduled') as any,
+        capacity: row.capacity ?? undefined,
+        clientId: row.client_id || undefined,
+        clientName: row.client_name || undefined,
+        isRecurring: row.is_recurring ?? false,
+        googleEventId: row.google_event_id || undefined,
+        googleEventLink: row.google_event_link || undefined,
+    };
+};
+
+const mapAppToAppointmentRow = (appt: Partial<Appointment>) => {
+    const dateObj = appt.date instanceof Date ? appt.date : (appt.date ? new Date(appt.date) : new Date());
+    const start = appt.startTime ? combineDateAndTime(dateObj, appt.startTime) : dateObj;
+    const end = appt.endTime ? combineDateAndTime(dateObj, appt.endTime) : new Date(start.getTime() + 60 * 60000);
+    return {
+        title: appt.title ?? null,
+        appointment_type: appt.type ?? null,
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        duration_minutes: diffMinutes(start, end),
+        modality: appt.modality ?? null,
+        therapist_name: appt.therapist ?? null,
+        zoom_link: appt.zoomLink ?? null,
+        zoom_meeting_id: appt.zoomMeetingId ?? null,
+        status: appt.status ?? 'Scheduled',
+        capacity: appt.capacity ?? null,
+        client_id: appt.clientId ?? null,
+        client_name: appt.clientName ?? null,
+        is_recurring: appt.isRecurring ?? false,
+        google_event_id: appt.googleEventId ?? null,
+        google_event_link: appt.googleEventLink ?? null,
+        updated_at: new Date().toISOString(),
+    };
+};
+
+export const getAppointments = async (date?: Date): Promise<Appointment[]> => {
+    try {
+        let q = supabase.from('appointments').select('*').order('start_time', { ascending: true });
+        if (date) {
+            const from = new Date(date); from.setHours(0, 0, 0, 0);
+            const to = new Date(date); to.setHours(23, 59, 59, 999);
+            q = q.gte('start_time', from.toISOString()).lte('start_time', to.toISOString());
+        }
+        const { data, error } = await q;
+        if (error) throw error;
+        return (data || []).map(mapAppointmentRowToApp);
+    } catch (e) {
+        console.warn('[api] getAppointments fell back to mock:', e);
+        return (mockAppointments || []).map((a: any) => ({ ...a, date: new Date(a.date) }));
+    }
+};
 export const getSyncedAppointments = async (date?: Date) => (await getAppointments(date));
-export const getAppointments = async (date?: Date) => (mockAppointments || []).map(a => ({...a, date: new Date(a.date)}));
 export const getClientAppointments = async (id: string) => (await getAppointments()).filter(a => a.clientId === id);
 export const getPayments = async () => (mockPayments || []).map(p => ({...p, id: p.id.toString(), date: new Date(p.date), amount: p.amount, method: 'Stripe', status: 'Completed'}));
 export const getPracticeMetrics = async () => ({ incomeMTD: 15400, unbilledAmount: 1200, missingNotesCount: 3, outstandingInvoicesCount: 2, totalActiveClients: (dbClients || []).length });
-export const addAppointment = async (data: any) => ({...data, id: uuidv4()});
+
+export const addAppointment = async (data: Partial<Appointment>): Promise<Appointment> => {
+    const row = mapAppToAppointmentRow(data);
+    const { data: saved, error } = await supabase
+        .from('appointments')
+        .insert(row)
+        .select()
+        .single();
+    if (error) {
+        console.error('[api] addAppointment failed:', error);
+        throw new Error(error.message || 'Failed to save appointment');
+    }
+    return mapAppointmentRowToApp(saved);
+};
+
+export const updateAppointment = async (id: string, patch: Partial<Appointment>): Promise<Appointment> => {
+    // Only send keys the caller actually supplied. Avoids clobbering existing
+    // fields with the insert-mapper's defaults (which resets start_time to "now"
+    // when `date/startTime/endTime` aren't in the patch, etc.).
+    const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if ('title' in patch) row.title = patch.title ?? null;
+    if ('type' in patch) row.appointment_type = patch.type ?? null;
+    if ('modality' in patch) row.modality = patch.modality ?? null;
+    if ('therapist' in patch) row.therapist_name = patch.therapist ?? null;
+    if ('zoomLink' in patch) row.zoom_link = patch.zoomLink ?? null;
+    if ('zoomMeetingId' in patch) row.zoom_meeting_id = patch.zoomMeetingId ?? null;
+    if ('status' in patch) row.status = patch.status ?? 'Scheduled';
+    if ('capacity' in patch) row.capacity = patch.capacity ?? null;
+    if ('clientId' in patch) row.client_id = patch.clientId ?? null;
+    if ('clientName' in patch) row.client_name = patch.clientName ?? null;
+    if ('isRecurring' in patch) row.is_recurring = patch.isRecurring ?? false;
+    if ('googleEventId' in patch) row.google_event_id = patch.googleEventId ?? null;
+    if ('googleEventLink' in patch) row.google_event_link = patch.googleEventLink ?? null;
+    if ('date' in patch || 'startTime' in patch || 'endTime' in patch) {
+        const dateObj = patch.date instanceof Date ? patch.date : (patch.date ? new Date(patch.date) : new Date());
+        if (patch.startTime) {
+            const start = combineDateAndTime(dateObj, patch.startTime);
+            row.start_time = start.toISOString();
+            if (patch.endTime) {
+                const end = combineDateAndTime(dateObj, patch.endTime);
+                row.end_time = end.toISOString();
+                row.duration_minutes = diffMinutes(start, end);
+            }
+        }
+    }
+
+    const { data, error } = await supabase
+        .from('appointments')
+        .update(row)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) {
+        console.error('[api] updateAppointment failed:', error);
+        throw new Error(error.message || 'Failed to update appointment');
+    }
+    return mapAppointmentRowToApp(data);
+};
+
+export const deleteAppointment = async (id: string): Promise<void> => {
+    const { error } = await supabase.from('appointments').delete().eq('id', id);
+    if (error) {
+        console.error('[api] deleteAppointment failed:', error);
+        throw new Error(error.message || 'Failed to delete appointment');
+    }
+};
 export const getFormSubmissions = async (filters: any) => (dbFormSubmissions || []).filter(s => !filters.clientId || s.clientId === filters.clientId);
 export const saveFormSubmission = async (sub: any) => {
     // Real persistence — writes to form_submissions. Throws on failure so callers

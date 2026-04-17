@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { getAppointments, getClients } from '../services/api';
+import { getAppointments, getClients, deleteAppointment } from '../services/api';
 import { Appointment, Client } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -27,6 +27,13 @@ const SessionManagement: React.FC = () => {
                     console.warn('[SessionManagement] Google Calendar delete failed:', err);
                 }
             }
+            try {
+                await deleteAppointment(apt.id);
+            } catch (err) {
+                console.error('[SessionManagement] DB delete failed:', err);
+                alert('Could not cancel: ' + (err as Error).message);
+                return;
+            }
             setAppointments(prev => prev.filter(a => a.id !== apt.id));
         } finally {
             setCancellingId(null);
@@ -36,7 +43,8 @@ const SessionManagement: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
-            const [apts, cls] = await Promise.all([getAppointments(currentDate), getClients()]);
+            // Fetch all appointments; the week grid filters client-side per day.
+            const [apts, cls] = await Promise.all([getAppointments(), getClients()]);
             setAppointments(apts);
             setClients(cls);
             setIsLoading(false);

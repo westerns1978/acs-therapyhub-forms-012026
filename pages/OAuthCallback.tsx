@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { completeGoogleOAuth } from '../services/googleCalendar';
+import { completeZoomOAuth } from '../services/zoom';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 
 const OAuthCallback: React.FC = () => {
@@ -9,7 +10,7 @@ const OAuthCallback: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [status, setStatus] = useState<'working' | 'ok' | 'error'>('working');
-    const [message, setMessage] = useState('Completing Google connection...');
+    const [message, setMessage] = useState('Completing connection...');
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -17,12 +18,18 @@ const OAuthCallback: React.FC = () => {
         const state = params.get('state') || '';
         const errorParam = params.get('error');
 
+        const provider: 'google' | 'zoom' | null = state.startsWith('google:')
+            ? 'google'
+            : state.startsWith('zoom:')
+            ? 'zoom'
+            : null;
+
         if (errorParam) {
             setStatus('error');
-            setMessage(`Google denied the request: ${errorParam}`);
+            setMessage(`${provider ?? 'Provider'} denied the request: ${errorParam}`);
             return;
         }
-        if (!code || !state.startsWith('google:')) {
+        if (!code || !provider) {
             setStatus('error');
             setMessage('Missing authorization code. Restart the connection from Settings.');
             return;
@@ -33,11 +40,15 @@ const OAuthCallback: React.FC = () => {
             return;
         }
 
+        setMessage(`Completing ${provider === 'google' ? 'Google' : 'Zoom'} connection...`);
+
         (async () => {
             try {
-                const { email } = await completeGoogleOAuth(code, state, String(user.id));
+                const complete = provider === 'google' ? completeGoogleOAuth : completeZoomOAuth;
+                const { email } = await complete(code, state, String(user.id));
                 setStatus('ok');
-                setMessage(email ? `Connected ${email}` : 'Connected to Google Calendar');
+                const label = provider === 'google' ? 'Google Calendar' : 'Zoom';
+                setMessage(email ? `Connected ${email}` : `Connected to ${label}`);
                 setTimeout(() => navigate('/settings', { replace: true }), 1500);
             } catch (e: any) {
                 setStatus('error');
@@ -55,7 +66,7 @@ const OAuthCallback: React.FC = () => {
                     {status === 'error' && <AlertTriangle className="w-12 h-12 text-red-500" />}
                 </div>
                 <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-                    {status === 'working' && 'Connecting to Google'}
+                    {status === 'working' && 'Connecting...'}
                     {status === 'ok' && 'Connection Successful'}
                     {status === 'error' && 'Connection Failed'}
                 </h1>

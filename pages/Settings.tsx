@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import { getSyncedAppointments, resetDemoData, checkSupabaseConnection } from '../services/api';
 import { Integration, SyncedAppointment } from '../types';
-import { isZoomConnected, connectZoom, disconnectZoom } from '../services/integrationService';
 import {
     beginGoogleOAuth,
     isGoogleOAuthConfigured,
@@ -12,6 +11,13 @@ import {
     clearGoogleCalendarLink,
     getConnectedGoogleAccountEmail,
 } from '../services/googleCalendar';
+import {
+    beginZoomOAuth,
+    isZoomOAuthConfigured,
+    isZoomLinked,
+    clearZoomLink,
+    getConnectedZoomAccountEmail,
+} from '../services/zoom';
 import { CheckCircleIcon, XCircleIcon, AlertTriangleIcon, HardDriveIcon, Loader2, RefreshCw, X, Check, Database, Wifi, WifiOff, Code, Terminal, Video, Calendar } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 
@@ -136,6 +142,62 @@ const GoogleCalendarCard: React.FC = () => {
     );
 };
 
+const ZoomCard: React.FC = () => {
+    const configured = isZoomOAuthConfigured();
+    const [linked, setLinked] = useState<boolean>(isZoomLinked());
+    const [email, setEmail] = useState<string | null>(getConnectedZoomAccountEmail());
+    const [isConnecting, setIsConnecting] = useState(false);
+
+    const handleConnect = async () => {
+        try {
+            setIsConnecting(true);
+            await beginZoomOAuth(); // redirects — no code after this runs
+        } catch (e: any) {
+            setIsConnecting(false);
+            alert(e?.message || 'Could not start Zoom connection.');
+        }
+    };
+
+    const handleDisconnect = () => {
+        if (!window.confirm('Disconnect Zoom? New telehealth sessions will fall back to a manual link.')) return;
+        clearZoomLink();
+        setLinked(false);
+        setEmail(null);
+    };
+
+    return (
+        <div className="flex items-center justify-between p-4 bg-surface dark:bg-slate-800/50 rounded-lg border border-border dark:border-slate-700 transition-all hover:border-primary/50">
+            <div>
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                    Zoom Meetings
+                    {linked && <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center gap-1"><Check size={10}/> Active</span>}
+                    {!configured && <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Not configured</span>}
+                </h3>
+                <p className="text-sm text-on-surface-secondary">
+                    {linked && email
+                        ? `Telehealth sessions auto-create Zoom meetings on ${email}.`
+                        : 'Auto-create a secure Zoom meeting for every telehealth session.'}
+                </p>
+                {!configured && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                        Set <code>VITE_ZOOM_CLIENT_ID</code> and deploy the
+                        <code> zoom-oauth-exchange</code> edge function to enable.
+                    </p>
+                )}
+            </div>
+            <div className="flex items-center gap-4">
+                <button
+                    onClick={linked ? handleDisconnect : handleConnect}
+                    disabled={!configured || isConnecting}
+                    className={`px-4 py-2 rounded-md text-sm font-semibold text-white transition-all min-w-[120px] flex justify-center items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${linked ? 'bg-white text-red-600 border border-red-200 hover:bg-red-50' : 'bg-primary hover:bg-primary-focus'}`}
+                >
+                    {isConnecting ? <Loader2 size={16} className="animate-spin"/> : linked ? 'Disconnect' : 'Connect'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 const DatabaseHealthCard = () => {
     const [status, setStatus] = useState<{connected: boolean, latency: number, message?: string} | null>(null);
     const [isChecking, setIsChecking] = useState(false);
@@ -186,25 +248,12 @@ const DatabaseHealthCard = () => {
 }
 
 const Settings: React.FC = () => {
-    const [zoomConnected, setZoomConnected] = useState(isZoomConnected());
     const [zoomPMI, setZoomPMI] = useState(localStorage.getItem('zoom_pmi') || '');
     const [isResetting, setIsResetting] = useState(false);
-
-    const toggleZoom = () => {
-        if (zoomConnected) disconnectZoom(); else connectZoom();
-        setZoomConnected(!zoomConnected);
-    };
 
     const saveSettings = () => {
         localStorage.setItem('zoom_pmi', zoomPMI);
         alert("Configuration saved!");
-    };
-
-    const zoomIntegration: Integration = {
-        id: 'zoom',
-        name: 'Zoom Meetings',
-        status: zoomConnected ? 'Connected' : 'Disconnected',
-        description: 'Generate secure meeting links automatically.',
     };
 
     const handleResetData = async () => {
@@ -223,11 +272,7 @@ const Settings: React.FC = () => {
                     <Card title="External Integrations" subtitle="Connect your workflow tools.">
                         <div className="space-y-4">
                             <GoogleCalendarCard />
-                            <IntegrationCard
-                                key={zoomIntegration.id}
-                                integration={zoomIntegration}
-                                onToggle={toggleZoom}
-                            />
+                            <ZoomCard />
                         </div>
 
                         {/* MVP: Manual Configuration */}

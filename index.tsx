@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Google OAuth redirect lands on origin root with ?code=&state=google:...
+// OAuth redirects (Google, Zoom) land on origin root with ?code=&state=<provider>:...
 // HashRouter can't read those without help, so forward into the hash route
 // before React mounts.
 (() => {
@@ -11,7 +11,7 @@ import App from './App';
   if (!search || !search.includes('code=')) return;
   const params = new URLSearchParams(search);
   const state = params.get('state') || '';
-  if (!state.startsWith('google:')) return;
+  if (!state.startsWith('google:') && !state.startsWith('zoom:')) return;
   const next = `${window.location.origin}${window.location.pathname}#/oauth/callback${search}`;
   window.history.replaceState(null, '', next);
 })();

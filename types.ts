@@ -330,6 +330,7 @@ export interface Appointment {
   modality: 'Virtual (Zoom)' | 'In-Person';
   therapist: string;
   zoomLink?: string;
+  zoomMeetingId?: string;
   status: AppointmentStatus;
   capacity?: number;
   attendees?: Attendee[];

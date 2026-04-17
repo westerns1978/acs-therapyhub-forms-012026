@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Client, Appointment, AppointmentType } from '../../types';
-import { addAppointment, analyzeTravelRisk } from '../../services/api';
-import { isZoomConnected } from '../../services/integrationService';
+import { addAppointment, updateAppointment, analyzeTravelRisk } from '../../services/api';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent, getGoogleFreeBusy } from '../../services/googleCalendar';
+import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { useAuth } from '../../contexts/AuthContext';
 import { MapPin, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 
@@ -95,8 +95,33 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         e.preventDefault();
         
         const client = clients.find(p => p.id === selectedClientId);
-        const zoomConnected = isZoomConnected();
-        
+
+        // If Zoom is linked, auto-create a real meeting for telehealth sessions.
+        // Failure is non-fatal; appointment still saves without a zoom link.
+        let zoomLink: string | undefined;
+        let zoomMeetingId: string | undefined;
+        if (user?.id && isZoomLinked()) {
+            try {
+                const startIso = new Date(`${date}T${startTime}:00`).toISOString();
+                const endIso = new Date(`${date}T${endTime}:00`).toISOString();
+                const durationMin = Math.max(
+                    15,
+                    Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000),
+                );
+                const topic = isGroup ? sessionType : `Individual Counseling - ${client?.name ?? ''}`.trim();
+                const zm = await createZoomMeeting(String(user.id), {
+                    topic,
+                    startIso,
+                    durationMinutes: durationMin,
+                    timezone: 'America/Chicago',
+                });
+                zoomLink = zm.joinUrl;
+                zoomMeetingId = zm.meetingId;
+            } catch (err) {
+                console.warn('[ScheduleSessionModal] Zoom create failed:', err);
+            }
+        }
+
         const newAppointmentData: Omit<Appointment, 'id'> = {
             title: isGroup ? sessionType : `Individual Counseling - ${client?.name}`,
             type: sessionType,
@@ -105,15 +130,15 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             endTime: new Date(`1970-01-01T${endTime}`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
             modality: 'Virtual (Zoom)',
             therapist: 'Bill Sunderman, MEd, LPC',
-            zoomLink: zoomConnected ? `https://zoom.us/j/${Math.floor(1000000000 + Math.random() * 9000000000)}` : undefined,
+            zoomLink,
             status: 'Scheduled',
-            ...(isGroup 
+            ...(isGroup
                 ? { capacity, attendees: [] }
                 : { clientId: selectedClientId, clientName: client?.name }
             )
         };
-        
-        const savedAppointment = await addAppointment(newAppointmentData);
+
+        const savedAppointment = await addAppointment({ ...newAppointmentData, zoomMeetingId });
 
         // Best-effort Google Calendar write-through. Appointment is already
         // in Supabase; calendar failure must not block the user flow. If the
@@ -141,6 +166,16 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                 googleEventLink = result.htmlLink;
             } catch (err) {
                 console.warn('[ScheduleSessionModal] Google Calendar push failed:', err);
+            }
+        }
+
+        // If the Google push succeeded, persist the event id/link on the row so
+        // refresh preserves the Synced badge and future update/delete can target it.
+        if (googleEventId) {
+            try {
+                await updateAppointment(savedAppointment.id, { googleEventId, googleEventLink });
+            } catch (err) {
+                console.warn('[ScheduleSessionModal] failed to persist google event id:', err);
             }
         }
 
