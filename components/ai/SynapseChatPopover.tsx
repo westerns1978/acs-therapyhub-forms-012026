@@ -5,11 +5,9 @@ import { callMcpOrchestrator } from '../../services/api';
 import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink, Heart } from 'lucide-react';
 import VisualAuditPanel from './VisualAuditPanel';
 import { getApiKey } from '../../services/gemini';
-import { CLARA_SYSTEM_PROMPT } from '../../services/claraPersona';
-import { CLARA_STAFF_TOOL_DECLARATIONS, executeClaraTool } from '../../services/claraTools';
 
 const GEMINI_API_KEY = getApiKey();
-const LIVE_MODEL = 'gemini-2.5-flash-native-audio-latest';
+const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const TEXT_MODEL = 'gemini-2.5-flash';
 
 // --- Audio Utility Functions ---
@@ -94,28 +92,30 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
     useEffect(() => {
         setMessages([
-            { role: 'model', parts: [{ text: mode === 'staff'
-                ? "Clara online. I have real-time access to client records, compliance data, attendance, court orders, and billing. What do you need?"
+            { role: 'model', parts: [{ text: mode === 'staff' 
+                ? "ACS TherapyHub Orchestrator Online. Connected to PDS-LEXINGTON. I'm utilizing Gemini 2.5 Native Audio for real-time clinical auditing. How can I assist with your caseload today?" 
                 : "Hi there! I'm Clara, your personal recovery assistant. I'm here to help you with questions about your program, appointments, forms, or anything else you need. How can I help you today?" }] }
         ]);
     }, [mode]);
 
     const getTools = () => {
-        if (mode === 'staff') {
-            return [
-                { function_declarations: CLARA_STAFF_TOOL_DECLARATIONS },
-                { google_search: {} },
-            ];
-        }
-        // Client mode keeps it simple: navigation + search only.
-        return [
-            { function_declarations: [{ name: "navigate_to_page", description: "Navigate to a specific portal page (e.g. /forms, /appointments).", parameters: { type: "OBJECT", properties: { path: { type: "STRING" } }, required: ["path"] } }] },
-            { google_search: {} },
+        const baseTools: any[] = [
+            { function_declarations: [{ name: "navigate_to_page", description: "Navigate to a specific system page (e.g. /dashboard, /clients).", parameters: { type: "OBJECT", properties: { path: { type: "STRING" } }, required: ["path"] } }] },
+            { google_search: {} }
         ];
+        if (mode === 'staff') {
+            baseTools[0].function_declarations.push(
+                { name: "patient_session_summary", description: "Get session status and compliance tracking for a client.", parameters: { type: "OBJECT", properties: { patient_id: { type: "STRING" } }, required: ["patient_id"] } },
+                { name: "billing_status", description: "Check billing and insurance claims for the practice.", parameters: { type: "OBJECT", properties: { practice_id: { type: "STRING" } } } }
+            );
+        }
+        return baseTools;
     };
 
-    const SYSTEM_INSTRUCTION = mode === 'staff'
-        ? CLARA_SYSTEM_PROMPT
+    const SYSTEM_INSTRUCTION = mode === 'staff' 
+        ? `You are ACS TherapyHub Superintendent. You are a highly advanced, real-time clinical AI. 
+           Be concise, professional, and objective. Address user as Lead Technician.
+           Firmly adhere to the Infrastructure of Trust. You can navigate the UI and check MCP records.`
         : `You are Clara, a warm and supportive recovery assistant for clients at Assessment & Counseling Solutions (ACS) in St. Louis, Missouri.
            You help clients with questions about their SATOP program, REACT program, DWI Court requirements, appointment scheduling, form completion, payment information, and general recovery support.
            Be empathetic, encouraging, and use simple language. Never use clinical jargon or technical terms.
@@ -123,82 +123,55 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
            You can help navigate them to different pages in the portal like their forms, appointments, billing, or progress tracking.
            Always be positive and remind them that completing their program is achievable.`;
 
-    const runToolCall = async (name: string, args: any): Promise<any> => {
-        if (name === 'navigate_to_page') {
-            navigate(args?.path);
-            return { ok: true, navigated_to: args?.path };
-        }
-        if (mode === 'staff') {
-            return await executeClaraTool(name, args || {});
-        }
-        // Client mode falls back to the orchestrator for anything beyond navigation
-        return await callMcpOrchestrator(name, args);
-    };
-
     const handleTextSend = async () => {
         if (!input.trim() || loading) return;
         const userMsgText = input;
         setMessages(prev => [...prev, { role: 'user', parts: [{ text: userMsgText }] }]);
         setInput(''); setLoading(true); setGroundingLinks([]);
 
-        // Running conversation turns — includes prior model turns + tool responses
-        // so Gemini can chain tool calls and summarize results.
-        const turns: any[] = [{ role: 'user', parts: [{ text: userMsgText }] }];
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-
         try {
-            // Cap iterations so a misbehaving model can't infinite-loop.
-            for (let step = 0; step < 5; step++) {
-                const res = await fetch(endpoint, {
+            const res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+                {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-                        contents: turns,
+                        contents: [{ role: 'user', parts: [{ text: userMsgText }] }],
                         tools: getTools(),
                     }),
-                });
-                const json = await res.json();
-                const candidate = json.candidates?.[0];
-
-                if (candidate?.groundingMetadata?.groundingChunks) {
-                    setGroundingLinks(candidate.groundingMetadata.groundingChunks);
                 }
+            );
+            const json = await res.json();
+            const candidate = json.candidates?.[0];
 
-                const parts = candidate?.content?.parts || [];
-                const functionCalls = parts.filter((p: any) => p.functionCall);
+            if (candidate?.groundingMetadata?.groundingChunks) {
+                setGroundingLinks(candidate.groundingMetadata.groundingChunks);
+            }
 
-                if (functionCalls.length === 0) {
-                    const text = parts.map((p: any) => p.text || '').join('');
-                    if (text) {
-                        setMessages(prev => [...prev, { role: 'model', parts: [{ text }] }]);
-                    }
-                    break;
-                }
-
-                // Echo the model's function-call turn back into history, then execute
-                // each tool and append the responses so the next turn can summarize.
-                turns.push({ role: 'model', parts });
-
-                const responseParts: any[] = [];
-                for (const part of functionCalls) {
-                    const fc = part.functionCall;
-                    setToolUseState(mode === 'staff' ? `Running ${fc.name}...` : `Looking that up for you...`);
-                    const result = await runToolCall(fc.name, fc.args);
-                    responseParts.push({
-                        functionResponse: { name: fc.name, response: { result } },
-                    });
-                }
-                setToolUseState(null);
-                turns.push({ role: 'user', parts: responseParts });
+            const parts = candidate?.content?.parts || [];
+            const functionCalls = parts.filter((p: any) => p.functionCall);
+            if (functionCalls.length > 0) {
+                 for (const part of functionCalls) {
+                     const fc = part.functionCall;
+                     setToolUseState(mode === 'staff' ? `Orchestrating ${fc.name}...` : `Looking that up for you...`);
+                     if (fc.name === 'navigate_to_page') navigate(fc.args?.path);
+                     else {
+                        const mcpResult = await callMcpOrchestrator(fc.name, fc.args);
+                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' ? `[MCP TRANSMISSION]: ${JSON.stringify(mcpResult)}` : `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
+                     }
+                 }
+                 setToolUseState(null);
+            } else {
+                const text = parts.map((p: any) => p.text || '').join('');
+                setMessages(prev => [...prev, { role: 'model', parts: [{ text }] }]);
             }
         } catch(error) {
             setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff'
-                ? "Connection lost. Please try again."
+                ? "Communication disruption. Verify API uplink."
                 : "I'm sorry, I'm having trouble connecting right now. Please try again in a moment, or call our office at 314-849-2800 for immediate help."}] }]);
         } finally {
             setLoading(false);
-            setToolUseState(null);
         }
     };
 
@@ -221,10 +194,8 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
             // Dynamic import — only loads SDK when voice mode is activated
             const { GoogleGenAI, Modality } = await import('@google/genai');
-            console.log('✅ GoogleGenAI SDK loaded');
-            console.log('[DEBUG] API key available:', GEMINI_API_KEY ? `yes (${GEMINI_API_KEY.substring(0, 8)}...)` : 'NO — key is empty!');
-            // SDK v1.50+ uses v1beta by default; gemini-live-2.5-flash-preview is on v1beta
             const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+            console.log('✅ GoogleGenAI SDK loaded');
 
             const session = await ai.live.connect({
                 model: LIVE_MODEL,
@@ -234,9 +205,6 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                         voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } },
                     },
                     systemInstruction: SYSTEM_INSTRUCTION,
-                    tools: mode === 'staff'
-                        ? [{ functionDeclarations: CLARA_STAFF_TOOL_DECLARATIONS as any }]
-                        : [{ functionDeclarations: [{ name: 'navigate_to_page', description: 'Navigate to a portal page.', parameters: { type: 'OBJECT', properties: { path: { type: 'STRING' } }, required: ['path'] } }] as any }],
                 },
                 callbacks: {
                     onopen: () => {
@@ -255,11 +223,11 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
                         if (msg.toolCall) {
                             for (const fc of msg.toolCall.functionCalls) {
-                                setToolUseState(`Running ${fc.name}...`);
-                                const result = await runToolCall(fc.name, fc.args);
-                                sessionRef.current?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { result } }] });
+                                let result: any = { status: "OK" };
+                                if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
+                                else result = await callMcpOrchestrator(fc.name, fc.args);
+                                sessionRef.current?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: result }] });
                             }
-                            setToolUseState(null);
                         }
 
                         const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
@@ -281,7 +249,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
                             audioRefs.current.sources.add(source);
                         }
                     },
-                    onclose: (e: any) => { console.log('⚠️ session closed — code:', e?.code, 'reason:', e?.reason || '(none)', 'wasClean:', e?.wasClean); setIsListening(false); setAuditStatus('IDLE'); },
+                    onclose: (e: any) => { console.log('⚠️ session closed reason:', e); setIsListening(false); setAuditStatus('IDLE'); },
                     onerror: (e: any) => { console.error('❌ Live session error:', e); setIsListening(false); setAuditStatus('IDLE'); },
                 }
             });
@@ -344,8 +312,8 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
     if (!isOpen) return null;
     
     // --- Mode-dependent UI text ---
-    const headerTitle = mode === 'staff'
-        ? <h3 className="font-black text-sm tracking-tighter">CLARA <span className="text-primary tracking-widest text-[9px]">CLINICAL ANALYST</span></h3>
+    const headerTitle = mode === 'staff' 
+        ? <h3 className="font-black text-sm tracking-tighter">THERAPYHUB <span className="text-primary tracking-widest text-[9px]">SUPERINTENDENT</span></h3>
         : <h3 className="font-black text-sm tracking-tighter">Clara <span className="text-indigo-500 tracking-widest text-[9px]">RECOVERY ASSISTANT</span></h3>;
     
     const headerStatus = mode === 'staff'
@@ -358,9 +326,9 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
     const headerIconBg = mode === 'staff' ? 'bg-primary/10' : 'bg-indigo-500/10';
 
-    const placeholderText = mode === 'staff' ? 'Ask Clara about a client, compliance, or scheduling...' : 'Ask Clara a question...';
+    const placeholderText = mode === 'staff' ? 'Dispatch practice command...' : 'Ask Clara a question...';
     
-    const groundingLabel = mode === 'staff' ? 'Sources:' : 'Helpful Resources:';
+    const groundingLabel = mode === 'staff' ? 'Operational Grounding:' : 'Helpful Resources:';
 
     return (
         <div className="fixed bottom-28 right-8 w-full max-w-sm h-[70vh] flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/20 dark:border-slate-800 rounded-[2.5rem] shadow-2xl z-50 animate-fade-in-up overflow-hidden ring-1 ring-black/5">
