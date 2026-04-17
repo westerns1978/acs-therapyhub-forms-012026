@@ -29,8 +29,8 @@ const EmergencyContactSection: React.FC<FormSectionProps<EmergencyContactData>> 
           <FormField id="relationship" label="Relationship to Client" value={formData.relationship} onChange={handleChange} error={errors.relationship} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-          <FormField id="primaryPhone" label="Primary Uplink" type="tel" value={formData.primaryPhone} onChange={handleChange} error={errors.primaryPhone} />
-          <FormField id="secondaryPhone" label="Backup Uplink" type="tel" value={formData.secondaryPhone} onChange={handleChange} error={errors.secondaryPhone} />
+          <FormField id="primaryPhone" label="Primary Phone" type="tel" value={formData.primaryPhone} onChange={handleChange} error={errors.primaryPhone} />
+          <FormField id="secondaryPhone" label="Secondary Phone" type="tel" value={formData.secondaryPhone} onChange={handleChange} error={errors.secondaryPhone} />
         </div>
       </div>
 
@@ -79,8 +79,8 @@ export const EMERGENCY_CONTACT_DEFINITION: FormDefinition<EmergencyContactData> 
     { id: 'clientEmail', label: 'Secure Email', type: 'email', required: false },
     { id: 'contactName', label: 'Contact Full Name', type: 'text', required: true },
     { id: 'relationship', label: 'Relationship to Client', type: 'text', required: true },
-    { id: 'primaryPhone', label: 'Primary Uplink', type: 'tel', required: true },
-    { id: 'secondaryPhone', label: 'Backup Uplink', type: 'tel', required: false },
+    { id: 'primaryPhone', label: 'Primary Phone', type: 'tel', required: true },
+    { id: 'secondaryPhone', label: 'Secondary Phone', type: 'tel', required: false },
     { id: 'permissionToContact', label: 'Permission to Contact in Crisis', type: 'boolean', required: true },
     { id: 'disclosureChoice', label: 'Disclosure Protocol', type: 'text', required: true, options: [{ value: 'accept', label: 'Authorized for Disclosure' }, { value: 'deny', label: 'No Disclosure Authorized' }] },
     { id: 'clientSignature', label: 'Client Digital Verification', type: 'text', required: true },

@@ -133,7 +133,7 @@ const Resources: React.FC = () => {
                     <div className="text-center p-12">
                         <Loader2 className="animate-spin text-primary mx-auto w-10 h-10 mb-4" />
                         <p className="text-xs font-black uppercase text-slate-400 tracking-[0.2em]">
-                            {isLocating ? 'Accessing Local Uplink...' : 'Querying Google Maps Infrastructure...'}
+                            {isLocating ? 'Getting your location...' : 'Searching Google Maps...'}
                         </p>
                     </div>
                 )}

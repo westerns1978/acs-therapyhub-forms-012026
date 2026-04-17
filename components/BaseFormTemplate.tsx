@@ -97,33 +97,63 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
     try {
       const clientData = sessionStorage.getItem('portal_client');
       const client = clientData ? JSON.parse(clientData) : null;
-      
-      const { data: submission, error: submitError } = await supabase
-        .from('form_submissions')
-        .insert({
-          client_id: client?.id || 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-          form_type: formDefinition.category,
-          form_name: formDefinition.title,
-          status: 'completed',
-          data: formData,
-          submitted_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+      const clientId = client?.id || 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
-      if (submitError) {
-        throw new Error(submitError.message);
+      // If staff previously assigned this form, there's already a row with
+      // status='Not Started'. Update it so we don't create a duplicate.
+      const { data: existing } = await supabase
+        .from('form_submissions')
+        .select('id')
+        .eq('form_id', formDefinition.id)
+        .eq('client_id', clientId)
+        .neq('status', 'completed')
+        .neq('status', 'Completed')
+        .neq('status', 'reviewed')
+        .neq('status', 'Reviewed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const payload = {
+        client_id: clientId,
+        form_id: formDefinition.id,
+        form_type: formDefinition.category,
+        form_name: formDefinition.title,
+        status: 'completed',
+        data: formData,
+        submitted_at: new Date().toISOString(),
+      };
+
+      let submission: any;
+      if (existing?.id) {
+        const { data, error } = await supabase
+          .from('form_submissions')
+          .update(payload)
+          .eq('id', existing.id)
+          .select()
+          .single();
+        if (error) throw new Error(error.message);
+        submission = data;
+      } else {
+        const { data, error } = await supabase
+          .from('form_submissions')
+          .insert(payload)
+          .select()
+          .single();
+        if (error) throw new Error(error.message);
+        submission = data;
       }
 
-      const formId = submission?.id 
+      const formId = submission?.id
         ? `ACS-${submission.id.slice(0, 8).toUpperCase()}`
         : `ACS-FORM-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
       setSubmissionId(formId);
       setIsSubmitted(true);
       localStorage.removeItem(`draft-${formDefinition.id}`);
-    } catch (error) {
-      setSubmissionError('Submission failed. Please try again.');
+    } catch (error: any) {
+      console.error('[BaseFormTemplate] submit failed:', error);
+      setSubmissionError(error?.message || 'Submission failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

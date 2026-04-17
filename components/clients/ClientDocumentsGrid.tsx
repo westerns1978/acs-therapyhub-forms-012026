@@ -129,7 +129,7 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
                     <h3 className="text-2xl font-black tracking-tighter">Documents</h3>
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${uplinkStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                        Uplink: {uplinkStatus === 'connected' ? 'Database Connected' : 'OFFLINE'}
+                        Storage: {uplinkStatus === 'connected' ? 'Connected' : 'Offline'}
                     </p>
                 </div>
                 <div className="flex gap-3">

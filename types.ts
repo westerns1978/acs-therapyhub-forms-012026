@@ -333,9 +333,11 @@ export interface Appointment {
   status: AppointmentStatus;
   capacity?: number;
   attendees?: Attendee[];
-  clientId?: string; 
+  clientId?: string;
   clientName?: string;
   isRecurring?: boolean;
+  googleEventId?: string;
+  googleEventLink?: string;
 }
 
 export interface ProgressData { month: string; score: number; notes: string; }
@@ -358,9 +360,6 @@ export type ClientFolderType = 'Intake' | 'Progress' | 'Compliance' | 'Financial
 export interface DocumentFile { id: string; nodeId: string; clientId: string; clientName: string; filename: string; documentType: DocumentFileType; gcs_file_path: string; sql_metadata_id: string; uploadDate: Date; fileSize: number; mimeType: string; url: string; extractedData: { summary: string; fields: ExtractedField[]; actionItems: string[]; suggestedSubfolder?: ClientFolderType; }; complianceStatus: ComplianceStatus; auditTrail: Array<{ timestamp: Date; user: string; action: string }>; }
 export interface FileSystemNode { id: string; name: string; type: 'folder' | 'document'; parentId?: string; clientId?: string; children?: FileSystemNode[]; documentId?: string; }
 export interface AiSuggestion { id: string; contextId: string; type: 'missing_document' | 'deadline_alert' | 'workflow_suggestion' | 'content_summary'; message: string; actionText?: string; priority: 'low' | 'medium' | 'high'; }
-export type ScannerStatus = 'Online' | 'Offline' | 'Busy' | 'Error' | 'Low Paper';
-export interface NetworkScanner { id: string; name: string; ipAddress: string; model: string; location: string; status: ScannerStatus; }
-export interface ScanJob { id: string; clientId: string; category: ClientFolderType; jobName: string; scannerId: string; settings: { dpi: number; colorMode: 'color' | 'grayscale' | 'blackwhite'; isDuplex: boolean; format: 'pdf' | 'jpeg' | 'tiff'; }; status: 'pending' | 'scanning' | 'review' | 'analyzing' | 'complete' | 'failed'; pages: string[]; error?: string; }
 export interface Form { id: string; title: string; category: 'Recovery Plans' | 'Assessments' | 'Intake'; description: string; format: 'electronic' | 'pdf'; pdfUrl?: string; }
 export interface FormSubmission { id: string; formId: string; clientId: string; status: 'Not Started' | 'In Progress' | 'Completed' | 'Reviewed'; submittedAt?: Date; reviewedAt?: Date; reviewedBy?: string; data?: any; assignedAt?: Date; dueDate?: Date; }
 export interface AuthContextType { user: User | null; login: (user: User) => void; logout: () => void; }

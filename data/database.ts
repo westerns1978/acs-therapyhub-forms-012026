@@ -2,7 +2,7 @@ import {
   User, Client, Appointment, Message, SROPProgress, SignedDocument, ComplianceEvent,
   AuditLog, ProgramPlan, SessionRecord, ClientAssignment, AsamAssessmentData, Payment,
   DocumentFile, StaffCertification, Integration, FormTemplate, ClientDocument, BillingSummary,
-  FileSystemNode, AiSuggestion, ClientActivity, NetworkScanner, Form, FormSubmission, VideoSession
+  FileSystemNode, AiSuggestion, ClientActivity, Form, FormSubmission, VideoSession
 } from '../types';
 
 // --- DYNAMIC DATE HELPERS ---
@@ -153,11 +153,6 @@ const initialDbClientActivityFeed: ClientActivity[] = [
     { id: 'act-a-5', clientId: '1', timestamp: getRelativeDate(-5), type: 'Payment', description: 'Payment of $150.00 was successfully processed.' },
 ];
 
-const initialDbNetworkScanners: NetworkScanner[] = [
-    { id: 'scanner-1', name: 'Front Desk Scanner', ipAddress: '192.168.1.101', model: 'Epson DS-790WN', location: 'Main Office', status: 'Online' },
-    { id: 'scanner-2', name: 'Dr. Sharma\'s Office', ipAddress: '192.168.1.102', model: 'Epson DS-790WN', location: 'Main Office', status: 'Offline' },
-];
-
 const initialDbForms: Form[] = [
     { id: 'form-crp-1', title: 'Continuing Recovery Plan', category: 'Recovery Plans', description: 'A collaborative plan to support long-term recovery goals.', format: 'electronic', pdfUrl: '' },
     { id: 'form-intake-1', title: 'SATOP Intake Packet', category: 'Intake', description: 'Standard intake forms for SATOP programs.', format: 'electronic', pdfUrl: '' }
@@ -205,7 +200,6 @@ export let dbStaffCertifications: StaffCertification[] = [];
 export let dbIntegrations: Integration[] = [];
 export let dbAiSuggestions: AiSuggestion[] = [];
 export let dbClientActivityFeed: ClientActivity[] = [];
-export let dbNetworkScanners: NetworkScanner[] = [];
 export let dbForms: Form[] = [];
 export let dbFormSubmissions: FormSubmission[] = [];
 export let dbVideoSessions: VideoSession[] = [];
@@ -231,7 +225,6 @@ export const initializeDatabase = () => {
     dbClientDocuments = JSON.parse(JSON.stringify(initialDbClientDocuments));
     dbAiSuggestions = JSON.parse(JSON.stringify(initialDbAiSuggestions));
     dbClientActivityFeed = JSON.parse(JSON.stringify(initialDbClientActivityFeed));
-    dbNetworkScanners = JSON.parse(JSON.stringify(initialDbNetworkScanners));
     dbForms = JSON.parse(JSON.stringify(initialDbForms));
     dbFormSubmissions = JSON.parse(JSON.stringify(initialDbFormSubmissions));
     dbVideoSessions = JSON.parse(JSON.stringify(initialDbVideoSessions));

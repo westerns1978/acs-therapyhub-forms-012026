@@ -62,6 +62,7 @@ const Login: React.FC = () => {
     
     const handleMfaSuccess = async () => {
         setIsMfaOpen(false);
+        setIsLoading(false);
         const role = email.includes('admin') ? 'Admin' : 'Clinical';
         const mockUser = { 
           id: 'u1', 
@@ -86,7 +87,7 @@ const Login: React.FC = () => {
                     <h1 className="text-4xl font-black text-white tracking-tighter">TherapyHub</h1>
                     <div className="flex items-center gap-2 mt-2">
                         <Zap size={12} className="text-red-500 fill-red-500" />
-                        <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">Clinical Orchestrator 3.0</p>
+                        <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">Assessment & Counseling Solutions</p>
                     </div>
                 </div>
 
@@ -140,7 +141,7 @@ const Login: React.FC = () => {
                                 </div>
                                 
                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Cipher</label>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Password</label>
                                     <div className="relative">
                                         <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 ${fieldErrors.password ? 'text-red-400' : 'text-slate-500'}`} size={18} />
                                         <input
@@ -159,7 +160,7 @@ const Login: React.FC = () => {
                         )}
 
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Uplink Mobile <span className="text-[#8B1538]">*iVALT MFA</span></label>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mobile Number <span className="text-[#8B1538]">*iVALT MFA</span></label>
                             <div className="relative">
                                 <Smartphone className={`absolute left-4 top-1/2 -translate-y-1/2 ${fieldErrors.mobile ? 'text-red-400' : 'text-slate-500'}`} size={18} />
                                 <div className="absolute left-10 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm border-r border-white/10 pr-2 ml-1">+1</div>
@@ -189,8 +190,8 @@ const Login: React.FC = () => {
 
                     <div className="mt-8 pt-6 border-t border-white/5 flex flex-col items-center gap-4">
                         <label className="flex items-center gap-3 cursor-pointer group">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={isDemoMode}
                             onChange={(e) => setIsDemoMode(e.target.checked)}
                             className="w-4 h-4 rounded border-white/20 bg-white/5 text-[#8B1538] focus:ring-[#8B1538]/50"
@@ -200,7 +201,14 @@ const Login: React.FC = () => {
                     </div>
                 </div>
             </div>
-            
+
+            <IValtMfaModal
+                isOpen={isMfaOpen}
+                onClose={() => { setIsMfaOpen(false); setIsLoading(false); }}
+                onSuccess={handleMfaSuccess}
+                mobileNumber={mobile}
+                demoMode={isDemoMode}
+            />
 
         </div>
     );

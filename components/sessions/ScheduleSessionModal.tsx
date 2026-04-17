@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Client, Appointment, AppointmentType } from '../../types';
 import { addAppointment, analyzeTravelRisk } from '../../services/api';
 import { isZoomConnected } from '../../services/integrationService';
+import { isGoogleCalendarLinked, createGoogleCalendarEvent, getGoogleFreeBusy } from '../../services/googleCalendar';
+import { useAuth } from '../../contexts/AuthContext';
 import { MapPin, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 
 interface ScheduleSessionModalProps {
@@ -13,6 +15,7 @@ interface ScheduleSessionModalProps {
 }
 
 const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onClose, onSave, clients, preselectedClient }) => {
+    const { user } = useAuth();
     const [sessionType, setSessionType] = useState<AppointmentType>('SATOP Group');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [startTime, setStartTime] = useState('18:00');
@@ -24,6 +27,9 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     const [travelRisk, setTravelRisk] = useState<'Low' | 'Medium' | 'High' | null>(null);
     const [riskReason, setRiskReason] = useState<string>('');
     const [isAnalyzingRisk, setIsAnalyzingRisk] = useState(false);
+
+    // Google Calendar conflict check
+    const [calendarConflict, setCalendarConflict] = useState<string | null>(null);
 
     useEffect(() => {
         if (preselectedClient) {
@@ -58,6 +64,31 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         return () => clearTimeout(debounce);
     }, [date, startTime, selectedClientId, sessionType]);
 
+    // Debounced Google Calendar conflict check against the user's primary
+    // calendar. Best-effort: silent failures are acceptable (link may be
+    // stale, network may be down, etc.); we only warn when we have data.
+    useEffect(() => {
+        setCalendarConflict(null);
+        if (!user?.id || !isGoogleCalendarLinked()) return;
+        const check = async () => {
+            try {
+                const startIso = new Date(`${date}T${startTime}:00`).toISOString();
+                const endIso = new Date(`${date}T${endTime}:00`).toISOString();
+                if (new Date(endIso).getTime() <= new Date(startIso).getTime()) return;
+                const busy = await getGoogleFreeBusy(String(user.id), startIso, endIso);
+                if (busy.length > 0) {
+                    const b = busy[0];
+                    const fmt = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    setCalendarConflict(`Overlaps a personal event on your Google Calendar (${fmt(b.start)}–${fmt(b.end)}).`);
+                }
+            } catch (err) {
+                // Swallow — conflict check is advisory only.
+            }
+        };
+        const t = setTimeout(check, 900);
+        return () => clearTimeout(t);
+    }, [date, startTime, endTime, user?.id]);
+
     const isGroup = sessionType.toLowerCase().includes('group');
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -83,7 +114,42 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         };
         
         const savedAppointment = await addAppointment(newAppointmentData);
-        onSave({...savedAppointment, date: new Date(savedAppointment.date)});
+
+        // Best-effort Google Calendar write-through. Appointment is already
+        // in Supabase; calendar failure must not block the user flow. If the
+        // push succeeds, we attach the returned event id/link so the UI can
+        // render a Synced indicator and later delete/update can target it.
+        let googleEventId: string | undefined;
+        let googleEventLink: string | undefined;
+        if (user?.id && isGoogleCalendarLinked()) {
+            try {
+                const startIso = new Date(`${date}T${startTime}:00`).toISOString();
+                const endIso = new Date(`${date}T${endTime}:00`).toISOString();
+                const attendees: string[] = [];
+                if (!isGroup && client?.email) attendees.push(client.email);
+                const result = await createGoogleCalendarEvent(String(user.id), {
+                    summary: newAppointmentData.title,
+                    description: newAppointmentData.zoomLink
+                        ? `Zoom: ${newAppointmentData.zoomLink}`
+                        : undefined,
+                    startIso,
+                    endIso,
+                    timezone: 'America/Chicago',
+                    attendees: attendees.length ? attendees : undefined,
+                });
+                googleEventId = result.eventId;
+                googleEventLink = result.htmlLink;
+            } catch (err) {
+                console.warn('[ScheduleSessionModal] Google Calendar push failed:', err);
+            }
+        }
+
+        onSave({
+            ...savedAppointment,
+            date: new Date(savedAppointment.date),
+            googleEventId,
+            googleEventLink,
+        });
         onClose();
     };
 
@@ -168,6 +234,17 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                     }`}>
                                         {isAnalyzingRisk ? "Analyzing travel conditions..." : riskReason || "Schedule looks good."}
                                     </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Google Calendar conflict warning (advisory, won't block submit) */}
+                        {calendarConflict && (
+                            <div className="mt-2 p-3 rounded-lg border bg-amber-50 border-amber-200 flex items-start gap-3">
+                                <AlertTriangle size={16} className="text-amber-600 mt-0.5" />
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-wider mb-0.5 text-amber-700">Google Calendar Conflict</p>
+                                    <p className="text-sm font-semibold text-amber-800">{calendarConflict}</p>
                                 </div>
                             </div>
                         )}

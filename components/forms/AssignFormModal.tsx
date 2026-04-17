@@ -21,6 +21,7 @@ const AssignFormModal: React.FC<AssignFormModalProps> = ({ isOpen, onClose, onFo
         return nextWeek.toISOString().split('T')[0];
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
     const isBulkMode = clients.length > 1;
 
@@ -47,10 +48,17 @@ const AssignFormModal: React.FC<AssignFormModalProps> = ({ isOpen, onClose, onFo
         if (!selectedFormId || selectedClientIds.length === 0 || !dueDate) return;
 
         setIsSubmitting(true);
-        await assignForm(selectedFormId, selectedClientIds, new Date(dueDate));
-        setIsSubmitting(false);
-        onFormAssigned();
-        onClose();
+        setSubmitError(null);
+        try {
+            await assignForm(selectedFormId, selectedClientIds, new Date(dueDate));
+            onFormAssigned();
+            onClose();
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Failed to assign form';
+            setSubmitError(msg);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (!isOpen) return null;
@@ -92,6 +100,11 @@ const AssignFormModal: React.FC<AssignFormModalProps> = ({ isOpen, onClose, onFo
                             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required className="w-full p-2 border rounded-md" />
                         </div>
                     </main>
+                    {submitError && (
+                        <div className="mx-4 mb-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40 text-xs text-red-700 dark:text-red-300">
+                            {submitError}
+                        </div>
+                    )}
                     <footer className="p-4 border-t flex justify-end">
                         <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 bg-primary text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50">
                             <Send size={16} /> {isSubmitting ? 'Assigning...' : `Assign Form to ${selectedClientIds.length} Client(s)`}

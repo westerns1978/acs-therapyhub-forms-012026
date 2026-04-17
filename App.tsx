@@ -31,12 +31,12 @@ const VideoSessions = lazy(() => import('./pages/VideoSessions'));
 const VideoGreenRoom = lazy(() => import('./pages/VideoGreenRoom'));
 const Resources = lazy(() => import('./pages/Resources')); 
 const DocumentIntelligence = lazy(() => import('./pages/DocumentIntelligence'));
+const RiskMonitor = lazy(() => import('./pages/RiskMonitor'));
+const OAuthCallback = lazy(() => import('./pages/OAuthCallback'));
 
 // Admin Pages
 const Reporting = lazy(() => import('./pages/Reporting'));
-const FormsManagement = lazy(() => import('./pages/FormsManagement'));
 const Settings = lazy(() => import('./pages/Settings'));
-const NetworkScanners = lazy(() => import('./pages/NetworkScanners'));
 
 // Client Portal Pages
 const ClientLogin = lazy(() => import('./pages/portal/ClientLogin'));
@@ -62,6 +62,7 @@ function App() {
                 <Routes>
                   {/* Public & Login Routes */}
                   <Route path="/login" element={<Login />} />
+                  <Route path="/oauth/callback" element={<OAuthCallback />} />
                   <Route path="/portal/login" element={<ClientLogin />} />
                   <Route path="/website" element={<WebsitePortalBridge />} />
                   <Route path="/visitor-resources" element={<PortalLayout><Resources /></PortalLayout>} />
@@ -87,12 +88,11 @@ function App() {
                   <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
                   <Route path="/document-intelligence" element={<ProtectedRoute><DocumentIntelligence supabase={supabase as any} /></ProtectedRoute>} />
+                  <Route path="/risk-monitor" element={<ProtectedRoute><RiskMonitor /></ProtectedRoute>} />
                   
                   {/* Admin-only Routes */}
                   <Route path="/reporting" element={<AdminRoute><Reporting /></AdminRoute>} />
-                  <Route path="/forms-management" element={<AdminRoute><FormsManagement /></AdminRoute>} />
                   <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
-                  <Route path="/network-scanners" element={<AdminRoute><NetworkScanners /></AdminRoute>} />
 
                   {/* Client-facing Portal */}
                   <Route path="/portal/dashboard" element={<PortalDashboard />} />

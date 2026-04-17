@@ -36,8 +36,8 @@ const SatopIntakeSection: React.FC<FormSectionProps<SatopClientIntakeData>> = ({
         <FormField id="dob" label="Date of Birth" type="date" value={formData.dob} onChange={handleChange} error={errors.dob} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-        <FormField id="clientPhone" label="Uplink Mobile" type="tel" value={formData.clientPhone} onChange={handlePhoneChange} error={errors.clientPhone} placeholder="(314) 000-0000" />
-        <FormField id="clientEmail" label="Secure Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} placeholder="patient@secure.pds" />
+        <FormField id="clientPhone" label="Mobile Number" type="tel" value={formData.clientPhone} onChange={handlePhoneChange} error={errors.clientPhone} placeholder="(314) 000-0000" />
+        <FormField id="clientEmail" label="Secure Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} placeholder="client@example.com" />
       </div>
 
       <div className="pt-8 border-t border-black/5 dark:border-white/5">
@@ -97,7 +97,7 @@ export const SATOP_INTAKE_DEFINITION: FormDefinition<SatopClientIntakeData> = {
   fieldDefinitions: [
     { id: 'clientName', label: 'Client Full Name', type: 'text', required: true },
     { id: 'dob', label: 'Date of Birth', type: 'date', required: true },
-    { id: 'clientPhone', label: 'Uplink Mobile', type: 'tel', required: true },
+    { id: 'clientPhone', label: 'Mobile Number', type: 'tel', required: true },
     { id: 'clientEmail', label: 'Secure Email', type: 'email', required: true },
     { id: 'caseNumber', label: 'Court Case Number', type: 'text', required: true },
     { id: 'offenseDate', label: 'Offense Date', type: 'date', required: true },

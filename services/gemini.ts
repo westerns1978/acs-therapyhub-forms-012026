@@ -7,7 +7,8 @@
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export function getApiKey(): string {
-  return process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+  // import.meta.env.VITE_* is statically replaced by Vite at build time
+  return import.meta.env.VITE_GEMINI_API_KEY || '';
 }
 
 export async function geminiGenerate(

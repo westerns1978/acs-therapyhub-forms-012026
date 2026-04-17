@@ -12,8 +12,6 @@ import {
 
 const adminNavItems = [
     { to: '/reporting', icon: BarChart3, label: 'Analytics' },
-    { to: '/forms-management', icon: FileText, label: 'Forms Library' },
-    { to: '/network-scanners', icon: HardDrive, label: 'Scanners' },
     { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
@@ -95,7 +93,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
            <div className={`w-2 h-2 rounded-full ${uplinkLatency ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
            {!isCollapsed && (
              <div className="flex-1 overflow-hidden">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Uplink: Lexington Stable</p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Connection: Stable</p>
                 <p className="text-[9px] font-mono text-primary">{uplinkLatency || '---'}ms latency</p>
              </div>
            )}

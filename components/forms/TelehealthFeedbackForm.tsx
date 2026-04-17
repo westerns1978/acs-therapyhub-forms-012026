@@ -27,7 +27,7 @@ const FeedbackSection: React.FC<FormSectionProps<TelehealthFeedbackData>> = ({ f
       </div>
 
       <div className="space-y-6">
-        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b pb-2">Uplink Telemetry (Phone & Tech)</h3>
+        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b pb-2">Phone & Technology</h3>
         <StarRating id="phoneClarity" label="Call Audio/Visual Clarity" value={formData.phoneClarity} onChange={(v) => setFormData({...formData, phoneClarity: v})} />
         <StarRating id="groupTechnology" label="Telehealth Node Stability" value={formData.groupTechnology} onChange={(v) => setFormData({...formData, groupTechnology: v})} />
       </div>

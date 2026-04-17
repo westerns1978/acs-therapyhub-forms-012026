@@ -3,14 +3,35 @@ import { getAppointments, getClients } from '../services/api';
 import { Appointment, Client } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check, X } from 'lucide-react';
+import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
+import { useAuth } from '../contexts/AuthContext';
 
 const SessionManagement: React.FC = () => {
+    const { user } = useAuth();
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
+    const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+    const handleCancelAppointment = async (apt: Appointment) => {
+        if (!window.confirm(`Cancel "${apt.title}"? This will also remove the Google Calendar event and notify attendees.`)) return;
+        setCancellingId(apt.id);
+        try {
+            if (apt.googleEventId && user?.id) {
+                try {
+                    await deleteGoogleCalendarEvent(String(user.id), apt.googleEventId);
+                } catch (err) {
+                    console.warn('[SessionManagement] Google Calendar delete failed:', err);
+                }
+            }
+            setAppointments(prev => prev.filter(a => a.id !== apt.id));
+        } finally {
+            setCancellingId(null);
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -128,9 +149,9 @@ const SessionManagement: React.FC = () => {
                                     
                                     {/* Events */}
                                     {dayEvents.map(apt => (
-                                        <div 
+                                        <div
                                             key={apt.id}
-                                            className="absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden bg-blue-50/90 dark:bg-blue-900/40 border-blue-200/50 dark:border-blue-700/50 text-blue-900 dark:text-blue-100 backdrop-blur-sm"
+                                            className="group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden bg-blue-50/90 dark:bg-blue-900/40 border-blue-200/50 dark:border-blue-700/50 text-blue-900 dark:text-blue-100 backdrop-blur-sm"
                                             style={getEventStyle(apt)}
                                             title={apt.title}
                                         >
@@ -146,8 +167,31 @@ const SessionManagement: React.FC = () => {
                                                             <Video size={10}/> Virtual
                                                         </div>
                                                     )}
+                                                    {apt.googleEventId && (
+                                                        <a
+                                                            href={apt.googleEventLink || '#'}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={e => e.stopPropagation()}
+                                                            title="Open in Google Calendar"
+                                                            className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-green-700 dark:text-green-300 hover:underline"
+                                                        >
+                                                            <Check size={10}/> Synced to Google
+                                                        </a>
+                                                    )}
                                                 </div>
                                             </div>
+                                            {/* Hover cancel */}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handleCancelAppointment(apt); }}
+                                                disabled={cancellingId === apt.id}
+                                                aria-label="Cancel session"
+                                                title="Cancel session"
+                                                className="absolute top-1 right-1 p-1 rounded-full bg-white/80 text-red-600 opacity-0 group-hover/event:opacity-100 transition-opacity shadow-sm hover:bg-red-50 disabled:opacity-50"
+                                            >
+                                                <X size={12} />
+                                            </button>
                                         </div>
                                     ))}
                                     

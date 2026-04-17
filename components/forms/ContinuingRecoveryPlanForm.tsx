@@ -70,7 +70,7 @@ const Step4: React.FC<FormSectionProps<RecoveryPlanData>> = ({ formData, setForm
       <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 4: Support Network Grid</h3>
       <FormField id="whoSupportsRecovery" label="Recovery Support Infrastructure" type="textarea" value={formData.whoSupportsRecovery} onChange={handleChange} error={errors.whoSupportsRecovery} />
       <FormField id="supportGroups" label="Synchronized Support Modules (AA/NA)" type="textarea" value={formData.supportGroups} onChange={handleChange} error={errors.supportGroups} />
-      <FormField id="emergencyContacts" label="Emergency Uplink Contacts" type="textarea" value={formData.emergencyContacts} onChange={handleChange} error={errors.emergencyContacts} />
+      <FormField id="emergencyContacts" label="Emergency Contacts" type="textarea" value={formData.emergencyContacts} onChange={handleChange} error={errors.emergencyContacts} />
     </div>
   );
 };
@@ -124,7 +124,7 @@ export const RECOVERY_PLAN_DEFINITION: FormDefinition<RecoveryPlanData> = {
     { id: 'copingSkills', label: 'Adaptive Coping Mechanisms', type: 'textarea', required: true },
     { id: 'whoSupportsRecovery', label: 'Recovery Support Infrastructure', type: 'textarea', required: true },
     { id: 'supportGroups', label: 'Synchronized Support Modules (AA/NA)', type: 'textarea', required: true },
-    { id: 'emergencyContacts', label: 'Emergency Uplink Contacts', type: 'textarea', required: true },
+    { id: 'emergencyContacts', label: 'Emergency Contacts', type: 'textarea', required: true },
     { id: 'prescribedMedications', label: 'Active Medication Maintenance', type: 'boolean', required: true },
     { id: 'dailyRecoveryActivities', label: 'Daily Maintenance Routine', type: 'textarea', required: true },
     { id: 'acknowledgment', label: 'I verify this protocol as my current continuing recovery plan.', type: 'boolean', required: true },

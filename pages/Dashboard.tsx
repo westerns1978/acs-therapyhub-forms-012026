@@ -9,8 +9,7 @@ import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
 import { Clock, Video, Calendar, CheckCircle, AlertCircle, DollarSign, FileText, AlertTriangle, Zap, Activity, HardDrive, ArrowUpRight, TrendingUp, Sparkles, Brain, ArrowDownRight, ShieldCheck, Shield } from 'lucide-react';
-import RiskDashboard from '../components/RiskDashboard';
-import { generateCohortRiskReport } from '../services/riskModelingService';
+import { fetchAlerts, summarizeAlerts, type AlertsSummary } from '../services/alertsService';
 
 const OperationalInsightCard: React.FC<{ title: string, value: string, icon: any, trend: 'up' | 'down', color: string }> = ({ title, value, icon: Icon, trend, color }) => (
     <div className="p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl transition-all hover:scale-[1.02] group">
@@ -33,6 +32,7 @@ const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const [isBriefingModalOpen, setBriefingModalOpen] = useState(false);
     const [appointments, setAppointments] = useState<any[]>([]);
+    const [alertSummary, setAlertSummary] = useState<AlertsSummary>({ critical: 0, high: 0, elevated: 0, moderate: 0, total: 0 });
     const [metrics, setMetrics] = useState({
         complianceRate: 0,
         monthlyRevenue: 0,
@@ -94,6 +94,14 @@ const Dashboard: React.FC = () => {
                     .order('start_time');
                 
                 setAppointments(scheduleData || []);
+
+                // Risk alerts (non-blocking — falls back to empty on failure)
+                try {
+                    const alerts = await fetchAlerts();
+                    setAlertSummary(summarizeAlerts(alerts));
+                } catch (e) {
+                    console.warn('[dashboard] fetchAlerts failed:', e);
+                }
             } catch (error) {
                 console.warn("Failed to fetch dashboard, using defaults:", error);
                 // Fallback to defaults if supabase fails
@@ -180,14 +188,32 @@ const Dashboard: React.FC = () => {
                         </div>
                     </Card>
                     
-                    <Card title="Risk Monitor" subtitle="Predictive cohort risk analysis.">
-                        <RiskDashboard 
-                            profiles={[]} 
-                            summary={{ criticalCount: 1, redCount: 2, orangeCount: 4, yellowCount: 8, greenCount: 9, totalClients: 24 }} 
-                            onSelectClient={() => {}} 
-                            onTriggerOutreach={() => {}} 
-                        />
-                        <button onClick={() => generateCohortRiskReport()} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-xs font-bold uppercase">Generate Live Risk Report</button>
+                    <Card title="Risk Monitor" subtitle="Actionable alerts from real client activity.">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="p-4 rounded-2xl border-2 border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10">
+                                <div className="text-3xl font-black tracking-tighter text-red-600">{alertSummary.critical}</div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Critical</div>
+                            </div>
+                            <div className="p-4 rounded-2xl border-2 border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10">
+                                <div className="text-3xl font-black tracking-tighter text-orange-600">{alertSummary.high}</div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">High</div>
+                            </div>
+                            <div className="p-4 rounded-2xl border-2 border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10">
+                                <div className="text-3xl font-black tracking-tighter text-amber-600">{alertSummary.elevated}</div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Elevated</div>
+                            </div>
+                            <div className="p-4 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10">
+                                <div className="text-3xl font-black tracking-tighter text-blue-600">{alertSummary.moderate}</div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Moderate</div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => navigate('/risk-monitor')}
+                            className="mt-4 w-full px-4 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition flex items-center justify-center gap-2"
+                        >
+                            {alertSummary.total > 0 ? `Review ${alertSummary.total} alert${alertSummary.total === 1 ? '' : 's'}` : 'Open Risk Monitor'}
+                            <ArrowUpRight size={14} />
+                        </button>
                     </Card>
                 </div>
 

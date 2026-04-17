@@ -186,12 +186,15 @@ const PortalDocuments: React.FC = () => {
         return <PortalLayout><div className="text-center p-12">Loading your forms...</div></PortalLayout>;
     }
 
-    const completedFormNames = submissions
-        .filter(s => s.status === 'completed' || s.status === 'reviewed')
-        .map(s => s.form_name);
+    // Match assignments/completions by form_id (stable) rather than form_name (label).
+    // Accept both lowercase and capitalized status variants.
+    const isCompleted = (s: any) =>
+        s.status === 'completed' || s.status === 'Completed' ||
+        s.status === 'reviewed' || s.status === 'Reviewed';
+    const completedFormIds = new Set(submissions.filter(isCompleted).map(s => s.form_id));
 
-    const pendingForms = CLIENT_FORMS.filter(form => !completedFormNames.includes(form.name));
-    const completedSubs = submissions.filter(s => s.status === 'completed' || s.status === 'reviewed');
+    const pendingForms = CLIENT_FORMS.filter(form => !completedFormIds.has(form.id));
+    const completedSubs = submissions.filter(isCompleted);
     const requiredPending = pendingForms.filter(f => f.required);
     const optionalPending = pendingForms.filter(f => !f.required);
 

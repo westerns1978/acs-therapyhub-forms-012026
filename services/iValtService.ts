@@ -1,109 +1,121 @@
-
-import { supabase } from './supabase';
+/**
+ * iVALT Service - Direct fetch pattern (no Shield SDK dependency)
+ */
 
 export interface IValtAuthStatus {
-  step: number;
+  status: 'pending' | 'success' | 'failed';
   message: string;
-  status: 'pending' | 'success' | 'error';
-  request_id?: string;
+  step?: number;
 }
 
-class IValtService {
-  /**
-   * Triggers the biometric push notification.
-   */
-  async startAuthentication(mobile: string, demoMode: boolean = false): Promise<string> {
-    if (demoMode) return 'demo-' + crypto.randomUUID();
+export class IValtService {
+  private pollingTimer: any = null;
+  private requestId: string | null = null;
+  private phoneNumber: string = '';
 
-    const digitsOnly = mobile.replace(/\D/g, '');
-    const cleanMobile = `+1${digitsOnly}`;
+  private readonly SUPABASE_URL = 'https://ldzzlndsspkyohvzfiiu.supabase.co';
+  private readonly SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkenpsbmRzc3BreW9odnpmaWl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3MTEzMDUsImV4cCI6MjA3NzI4NzMwNX0.SK2Y7XMzeGQoVMq9KAmEN1vwy7RjtbIXZf6TyNneFnI';
 
-    try {
-      const { data, error } = await supabase.functions.invoke('ivalt-auth', {
-        body: { action: 'start-auth', mobile: cleanMobile },
-      });
+  async initiateHandshake(phoneNumber: string): Promise<void> {
+    const cleanDigits = phoneNumber.replace(/\D/g, '');
+    const formatted = cleanDigits.length === 10 ? `+1${cleanDigits}` : `+${cleanDigits}`;
+    this.phoneNumber = formatted;
 
-      if (error) throw new Error(error.message || 'Verification gateway unreachable.');
-      return data.request_id;
-    } catch (err: any) {
-      console.error('[iVALT] HANDSHAKE_FAILED:', err.message);
-      throw new Error('Biometric gateway connection failed.');
+    console.log('[iVALT] Initiating handshake for:', this.phoneNumber);
+
+    const response = await fetch(`${this.SUPABASE_URL}/functions/v1/ivalt-auth`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
+        'apikey': this.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        action: 'start-auth',
+        mobile: this.phoneNumber,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[iVALT] Handshake failed:', errorText);
+      throw new Error(`Handshake failed: ${response.status}`);
     }
+
+    const data = await response.json();
+
+    if (data.status === 'error') {
+      throw new Error(data.message || 'iVALT rejected the request');
+    }
+
+    this.requestId = data.request_id;
+    console.log('[iVALT] Handshake successful. Request ID:', this.requestId);
   }
 
-  /**
-   * Continuous Telemetry Polling.
-   * Prioritizes the "success" flag over sequential steps.
-   */
-  pollStatus(
-    requestId: string, 
-    mobile: string, 
-    callback: (status: IValtAuthStatus) => void, 
-    demoMode: boolean = false
-  ): () => void {
-    if (demoMode) {
-      let step = 1;
-      const interval = setInterval(() => {
-        step++;
-        if (step <= 6) {
-          callback({ step, message: 'Verifying Identity...', status: 'pending', request_id: requestId });
-        } else {
-          clearInterval(interval);
-          callback({ step: 7, message: 'Verified', status: 'success', request_id: requestId });
-        }
-      }, 800);
-      return () => clearInterval(interval);
-    }
-
-    const digitsOnly = mobile.replace(/\D/g, '');
-    const cleanMobile = `+1${digitsOnly}`;
-    const startTime = Date.now();
-    let timerId: number | undefined;
-
+  startPolling(
+    onUpdate: (status: IValtAuthStatus) => void,
+    onSuccess: () => void,
+    onFail: (err: string) => void
+  ): void {
     const poll = async () => {
-      // 8 minute max timeout per session
-      if (Date.now() - startTime > 480000) {
-        callback({ step: 0, message: 'Uplink Expired', status: 'error', request_id: requestId });
-        return;
-      }
-
       try {
-        const response = await supabase.functions.invoke('ivalt-auth', {
-          body: { action: 'validate', mobile: cleanMobile, request_id: requestId },
+        const response = await fetch(`${this.SUPABASE_URL}/functions/v1/ivalt-auth`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.SUPABASE_ANON_KEY}`,
+            'apikey': this.SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            action: 'validate',
+            mobile: this.phoneNumber,
+            request_id: this.requestId,
+          }),
         });
 
-        // TERMINAL SUCCESS (Priority 1)
-        if (response.data?.status === 'success' || (response as any).status === 200) {
-          callback({ step: 7, message: 'Access Approved', status: 'success', request_id: requestId });
+        const data = await response.json();
+
+        if (data.status === 'success') {
+          this.cleanup();
+          console.log('[iVALT] Authentication successful!');
+          onUpdate({ status: 'success', message: 'Access Granted' });
+          setTimeout(onSuccess, 300);
           return;
         }
 
-        // TERMINAL FAILURE (Priority 2)
-        if (response.data?.status === 'error' || ((response as any).status >= 400 && (response as any).status !== 403)) {
-          callback({ step: 0, message: response.data?.message || 'Verification Failed', status: 'error', request_id: requestId });
+        if (data.status === 'error') {
+          this.cleanup();
+          console.error('[iVALT] Authentication failed:', data.message);
+          onFail(data.message || 'Authentication failed');
           return;
         }
 
-        // PENDING STATE (Priority 3)
-        // 403 often indicates device push is successful but biometric scan is pending
-        const currentStep = (response as any).status === 403 ? 5 : 3;
-        callback({ 
-          step: currentStep, 
-          message: response.data?.message || 'Awaiting mobile biometric...', 
-          status: 'pending', 
-          request_id: requestId 
+        onUpdate({
+          status: 'pending',
+          message: data.message || 'Awaiting approval...',
+          step: data.step,
         });
-        
-        timerId = window.setTimeout(poll, 2000);
 
-      } catch (err: any) {
-        // Network flutter handling: retry with exponential backoff feel
-        timerId = window.setTimeout(poll, 3000);
+        this.pollingTimer = setTimeout(poll, 2000);
+
+      } catch (error) {
+        console.warn('[iVALT] Network error, retrying...', error);
+        this.pollingTimer = setTimeout(poll, 3000);
       }
     };
 
-    timerId = window.setTimeout(poll, 500); 
-    return () => { if (timerId) clearTimeout(timerId); };
+    setTimeout(poll, 500);
+  }
+
+  cleanup(): void {
+    if (this.pollingTimer) {
+      clearTimeout(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+  }
+
+  cancel(): void {
+    this.cleanup();
   }
 }
 

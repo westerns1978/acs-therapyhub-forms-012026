@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PortalLayout from '../../layouts/PortalLayout';
 import { BaseFormTemplate } from '../../components/BaseFormTemplate';
@@ -34,6 +34,25 @@ const PortalFormPage: React.FC = () => {
 
   const config = formId ? formMap[formId] : null;
 
+  // Pre-fill PII from the portal client's record so they don't re-type
+  // name/email/dob on every form (especially SATOP Intake + Checklist).
+  // Only overrides empty fields — doesn't stomp user-entered values or drafts.
+  const prefilledConfig = useMemo(() => {
+    if (!config || !portalClient) return config;
+    const pii: Record<string, any> = {
+      clientName: portalClient.name || '',
+      clientEmail: portalClient.email || '',
+      clientPhone: portalClient.phone || '',
+      dob: portalClient.dob || portalClient.date_of_birth || '',
+      caseNumber: portalClient.caseNumber || portalClient.case_number || '',
+    };
+    const merged: Record<string, any> = { ...config.initialState };
+    for (const [key, val] of Object.entries(pii)) {
+      if (val && key in merged && !merged[key]) merged[key] = val;
+    }
+    return { ...config, initialState: merged as typeof config.initialState };
+  }, [config, portalClient]);
+
   if (!config) {
     return (
       <PortalLayout>
@@ -52,7 +71,7 @@ const PortalFormPage: React.FC = () => {
     <PortalLayout>
       <div className="max-w-3xl mx-auto">
         <BaseFormTemplate
-          formDefinition={config}
+          formDefinition={prefilledConfig || config}
           onBackToLibrary={() => navigate('/portal/documents')}
         />
       </div>

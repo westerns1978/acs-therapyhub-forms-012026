@@ -9,7 +9,7 @@ export const storageService = {
     try {
       const { data, error } = await supabase.storage.listBuckets();
       if (error) throw error;
-      return { status: 'healthy', message: 'Uplink Established' };
+      return { status: 'healthy', message: 'Connected' };
     } catch (e: any) {
       return { status: 'offline', message: e.message };
     }

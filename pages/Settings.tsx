@@ -4,7 +4,14 @@ import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import { getSyncedAppointments, resetDemoData, checkSupabaseConnection } from '../services/api';
 import { Integration, SyncedAppointment } from '../types';
-import { isGoogleCalendarConnected, connectGoogleCalendar, disconnectGoogleCalendar, isZoomConnected, connectZoom, disconnectZoom } from '../services/integrationService';
+import { isZoomConnected, connectZoom, disconnectZoom } from '../services/integrationService';
+import {
+    beginGoogleOAuth,
+    isGoogleOAuthConfigured,
+    isGoogleCalendarLinked,
+    clearGoogleCalendarLink,
+    getConnectedGoogleAccountEmail,
+} from '../services/googleCalendar';
 import { CheckCircleIcon, XCircleIcon, AlertTriangleIcon, HardDriveIcon, Loader2, RefreshCw, X, Check, Database, Wifi, WifiOff, Code, Terminal, Video, Calendar } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 
@@ -73,6 +80,62 @@ const IntegrationCard: React.FC<{ integration: Integration, onToggle: () => void
     );
 };
 
+const GoogleCalendarCard: React.FC = () => {
+    const configured = isGoogleOAuthConfigured();
+    const [linked, setLinked] = useState<boolean>(isGoogleCalendarLinked());
+    const [email, setEmail] = useState<string | null>(getConnectedGoogleAccountEmail());
+    const [isConnecting, setIsConnecting] = useState(false);
+
+    const handleConnect = async () => {
+        try {
+            setIsConnecting(true);
+            await beginGoogleOAuth(); // redirects — no code after this runs
+        } catch (e: any) {
+            setIsConnecting(false);
+            alert(e?.message || 'Could not start Google connection.');
+        }
+    };
+
+    const handleDisconnect = () => {
+        if (!window.confirm('Disconnect Google Calendar? New sessions will no longer be pushed to your calendar. (Existing events are not removed.)')) return;
+        clearGoogleCalendarLink();
+        setLinked(false);
+        setEmail(null);
+    };
+
+    return (
+        <div className="flex items-center justify-between p-4 bg-surface dark:bg-slate-800/50 rounded-lg border border-border dark:border-slate-700 transition-all hover:border-primary/50">
+            <div>
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                    Google Calendar
+                    {linked && <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center gap-1"><Check size={10}/> Active</span>}
+                    {!configured && <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Not configured</span>}
+                </h3>
+                <p className="text-sm text-on-surface-secondary">
+                    {linked && email
+                        ? `Sessions will be pushed to ${email}.`
+                        : 'Push new sessions to your Google Calendar automatically.'}
+                </p>
+                {!configured && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                        Set <code>VITE_GOOGLE_CLIENT_ID</code> and deploy the
+                        <code> google-oauth-exchange</code> edge function to enable.
+                    </p>
+                )}
+            </div>
+            <div className="flex items-center gap-4">
+                <button
+                    onClick={linked ? handleDisconnect : handleConnect}
+                    disabled={!configured || isConnecting}
+                    className={`px-4 py-2 rounded-md text-sm font-semibold text-white transition-all min-w-[120px] flex justify-center items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${linked ? 'bg-white text-red-600 border border-red-200 hover:bg-red-50' : 'bg-primary hover:bg-primary-focus'}`}
+                >
+                    {isConnecting ? <Loader2 size={16} className="animate-spin"/> : linked ? 'Disconnect' : 'Connect'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 const DatabaseHealthCard = () => {
     const [status, setStatus] = useState<{connected: boolean, latency: number, message?: string} | null>(null);
     const [isChecking, setIsChecking] = useState(false);
@@ -123,16 +186,9 @@ const DatabaseHealthCard = () => {
 }
 
 const Settings: React.FC = () => {
-    const [googleConnected, setGoogleConnected] = useState(isGoogleCalendarConnected());
     const [zoomConnected, setZoomConnected] = useState(isZoomConnected());
     const [zoomPMI, setZoomPMI] = useState(localStorage.getItem('zoom_pmi') || '');
-    const [calendarId, setCalendarId] = useState(localStorage.getItem('google_calendar_id') || '');
     const [isResetting, setIsResetting] = useState(false);
-
-    const toggleGoogle = () => {
-        if (googleConnected) disconnectGoogleCalendar(); else connectGoogleCalendar();
-        setGoogleConnected(!googleConnected);
-    };
 
     const toggleZoom = () => {
         if (zoomConnected) disconnectZoom(); else connectZoom();
@@ -141,14 +197,15 @@ const Settings: React.FC = () => {
 
     const saveSettings = () => {
         localStorage.setItem('zoom_pmi', zoomPMI);
-        localStorage.setItem('google_calendar_id', calendarId);
         alert("Configuration saved!");
     };
 
-    const integrations: Integration[] = [
-        { id: 'google_calendar', name: 'Google Calendar', status: googleConnected ? 'Connected' : 'Disconnected', description: 'Two-way sync for appointments and availability.' },
-        { id: 'zoom', name: 'Zoom Meetings', status: zoomConnected ? 'Connected' : 'Disconnected', description: 'Generate secure meeting links automatically.' },
-    ];
+    const zoomIntegration: Integration = {
+        id: 'zoom',
+        name: 'Zoom Meetings',
+        status: zoomConnected ? 'Connected' : 'Disconnected',
+        description: 'Generate secure meeting links automatically.',
+    };
 
     const handleResetData = async () => {
         if (window.confirm("Are you sure? This will revert the app to its initial state.")) {
@@ -165,48 +222,33 @@ const Settings: React.FC = () => {
                 <div className="space-y-6">
                     <Card title="External Integrations" subtitle="Connect your workflow tools.">
                         <div className="space-y-4">
-                            {integrations.map(integration => (
-                                <IntegrationCard 
-                                    key={integration.id} 
-                                    integration={integration} 
-                                    onToggle={() => integration.id === 'google_calendar' ? toggleGoogle() : toggleZoom()} 
-                                />
-                            ))}
+                            <GoogleCalendarCard />
+                            <IntegrationCard
+                                key={zoomIntegration.id}
+                                integration={zoomIntegration}
+                                onToggle={toggleZoom}
+                            />
                         </div>
-                        
+
                         {/* MVP: Manual Configuration */}
                         <div className="mt-6 p-6 border rounded-xl bg-gray-50 dark:bg-slate-800/50">
                             <h4 className="font-bold text-sm mb-4 flex items-center gap-2 uppercase tracking-wide text-gray-500">
                                 <Terminal size={14}/> Manual Configuration (MVP)
                             </h4>
-                            
+
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
                                         <Video size={14} className="text-blue-500"/> Zoom Personal Meeting ID (PMI) Link
                                     </label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="https://zoom.us/j/your-pmi" 
+                                    <input
+                                        type="text"
+                                        placeholder="https://zoom.us/j/your-pmi"
                                         value={zoomPMI}
                                         onChange={(e) => setZoomPMI(e.target.value)}
                                         className="w-full p-2 border rounded-md text-sm bg-white dark:bg-slate-700"
                                     />
                                     <p className="text-[10px] text-gray-500 mt-1">Used for "Start Session" buttons when OAuth is unavailable.</p>
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
-                                        <Calendar size={14} className="text-orange-500"/> Google Calendar ID
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="your.email@gmail.com" 
-                                        value={calendarId}
-                                        onChange={(e) => setCalendarId(e.target.value)}
-                                        className="w-full p-2 border rounded-md text-sm bg-white dark:bg-slate-700"
-                                    />
-                                    <p className="text-[10px] text-gray-500 mt-1">Primary calendar for availability checks.</p>
                                 </div>
 
                                 <button onClick={saveSettings} className="w-full py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-sm hover:bg-primary-focus transition">

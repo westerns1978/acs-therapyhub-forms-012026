@@ -9,8 +9,7 @@ import ClientDocumentsGrid from '../components/clients/ClientDocumentsGrid';
 import ClientOverviewTab from '../components/clients/ClientOverviewTab';
 import ClientFormsTab from '../components/clients/ClientFormsTab';
 import Card from '../components/ui/Card';
-import { FileManager } from '../components/ui/FileManager';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, HardDrive, Zap } from 'lucide-react';
+import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 
@@ -129,7 +128,6 @@ const ClientWorkspace: React.FC = () => {
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },
         { id: 'documents', label: 'Documents', icon: FileText },
-        { id: 'vault', label: 'Storage Vault', icon: HardDrive },
         { id: 'forms', label: 'Forms', icon: ClipboardList },
         { id: 'sessions', label: 'Sessions', icon: Video },
         { id: 'scheduling', label: 'Scheduling', icon: Zap },
@@ -142,12 +140,6 @@ const ClientWorkspace: React.FC = () => {
             case 'documents': 
                 if (loadErrors.documents) return <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />;
                 return <ClientDocumentsGrid client={client} initialDocuments={documents || []} />;
-            case 'vault':
-                return (
-                    <Card title="Patient Storage Vault" subtitle="Direct binary synchronization with PDS-LEXINGTON.">
-                        <FileManager bucketName="therapyhub-patient-files" clientId={client.id} onUploadSuccess={() => loadClientData(clientId)} />
-                    </Card>
-                );
             case 'forms': 
                 if (loadErrors.forms) return <ErrorFallback message="Failed to load forms." onRetry={() => loadClientData(clientId)} />;
                 return <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>;

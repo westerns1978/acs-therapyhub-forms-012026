@@ -52,8 +52,6 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
 
     const adminItems = [
         { to: '/reporting', icon: BarChart3, label: 'Analytics' },
-        { to: '/forms-management', icon: FileText, label: 'Forms Library' },
-        { to: '/network-scanners', icon: HardDrive, label: 'Scanners' },
         { to: '/settings', icon: Settings, label: 'Settings' },
     ];
 

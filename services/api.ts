@@ -3,7 +3,7 @@ import { storageService } from './storageService';
 import { geminiText, geminiJSON, geminiGenerate, getApiKey } from './gemini';
 import {
   Client, Appointment, Payment, DocumentFile, FormSubmission,
-  SessionRecord, SROPProgress, ClientActivity, NetworkScanner,
+  SessionRecord, SROPProgress, ClientActivity,
   VideoSession, PracticeMetrics, User, AsamAnalysisResult, DailyBriefingData, ComplianceStatus,
   RevenueDataPoint, ComplianceDataPoint
 } from '../types';
@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
     dbMessages, dbSropData, dbComplianceEvents, dbAuditLogs,
     dbClientAssignments, dbFormTemplates, dbBillingSummaries,
-    dbClientActivityFeed, dbNetworkScanners, dbForms, dbVideoSessions,
+    dbClientActivityFeed, dbForms, dbVideoSessions,
     dbSessionRecords,
     dbDocumentFiles,
     dbClientDocuments,
@@ -70,7 +70,7 @@ export const callMcpOrchestrator = async (tool: string, params: any) => {
             },
             body: JSON.stringify({ agent: 'ACS_THERAPYHUB', tool, params })
         });
-        if (!response.ok) throw new Error('MCP Transmission Failed');
+        if (!response.ok) throw new Error('Orchestrator request failed');
         return await response.json();
     } catch (e) {
         console.error("MCP Error:", e);
@@ -130,10 +130,51 @@ export const getPayments = async () => (mockPayments || []).map(p => ({...p, id:
 export const getPracticeMetrics = async () => ({ incomeMTD: 15400, unbilledAmount: 1200, missingNotesCount: 3, outstandingInvoicesCount: 2, totalActiveClients: (dbClients || []).length });
 export const addAppointment = async (data: any) => ({...data, id: uuidv4()});
 export const getFormSubmissions = async (filters: any) => (dbFormSubmissions || []).filter(s => !filters.clientId || s.clientId === filters.clientId);
-export const saveFormSubmission = async (sub: any) => sub;
+export const saveFormSubmission = async (sub: any) => {
+    // Real persistence — writes to form_submissions. Throws on failure so callers
+    // can show the error to the user rather than silently losing data.
+    const row = {
+        form_id: sub.formId || sub.form_id,
+        client_id: sub.clientId || sub.client_id,
+        form_name: sub.formName || sub.form_name || null,
+        status: sub.status || 'Completed',
+        submitted_at: (sub.submittedAt instanceof Date ? sub.submittedAt.toISOString() : sub.submittedAt) || new Date().toISOString(),
+        assigned_at: sub.assignedAt instanceof Date ? sub.assignedAt.toISOString() : (sub.assignedAt || null),
+        due_date: sub.dueDate instanceof Date ? sub.dueDate.toISOString() : (sub.dueDate || null),
+        data: sub.data || {},
+    };
+    const { data, error } = await supabase
+        .from('form_submissions')
+        .insert(row)
+        .select()
+        .single();
+    if (error) {
+        console.error('[api] saveFormSubmission failed:', error);
+        throw new Error(error.message || 'Failed to save form submission');
+    }
+    return data;
+};
 export const getSROPData = async (id: string) => (dbSropData || []).find(d => d.clientId === id) || null;
 export const getClientActivityFeed = async (id: string) => (dbClientActivityFeed || []).filter(a => a.clientId === id);
-export const saveClinicalNote = async (clientId: string, note: string) => true;
+export const saveClinicalNote = async (clientId: string, note: string) => {
+    if (!clientId || !note) throw new Error('clientId and note are required');
+    const { data, error } = await supabase
+        .from('clinical_notes')
+        .insert({
+            client_id: clientId,
+            content: note,
+            note_type: 'Session',
+            created_at: new Date().toISOString(),
+            source: 'smart-note-importer',
+        })
+        .select()
+        .single();
+    if (error) {
+        console.error('[api] saveClinicalNote failed:', error);
+        throw new Error(error.message || 'Failed to save clinical note');
+    }
+    return data;
+};
 export const getMessages = async () => dbMessages || [];
 export const getStaffMessages = async () => (dbMessages || []).filter(m => m.sender === 'counselor' || m.sender === 'system');
 export const getConversation = async (clientId?: string) => dbMessages || [];
@@ -201,11 +242,36 @@ export const getClientAssignments = async (id: string) => (dbClientAssignments |
 export const addClientAssignment = async (assignment: any) => {};
 export const addSignedDocument = async (doc: any) => {};
 export const getForms = async () => dbForms || [];
-export const assignForm = async (formId: string, clientIds: string[], dueDate: Date) => {};
+export const assignForm = async (formId: string, clientIds: string[], dueDate: Date) => {
+    // Bulk-insert one form_submission row per client with status='Not Started'.
+    // Looks up template metadata so form_name/form_type are set — the portal filters
+    // pending forms by matching on these, so they can't be left blank.
+    if (!formId || !clientIds?.length) throw new Error('formId and clientIds are required');
+    const templates = await getFormTemplates();
+    const template = templates.find(t => t.id === formId);
+    const now = new Date().toISOString();
+    const due = dueDate instanceof Date ? dueDate.toISOString() : new Date(dueDate).toISOString();
+    const rows = clientIds.map(clientId => ({
+        form_id: formId,
+        form_name: template?.title || template?.name || formId,
+        form_type: template?.category || null,
+        client_id: clientId,
+        status: 'Not Started',
+        assigned_at: now,
+        due_date: due,
+        data: {},
+    }));
+    const { data, error } = await supabase
+        .from('form_submissions')
+        .insert(rows)
+        .select();
+    if (error) {
+        console.error('[api] assignForm failed:', error);
+        throw new Error(error.message || 'Failed to assign form');
+    }
+    return data;
+};
 export const getAiSuggestions = async (context: any) => (dbAiSuggestions || []).filter(s => s.contextId === context.clientId || s.contextId === context.documentId);
-export const getNetworkScanners = async () => dbNetworkScanners || [];
-export const addNetworkScanner = async (scanner: any) => {};
-export const removeNetworkScanner = async (id: string) => {};
 export const getProgressData = async () => [];
 export const getVideoSessions = async () => dbVideoSessions || [];
 export const getVideoSessionById = async (id: string) => (dbVideoSessions || []).find(s => s.id === id);

@@ -39,7 +39,7 @@ const ChecklistSection: React.FC<FormSectionProps<SatopChecklistData>> = ({ form
         <Checkbox label="Grievance protocol and procedures established." checked={formData.checklist.grievanceProcedure} onChange={() => toggleCheck('grievanceProcedure')} />
         <Checkbox label="Confidentiality and HIPAA regulations authorized." checked={formData.checklist.confidentiality} onChange={() => toggleCheck('confidentiality')} />
         <Checkbox label="Program schedule and attendance logic accepted." checked={formData.checklist.hoursAndAppointments} onChange={() => toggleCheck('hoursAndAppointments')} />
-        <Checkbox label="Crisis response and emergency uplinks verified." checked={formData.checklist.crisisProcedures} onChange={() => toggleCheck('crisisProcedures')} />
+        <Checkbox label="Crisis response and emergency contacts verified." checked={formData.checklist.crisisProcedures} onChange={() => toggleCheck('crisisProcedures')} />
         <Checkbox label="Standard program rules and behavioral rules signed." checked={formData.checklist.programRules} onChange={() => toggleCheck('programRules')} />
         <Checkbox label="All clinical and procedural questions answered." checked={formData.checklist.questionsAnswered} onChange={() => toggleCheck('questionsAnswered')} />
         <Checkbox label="I authorize the initiation of treatment services." checked={formData.checklist.agreesToTreatment} onChange={() => toggleCheck('agreesToTreatment')} />
@@ -82,7 +82,7 @@ export const SATOP_CHECKLIST_DEFINITION: FormDefinition<SatopChecklistData> = {
     { id: 'checklist.grievanceProcedure', label: 'Grievance protocol and procedures established.', type: 'boolean', required: true },
     { id: 'checklist.confidentiality', label: 'Confidentiality and HIPAA regulations authorized.', type: 'boolean', required: true },
     { id: 'checklist.hoursAndAppointments', label: 'Program schedule and attendance logic accepted.', type: 'boolean', required: true },
-    { id: 'checklist.crisisProcedures', label: 'Crisis response and emergency uplinks verified.', type: 'boolean', required: true },
+    { id: 'checklist.crisisProcedures', label: 'Crisis response and emergency contacts verified.', type: 'boolean', required: true },
     { id: 'checklist.programRules', label: 'Standard program rules and behavioral rules signed.', type: 'boolean', required: true },
     { id: 'checklist.questionsAnswered', label: 'All clinical and procedural questions answered.', type: 'boolean', required: true },
     { id: 'checklist.agreesToTreatment', label: 'I authorize the initiation of treatment services.', type: 'boolean', required: true },
