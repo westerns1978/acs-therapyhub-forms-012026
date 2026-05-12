@@ -37,16 +37,24 @@ const Login: React.FC = () => {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        
+
         if (!validateFields()) {
             setError('Please correct your access markers.');
             return;
         }
 
         setIsLoading(true);
-        
+
+        // Demo mode bypasses both Supabase auth and the iVALT MFA modal.
+        // The modal flow was hanging on live deploys before customer demos;
+        // jumping straight to the success handler is deterministic.
+        if (isDemoMode) {
+            window.setTimeout(handleMfaSuccess, 600);
+            return;
+        }
+
         try {
-            if (authMode === 'password' && !isDemoMode) {
+            if (authMode === 'password') {
                 const { error: authError } = await supabase.auth.signInWithPassword({
                     email,
                     password: password,
