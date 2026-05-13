@@ -1,14 +1,31 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Loader2, CheckCircle2, AlertTriangle, RotateCcw, X, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { extractHandwrittenForm, type OcrExtractionResult, type ExtractedFormField } from '../../services/ocrService';
 import { supabase } from '../../services/supabase';
 import { storageService } from '../../services/storageService';
 
+type SupportedMime = 'image/jpeg' | 'image/png' | 'image/webp';
+
 interface MobileDocumentUploadProps {
-  clientId: string;
+  clientId?: string;
   onComplete: () => void;
   onClose: () => void;
+  initialImage?: { base64: string; mimeType: SupportedMime };
 }
+
+const MIME_EXT: Record<SupportedMime, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
+const base64ToFile = (base64: string, mimeType: SupportedMime): File => {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: mimeType });
+  return new File([blob], `scan_${Date.now()}.${MIME_EXT[mimeType]}`, { type: mimeType });
+};
 
 type Step = 'capture' | 'processing' | 'review' | 'saving' | 'done' | 'error';
 
@@ -18,7 +35,7 @@ const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; label: strin
   low:    { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Low' },
 };
 
-export default function MobileDocumentUpload({ clientId, onComplete, onClose }: MobileDocumentUploadProps) {
+export default function MobileDocumentUpload({ clientId, onComplete, onClose, initialImage }: MobileDocumentUploadProps) {
   const [step, setStep] = useState<Step>('capture');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -30,6 +47,15 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose }: 
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasProcessedInitial = useRef(false);
+
+  useEffect(() => {
+    if (!initialImage || hasProcessedInitial.current) return;
+    hasProcessedInitial.current = true;
+    const file = base64ToFile(initialImage.base64, initialImage.mimeType);
+    handleFileSelected(file);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Capture ──────────────────────────────────────────────────────────────────
 
@@ -91,7 +117,7 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose }: 
     setStep('saving');
     try {
       // Upload file to storage + extract DNA
-      const vaultDoc = await storageService.uploadToVault(imageFile, clientId);
+      const vaultDoc = await storageService.uploadToVault(imageFile, clientId ?? 'hub_unassigned');
 
       // Update the uploaded_files record with OCR data
       await supabase

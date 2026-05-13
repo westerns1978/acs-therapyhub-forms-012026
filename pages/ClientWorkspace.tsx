@@ -137,9 +137,9 @@ const ClientWorkspace: React.FC = () => {
         switch (activeTab) {
             case 'scheduling':
                 return <DispatcherChat clientId={client.id} clientName={client.name} supabase={supabase as any} onAppointmentChanged={() => loadClientData(clientId)} />;
-            case 'documents': 
+            case 'documents':
                 if (loadErrors.documents) return <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />;
-                return <ClientDocumentsGrid client={client} initialDocuments={documents || []} />;
+                return <ClientDocumentsGrid client={client} initialDocuments={documents || []} onDocumentsChanged={() => loadClientData(clientId)} />;
             case 'forms': 
                 if (loadErrors.forms) return <ErrorFallback message="Failed to load forms." onRetry={() => loadClientData(clientId)} />;
                 return <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>;

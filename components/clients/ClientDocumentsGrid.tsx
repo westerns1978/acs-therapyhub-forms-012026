@@ -1,17 +1,27 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Client, DocumentFile, ClientFolderType, ComplianceStatus } from '../../types';
-import { FileText, Filter, X, UploadCloud, Download, Trash2, CheckSquare, Loader2, AlertCircle, CheckCircle, Sparkles, Zap, Shield, HardDrive } from 'lucide-react';
+import { FileText, Filter, X, UploadCloud, Download, Trash2, CheckSquare, Loader2, AlertCircle, CheckCircle, Sparkles, Zap, Shield, HardDrive, ScanLine } from 'lucide-react';
 import Card from '../ui/Card';
 import DocumentViewer from '../documents/DocumentViewer';
 import Modal from '../ui/Modal';
 import SmartNoteImporter from '../notes/SmartNoteImporter';
+import ScannerPickerModal from '../ScannerPickerModal';
+import MobileDocumentUpload from '../portal/MobileDocumentUpload';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDocumentFilesForClient, saveDocumentFile, checkSupabaseConnection } from '../../services/api';
+
+type SupportedMime = 'image/jpeg' | 'image/png' | 'image/webp';
+
+type ScanFlow =
+  | { stage: 'closed' }
+  | { stage: 'picker' }
+  | { stage: 'upload'; initialImage?: { base64: string; mimeType: SupportedMime } };
 
 interface ClientDocumentsGridProps {
   client: Client;
   initialDocuments: DocumentFile[];
+  onDocumentsChanged?: () => void;
 }
 
 const getFileTypeColor = (type: ClientFolderType) => {
@@ -55,7 +65,7 @@ const DocumentGridCard: React.FC<{ document: DocumentFile; onClick: () => void }
     </div>
 );
 
-const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initialDocuments }) => {
+const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initialDocuments, onDocumentsChanged }) => {
     // FIX: Default to empty array to prevent mapping over undefined.
     const [documents, setDocuments] = useState<DocumentFile[]>(initialDocuments || []);
     const [filter, setFilter] = useState<ClientFolderType | 'All'>('All');
@@ -63,6 +73,7 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
     const [isUploading, setIsUploading] = useState(false);
     const [transmissionLogs, setTransmissionLogs] = useState<string[]>([]);
     const [uplinkStatus, setUplinkStatus] = useState<'connected' | 'error' | 'checking'>('checking');
+    const [scanFlow, setScanFlow] = useState<ScanFlow>({ stage: 'closed' });
     
     const { user } = useAuth();
 
@@ -133,9 +144,15 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
                     </p>
                 </div>
                 <div className="flex gap-3">
-                    <select 
-                        value={filter} 
-                        onChange={(e) => setFilter(e.target.value as any)} 
+                    <button
+                        onClick={() => setScanFlow({ stage: 'picker' })}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-red-700 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >
+                        <ScanLine size={16} /> Scan Document
+                    </button>
+                    <select
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value as any)}
                         className="bg-white/5 border border-white/10 text-xs font-bold p-2 rounded-xl focus:ring-0 outline-none"
                     >
                         <option value="All">All Categories</option>
@@ -187,13 +204,37 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
             {selectedDocument && (
                 <Modal isOpen={!!selectedDocument} onClose={() => setSelectedDocument(null)} maxWidth="max-w-6xl">
                     <div className="h-[80vh]">
-                        <DocumentViewer 
-                            document={selectedDocument} 
-                            documentsInFolder={filteredDocuments} 
-                            onNavigate={() => {}} 
+                        <DocumentViewer
+                            document={selectedDocument}
+                            documentsInFolder={filteredDocuments}
+                            onNavigate={() => {}}
                         />
                     </div>
                 </Modal>
+            )}
+
+            <ScannerPickerModal
+                isOpen={scanFlow.stage === 'picker'}
+                onClose={() => setScanFlow({ stage: 'closed' })}
+                onScanComplete={(base64, mimeType) =>
+                    setScanFlow({
+                        stage: 'upload',
+                        initialImage: { base64, mimeType: mimeType as SupportedMime },
+                    })
+                }
+                onCameraFallback={() => setScanFlow({ stage: 'upload' })}
+            />
+
+            {scanFlow.stage === 'upload' && (
+                <MobileDocumentUpload
+                    clientId={client.id}
+                    initialImage={scanFlow.initialImage}
+                    onComplete={() => {
+                        onDocumentsChanged?.();
+                        setScanFlow({ stage: 'closed' });
+                    }}
+                    onClose={() => setScanFlow({ stage: 'closed' })}
+                />
             )}
         </div>
     );
