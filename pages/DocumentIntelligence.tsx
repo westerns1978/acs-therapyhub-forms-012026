@@ -7,8 +7,17 @@
 import React, { useState, useEffect } from "react";
 import OcrFormUploader from "../components/OcrFormUploader";
 import ClinicalMarkdown from "../components/ClinicalMarkdown";
+import ScannerPickerModal from "../components/ScannerPickerModal";
+import MobileDocumentUpload from "../components/portal/MobileDocumentUpload";
 import { extractDocumentDNADeep, type DocumentDNA } from "../services/deepReasoningService";
 import { type OcrExtractionResult } from "../services/ocrService";
+
+type SupportedMime = "image/jpeg" | "image/png" | "image/webp";
+
+type ScanFlow =
+  | { stage: "closed" }
+  | { stage: "picker" }
+  | { stage: "upload"; initialImage?: { base64: string; mimeType: SupportedMime } };
 
 interface UploadedDoc {
   id: string;
@@ -52,6 +61,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
   const [isLoadingDNA, setIsLoadingDNA] = useState(false);
   const [filterReview, setFilterReview] = useState(false);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
+  const [scanFlow, setScanFlow] = useState<ScanFlow>({ stage: "closed" });
 
   useEffect(() => { loadDocs(); }, [clientId]);
 
@@ -302,7 +312,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
 
         <div className="flex gap-3">
           <button
-            onClick={() => setActiveView("ocr_upload")}
+            onClick={() => setScanFlow({ stage: "picker" })}
             className="flex items-center gap-2 px-4 py-2.5 bg-red-700 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
           >
             <span>📋</span> Scan Handwritten Form
@@ -357,7 +367,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
           <div className="text-gray-400 font-medium">No documents yet</div>
           <div className="text-gray-600 text-sm mt-1">Upload a document or scan a handwritten form to get started</div>
           <button
-            onClick={() => setActiveView("ocr_upload")}
+            onClick={() => setScanFlow({ stage: "picker" })}
             className="mt-6 px-5 py-2.5 bg-red-700 hover:bg-red-600 text-white text-sm rounded-lg"
           >
             Scan First Form
@@ -369,6 +379,30 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
             <DocRow key={doc.id} doc={doc} onClick={() => handleDocSelect(doc)} />
           ))}
         </div>
+      )}
+
+      <ScannerPickerModal
+        isOpen={scanFlow.stage === "picker"}
+        onClose={() => setScanFlow({ stage: "closed" })}
+        onScanComplete={(base64, mimeType) =>
+          setScanFlow({
+            stage: "upload",
+            initialImage: { base64, mimeType: mimeType as SupportedMime },
+          })
+        }
+        onCameraFallback={() => setScanFlow({ stage: "upload" })}
+      />
+
+      {scanFlow.stage === "upload" && (
+        <MobileDocumentUpload
+          clientId="hub_unassigned"
+          initialImage={scanFlow.initialImage}
+          onComplete={() => {
+            loadDocs();
+            setScanFlow({ stage: "closed" });
+          }}
+          onClose={() => setScanFlow({ stage: "closed" })}
+        />
       )}
     </div>
   );
