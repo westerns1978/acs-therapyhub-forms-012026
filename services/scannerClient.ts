@@ -175,6 +175,8 @@ export class ScannerClient {
       );
 
       if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.error('[scannerClient] /api/scanners returned non-200:', res.status, body);
         return {
           available: false,
           scanners: [],
@@ -198,14 +200,23 @@ export class ScannerClient {
         })
       );
 
+      const available = scanners.length > 0;
+      const error = scanners.length === 0 ? "No scanners detected" : null;
+      console.log('[scannerClient] discover() result:', {
+        bridgeUrl, available, scannersCount: scanners.length, error,
+        scanners: scanners.map(s => ({
+          id: s.id, available: s.available, protocol: s.protocol
+        }))
+      });
       return {
-        available: scanners.length > 0,
+        available,
         scanners,
         bridgeUrl,
         bridgeVersion: health?.version ?? null,
-        error: scanners.length === 0 ? "No scanners detected" : null,
+        error,
       };
     } catch (err: any) {
+      console.error('[scannerClient] /api/scanners fetch failed:', err);
       return {
         available: false,
         scanners: [],

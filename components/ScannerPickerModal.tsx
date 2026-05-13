@@ -72,6 +72,7 @@ const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
         setErrorMessage(result.error);
         setPhase('bridge_offline');
       } else if (result.scanners.length === 0) {
+        setErrorMessage(result.error);
         setPhase('no_scanners');
       } else {
         setScanners(result.scanners);
@@ -218,6 +219,11 @@ const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
               <p className="text-xs text-slate-500 mt-1 max-w-xs">
                 FlowHub Bridge is online but no scanners are connected to it.
               </p>
+              {errorMessage && (
+                <p className="text-xs text-slate-400 mt-2 max-w-xs">
+                  Discovery error: {errorMessage}
+                </p>
+              )}
             </div>
           )}
 
