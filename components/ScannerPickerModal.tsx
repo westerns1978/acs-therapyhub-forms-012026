@@ -1,3 +1,13 @@
+// TODO (FlowHub Bridge follow-ups):
+//   1. ScannerClient.scan() returns `mimeType: string` (loose). Wiring sites
+//      cast to SupportedMime ("image/jpeg" | "image/png" | "image/webp") at
+//      compile time; a bridge returning anything else would fail silently at
+//      OCR. Harden the bridge backend to return a strict mime union.
+//   2. MobileDocumentUpload enforces a 15 MB file-size guard. A 600 DPI duplex
+//      scan (Epson DS-900WN territory) can exceed that. If high-DPI duplex
+//      becomes common, branch the guard so bridge-sourced files get a higher
+//      ceiling than camera/upload files.
+
 import React, { useEffect, useRef, useState } from 'react';
 import { X, ScanLine, Loader2, Camera, AlertCircle, WifiOff } from 'lucide-react';
 import { ScannerClient, type Scanner, type ScannerProtocol } from '../services/scannerClient';
