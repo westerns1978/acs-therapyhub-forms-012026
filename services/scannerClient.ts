@@ -83,7 +83,8 @@ const DEFAULT_BRIDGE_CANDIDATES = [
   "https://localhost:8585",
 ];
 
-const DISCOVERY_TIMEOUT_MS = 3000;
+const HEALTH_PROBE_TIMEOUT_MS = 3000;
+const SCANNERS_TIMEOUT_MS = 30000;
 const SCAN_TIMEOUT_MS = 120_000;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -104,7 +105,7 @@ async function fetchWithTimeout(
 
 async function probeBridge(url: string): Promise<BridgeHealth | null> {
   try {
-    const res = await fetchWithTimeout(`${url}/health`, {}, DISCOVERY_TIMEOUT_MS);
+    const res = await fetchWithTimeout(`${url}/health`, {}, HEALTH_PROBE_TIMEOUT_MS);
     if (!res.ok) return null;
     const data = await res.json();
     return data as BridgeHealth;
@@ -171,7 +172,7 @@ export class ScannerClient {
       const res = await fetchWithTimeout(
         `${bridgeUrl}/api/scanners`,
         {},
-        DISCOVERY_TIMEOUT_MS
+        SCANNERS_TIMEOUT_MS
       );
 
       if (!res.ok) {
