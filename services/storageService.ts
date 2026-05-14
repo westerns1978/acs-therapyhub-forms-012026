@@ -22,7 +22,7 @@ export const storageService = {
       reader.readAsDataURL(file);
     });
 
-    const { text } = await geminiGenerate('gemini-2.0-flash', {
+    const { text } = await geminiGenerate('gemini-2.5-flash-lite', {
       contents: [{ role: 'user', parts: [
         { inlineData: { mimeType: file.type, data: base64Data } },
         { text: "Extract Document DNA. Return JSON exactly: {title, summary, tags: [], isSigned: boolean}. Focus on clinical/legal relevance. Verify if the signature area is actually signed." }

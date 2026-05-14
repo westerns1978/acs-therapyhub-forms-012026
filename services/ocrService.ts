@@ -82,7 +82,7 @@ If you cannot read anything, return formType "Unknown" with empty arrays and com
   let resultText = "";
   try {
     resultText = await geminiVision(
-      "gemini-2.0-flash",
+      "gemini-2.5-flash-lite",
       [
         { text: extractionPrompt },
         { inlineData: { mimeType, data: imageBase64 } },
