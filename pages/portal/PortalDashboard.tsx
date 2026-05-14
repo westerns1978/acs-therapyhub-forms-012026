@@ -240,7 +240,7 @@ const PortalDashboard: React.FC = () => {
                         </div>
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex justify-around">
                             <div className="text-center">
-                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">SROP Progress</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">SATOP Progress</p>
                                 <p className="text-2xl font-black text-amber-500">{client.srop_hours_completed || 0} / 75 hrs</p>
                             </div>
                             <div className="w-px bg-slate-200 dark:bg-slate-700"></div>
@@ -270,7 +270,7 @@ const PortalDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                      <ActionCard icon={ClipboardList} title="Recovery Plan" description="Refine your goals and action steps." onClick={() => navigate('/portal/recovery-plan')} />
-                     <ActionCard icon={BarChart} title="Program Compliance" description="Check your SROP progression requirements." onClick={() => navigate('/portal/compliance')} />
+                     <ActionCard icon={BarChart} title="Program Compliance" description="Check your SATOP progression requirements." onClick={() => navigate('/portal/compliance')} />
                      <ActionCard icon={Calendar} title="Session Schedule" description="Manage your virtual and in-person sessions." onClick={() => navigate('/portal/appointments')} />
                      <ActionCard icon={FileText} title="Document Vault" description="E-sign pending forms and review records." onClick={() => navigate('/portal/documents')} />
                      <ActionCard icon={DollarSign} title="Financial Wallet" description="Manage payments and session ledger." onClick={() => navigate('/portal/billing')} />

@@ -168,7 +168,7 @@ const Login: React.FC = () => {
                         )}
 
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mobile Number <span className="text-[#8B1538]">*iVALT MFA</span></label>
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mobile Number <span className="text-[#8B1538] normal-case">*iVALT MFA</span></label>
                             <div className="relative">
                                 <Smartphone className={`absolute left-4 top-1/2 -translate-y-1/2 ${fieldErrors.mobile ? 'text-red-400' : 'text-slate-500'}`} size={18} />
                                 <div className="absolute left-10 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm border-r border-white/10 pr-2 ml-1">+1</div>

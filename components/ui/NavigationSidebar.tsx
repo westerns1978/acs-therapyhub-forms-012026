@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { NavLink, useNavigate, Link } from 'react-router-dom';
+import React from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import ThemeToggle from './ThemeToggle';
 import GemyndFlowLogo from './GemyndFlowLogo';
-import { checkSupabaseConnection } from '../../services/api';
-import { 
-    Home, Users, MessageSquare, Calendar, ShieldCheck, Shield,
-    DollarSign, LogOut, X, BarChart3, FileText, Settings, 
-    HardDrive, ClipboardList, Zap, Activity
+import {
+    Home, Users, MessageSquare, Calendar, Shield,
+    DollarSign, LogOut, X, BarChart3, Settings,
+    ClipboardList, Zap, Activity
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -41,18 +40,6 @@ const NavItem: React.FC<{ to: string; icon: React.ElementType; label: string; is
 const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: boolean) => void }> = ({ isCollapsed, setIsCollapsed }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [uplinkLatency, setUplinkLatency] = useState<number | null>(null);
-  
-  useEffect(() => {
-    const check = async () => {
-      const start = Date.now();
-      await checkSupabaseConnection();
-      setUplinkLatency(Date.now() - start);
-    };
-    check();
-    const interval = setInterval(check, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   const baseNavItems = [
     { to: '/dashboard', icon: Home, label: 'Dashboard' },
@@ -61,7 +48,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
     { to: '/communication-center', icon: MessageSquare, label: 'Messages', notifications: 3 },
     { to: '/forms', icon: ClipboardList, label: 'Forms' },
     { to: '/document-intelligence', icon: Zap, label: 'AI Documents' },
-    { to: '/risk-monitor', icon: Shield, label: 'Risk Monitor', notifications: 3 },
+    { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', notifications: 3 },
     { to: '/financials', icon: DollarSign, label: 'Financials' },
   ];
 
@@ -80,7 +67,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
         </ul>
         {user?.role === 'Admin' && (
             <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
-                {!isCollapsed && <div className="px-4 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Infrastructure</div>}
+                {!isCollapsed && <div className="px-4 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Reports</div>}
                 <ul className="space-y-1">
                   {adminNavItems.map(item => <NavItem key={item.to} {...item} isCollapsed={isCollapsed} />)}
                 </ul>
@@ -89,15 +76,6 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
       </nav>
 
       <div className="p-4 border-t border-black/5 dark:border-white/10 bg-slate-50/50 dark:bg-black/20">
-        <div className={`mb-4 px-2 flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-           <div className={`w-2 h-2 rounded-full ${uplinkLatency ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-           {!isCollapsed && (
-             <div className="flex-1 overflow-hidden">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Connection: Stable</p>
-                <p className="text-[9px] font-mono text-primary">{uplinkLatency || '---'}ms latency</p>
-             </div>
-           )}
-        </div>
         <ThemeToggle isCollapsed={isCollapsed} className="mb-3" />
         <button onClick={() => { logout(); navigate('/login'); }} className="w-full flex items-center justify-center p-3 rounded-xl text-primary hover:bg-red-50 dark:hover:bg-red-900/20 transition-all font-bold text-sm">
           <LogOut size={18} />
