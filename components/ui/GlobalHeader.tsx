@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import GemyndFlowLogo from './GemyndFlowLogo';
-import ThemeToggle from './ThemeToggle';
-import { checkSupabaseConnection } from '../../services/api';
 import CreateClientModal from '../clients/CreateClientModal';
-import { Zap, Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
+import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
 
 interface GlobalHeaderProps {
     onCommandPaletteToggle: () => void;
@@ -20,18 +18,6 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
     const [isProfileOpen, setProfileOpen] = useState(false);
     const [isCreateMenuOpen, setCreateMenuOpen] = useState(false);
     const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
-    const [latency, setLatency] = useState(0);
-
-    useEffect(() => {
-        const check = async () => {
-            const start = Date.now();
-            await checkSupabaseConnection();
-            setLatency(Date.now() - start);
-        };
-        check();
-        const interval = setInterval(check, 60000); 
-        return () => clearInterval(interval);
-    }, []);
 
     const handleLogout = () => {
         logout();
@@ -55,10 +41,6 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                     <Link to="/" className="hover:opacity-80 transition-opacity">
                         <GemyndFlowLogo />
                     </Link>
-                    <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-black uppercase tracking-tighter text-slate-500">
-                        <Zap size={10} className="text-primary fill-primary animate-pulse" />
-                        <span>Flow: {latency}ms</span>
-                    </div>
                 </div>
                 
                 <div className="hidden sm:flex flex-1 justify-center px-4 max-w-xl mx-auto">
@@ -89,7 +71,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                             className="flex items-center gap-2 bg-primary hover:bg-primary-focus text-white text-sm font-bold px-3 sm:px-5 py-2 rounded-2xl shadow-lg shadow-primary/20 transition-all active:scale-95"
                         >
                             <Plus size={18} />
-                            <span className="hidden sm:inline">Dispatch</span>
+                            <span className="hidden sm:inline">Schedule</span>
                         </button>
 
                         {isCreateMenuOpen && (

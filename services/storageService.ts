@@ -22,7 +22,7 @@ export const storageService = {
       reader.readAsDataURL(file);
     });
 
-    const { text } = await geminiGenerate('gemini-3-flash-preview', {
+    const { text } = await geminiGenerate('gemini-2.5-flash-lite', {
       contents: [{ role: 'user', parts: [
         { inlineData: { mimeType: file.type, data: base64Data } },
         { text: "Extract Document DNA. Return JSON exactly: {title, summary, tags: [], isSigned: boolean}. Focus on clinical/legal relevance. Verify if the signature area is actually signed." }
@@ -65,18 +65,22 @@ export const storageService = {
     onProgress?.('NEURAL_ANALYSIS_SYNCED');
 
     // 3. Metadata Commit
+    // Keep file_name = the literal filename. dna.title sometimes overflows
+    // with the whole document body, which would corrupt list rendering.
     const { data: dbData, error: dbError } = await supabase
       .from('uploaded_files')
       .insert({
-        file_name: dna.title || file.name,
+        file_name: file.name,
         file_path: filePath,
         file_type: file.type,
         file_size: file.size,
         public_url: urlData.publicUrl,
         org_id: DEFAULT_ORG_ID,
         uploaded_by: 'dan-executive',
+        extracted_summary: dna.summary || null,
         metadata: {
             clientId,
+            title: dna.title,
             summary: dna.summary,
             tags: dna.tags,
             isSigned: dna.isSigned,

@@ -109,8 +109,8 @@ const AsamAssessment: React.FC = () => {
                     >
                         {isLoading ? <BrainCircuit className="animate-pulse w-6 h-6" /> : <Sparkles className="h-6 w-6" />}
                         <div className="text-left">
-                            <span className="block text-lg leading-tight">{isLoading ? 'Reasoning with Gemini 3...' : 'Generate Deep Analysis'}</span>
-                            {!isLoading && <span className="block text-xs font-normal opacity-80">Uses 32k token thinking budget</span>}
+                            <span className="block text-lg leading-tight">{isLoading ? 'Analyzing assessment...' : 'Generate Deep Analysis'}</span>
+                            {!isLoading && <span className="block text-xs font-normal opacity-80">AI-assisted analysis for clinician review</span>}
                         </div>
                     </button>
                 </div>

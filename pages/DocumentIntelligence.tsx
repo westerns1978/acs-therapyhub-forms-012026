@@ -1,16 +1,24 @@
 /**
- * ACS TherapyHub — Enhanced Document Intelligence Hub
- * Replaces Vision API (broken) with Gemini Vision OCR + Deep Reasoning DNA
- * DROP-IN: Replace pages/DocumentIntelligence.tsx (or equivalent page component)
+ * ACS TherapyHub — Document Intelligence Hub
+ * Surfaces every clinical document — form submissions, paper uploads, and
+ * AI-processed scans — across all clients. Gemini Vision OCR + Deep
+ * Reasoning DNA layered on top.
  */
 
 import React, { useState, useEffect } from "react";
 import OcrFormUploader from "../components/OcrFormUploader";
-import ClinicalMarkdown from "../components/ClinicalMarkdown";
 import ScannerPickerModal from "../components/ScannerPickerModal";
 import MobileDocumentUpload from "../components/portal/MobileDocumentUpload";
+import DocumentViewerModal from "../components/documents/DocumentViewerModal";
+import StaffDocumentUpload from "../components/documents/StaffDocumentUpload";
+import Card from "../components/ui/Card";
 import { extractDocumentDNADeep, type DocumentDNA } from "../services/deepReasoningService";
 import { type OcrExtractionResult } from "../services/ocrService";
+import {
+  ArrowLeft, AlertTriangle, Camera, Upload, FileText, FileImage,
+  FileSpreadsheet, FileType, File as FileIcon,
+  Sparkles, CheckCircle2, ArrowUpRight, ClipboardList, FileUp, Eye,
+} from "lucide-react";
 
 type SupportedMime = "image/jpeg" | "image/png" | "image/webp";
 
@@ -19,99 +27,182 @@ type ScanFlow =
   | { stage: "picker" }
   | { stage: "upload"; initialImage?: { base64: string; mimeType: SupportedMime } };
 
-interface UploadedDoc {
+type DocSource = "Form" | "Upload" | "AI-Processed";
+
+interface MergedDoc {
   id: string;
-  file_name: string;
-  file_type: string;
-  document_type?: string;
-  document_status: string;
+  client_id?: string;
+  client_name?: string;
+  document_label: string;
+  document_type: string;
+  source: DocSource;
+  date: string;
+  url?: string;
+  status?: string;
+  // OCR/DNA fields (only present for uploaded_files)
   ocr_form_type?: string;
   ocr_completion_score?: number;
   needs_review?: boolean;
   clinical_significance?: string;
   dna_confidence?: number;
-  uploaded_at: string;
-  summary?: string;
+  _kind: "form_submission" | "uploaded_file";
+  _raw: any;
 }
 
 interface DocumentIntelligenceProps {
   supabase: ReturnType<typeof import("@supabase/supabase-js").createClient>;
-  clientId?: string; // Optional: scope to specific client
+  clientId?: string;
 }
 
 type ActiveView = "hub" | "ocr_upload" | "doc_detail";
 
-// ─── Significance Config ──────────────────────────────────────────────────────
-
 const SIG_CONFIG: Record<string, { label: string; dot: string; text: string }> = {
-  critical:      { label: "Critical",      dot: "bg-red-500 animate-pulse", text: "text-red-400" },
-  high:          { label: "High",          dot: "bg-red-400",               text: "text-red-400" },
-  medium:        { label: "Medium",        dot: "bg-yellow-400",            text: "text-yellow-400" },
-  low:           { label: "Low",           dot: "bg-green-500",             text: "text-green-400" },
-  informational: { label: "Info",          dot: "bg-gray-500",              text: "text-gray-400" },
+  critical:      { label: "Critical", dot: "bg-red-500 animate-pulse", text: "text-red-700" },
+  high:          { label: "High",     dot: "bg-red-400",               text: "text-red-700" },
+  medium:        { label: "Medium",   dot: "bg-amber-500",             text: "text-amber-700" },
+  low:           { label: "Low",      dot: "bg-emerald-500",           text: "text-emerald-700" },
+  informational: { label: "Info",     dot: "bg-slate-400",             text: "text-slate-500" },
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+const SOURCE_META: Record<DocSource, { label: string; icon: React.ElementType; bg: string; text: string }> = {
+  "Form":         { label: "Form",     icon: ClipboardList, bg: "bg-blue-50 border-blue-200",       text: "text-blue-700" },
+  "Upload":       { label: "Upload",   icon: FileUp,        bg: "bg-stone-50 border-stone-200",     text: "text-stone-700" },
+  "AI-Processed": { label: "Upload",   icon: Sparkles,      bg: "bg-amber-50 border-amber-200",     text: "text-amber-700" },
+};
+
+const fileTypeIcon = (mime?: string, fileName?: string): { Icon: React.ElementType; color: string; label: string } => {
+  const t = (mime || "").toLowerCase();
+  const ext = (fileName || "").split(".").pop()?.toLowerCase() || "";
+
+  if (t === "application/pdf" || ext === "pdf") {
+    return { Icon: FileText, color: "text-red-700", label: "PDF" };
+  }
+  if (t.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic"].includes(ext)) {
+    return { Icon: FileImage, color: "text-blue-700", label: "Image" };
+  }
+  if (t.includes("wordprocessingml") || ext === "docx" || ext === "doc") {
+    return { Icon: FileType, color: "text-slate-700", label: "Word" };
+  }
+  if (t.includes("spreadsheetml") || ext === "xlsx" || ext === "xls") {
+    return { Icon: FileSpreadsheet, color: "text-green-700", label: "Excel" };
+  }
+  return { Icon: FileIcon, color: "text-slate-500", label: "File" };
+};
+
+const StatTile: React.FC<{ label: string; value: number | string; tone?: "default" | "warning" | "success" | "danger" }> = ({ label, value, tone = "default" }) => {
+  const toneClass =
+    tone === "warning" ? "text-amber-600" :
+    tone === "success" ? "text-emerald-600" :
+    tone === "danger" ? "text-red-600" :
+    "text-slate-900 dark:text-white";
+  return (
+    <div className="p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl transition-all hover:scale-[1.02]">
+      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{label}</p>
+      <h4 className={`text-3xl font-black mt-2 tracking-tighter ${toneClass}`}>{value}</h4>
+    </div>
+  );
+};
 
 export default function DocumentIntelligenceHub({ supabase, clientId }: DocumentIntelligenceProps) {
-  const [docs, setDocs] = useState<UploadedDoc[]>([]);
+  const [docs, setDocs] = useState<MergedDoc[]>([]);
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [clientFilter, setClientFilter] = useState<string>(clientId || "all");
   const [activeView, setActiveView] = useState<ActiveView>("hub");
-  const [selectedDoc, setSelectedDoc] = useState<UploadedDoc | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<MergedDoc | null>(null);
   const [selectedDNA, setSelectedDNA] = useState<DocumentDNA | null>(null);
   const [isLoadingDNA, setIsLoadingDNA] = useState(false);
   const [filterReview, setFilterReview] = useState(false);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [scanFlow, setScanFlow] = useState<ScanFlow>({ stage: "closed" });
+  const [viewerDoc, setViewerDoc] = useState<MergedDoc | null>(null);
+  const [staffUploadOpen, setStaffUploadOpen] = useState(false);
 
-  useEffect(() => { loadDocs(); }, [clientId]);
+  useEffect(() => { loadAllDocs(); }, []);
 
-  async function loadDocs() {
+  async function loadAllDocs() {
     setIsLoadingDocs(true);
-    let query = supabase
-      .from("uploaded_files")
-      .select("id, file_name, file_type, document_type, document_status, ocr_form_type, ocr_completion_score, needs_review, clinical_significance, dna_confidence, uploaded_at")
-      .order("uploaded_at", { ascending: false })
-      .limit(50);
+    try {
+      const [formsRes, uploadsRes, clientsRes] = await Promise.all([
+        (supabase as any).from("form_submissions").select("*").order("created_at", { ascending: false }).limit(200),
+        (supabase as any).from("uploaded_files").select("*").order("uploaded_at", { ascending: false }).limit(200),
+        (supabase as any).from("clients").select("id, name"),
+      ]);
 
-    if (clientId) query = query.eq("hire_id", clientId);
+      const clientList = (clientsRes.data || []) as { id: string; name: string }[];
+      const clientMap = new Map(clientList.map(c => [c.id, c.name]));
+      setClients(clientList);
 
-    const { data } = await query;
-    setDocs(data || []);
-    setIsLoadingDocs(false);
+      const formDocs: MergedDoc[] = (formsRes.data || []).map((fs: any) => ({
+        id: `form_${fs.id}`,
+        client_id: fs.client_id,
+        client_name: clientMap.get(fs.client_id),
+        document_label: fs.form_name || "Untitled Form",
+        document_type: fs.form_type || "Form",
+        source: fs.data?.is_paper_upload ? "Upload" : "Form",
+        date: fs.submitted_at || fs.created_at,
+        url: fs.data?.file_url,
+        status: fs.status,
+        _kind: "form_submission",
+        _raw: fs,
+      }));
+
+      const uploadDocs: MergedDoc[] = (uploadsRes.data || []).map((uf: any) => ({
+        id: `upload_${uf.id}`,
+        client_id: uf.hire_id || uf.metadata?.clientId,
+        client_name: uf.hire_id ? clientMap.get(uf.hire_id) : undefined,
+        document_label: uf.file_name || "Untitled Document",
+        document_type: uf.ocr_form_type || uf.document_type || uf.file_type || "Document",
+        source: "AI-Processed",
+        date: uf.uploaded_at,
+        url: uf.public_url,
+        status: uf.document_status,
+        ocr_form_type: uf.ocr_form_type,
+        ocr_completion_score: uf.ocr_completion_score,
+        needs_review: uf.needs_review,
+        clinical_significance: uf.clinical_significance,
+        dna_confidence: uf.dna_confidence,
+        _kind: "uploaded_file",
+        _raw: uf,
+      }));
+
+      const merged = [...formDocs, ...uploadDocs].sort((a, b) => {
+        const ta = a.date ? new Date(a.date).getTime() : 0;
+        const tb = b.date ? new Date(b.date).getTime() : 0;
+        return tb - ta;
+      });
+
+      setDocs(merged);
+    } catch (e) {
+      console.warn("[DocumentIntelligence] loadAllDocs failed:", e);
+    } finally {
+      setIsLoadingDocs(false);
+    }
   }
 
-  async function handleOcrComplete(result: OcrExtractionResult) {
-    // After OCR, run deep DNA reasoning on extracted text
-    const flatText = Object.entries(result.rawJson)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join("\n");
-
-    await loadDocs(); // Refresh list
+  async function handleOcrComplete(_result: OcrExtractionResult) {
+    await loadAllDocs();
     setActiveView("hub");
   }
 
-  async function handleDocSelect(doc: UploadedDoc) {
+  async function handleDocSelect(doc: MergedDoc) {
     setSelectedDoc(doc);
+    setSelectedDNA(null);
     setActiveView("doc_detail");
 
-    // Load DNA if available, or generate on demand
-    if (!doc.clinical_significance) {
+    if (doc._kind === "uploaded_file" && !doc.clinical_significance) {
       setIsLoadingDNA(true);
       try {
-        // Fetch document text from Supabase
         const { data } = await (supabase as any)
           .from("uploaded_files")
           .select("document_dna, ocr_extracted_json")
-          .eq("id", doc.id)
+          .eq("id", doc._raw.id)
           .single();
 
         const textContent = (data && data.document_dna && data.document_dna.summary)
           || JSON.stringify((data && data.ocr_extracted_json) || {});
 
         if (textContent && textContent !== "{}") {
-          const dna = await extractDocumentDNADeep(
-            textContent
-          );
+          const dna = await extractDocumentDNADeep(textContent);
           setSelectedDNA(dna);
         }
       } catch (e) {
@@ -122,32 +213,31 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
     }
   }
 
-  const reviewCount = docs.filter(d => d.needs_review).length;
-  const displayDocs = filterReview ? docs.filter(d => d.needs_review) : docs;
+  // Filter: client → review → display
+  const clientFiltered = clientFilter === "all"
+    ? docs
+    : docs.filter(d => d.client_id === clientFilter);
+
+  const reviewCount = clientFiltered.filter(d => d.needs_review).length;
+  const displayDocs = filterReview ? clientFiltered.filter(d => d.needs_review) : clientFiltered;
 
   // ── OCR Upload View ──────────────────────────────────────────────────────────
   if (activeView === "ocr_upload") {
     return (
-      <div className="min-h-screen bg-gray-950 p-6">
-        <div className="max-w-3xl mx-auto">
-          <button
-            onClick={() => setActiveView("hub")}
-            className="flex items-center gap-2 text-gray-500 hover:text-gray-300 text-sm mb-6 transition-colors"
-          >
-            ← Back to Document Hub
-          </button>
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-white">Handwritten Form Scanner</h2>
-            <p className="text-gray-500 text-sm mt-1">
-              Gemini Vision extracts all fields — no manual transcription
-            </p>
-          </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <OcrFormUploader
-              onFormProcessed={handleOcrComplete}
-            />
-          </div>
+      <div className="max-w-3xl mx-auto space-y-6 animate-fade-in-up">
+        <button
+          onClick={() => setActiveView("hub")}
+          className="flex items-center gap-2 text-slate-500 hover:text-primary text-sm font-bold transition-colors"
+        >
+          <ArrowLeft size={16} /> Back to Document Hub
+        </button>
+        <div>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">Handwritten Form Scanner</h2>
+          <p className="text-slate-500 text-sm mt-1">Gemini Vision extracts all fields — no manual transcription.</p>
         </div>
+        <Card>
+          <OcrFormUploader onFormProcessed={handleOcrComplete} />
+        </Card>
       </div>
     );
   }
@@ -155,231 +245,291 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
   // ── Doc Detail View ──────────────────────────────────────────────────────────
   if (activeView === "doc_detail" && selectedDoc) {
     const sig = SIG_CONFIG[selectedDoc.clinical_significance || "informational"];
+    const sourceMeta = SOURCE_META[selectedDoc.source];
 
     return (
-      <div className="min-h-screen bg-gray-950 p-6">
-        <div className="max-w-4xl mx-auto">
-          <button
-            onClick={() => { setActiveView("hub"); setSelectedDoc(null); setSelectedDNA(null); }}
-            className="flex items-center gap-2 text-gray-500 hover:text-gray-300 text-sm mb-6 transition-colors"
-          >
-            ← Back to Document Hub
-          </button>
+      <div className="max-w-5xl mx-auto space-y-6 animate-fade-in-up">
+        <button
+          onClick={() => { setActiveView("hub"); setSelectedDoc(null); setSelectedDNA(null); }}
+          className="flex items-center gap-2 text-slate-500 hover:text-primary text-sm font-bold transition-colors"
+        >
+          <ArrowLeft size={16} /> Back to Document Hub
+        </button>
 
-          <div className="grid grid-cols-3 gap-6">
-            {/* Left: Document metadata */}
-            <div className="col-span-1 space-y-4">
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <div className="text-xs text-gray-500 uppercase tracking-widest mb-3">Document</div>
-                <h3 className="text-white font-semibold text-sm leading-snug mb-3">
-                  {selectedDoc.file_name}
-                </h3>
-                <div className="space-y-2 text-xs">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1 space-y-4">
+            <Card title="Document">
+              <h3 className="text-slate-900 dark:text-white font-black text-sm leading-snug mb-4">
+                {selectedDoc.document_label}
+              </h3>
+              <div className="space-y-3 text-xs">
+                {selectedDoc.client_name && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Type</span>
-                    <span className="text-gray-300">{selectedDoc.ocr_form_type || selectedDoc.document_type || "Unknown"}</span>
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Client</span>
+                    <span className="text-slate-700 dark:text-slate-200 font-bold">{selectedDoc.client_name}</span>
                   </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Source</span>
+                  <span className={`inline-flex items-center gap-1.5 font-bold px-2 py-0.5 rounded-full text-[10px] border ${sourceMeta.bg} ${sourceMeta.text}`}>
+                    {sourceMeta.label}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Type</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-bold">{selectedDoc.document_type}</span>
+                </div>
+                {selectedDoc.status && (
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Status</span>
-                    <span className="text-gray-300">{selectedDoc.document_status}</span>
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Status</span>
+                    <span className="text-slate-700 dark:text-slate-200 font-bold">{selectedDoc.status}</span>
                   </div>
-                  {selectedDoc.ocr_completion_score != null && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Completion</span>
-                      <span className={selectedDoc.ocr_completion_score >= 80 ? "text-green-400" : "text-yellow-400"}>
-                        {selectedDoc.ocr_completion_score}%
-                      </span>
-                    </div>
-                  )}
-                  {selectedDoc.dna_confidence != null && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">AI Confidence</span>
-                      <span className="text-gray-300">{selectedDoc.dna_confidence}%</span>
-                    </div>
-                  )}
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Date</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-bold">{selectedDoc.date ? new Date(selectedDoc.date).toLocaleDateString() : "—"}</span>
+                </div>
+                {selectedDoc.ocr_completion_score != null && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">OCR Completion</span>
+                    <span className={`font-black ${selectedDoc.ocr_completion_score >= 80 ? "text-emerald-600" : "text-amber-600"}`}>
+                      {selectedDoc.ocr_completion_score}%
+                    </span>
+                  </div>
+                )}
+                {selectedDoc.dna_confidence != null && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">AI Confidence</span>
+                    <span className="text-slate-700 dark:text-slate-200 font-bold">{selectedDoc.dna_confidence}%</span>
+                  </div>
+                )}
+                {selectedDoc.clinical_significance && (
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Significance</span>
-                    <span className={`flex items-center gap-1.5 ${sig.text}`}>
+                    <span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Significance</span>
+                    <span className={`flex items-center gap-1.5 font-bold ${sig.text}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${sig.dot}`} />
                       {sig.label}
                     </span>
                   </div>
-                </div>
-              </div>
-
-              {selectedDoc.needs_review && (
-                <div className="bg-yellow-950 border border-yellow-800 rounded-xl p-4 text-xs text-yellow-300">
-                  ⚠ Flagged for human review — some fields may need verification
-                </div>
-              )}
-            </div>
-
-            {/* Right: DNA Analysis */}
-            <div className="col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="text-xs text-gray-500 uppercase tracking-widest">
-                  AI Clinical Analysis
-                </div>
-                {isLoadingDNA && (
-                  <div className="w-3 h-3 border border-gray-600 border-t-red-500 rounded-full animate-spin ml-auto" />
                 )}
               </div>
 
-              {isLoadingDNA ? (
-                <div className="space-y-3 animate-pulse">
-                  {[80, 60, 90, 50, 70].map((w, i) => (
-                    <div key={i} className="h-3 bg-gray-800 rounded" style={{ width: `${w}%` }} />
-                  ))}
-                </div>
-              ) : selectedDNA ? (
-                <div className="space-y-4">
-                  <p className="text-gray-300 text-sm leading-relaxed">{selectedDNA.summary}</p>
-
-                  {selectedDNA.riskFlags.length > 0 && (
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase tracking-widest mb-2">Risk Flags</div>
-                      {selectedDNA.riskFlags.map((flag, i) => (
-                        <div key={i} className="flex items-start gap-2 mb-1.5 text-xs">
-                          <span className={
-                            flag.severity === "urgent" ? "text-red-400" :
-                            flag.severity === "warning" ? "text-yellow-400" : "text-gray-500"
-                          }>
-                            {flag.severity === "urgent" ? "⚡" : flag.severity === "warning" ? "⚠" : "ℹ"}
-                          </span>
-                          <span className="text-gray-300">{flag.description}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {selectedDNA.actionItems.length > 0 && (
-                    <div>
-                      <div className="text-xs text-gray-500 uppercase tracking-widest mb-2">Action Items</div>
-                      {selectedDNA.actionItems.map((item, i) => (
-                        <div key={i} className="flex items-start gap-2 mb-1.5 text-xs">
-                          <span className="text-red-400">→</span>
-                          <span className="text-gray-300">{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {selectedDNA.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-2">
-                      {selectedDNA.tags.map(tag => (
-                        <span key={tag} className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded-full text-xs text-gray-400">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-gray-600 text-sm text-center py-8">
-                  No AI analysis available yet.<br />
-                  <button
-                    onClick={() => handleDocSelect(selectedDoc)}
-                    className="mt-3 text-red-500 hover:text-red-400 text-xs underline"
-                  >
-                    Generate Now
-                  </button>
-                </div>
+              {selectedDoc.url && (
+                <a
+                  href={selectedDoc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-5 inline-flex items-center gap-2 text-xs font-black text-primary hover:underline"
+                >
+                  Open original <ArrowUpRight size={14} />
+                </a>
               )}
-            </div>
+            </Card>
+
+            {selectedDoc.needs_review && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-2 text-xs text-amber-800">
+                <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                <span className="leading-relaxed">Flagged for human review — some fields may need verification.</span>
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-2">
+            <Card title={selectedDoc._kind === "uploaded_file" ? "AI Clinical Analysis" : "Submission Details"} subtitle={selectedDoc._kind === "uploaded_file" ? "Document DNA from Gemini deep reasoning" : "Form data and metadata"}>
+              {selectedDoc._kind === "uploaded_file" ? (
+                isLoadingDNA ? (
+                  <div className="space-y-3 animate-pulse">
+                    {[80, 60, 90, 50, 70].map((w, i) => (
+                      <div key={i} className="h-3 bg-slate-100 dark:bg-slate-800 rounded" style={{ width: `${w}%` }} />
+                    ))}
+                  </div>
+                ) : selectedDNA ? (
+                  <div className="space-y-5">
+                    <p className="text-slate-700 dark:text-slate-200 text-sm leading-relaxed">{selectedDNA.summary}</p>
+
+                    {selectedDNA.riskFlags.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Risk Flags</p>
+                        {selectedDNA.riskFlags.map((flag, i) => (
+                          <div key={i} className="flex items-start gap-2 mb-1.5 text-xs">
+                            <span className={
+                              flag.severity === "urgent" ? "text-red-600" :
+                              flag.severity === "warning" ? "text-amber-600" : "text-slate-400"
+                            }>
+                              {flag.severity === "urgent" ? "⚡" : flag.severity === "warning" ? "⚠" : "ℹ"}
+                            </span>
+                            <span className="text-slate-700 dark:text-slate-200">{flag.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedDNA.actionItems.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Action Items</p>
+                        {selectedDNA.actionItems.map((item, i) => (
+                          <div key={i} className="flex items-start gap-2 mb-1.5 text-xs">
+                            <span className="text-primary font-black">→</span>
+                            <span className="text-slate-700 dark:text-slate-200">{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedDNA.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-2">
+                        {selectedDNA.tags.map(tag => (
+                          <span key={tag} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-xs text-slate-600 dark:text-slate-300 font-bold">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-slate-500 text-sm text-center py-10">
+                    <Sparkles size={24} className="mx-auto mb-2 text-slate-300" />
+                    <p className="font-bold">No AI analysis available yet.</p>
+                    <button
+                      onClick={() => handleDocSelect(selectedDoc)}
+                      className="mt-3 text-primary hover:underline text-xs font-bold"
+                    >
+                      Generate now
+                    </button>
+                  </div>
+                )
+              ) : (
+                <SubmissionPreview submission={selectedDoc._raw} />
+              )}
+            </Card>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Hub View (main) ──────────────────────────────────────────────────────────
+  // ── Hub View ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-950 p-6">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in-up">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs text-gray-500 uppercase tracking-widest">ACS Clinical Intelligence</span>
-            <span className="text-xs text-green-400 border border-green-800 rounded px-1.5 py-0.5">
-              ✓ Gemini Vision Active
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">ACS Clinical Intelligence</span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+              <CheckCircle2 size={10} /> Gemini Vision Active
             </span>
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Document Intelligence Hub</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            AI-powered document processing — OCR, Deep Reasoning, Clinical DNA
+          <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter">Document Intelligence</h1>
+          <p className="text-slate-500 text-sm mt-2">
+            Every clinical document, every client — forms, paper uploads, and AI-processed scans in one view.
           </p>
         </div>
 
         <div className="flex gap-3">
           <button
             onClick={() => setScanFlow({ stage: "picker" })}
-            className="flex items-center gap-2 px-4 py-2.5 bg-red-700 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+            className="flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary-focus text-white text-sm font-black rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
           >
-            <span>📋</span> Scan Handwritten Form
+            <Camera size={16} /> Scan Handwritten Form
           </button>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm rounded-lg transition-colors">
-            <span>↑</span> Upload Document
+          <button
+            onClick={() => setStaffUploadOpen(true)}
+            className="flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary text-slate-700 dark:text-slate-200 text-sm font-black rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
+          >
+            <Upload size={16} /> Upload Document
           </button>
         </div>
       </div>
 
-      {/* Stats Bar */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { label: "Total Documents", value: docs.length, color: "text-white" },
-          { label: "Needs Review", value: reviewCount, color: reviewCount > 0 ? "text-yellow-400" : "text-green-400" },
-          { label: "OCR Processed", value: docs.filter(d => d.ocr_form_type).length, color: "text-blue-400" },
-          { label: "Critical Flags", value: docs.filter(d => d.clinical_significance === "critical").length, color: "text-red-400" },
-        ].map(stat => (
-          <div key={stat.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
-            <div className="text-gray-500 text-xs mt-1">{stat.label}</div>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatTile label="Total Documents" value={clientFiltered.length} />
+        <StatTile label="Form Submissions" value={clientFiltered.filter(d => d.source === "Form").length} />
+        <StatTile label="AI Processed" value={clientFiltered.filter(d => d.source === "AI-Processed").length} tone="success" />
+        <StatTile label="Needs Review" value={reviewCount} tone={reviewCount > 0 ? "warning" : "success"} />
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-3 mb-4">
-        <button
-          onClick={() => setFilterReview(false)}
-          className={`text-xs px-3 py-1.5 rounded border transition-all ${!filterReview ? "bg-white text-black border-white" : "text-gray-400 border-gray-700"}`}
-        >
-          All Documents
-        </button>
-        <button
-          onClick={() => setFilterReview(true)}
-          className={`text-xs px-3 py-1.5 rounded border transition-all ${filterReview ? "bg-yellow-900 text-yellow-300 border-yellow-700" : "text-gray-400 border-gray-700"}`}
-        >
-          Needs Review {reviewCount > 0 && `(${reviewCount})`}
-        </button>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</label>
+          <select
+            value={clientFilter}
+            onChange={(e) => setClientFilter(e.target.value)}
+            className="text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="all">All clients</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setFilterReview(false)}
+            className={`text-[10px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest transition-all ${!filterReview ? "bg-primary text-white shadow-sm" : "bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-700"}`}
+          >
+            All Documents
+          </button>
+          <button
+            onClick={() => setFilterReview(true)}
+            className={`text-[10px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest transition-all ${filterReview ? "bg-amber-500 text-white shadow-sm" : "bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-700"}`}
+          >
+            Needs Review{reviewCount > 0 ? ` (${reviewCount})` : ""}
+          </button>
+        </div>
       </div>
 
-      {/* Document List */}
       {isLoadingDocs ? (
         <div className="space-y-3">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="h-16 bg-gray-900 border border-gray-800 rounded-xl animate-pulse" />
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-20 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl animate-pulse" />
           ))}
         </div>
       ) : displayDocs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="text-4xl mb-4">📂</div>
-          <div className="text-gray-400 font-medium">No documents yet</div>
-          <div className="text-gray-600 text-sm mt-1">Upload a document or scan a handwritten form to get started</div>
-          <button
-            onClick={() => setScanFlow({ stage: "picker" })}
-            className="mt-6 px-5 py-2.5 bg-red-700 hover:bg-red-600 text-white text-sm rounded-lg"
-          >
-            Scan First Form
-          </button>
-        </div>
+        <Card>
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mb-4">
+              <FileText size={28} className="text-slate-400" />
+            </div>
+            <p className="text-slate-700 dark:text-slate-200 font-black">No documents in view</p>
+            <p className="text-slate-500 text-sm mt-1">
+              {clientFilter === "all" ? "Upload a document or scan a handwritten form to get started." : "No documents on file for this client yet."}
+            </p>
+            <button
+              onClick={() => setStaffUploadOpen(true)}
+              className="mt-6 px-5 py-3 bg-primary text-white text-sm font-black rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+            >
+              Upload First Document
+            </button>
+          </div>
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {displayDocs.map(doc => (
-            <DocRow key={doc.id} doc={doc} onClick={() => handleDocSelect(doc)} />
+            <DocRow
+              key={doc.id}
+              doc={doc}
+              onOpen={() => handleDocSelect(doc)}
+              onView={() => setViewerDoc(doc)}
+            />
           ))}
         </div>
       )}
+
+      <DocumentViewerModal
+        isOpen={!!viewerDoc}
+        url={viewerDoc?.url}
+        filename={viewerDoc?.document_label || "Document"}
+        mimeType={viewerDoc?._raw?.file_type || viewerDoc?._raw?.mimeType}
+        onClose={() => setViewerDoc(null)}
+      />
+
+      <StaffDocumentUpload
+        isOpen={staffUploadOpen}
+        onClose={() => setStaffUploadOpen(false)}
+        onComplete={() => loadAllDocs()}
+        presetClientId={clientId}
+      />
 
       <ScannerPickerModal
         isOpen={scanFlow.stage === "picker"}
@@ -398,7 +548,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
           clientId="hub_unassigned"
           initialImage={scanFlow.initialImage}
           onComplete={() => {
-            loadDocs();
+            loadAllDocs();
             setScanFlow({ stage: "closed" });
           }}
           onClose={() => setScanFlow({ stage: "closed" })}
@@ -408,52 +558,104 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
   );
 }
 
-// ─── Doc Row ──────────────────────────────────────────────────────────────────
-
-function DocRow({ doc, onClick }: { doc: UploadedDoc; onClick: () => void }) {
+function DocRow({ doc, onOpen, onView }: { doc: MergedDoc; onOpen: () => void; onView: () => void }) {
   const sig = SIG_CONFIG[doc.clinical_significance || "informational"];
+  const sourceMeta = SOURCE_META[doc.source];
+  const SourceIcon = sourceMeta.icon;
+  const canView = !!doc.url;
+
+  // Pick a file-type icon that fits David's mental model — PDF/image/Word/Excel.
+  const mime = doc._raw?.file_type || doc._raw?.mimeType;
+  const fileName = doc.document_label;
+  const { Icon: TypeIcon, color: iconColor, label: typeLabel } = doc._kind === "form_submission"
+    ? { Icon: ClipboardList, color: "text-blue-700", label: "Form" }
+    : fileTypeIcon(mime, fileName);
+
+  const pillBits = [sourceMeta.label, typeLabel, doc.client_name].filter(Boolean) as string[];
 
   return (
     <div
-      onClick={onClick}
-      className="flex items-center gap-4 p-4 bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 rounded-xl cursor-pointer transition-all group"
+      onClick={onOpen}
+      className="flex items-center gap-4 p-5 bg-stone-50 dark:bg-slate-900 hover:bg-amber-50/40 dark:hover:bg-slate-800/60 border border-stone-200 dark:border-slate-800 hover:border-amber-200 rounded-2xl cursor-pointer transition-all group shadow-sm"
     >
-      {/* Type icon */}
-      <div className="w-10 h-10 bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">
-        {doc.file_type?.includes("pdf") ? "📄" : doc.file_type?.includes("image") ? "🖼" : "📋"}
+      <div className={`w-12 h-12 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-2xl flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+        <TypeIcon size={22} />
       </div>
 
-      {/* Name + meta */}
       <div className="flex-1 min-w-0">
-        <div className="text-white text-sm font-medium truncate">{doc.file_name}</div>
-        <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
-          <span>{doc.ocr_form_type || doc.document_type || "Document"}</span>
+        <div className="text-slate-900 dark:text-white text-sm font-black truncate">{doc.document_label}</div>
+        <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500 font-medium">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border font-black uppercase tracking-widest text-[9px] ${sourceMeta.bg} ${sourceMeta.text}`}>
+            <SourceIcon size={10} /> {pillBits.join(" · ")}
+          </span>
           {doc.ocr_completion_score != null && (
-            <span className={doc.ocr_completion_score >= 80 ? "text-green-500" : "text-yellow-500"}>
-              {doc.ocr_completion_score}% complete
+            <span className={`font-black ${doc.ocr_completion_score >= 80 ? "text-emerald-600" : "text-amber-600"}`}>
+              {doc.ocr_completion_score}% OCR
             </span>
           )}
-          <span>{new Date(doc.uploaded_at).toLocaleDateString()}</span>
+          {doc.date && <span>{new Date(doc.date).toLocaleDateString()}</span>}
         </div>
       </div>
 
-      {/* Status badges */}
       <div className="flex items-center gap-2 flex-shrink-0">
         {doc.needs_review && (
-          <span className="text-xs px-2 py-0.5 bg-yellow-950 border border-yellow-800 text-yellow-300 rounded-full">
+          <span className="text-[10px] px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full font-black uppercase tracking-widest">
             Review
           </span>
         )}
         {doc.clinical_significance && (
-          <span className={`flex items-center gap-1.5 text-xs ${sig.text}`}>
+          <span className={`flex items-center gap-1.5 text-[11px] font-bold ${sig.text}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${sig.dot}`} />
             {sig.label}
           </span>
         )}
-        <svg className="w-4 h-4 text-gray-700 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
+        {canView && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onView(); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-stone-700 dark:text-slate-200 bg-white hover:bg-amber-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-stone-200 dark:border-slate-700 rounded-full transition-all"
+            title="View document"
+          >
+            <Eye size={12} /> View
+          </button>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+          className="w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 flex items-center justify-center group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all"
+          title="Open detail"
+        >
+          <ArrowUpRight size={16} />
+        </button>
       </div>
+    </div>
+  );
+}
+
+function SubmissionPreview({ submission }: { submission: any }) {
+  const data = submission?.data || {};
+  const entries = Object.entries(data).filter(([k, v]) =>
+    typeof v === "string" || typeof v === "number" || typeof v === "boolean"
+  );
+
+  if (entries.length === 0) {
+    return (
+      <div className="text-slate-500 text-sm text-center py-10">
+        <ClipboardList size={24} className="mx-auto mb-2 text-slate-300" />
+        <p className="font-bold">No structured data captured for this submission.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 text-sm">
+      {entries.slice(0, 20).map(([k, v]) => (
+        <div key={k} className="grid grid-cols-3 gap-3 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest col-span-1">{k.replace(/_/g, " ")}</div>
+          <div className="text-slate-700 dark:text-slate-200 col-span-2 break-words">{String(v)}</div>
+        </div>
+      ))}
+      {entries.length > 20 && (
+        <p className="text-[10px] text-slate-400 italic pt-2">… {entries.length - 20} more fields</p>
+      )}
     </div>
   );
 }

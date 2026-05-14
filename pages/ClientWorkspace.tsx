@@ -8,8 +8,9 @@ import ClientProfileHeader from '../components/clients/ClientProfileHeader';
 import ClientDocumentsGrid from '../components/clients/ClientDocumentsGrid';
 import ClientOverviewTab from '../components/clients/ClientOverviewTab';
 import ClientFormsTab from '../components/clients/ClientFormsTab';
+import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import Card from '../components/ui/Card';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap } from 'lucide-react';
+import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 
@@ -38,7 +39,7 @@ const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client,
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-6 text-indigo-400">
                     <BrainCircuit className="animate-spin mb-2" size={32} />
-                    <p className="text-xs font-bold uppercase tracking-widest">Reasoning with Gemini 3...</p>
+                    <p className="text-xs font-bold uppercase tracking-widest">Checking risk indicators...</p>
                 </div>
             ) : prediction ? (
                 <div className="space-y-4">
@@ -76,6 +77,8 @@ const ClientWorkspace: React.FC = () => {
     const [sropData, setSropData] = useState<SROPProgress | null>(null);
     const [activityFeed, setActivityFeed] = useState<ClientActivity[]>([]);
     const [loadErrors, setLoadErrors] = useState<Record<string, boolean>>({});
+
+    const [isUploadOpen, setIsUploadOpen] = useState(false);
 
     const loadClientData = useCallback(async (id: string) => {
         setIsLoading(true);
@@ -164,8 +167,8 @@ const ClientWorkspace: React.FC = () => {
     return (
         <div className="animate-fade-in-up space-y-6">
             <ClientProfileHeader client={client} />
-            
-            <div className="border-b border-border dark:border-dark-border">
+
+            <div className="flex items-center justify-between border-b border-border dark:border-dark-border gap-3 flex-wrap">
                 <nav className="flex -mb-px space-x-8 overflow-x-auto">
                     {tabs.map(tab => (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-1 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
@@ -173,8 +176,22 @@ const ClientWorkspace: React.FC = () => {
                         </button>
                     ))}
                 </nav>
+                <button
+                    onClick={() => setIsUploadOpen(true)}
+                    className="my-2 flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-focus text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
+                >
+                    <Upload size={14} /> Upload Document
+                </button>
             </div>
             <div>{renderTabContent()}</div>
+
+            <StaffDocumentUpload
+                isOpen={isUploadOpen}
+                onClose={() => setIsUploadOpen(false)}
+                onComplete={() => clientId && loadClientData(clientId)}
+                presetClientId={client.id}
+                presetClientName={client.name}
+            />
         </div>
     );
 };

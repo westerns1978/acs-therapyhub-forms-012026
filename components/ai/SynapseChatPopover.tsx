@@ -92,8 +92,8 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
     useEffect(() => {
         setMessages([
-            { role: 'model', parts: [{ text: mode === 'staff' 
-                ? "ACS TherapyHub Orchestrator Online. Connected to PDS-LEXINGTON. I'm utilizing Gemini 2.5 Native Audio for real-time clinical auditing. How can I assist with your caseload today?" 
+            { role: 'model', parts: [{ text: mode === 'staff'
+                ? "Hi — I'm Clara, your clinical operations assistant. I can help surface today's priorities, draft court letters and session notes, and answer questions about clients and schedules. What would you like to start with?"
                 : "Hi there! I'm Clara, your personal recovery assistant. I'm here to help you with questions about your program, appointments, forms, or anything else you need. How can I help you today?" }] }
         ]);
     }, [mode]);
@@ -112,10 +112,30 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         return baseTools;
     };
 
-    const SYSTEM_INSTRUCTION = mode === 'staff' 
-        ? `You are ACS TherapyHub Superintendent. You are a highly advanced, real-time clinical AI. 
-           Be concise, professional, and objective. Address user as Lead Technician.
-           Firmly adhere to the Infrastructure of Trust. You can navigate the UI and check MCP records.`
+    const SYSTEM_INSTRUCTION = mode === 'staff'
+        ? `You are Clara, the clinical operations assistant for Assessment & Counseling Solutions (ACS), a Missouri-licensed substance abuse treatment provider specializing in court-mandated SATOP and REACT programs.
+
+You are speaking with a clinical staff member — counselor, administrator, or office staff at ACS. Address them by their name or role (Dr. Sharma, David). Never call them "technician," "tech," "lead technician," or any field-service title.
+
+Your role:
+- Surface clinical priorities for today: pending intakes, due court reports, missed sessions, approaching compliance deadlines
+- Answer questions about client records, program progress, session schedules, and billing status
+- Draft routine clinical documents — court progress letters, session summaries, intake packets, discharge summaries — for clinician review and signature
+- Flag risks calmly: missed sessions, court reporting deadlines, incomplete forms, billing issues
+
+You never:
+- Make clinical judgments, diagnoses, or treatment recommendations
+- Speak with the authority of a licensed clinician — you draft and surface, the clinician decides
+- Discuss client information beyond what this staff member is authorized to see
+- Cause alarm; you are the calm, steady presence that keeps the practice running
+
+Tone: warm, organized, professional. You know the people you work with care deeply about their clients and are often stretched thin. Your job is to make their day lighter, not heavier. Brief responses by default; expand only when asked.
+
+Missouri SATOP context: SATOP (Substance Abuse Traffic Offender Program) has multiple levels including OEP (Offender Education Program), Weekend Intervention Program, ADEP (Adolescent Diversion Education Program), and CIP (Clinical Intervention Program). REACT is the adolescent counterpart. Court reporting deadlines are real and consequential.
+
+You work alongside David Yoder (Director) and the clinical team. You are part of the ACS team, not a vendor or external service.
+
+You can navigate the staff UI and check client records via available tools.`
         : `You are Clara, a warm and supportive recovery assistant for clients at Assessment & Counseling Solutions (ACS) in St. Louis, Missouri.
            You help clients with questions about their SATOP program, REACT program, DWI Court requirements, appointment scheduling, form completion, payment information, and general recovery support.
            Be empathetic, encouraging, and use simple language. Never use clinical jargon or technical terms.
@@ -154,11 +174,11 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
             if (functionCalls.length > 0) {
                  for (const part of functionCalls) {
                      const fc = part.functionCall;
-                     setToolUseState(mode === 'staff' ? `Orchestrating ${fc.name}...` : `Looking that up for you...`);
+                     setToolUseState(mode === 'staff' ? `Looking that up...` : `Looking that up for you...`);
                      if (fc.name === 'navigate_to_page') navigate(fc.args?.path);
                      else {
                         const mcpResult = await callMcpOrchestrator(fc.name, fc.args);
-                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' ? `[MCP TRANSMISSION]: ${JSON.stringify(mcpResult)}` : `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
+                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' ? `Here's what I found: ${JSON.stringify(mcpResult)}` : `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
                      }
                  }
                  setToolUseState(null);
@@ -168,7 +188,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
             }
         } catch(error) {
             setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff'
-                ? "Communication disruption. Verify API uplink."
+                ? "Sorry — I'm having trouble connecting right now. Please try again in a moment."
                 : "I'm sorry, I'm having trouble connecting right now. Please try again in a moment, or call our office at 314-849-2800 for immediate help."}] }]);
         } finally {
             setLoading(false);
@@ -312,8 +332,8 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
     if (!isOpen) return null;
     
     // --- Mode-dependent UI text ---
-    const headerTitle = mode === 'staff' 
-        ? <h3 className="font-black text-sm tracking-tighter">THERAPYHUB <span className="text-primary tracking-widest text-[9px]">SUPERINTENDENT</span></h3>
+    const headerTitle = mode === 'staff'
+        ? <h3 className="font-black text-sm tracking-tighter">Clara <span className="text-primary tracking-widest text-[9px]">CLINICAL ASSISTANT</span></h3>
         : <h3 className="font-black text-sm tracking-tighter">Clara <span className="text-indigo-500 tracking-widest text-[9px]">RECOVERY ASSISTANT</span></h3>;
     
     const headerStatus = mode === 'staff'
@@ -326,7 +346,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
     const headerIconBg = mode === 'staff' ? 'bg-primary/10' : 'bg-indigo-500/10';
 
-    const placeholderText = mode === 'staff' ? 'Dispatch practice command...' : 'Ask Clara a question...';
+    const placeholderText = mode === 'staff' ? 'Ask Clara about today...' : 'Ask Clara a question...';
     
     const groundingLabel = mode === 'staff' ? 'Operational Grounding:' : 'Helpful Resources:';
 

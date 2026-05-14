@@ -46,7 +46,7 @@ export function createDispatcher(supabase: any) {
 }
 
 export async function processSchedulingRequest(request: SchedulingRequest): Promise<SchedulingResponse> {
-  const { text } = await geminiGenerate('gemini-3-pro-preview', {
+  const { text } = await geminiGenerate('gemini-2.5-flash', {
     contents: [{ role: 'user', parts: [{ text: request.message }] }],
     tools: [{
       function_declarations: [{

@@ -36,7 +36,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
         const snapshot = await generateClinicalSnapshot(client);
         setClinicalSnapshot(snapshot);
     } catch (error) {
-        setClinicalSnapshot("Neural link timed out. System is using cached indicators.");
+        setClinicalSnapshot("AI summary isn't available right now — please try again in a moment.");
     } finally {
         setIsGenerating(false);
     }
@@ -72,17 +72,17 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
           
           <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-3">
                 <button className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10 active:scale-95">
-                    <FilePlus size={16} /> Neural Note
+                    <FilePlus size={16} /> Session Note
                 </button>
                 <button className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95">
-                    <CalendarPlus size={16} /> Dispatch
+                    <CalendarPlus size={16} /> Schedule
                 </button>
-                <button 
+                <button
                     onClick={handleGenerateSnapshot}
                     className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isSnapshotExpanded ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-primary text-white hover:bg-primary-focus shadow-lg shadow-primary/20'}`}
                 >
-                    <Sparkles size={16} className={isGenerating ? "animate-pulse" : ""} /> 
-                    {isGenerating ? "Synthesizing..." : "Clinical Snapshot"}
+                    <Sparkles size={16} className={isGenerating ? "animate-pulse" : ""} />
+                    {isGenerating ? "Pulling it together..." : "Clinical Snapshot"}
                 </button>
           </div>
         </div>
@@ -115,7 +115,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
                     <div className="flex gap-1.5">
                         {[1,2,3].map(i => <div key={i} className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: `${i*0.1}s` }}></div>)}
                     </div>
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Aggregating session markers & risk telemetry...</p>
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pulling together what we have on this client...</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
