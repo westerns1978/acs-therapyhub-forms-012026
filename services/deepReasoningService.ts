@@ -34,6 +34,6 @@ Return a JSON object with:
   "reasoningTrace": "string"
 }`;
 
-  const text = await geminiText('gemini-3.1-pro-preview', prompt);
+  const text = await geminiText('gemini-2.5-flash', prompt);
   return JSON.parse(text || "{}");
 }

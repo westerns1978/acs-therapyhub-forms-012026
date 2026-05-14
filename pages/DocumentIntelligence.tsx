@@ -317,7 +317,10 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
           >
             <span>📋</span> Scan Handwritten Form
           </button>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm rounded-lg transition-colors">
+          <button
+            onClick={() => setScanFlow({ stage: "upload" })}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm rounded-lg transition-colors"
+          >
             <span>↑</span> Upload Document
           </button>
         </div>
