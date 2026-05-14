@@ -174,11 +174,11 @@ You can navigate the staff UI and check client records via available tools.`
             if (functionCalls.length > 0) {
                  for (const part of functionCalls) {
                      const fc = part.functionCall;
-                     setToolUseState(mode === 'staff' ? `Orchestrating ${fc.name}...` : `Looking that up for you...`);
+                     setToolUseState(mode === 'staff' ? `Looking that up...` : `Looking that up for you...`);
                      if (fc.name === 'navigate_to_page') navigate(fc.args?.path);
                      else {
                         const mcpResult = await callMcpOrchestrator(fc.name, fc.args);
-                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' ? `[MCP TRANSMISSION]: ${JSON.stringify(mcpResult)}` : `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
+                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' ? `Here's what I found: ${JSON.stringify(mcpResult)}` : `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
                      }
                  }
                  setToolUseState(null);
@@ -188,7 +188,7 @@ You can navigate the staff UI and check client records via available tools.`
             }
         } catch(error) {
             setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff'
-                ? "Communication disruption. Verify API uplink."
+                ? "Sorry — I'm having trouble connecting right now. Please try again in a moment."
                 : "I'm sorry, I'm having trouble connecting right now. Please try again in a moment, or call our office at 314-849-2800 for immediate help."}] }]);
         } finally {
             setLoading(false);

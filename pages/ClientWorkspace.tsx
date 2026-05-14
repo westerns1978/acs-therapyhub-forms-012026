@@ -39,7 +39,7 @@ const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client,
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-6 text-indigo-400">
                     <BrainCircuit className="animate-spin mb-2" size={32} />
-                    <p className="text-xs font-bold uppercase tracking-widest">Reasoning with Gemini 3...</p>
+                    <p className="text-xs font-bold uppercase tracking-widest">Checking risk indicators...</p>
                 </div>
             ) : prediction ? (
                 <div className="space-y-4">
