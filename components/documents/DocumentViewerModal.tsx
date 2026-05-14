@@ -57,7 +57,15 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         className="relative w-full max-w-5xl h-[85vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-full transition-colors shadow-sm"
+          title="Close (Esc)"
+          aria-label="Close viewer"
+        >
+          <X size={20} />
+        </button>
+        <header className="flex items-center justify-between gap-3 pl-6 pr-16 py-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-black text-slate-900 dark:text-white truncate" title={filename}>{filename}</p>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{resolvedMime}</p>
@@ -84,14 +92,6 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 </a>
               </>
             )}
-            <button
-              onClick={onClose}
-              className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
-              title="Close (Esc)"
-              aria-label="Close viewer"
-            >
-              <X size={18} />
-            </button>
           </div>
         </header>
 
@@ -132,6 +132,14 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
             </div>
           )}
         </div>
+        <footer className="px-6 py-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-bold rounded-xl transition-colors"
+          >
+            Close
+          </button>
+        </footer>
       </div>
     </div>
   );
