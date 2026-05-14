@@ -9,12 +9,13 @@ import React, { useState, useEffect } from "react";
 import OcrFormUploader from "../components/OcrFormUploader";
 import ScannerPickerModal from "../components/ScannerPickerModal";
 import MobileDocumentUpload from "../components/portal/MobileDocumentUpload";
+import DocumentViewerModal from "../components/documents/DocumentViewerModal";
 import Card from "../components/ui/Card";
 import { extractDocumentDNADeep, type DocumentDNA } from "../services/deepReasoningService";
 import { type OcrExtractionResult } from "../services/ocrService";
 import {
   ArrowLeft, AlertTriangle, Camera, Upload, FileText, FileImage,
-  Sparkles, CheckCircle2, ArrowUpRight, ClipboardList, FileUp,
+  Sparkles, CheckCircle2, ArrowUpRight, ClipboardList, FileUp, Eye,
 } from "lucide-react";
 
 type SupportedMime = "image/jpeg" | "image/png" | "image/webp";
@@ -92,6 +93,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
   const [filterReview, setFilterReview] = useState(false);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [scanFlow, setScanFlow] = useState<ScanFlow>({ stage: "closed" });
+  const [viewerDoc, setViewerDoc] = useState<MergedDoc | null>(null);
 
   useEffect(() => { loadAllDocs(); }, []);
 
@@ -482,10 +484,23 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
       ) : (
         <div className="space-y-3">
           {displayDocs.map(doc => (
-            <DocRow key={doc.id} doc={doc} onClick={() => handleDocSelect(doc)} />
+            <DocRow
+              key={doc.id}
+              doc={doc}
+              onOpen={() => handleDocSelect(doc)}
+              onView={() => setViewerDoc(doc)}
+            />
           ))}
         </div>
       )}
+
+      <DocumentViewerModal
+        isOpen={!!viewerDoc}
+        url={viewerDoc?.url}
+        filename={viewerDoc?.document_label || "Document"}
+        mimeType={viewerDoc?._raw?.file_type || viewerDoc?._raw?.mimeType}
+        onClose={() => setViewerDoc(null)}
+      />
 
       <ScannerPickerModal
         isOpen={scanFlow.stage === "picker"}
@@ -514,17 +529,18 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
   );
 }
 
-function DocRow({ doc, onClick }: { doc: MergedDoc; onClick: () => void }) {
+function DocRow({ doc, onOpen, onView }: { doc: MergedDoc; onOpen: () => void; onView: () => void }) {
   const sig = SIG_CONFIG[doc.clinical_significance || "informational"];
   const sourceMeta = SOURCE_META[doc.source];
   const SourceIcon = sourceMeta.icon;
   const FileIcon = doc._kind === "uploaded_file"
     ? (doc._raw.file_type?.includes("pdf") ? FileText : doc._raw.file_type?.includes("image") ? FileImage : FileText)
     : ClipboardList;
+  const canView = !!doc.url;
 
   return (
     <div
-      onClick={onClick}
+      onClick={onOpen}
       className="flex items-center gap-4 p-5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 border border-slate-100 dark:border-slate-800 hover:border-primary/30 rounded-2xl cursor-pointer transition-all group shadow-sm hover:shadow-md"
     >
       <div className="w-11 h-11 bg-primary/10 text-primary rounded-2xl flex items-center justify-center flex-shrink-0">
@@ -562,7 +578,20 @@ function DocRow({ doc, onClick }: { doc: MergedDoc; onClick: () => void }) {
             {sig.label}
           </span>
         )}
-        <button className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all">
+        {canView && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onView(); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white rounded-full transition-all"
+            title="View document"
+          >
+            <Eye size={12} /> View
+          </button>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+          className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all"
+          title="Open detail"
+        >
           <ArrowUpRight size={16} />
         </button>
       </div>
