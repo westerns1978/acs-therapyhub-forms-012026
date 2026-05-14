@@ -10,11 +10,13 @@ import OcrFormUploader from "../components/OcrFormUploader";
 import ScannerPickerModal from "../components/ScannerPickerModal";
 import MobileDocumentUpload from "../components/portal/MobileDocumentUpload";
 import DocumentViewerModal from "../components/documents/DocumentViewerModal";
+import StaffDocumentUpload from "../components/documents/StaffDocumentUpload";
 import Card from "../components/ui/Card";
 import { extractDocumentDNADeep, type DocumentDNA } from "../services/deepReasoningService";
 import { type OcrExtractionResult } from "../services/ocrService";
 import {
   ArrowLeft, AlertTriangle, Camera, Upload, FileText, FileImage,
+  FileSpreadsheet, FileType, File as FileIcon,
   Sparkles, CheckCircle2, ArrowUpRight, ClipboardList, FileUp, Eye,
 } from "lucide-react";
 
@@ -63,9 +65,28 @@ const SIG_CONFIG: Record<string, { label: string; dot: string; text: string }> =
 };
 
 const SOURCE_META: Record<DocSource, { label: string; icon: React.ElementType; bg: string; text: string }> = {
-  "Form":         { label: "Form",         icon: ClipboardList, bg: "bg-blue-50 border-blue-200",       text: "text-blue-700" },
-  "Upload":       { label: "Upload",       icon: FileUp,        bg: "bg-slate-50 border-slate-200",     text: "text-slate-700" },
-  "AI-Processed": { label: "AI-Processed", icon: Sparkles,      bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-700" },
+  "Form":         { label: "Form",     icon: ClipboardList, bg: "bg-blue-50 border-blue-200",       text: "text-blue-700" },
+  "Upload":       { label: "Upload",   icon: FileUp,        bg: "bg-stone-50 border-stone-200",     text: "text-stone-700" },
+  "AI-Processed": { label: "Upload",   icon: Sparkles,      bg: "bg-amber-50 border-amber-200",     text: "text-amber-700" },
+};
+
+const fileTypeIcon = (mime?: string, fileName?: string): { Icon: React.ElementType; color: string; label: string } => {
+  const t = (mime || "").toLowerCase();
+  const ext = (fileName || "").split(".").pop()?.toLowerCase() || "";
+
+  if (t === "application/pdf" || ext === "pdf") {
+    return { Icon: FileText, color: "text-red-700", label: "PDF" };
+  }
+  if (t.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "heic"].includes(ext)) {
+    return { Icon: FileImage, color: "text-blue-700", label: "Image" };
+  }
+  if (t.includes("wordprocessingml") || ext === "docx" || ext === "doc") {
+    return { Icon: FileType, color: "text-slate-700", label: "Word" };
+  }
+  if (t.includes("spreadsheetml") || ext === "xlsx" || ext === "xls") {
+    return { Icon: FileSpreadsheet, color: "text-green-700", label: "Excel" };
+  }
+  return { Icon: FileIcon, color: "text-slate-500", label: "File" };
 };
 
 const StatTile: React.FC<{ label: string; value: number | string; tone?: "default" | "warning" | "success" | "danger" }> = ({ label, value, tone = "default" }) => {
@@ -94,6 +115,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [scanFlow, setScanFlow] = useState<ScanFlow>({ stage: "closed" });
   const [viewerDoc, setViewerDoc] = useState<MergedDoc | null>(null);
+  const [staffUploadOpen, setStaffUploadOpen] = useState(false);
 
   useEffect(() => { loadAllDocs(); }, []);
 
@@ -411,7 +433,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
             <Camera size={16} /> Scan Handwritten Form
           </button>
           <button
-            onClick={() => setScanFlow({ stage: "upload" })}
+            onClick={() => setStaffUploadOpen(true)}
             className="flex items-center gap-2 px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary text-slate-700 dark:text-slate-200 text-sm font-black rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
           >
             <Upload size={16} /> Upload Document
@@ -474,7 +496,7 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
               {clientFilter === "all" ? "Upload a document or scan a handwritten form to get started." : "No documents on file for this client yet."}
             </p>
             <button
-              onClick={() => setScanFlow({ stage: "upload" })}
+              onClick={() => setStaffUploadOpen(true)}
               className="mt-6 px-5 py-3 bg-primary text-white text-sm font-black rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
             >
               Upload First Document
@@ -500,6 +522,13 @@ export default function DocumentIntelligenceHub({ supabase, clientId }: Document
         filename={viewerDoc?.document_label || "Document"}
         mimeType={viewerDoc?._raw?.file_type || viewerDoc?._raw?.mimeType}
         onClose={() => setViewerDoc(null)}
+      />
+
+      <StaffDocumentUpload
+        isOpen={staffUploadOpen}
+        onClose={() => setStaffUploadOpen(false)}
+        onComplete={() => loadAllDocs()}
+        presetClientId={clientId}
       />
 
       <ScannerPickerModal
@@ -533,30 +562,32 @@ function DocRow({ doc, onOpen, onView }: { doc: MergedDoc; onOpen: () => void; o
   const sig = SIG_CONFIG[doc.clinical_significance || "informational"];
   const sourceMeta = SOURCE_META[doc.source];
   const SourceIcon = sourceMeta.icon;
-  const FileIcon = doc._kind === "uploaded_file"
-    ? (doc._raw.file_type?.includes("pdf") ? FileText : doc._raw.file_type?.includes("image") ? FileImage : FileText)
-    : ClipboardList;
   const canView = !!doc.url;
+
+  // Pick a file-type icon that fits David's mental model — PDF/image/Word/Excel.
+  const mime = doc._raw?.file_type || doc._raw?.mimeType;
+  const fileName = doc.document_label;
+  const { Icon: TypeIcon, color: iconColor, label: typeLabel } = doc._kind === "form_submission"
+    ? { Icon: ClipboardList, color: "text-blue-700", label: "Form" }
+    : fileTypeIcon(mime, fileName);
+
+  const pillBits = [sourceMeta.label, typeLabel, doc.client_name].filter(Boolean) as string[];
 
   return (
     <div
       onClick={onOpen}
-      className="flex items-center gap-4 p-5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/60 border border-slate-100 dark:border-slate-800 hover:border-primary/30 rounded-2xl cursor-pointer transition-all group shadow-sm hover:shadow-md"
+      className="flex items-center gap-4 p-5 bg-stone-50 dark:bg-slate-900 hover:bg-amber-50/40 dark:hover:bg-slate-800/60 border border-stone-200 dark:border-slate-800 hover:border-amber-200 rounded-2xl cursor-pointer transition-all group shadow-sm"
     >
-      <div className="w-11 h-11 bg-primary/10 text-primary rounded-2xl flex items-center justify-center flex-shrink-0">
-        <FileIcon size={20} />
+      <div className={`w-12 h-12 bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 rounded-2xl flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+        <TypeIcon size={22} />
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <div className="text-slate-900 dark:text-white text-sm font-black truncate">{doc.document_label}</div>
-          <span className={`hidden sm:inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full border ${sourceMeta.bg} ${sourceMeta.text}`}>
-            <SourceIcon size={10} /> {sourceMeta.label}
+        <div className="text-slate-900 dark:text-white text-sm font-black truncate">{doc.document_label}</div>
+        <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500 font-medium">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border font-black uppercase tracking-widest text-[9px] ${sourceMeta.bg} ${sourceMeta.text}`}>
+            <SourceIcon size={10} /> {pillBits.join(" · ")}
           </span>
-        </div>
-        <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500 font-medium">
-          {doc.client_name && <span className="font-black text-slate-700 dark:text-slate-300">{doc.client_name}</span>}
-          <span className="font-bold">{doc.document_type}</span>
           {doc.ocr_completion_score != null && (
             <span className={`font-black ${doc.ocr_completion_score >= 80 ? "text-emerald-600" : "text-amber-600"}`}>
               {doc.ocr_completion_score}% OCR
@@ -581,7 +612,7 @@ function DocRow({ doc, onOpen, onView }: { doc: MergedDoc; onOpen: () => void; o
         {canView && (
           <button
             onClick={(e) => { e.stopPropagation(); onView(); }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white rounded-full transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-stone-700 dark:text-slate-200 bg-white hover:bg-amber-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-stone-200 dark:border-slate-700 rounded-full transition-all"
             title="View document"
           >
             <Eye size={12} /> View
@@ -589,7 +620,7 @@ function DocRow({ doc, onOpen, onView }: { doc: MergedDoc; onOpen: () => void; o
         )}
         <button
           onClick={(e) => { e.stopPropagation(); onOpen(); }}
-          className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all"
+          className="w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-stone-200 dark:border-slate-700 flex items-center justify-center group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all"
           title="Open detail"
         >
           <ArrowUpRight size={16} />
