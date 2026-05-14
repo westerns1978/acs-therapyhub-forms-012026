@@ -2,222 +2,211 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
-// Fix: Updated import casing to strictly match 'components/iValtMfaModal.tsx' and resolve ambiguous file name error in TypeScript
 import IValtMfaModal from '../components/IValtMfaModal';
-import { Smartphone, Lock, ShieldCheck, Mail, AlertTriangle, Zap, Loader2, UserCheck } from 'lucide-react';
+import { Smartphone, Lock, Mail, AlertTriangle, Loader2, ShieldCheck, ChevronDown } from 'lucide-react';
+import type { User } from '../types';
+
+const ACS_LOGO_URL = 'https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg';
+
+const demoStaff: User[] = [
+    {
+        id: 'staff-david-yoder',
+        name: 'David Yoder',
+        email: 'david.yoder@acs-therapy.com',
+        role: 'Admin',
+    },
+    {
+        id: 'staff-anya-sharma',
+        name: 'Dr. Anya Sharma',
+        email: 'anya.sharma@acs-therapy.com',
+        role: 'Clinical',
+    },
+];
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
     const { login } = useAuth();
-    
-    const [authMode, setAuthMode] = useState<'password' | 'biometric'>('password');
-    const [email, setEmail] = useState('admin@therapyhub.com');
-    const [password, setPassword] = useState('demo123');
-    const [mobile, setMobile] = useState('8163089206');
-    const [isDemoMode, setIsDemoMode] = useState(false);
-    
+
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [mobile, setMobile] = useState('');
+    const [useMfa, setUseMfa] = useState(false);
+
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isMfaOpen, setIsMfaOpen] = useState(false);
-    console.log('Login rendered, isMfaOpen:', isMfaOpen);
-    const [fieldErrors, setFieldErrors] = useState<{email?: boolean, password?: boolean, mobile?: boolean}>({});
 
-    const validateFields = () => {
-        const errors: {email?: boolean, password?: boolean, mobile?: boolean} = {};
-        if (authMode === 'password') {
-            if (!email) errors.email = true;
-            if (!password) errors.password = true;
-        }
-        if (!mobile || mobile.length < 10) errors.mobile = true;
-        
-        setFieldErrors(errors);
-        return Object.keys(errors).length === 0;
+    const handleDemoLogin = (staff: User) => {
+        login(staff);
+        navigate('/dashboard');
     };
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
-        if (!validateFields()) {
-            setError('Please correct your access markers.');
+        if (!email || !password) {
+            setError('Email and password are required.');
+            return;
+        }
+        if (useMfa && (!mobile || mobile.length < 10)) {
+            setError('Enter a 10-digit mobile number for iVALT MFA.');
             return;
         }
 
         setIsLoading(true);
 
-        // Demo mode bypasses both Supabase auth and the iVALT MFA modal.
-        // The modal flow was hanging on live deploys before customer demos;
-        // jumping straight to the success handler is deterministic.
-        if (isDemoMode) {
-            window.setTimeout(handleMfaSuccess, 600);
-            return;
-        }
-
         try {
-            if (authMode === 'password') {
-                const { error: authError } = await supabase.auth.signInWithPassword({
-                    email,
-                    password: password,
-                });
-                if (authError) throw authError;
+            const { error: authError } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+            if (authError) throw authError;
+
+            if (useMfa) {
+                setIsMfaOpen(true);
+            } else {
+                completeLogin();
             }
-            setIsMfaOpen(true);
         } catch (err: any) {
-            setError(err.message || 'Platform access denied.');
+            setError(err.message || 'Sign-in failed. Please try again.');
             setIsLoading(false);
         }
     };
-    
-    const handleMfaSuccess = async () => {
+
+    const completeLogin = () => {
         setIsMfaOpen(false);
         setIsLoading(false);
-        const role = email.includes('admin') ? 'Admin' : 'Clinical';
-        const mockUser = { 
-          id: 'u1', 
-          name: role === 'Admin' ? 'Lead Admin' : 'Dr. Anya Sharma', 
-          email: email, 
-          role: role as 'Admin' | 'Clinical' 
+        const role: User['role'] = email.includes('admin') || email.includes('david') ? 'Admin' : 'Clinical';
+        const mockUser: User = {
+            id: 'staff-' + email.split('@')[0],
+            name: role === 'Admin' ? 'David Yoder' : 'Dr. Anya Sharma',
+            email,
+            role,
         };
         login(mockUser);
         navigate('/dashboard');
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,30,36,0.15)_0%,transparent_50%)] animate-pulse"></div>
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-            
-            <div className="w-full max-w-md relative z-10 animate-fade-in-up">
-                <div className="flex flex-col items-center mb-8">
-                    <div className="bg-gradient-to-br from-[#8B1538] to-[#601026] p-5 rounded-[2rem] shadow-2xl mb-6 border border-white/20">
-                        <ShieldCheck className="text-white w-14 h-14" />
-                    </div>
-                    <h1 className="text-4xl font-black text-white tracking-tighter">TherapyHub</h1>
-                    <div className="flex items-center gap-2 mt-2">
-                        <Zap size={12} className="text-red-500 fill-red-500" />
-                        <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">Assessment & Counseling Solutions</p>
-                    </div>
+        <div className="flex items-center justify-center min-h-screen bg-surface p-4">
+            <div className="w-full max-w-md p-8 space-y-6 bg-background rounded-2xl shadow-lg border border-border">
+                <div className="text-center">
+                    <img
+                        src={ACS_LOGO_URL}
+                        alt="ACS Logo"
+                        className="mx-auto h-16 object-contain dark:bg-white/90 dark:p-2 dark:rounded-lg"
+                    />
+                    <h2 className="mt-6 text-2xl font-bold text-on-surface">Staff Portal</h2>
+                    <p className="mt-2 text-sm text-on-surface-secondary">
+                        Welcome. Sign in to access the clinical workspace.
+                    </p>
                 </div>
 
-                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-1 mb-6 flex border border-white/10 shadow-2xl">
-                    <button 
-                      onClick={() => setAuthMode('password')}
-                      className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${authMode === 'password' ? 'bg-white text-[#8B1538] shadow-lg' : 'text-slate-400 hover:text-white'}`}
-                    >
-                        <Lock size={14}/> Password + MFA
-                    </button>
-                    <button 
-                      onClick={() => setAuthMode('biometric')}
-                      className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 ${authMode === 'biometric' ? 'bg-white text-[#8B1538] shadow-lg' : 'text-slate-400 hover:text-white'}`}
-                    >
-                        <UserCheck size={14}/> Biometric Only
-                    </button>
-                </div>
+                {error && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-red-700">
+                        <AlertTriangle className="shrink-0 mt-0.5" size={16} />
+                        <p className="text-xs font-medium leading-relaxed">{error}</p>
+                    </div>
+                )}
 
-                <div className="bg-white/10 backdrop-blur-2xl rounded-[3rem] p-8 shadow-2xl border border-white/10 relative overflow-hidden">
-                    {isDemoMode && (
-                        <div className="mb-6 p-3 bg-amber-500/20 border border-amber-500/50 rounded-2xl flex items-center justify-center gap-2 text-amber-200 text-[10px] font-black uppercase tracking-widest animate-pulse">
-                            <Zap size={14} className="fill-current"/> DEMO ACTIVE
+                <form className="space-y-4" onSubmit={handleLogin}>
+                    <div className="rounded-md shadow-sm -space-y-px">
+                        <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                            <input
+                                type="email"
+                                autoComplete="email"
+                                required
+                                className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-on-surface rounded-t-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                                placeholder="Staff email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                            />
+                        </div>
+                        <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                            <input
+                                type="password"
+                                autoComplete="current-password"
+                                required
+                                className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-on-surface rounded-b-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => setUseMfa(v => !v)}
+                        className="w-full flex items-center justify-between text-xs font-semibold text-on-surface-secondary hover:text-primary transition"
+                    >
+                        <span className="flex items-center gap-2">
+                            <ShieldCheck size={14} />
+                            iVALT MFA (optional)
+                        </span>
+                        <ChevronDown size={14} className={`transition-transform ${useMfa ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {useMfa && (
+                        <div className="relative">
+                            <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                            <div className="absolute left-9 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 pr-2 ml-1 border-r border-gray-200">+1</div>
+                            <input
+                                type="tel"
+                                maxLength={10}
+                                className="appearance-none block w-full pl-16 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-on-surface rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm font-mono"
+                                placeholder="10-digit mobile number"
+                                value={mobile}
+                                onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
+                            />
                         </div>
                     )}
 
-                    {error && (
-                        <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3 animate-shake">
-                            <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={18} />
-                            <p className="text-red-200 text-xs font-bold leading-relaxed">{error}</p>
-                        </div>
-                    )}
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="group relative w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-focus focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition disabled:opacity-50"
+                    >
+                        {isLoading && <Loader2 className="animate-spin" size={16} />}
+                        Sign In
+                    </button>
+                </form>
 
-                    <form className="space-y-6" onSubmit={handleLogin}>
-                        {authMode === 'password' && (
-                            <>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Staff ID</label>
-                                    <div className="relative">
-                                        <Mail className={`absolute left-4 top-1/2 -translate-y-1/2 ${fieldErrors.email ? 'text-red-400' : 'text-slate-500'}`} size={18} />
-                                        <input
-                                            type="email"
-                                            className={`w-full pl-12 pr-4 py-4 bg-slate-900/50 border ${fieldErrors.email ? 'border-red-500' : 'border-white/10'} rounded-2xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-[#8B1538]/50 transition-all font-medium`}
-                                            placeholder="admin@therapyhub.com"
-                                            value={email}
-                                            onChange={(e) => {
-                                                setEmail(e.target.value);
-                                                setFieldErrors(prev => ({...prev, email: false}));
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                                
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Password</label>
-                                    <div className="relative">
-                                        <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 ${fieldErrors.password ? 'text-red-400' : 'text-slate-500'}`} size={18} />
-                                        <input
-                                            type="password"
-                                            className={`w-full pl-12 pr-4 py-4 bg-slate-900/50 border ${fieldErrors.password ? 'border-red-500' : 'border-white/10'} rounded-2xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-[#8B1538]/50 transition-all font-medium`}
-                                            placeholder="••••••••"
-                                            value={password}
-                                            onChange={(e) => {
-                                                setPassword(e.target.value);
-                                                setFieldErrors(prev => ({...prev, password: false}));
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Mobile Number <span className="text-[#8B1538] normal-case">*iVALT MFA</span></label>
-                            <div className="relative">
-                                <Smartphone className={`absolute left-4 top-1/2 -translate-y-1/2 ${fieldErrors.mobile ? 'text-red-400' : 'text-slate-500'}`} size={18} />
-                                <div className="absolute left-10 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm border-r border-white/10 pr-2 ml-1">+1</div>
-                                <input
-                                    type="tel"
-                                    maxLength={10}
-                                    className={`w-full pl-20 pr-4 py-4 bg-slate-900/50 border ${fieldErrors.mobile ? 'border-red-500' : 'border-white/10'} rounded-2xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-[#8B1538]/50 transition-all font-mono`}
-                                    placeholder="8163089206"
-                                    value={mobile}
-                                    onChange={(e) => {
-                                        setMobile(e.target.value.replace(/\D/g, ''));
-                                        setFieldErrors(prev => ({...prev, mobile: false}));
-                                    }}
-                                />
-                            </div>
-                        </div>
-
+                <div className="pt-4 border-t border-gray-200">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">
+                        Demo Access
+                    </p>
+                    {demoStaff.map(staff => (
                         <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full py-5 bg-gradient-to-r from-[#8B1538] to-[#B11A46] hover:from-[#B11A46] hover:to-[#8B1538] text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-xl transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3 border border-white/10"
+                            key={staff.id}
+                            onClick={() => handleDemoLogin(staff)}
+                            className="w-full text-left px-4 py-3 mb-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all"
                         >
-                            {isLoading ? <Loader2 className="animate-spin" size={20} /> : <ShieldCheck size={20} />}
-                            {authMode === 'password' ? 'Authorize Access' : 'Verify Identity'}
+                            <div className="font-semibold text-sm">{staff.name}</div>
+                            <div className="text-xs text-gray-500">
+                                {staff.role === 'Admin' ? 'Director' : 'Clinical'}
+                            </div>
                         </button>
-                    </form>
+                    ))}
+                </div>
 
-                    <div className="mt-8 pt-6 border-t border-white/5 flex flex-col items-center gap-4">
-                        <label className="flex items-center gap-3 cursor-pointer group">
-                          <input
-                            type="checkbox"
-                            checked={isDemoMode}
-                            onChange={(e) => setIsDemoMode(e.target.checked)}
-                            className="w-4 h-4 rounded border-white/20 bg-white/5 text-[#8B1538] focus:ring-[#8B1538]/50"
-                          />
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">🎭 Demo Mode</span>
-                        </label>
-                    </div>
+                <div className="text-center text-sm space-y-2">
+                    <Link to="/portal" className="block font-medium text-primary hover:text-primary-focus">
+                        Are you a client? Log in here
+                    </Link>
                 </div>
             </div>
 
             <IValtMfaModal
                 isOpen={isMfaOpen}
                 onClose={() => { setIsMfaOpen(false); setIsLoading(false); }}
-                onSuccess={handleMfaSuccess}
+                onSuccess={completeLogin}
                 mobileNumber={mobile}
-                demoMode={isDemoMode}
+                demoMode={false}
             />
-
         </div>
     );
 };
