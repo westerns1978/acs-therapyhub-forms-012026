@@ -459,7 +459,7 @@ export const resetDemoData = async () => {
  * HIGH-STAKES CLINICAL ANALYSIS: Gemini 3 Pro with Max Thinking Budget.
  */
 export const generateAsamAnalysis = async (notes: string): Promise<AsamAnalysisResult> => {
-    return geminiJSON('gemini-3-pro-preview',
+    return geminiJSON('gemini-2.5-flash',
         `Perform a High-Fidelity Multidimensional ASAM Analysis. Deliberate on cross-dimensional interactions. Priority: Regulatory Compliance (9 CSR 30-3). Notes: ${notes}`,
         {
             type: "OBJECT",
@@ -478,12 +478,12 @@ export const generateAsamAnalysis = async (notes: string): Promise<AsamAnalysisR
  * SPEED-OPTIMIZED CLINICAL SYNTHESIS: Gemini 3 Flash.
  */
 export const generateSoapNoteFromTranscript = async (transcript: string, clientName: string) => {
-    return geminiText('gemini-3-flash-preview',
+    return geminiText('gemini-2.5-flash',
         `Construct a structural SOAP note for ${clientName}. Content must be HIPAA-compliant. Source: ${transcript}`);
 };
 
 export const generateClinicalSnapshot = async (client: Client) => {
-    return geminiText('gemini-3-flash-preview',
+    return geminiText('gemini-2.5-flash',
         `Synthesize operational intelligence for client ${client.name} (Program: ${client.program}, County: ${client.county}). Identify critical workflow bottlenecks.`);
 };
 
@@ -510,7 +510,7 @@ export const searchCommunityResources = async (query: string, coords?: { latitud
  */
 export const generateRelapseRiskPrediction = async (client: Client, history: any[]) => {
     try {
-        return await geminiJSON('gemini-3-pro-preview',
+        return await geminiJSON('gemini-2.5-flash',
             `Analyze historical telemetry for ${client.name} to predict relapse probability. Signals: ${JSON.stringify(history)}. Return probability (0-100) and rationale.`,
             {
                 type: "OBJECT",
