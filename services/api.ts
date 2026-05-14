@@ -94,7 +94,7 @@ const mapClientToApp = (c: any): Client => {
         programType: c.programType ?? c.program_type ?? program,
         referralSource: c.referralSource ?? c.referral_source ?? '',
         billingType: c.billingType ?? c.payment_type ?? c.billing_type ?? 'Court Mandate',
-        avatarUrl: c.avatarUrl ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=8B1E24&color=fff`,
+        avatarUrl: c.avatar_url ?? c.avatarUrl ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=8B1E24&color=fff`,
         missingDocuments: c.missingDocuments || [],
         gamification: c.gamification || { points: 0, badges: [] },
         attendanceHistory: c.attendanceHistory || [],
