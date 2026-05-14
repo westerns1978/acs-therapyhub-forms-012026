@@ -52,13 +52,54 @@ const mapVaultDocToApp = (vDoc: any): DocumentFile => ({
     auditTrail: []
 });
 
-const mapClientToApp = (c: any): Client => ({
-    ...c,
-    initials: c.name ? c.name.split(' ').map((n: any) => n[0]).join('') : '??',
-    missingDocuments: c.missingDocuments || [],
-    gamification: c.gamification || { points: 0, badges: [] },
-    attendanceHistory: c.attendanceHistory || []
-});
+// Translate Supabase snake_case rows into the camelCase Client shape the UI
+// expects. Tolerates rows that are already camelCase (e.g. local mock data) so
+// callers can pass either through this function.
+const STATUS_MAP: Record<string, Client['status']> = {
+    active: 'Compliant',
+    compliant: 'Compliant',
+    'non-compliant': 'Non-Compliant',
+    'non_compliant': 'Non-Compliant',
+    warrant: 'Warrant Issued',
+    'warrant_issued': 'Warrant Issued',
+    'warrant issued': 'Warrant Issued',
+    completed: 'Completed',
+    archived: 'Archived',
+};
+
+const mapClientToApp = (c: any): Client => {
+    const statusRaw = (c.status || '').toString().toLowerCase();
+    const status = STATUS_MAP[statusRaw] || c.status || 'Compliant';
+
+    const complianceScore = Number(c.complianceScore ?? c.compliance_score ?? 0);
+    const sropHours = Number(c.srop_hours_completed ?? c.sropHoursCompleted ?? 0);
+    const totalSessionsRequired = Number(c.total_sessions_required ?? c.totalSessionsRequired ?? 75);
+    const completionPercentage = c.completionPercentage != null
+        ? Number(c.completionPercentage)
+        : (totalSessionsRequired > 0 ? Math.min(100, Math.round((sropHours / totalSessionsRequired) * 100)) : 0);
+
+    const program = c.program ?? c.program_type ?? 'SATOP';
+    const name = c.name || [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unknown Client';
+
+    return {
+        ...c,
+        name,
+        initials: name.split(' ').map((n: string) => n[0]).filter(Boolean).join('').toUpperCase() || '??',
+        status,
+        complianceScore,
+        completionPercentage,
+        caseNumber: c.caseNumber ?? c.case_number ?? '',
+        phone: c.phone ?? c.primary_phone ?? '',
+        program,
+        programType: c.programType ?? c.program_type ?? program,
+        referralSource: c.referralSource ?? c.referral_source ?? '',
+        billingType: c.billingType ?? c.payment_type ?? c.billing_type ?? 'Court Mandate',
+        avatarUrl: c.avatarUrl ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=8B1E24&color=fff`,
+        missingDocuments: c.missingDocuments || [],
+        gamification: c.gamification || { points: 0, badges: [] },
+        attendanceHistory: c.attendanceHistory || [],
+    };
+};
 
 export const callMcpOrchestrator = async (tool: string, params: any) => {
     try {
