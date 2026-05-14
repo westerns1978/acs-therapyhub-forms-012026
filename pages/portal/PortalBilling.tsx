@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import PortalLayout from '../../layouts/PortalLayout';
 import Header from '../../components/ui/Header';
 import Card from '../../components/ui/Card';
-import { supabase } from '../../services/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { DollarSign, CreditCard, History, Download, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { CreditCard, Download, ArrowUpRight, Loader2, AlertTriangle } from 'lucide-react';
 
 const PortalBilling: React.FC = () => {
     const portalClient = usePortalClient();
     const [billingData, setBillingData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isPaying, setIsPaying] = useState(false);
+    const [payError, setPayError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!portalClient) return;
@@ -44,20 +46,81 @@ const PortalBilling: React.FC = () => {
         fetchBilling();
     }, [portalClient]);
 
+    const handlePayNow = async () => {
+        if (isPaying) return;
+        const balance = Math.max(0, Number(billingData?.balance) || 0);
+        const amountCents = Math.round(balance * 100) || 4900;
+        setPayError(null);
+        setIsPaying(true);
+        try {
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/acs-create-checkout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    apikey: SUPABASE_ANON_KEY,
+                    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify({
+                    amount_cents: amountCents,
+                    description: balance > 0 ? 'ACS Session Balance' : 'ACS Intake Fee',
+                    return_url: window.location.href,
+                    client_id: portalClient?.id,
+                    client_email: (portalClient as any)?.email,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.checkout_url) {
+                throw new Error(data?.detail || data?.error || 'Could not start checkout.');
+            }
+            window.location.href = data.checkout_url;
+        } catch (err: any) {
+            setPayError(err?.message || 'Payment could not start. Please try again.');
+            setIsPaying(false);
+        }
+    };
+
     if (isLoading || !portalClient) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
+
+    const paymentStatus = new URLSearchParams(window.location.search).get('payment');
 
     return (
         <PortalLayout>
             <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
                 <Header title="Billing & Payments" subtitle="Manage your balance, payment methods, and view history." />
 
+                {paymentStatus === 'success' && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-2xl text-green-800">
+                        <p className="font-black text-sm">Payment received (test mode)</p>
+                        <p className="text-xs mt-1">Your transaction is being processed. Real-time balance updates after the webhook lands.</p>
+                    </div>
+                )}
+                {paymentStatus === 'cancelled' && (
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-800">
+                        <p className="font-black text-sm">Payment cancelled</p>
+                        <p className="text-xs mt-1">No charge was made. You can retry whenever you're ready.</p>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card className="bg-primary text-white border-none shadow-xl shadow-primary/20">
-                        <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Current Balance</p>
+                        <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Current Balance</p>
+                            <span className="text-[9px] font-black uppercase tracking-widest bg-white/15 border border-white/30 rounded-full px-2 py-0.5">TEST MODE</span>
+                        </div>
                         <h3 className="text-4xl font-black mt-2">${billingData.balance.toFixed(2)}</h3>
-                        <button className="mt-6 w-full py-3 bg-white text-primary rounded-xl font-black text-sm shadow-lg hover:scale-105 transition-all">
-                            PAY NOW
+                        <button
+                            onClick={handlePayNow}
+                            disabled={isPaying}
+                            className="mt-6 w-full py-3 bg-white text-primary rounded-xl font-black text-sm shadow-lg hover:scale-105 transition-all disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-2"
+                        >
+                            {isPaying ? (<><Loader2 size={16} className="animate-spin" /> STARTING CHECKOUT</>) : (billingData.balance > 0 ? 'PAY BALANCE' : 'PAY INTAKE FEE')}
                         </button>
+                        {payError && (
+                            <div className="mt-3 flex items-start gap-2 text-[11px] bg-white/15 border border-white/30 rounded-xl p-2">
+                                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                                <span className="leading-snug">{payError}</span>
+                            </div>
+                        )}
                     </Card>
 
                     <Card title="Payment Method">
