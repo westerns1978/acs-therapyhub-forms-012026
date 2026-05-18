@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Client, SROPProgress, ClientActivity, ComplianceEvent } from '../../types';
 import Card from '../ui/Card';
-import { FileText, CheckCircle, Award, Calendar, AlertTriangle, Clock, CreditCard, ClipboardList, FileSignature } from 'lucide-react';
+import { FileText, CheckCircle, Award, Calendar, AlertTriangle, Clock, CreditCard, ClipboardList, FileSignature, Target } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { getComplianceEvents } from '../../services/api';
 
@@ -102,12 +102,20 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
     const [payments, setPayments] = useState<PaymentRow[]>([]);
     const [notes, setNotes] = useState<NoteRow[]>([]);
     const [csrAlerts, setCsrAlerts] = useState<ComplianceEvent[]>([]);
+    // Treatment Plan card — pulled from any form_submission whose data.problems
+    // array is populated (Individual Comprehensive Treatment Plan etc.). Renders
+    // only when the client has one.
+    const [treatmentPlan, setTreatmentPlan] = useState<{
+        formName: string;
+        date: string | null;
+        problems: Array<{ problem: string; goal: string; interventions?: string[] }>;
+    } | null>(null);
 
     useEffect(() => {
         let mounted = true;
         (async () => {
             try {
-                const [paymentsRes, notesRes, ceList] = await Promise.all([
+                const [paymentsRes, notesRes, plansRes, ceList] = await Promise.all([
                     supabase
                         .from('payments')
                         .select('id, amount, payment_date, payment_method, description, status, external_payment_id')
@@ -118,12 +126,28 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                         .select('id, note_type, subjective, objective, assessment, plan, is_signed, created_at, therapist_id')
                         .eq('client_id', client.id)
                         .order('created_at', { ascending: false }),
+                    supabase
+                        .from('form_submissions')
+                        .select('id, form_name, data, submitted_at')
+                        .eq('client_id', client.id)
+                        .ilike('form_name', '%treatment plan%')
+                        .order('submitted_at', { ascending: false }),
                     getComplianceEvents(),
                 ]);
                 if (!mounted) return;
                 setPayments((paymentsRes.data as PaymentRow[]) || []);
                 setNotes((notesRes.data as NoteRow[]) || []);
                 setCsrAlerts((ceList || []).filter(ce => ce.clientId === client.id));
+                const planRow = (plansRes.data || []).find((r: any) => Array.isArray(r?.data?.problems) && r.data.problems.length > 0);
+                if (planRow) {
+                    setTreatmentPlan({
+                        formName: planRow.form_name || 'Treatment Plan',
+                        date: planRow.submitted_at,
+                        problems: planRow.data.problems,
+                    });
+                } else {
+                    setTreatmentPlan(null);
+                }
             } catch (e) {
                 console.warn('[ClientOverviewTab] fetch failed:', e);
             }
@@ -184,6 +208,45 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                         </div>
                     </div>
                 </Card>
+
+                {treatmentPlan && (
+                    <Card title="Treatment Plan" className="border-l-4 border-violet-500">
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">{treatmentPlan.formName}</p>
+                                {treatmentPlan.date && (
+                                    <span className="text-xs text-slate-500">
+                                        Signed {new Date(treatmentPlan.date).toLocaleDateString()}
+                                    </span>
+                                )}
+                            </div>
+                            <ol className="space-y-3">
+                                {treatmentPlan.problems.map((p, i) => (
+                                    <li key={i} className="p-3 bg-violet-50 dark:bg-violet-900/10 border border-violet-200 dark:border-violet-800 rounded-xl">
+                                        <div className="flex items-start gap-3">
+                                            <span className="shrink-0 w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                                                {i + 1}
+                                            </span>
+                                            <div className="flex-1 space-y-1">
+                                                <div>
+                                                    <span className="text-xs font-bold uppercase tracking-widest text-violet-700 dark:text-violet-300">Problem:</span>{' '}
+                                                    <span className="text-sm text-slate-800 dark:text-slate-100 font-medium">{p.problem}</span>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <Target className="w-3.5 h-3.5 text-violet-500 mt-1 shrink-0" />
+                                                    <div>
+                                                        <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Goal:</span>{' '}
+                                                        <span className="text-sm text-slate-700 dark:text-slate-200">{p.goal}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    </Card>
+                )}
 
                 {notes.length > 0 && (
                     <Card title="Clinical Notes">

@@ -27,6 +27,7 @@ const getProgramColor = (program: Client['program']) => {
         case 'Anger Management': return 'bg-orange-100 text-orange-800';
         case 'Compulsive Gambling':
         case 'GAMBLING_RECOVERY': return 'bg-teal-100 text-teal-800';
+        case 'OPIOID_RECOVERY': return 'bg-violet-100 text-violet-800';
         case 'DOT': return 'bg-indigo-100 text-indigo-800';
         default: return 'bg-gray-100 text-gray-800';
     }
@@ -34,6 +35,7 @@ const getProgramColor = (program: Client['program']) => {
 
 const getProgramLabel = (program: Client['program']) => {
     if (program === 'GAMBLING_RECOVERY') return 'Gambling Recovery';
+    if (program === 'OPIOID_RECOVERY') return 'Opioid Recovery';
     return program;
 };
 
@@ -260,6 +262,7 @@ const ClientList: React.FC = () => {
                                 <option value="SATOP">SATOP</option>
                                 <option value="REACT">REACT</option>
                                 <option value="GAMBLING_RECOVERY">Gambling Recovery</option>
+                                <option value="OPIOID_RECOVERY">Opioid Recovery</option>
                             </select>
                         </div>
                         <div className="flex items-center gap-2">

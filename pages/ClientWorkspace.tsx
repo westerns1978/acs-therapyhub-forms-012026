@@ -23,6 +23,14 @@ const SEEDED_RISK: Record<string, { score: number; reasoning: string } | null> =
         reasoning: 'Moderate risk based on early-program trajectory. Self-reported one near-miss incident May 7 — declined the drink and called sponsor. Compliance score trending positive at 92%. Sober date holding at 167 days.',
     },
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb': null, // Pat — show "insufficient data" state
+    'ffffffff-ffff-ffff-ffff-ffffffffffff': {
+        score: 15,
+        reasoning: 'First 3 weeks complete with strong engagement. Working mother with stable employment and child custody motivation factors. Self-reported zero relapse incidents. Continued vigilance recommended.',
+    },
+    'dddddddd-dddd-dddd-dddd-dddddddddddd': {
+        score: 12,
+        reasoning: 'Week 9 of 12 with strong family support system. MAT compliance excellent. Pain management strategy stable. Low-risk profile based on age, motivation, and support network.',
+    },
 };
 
 const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client, history }) => {

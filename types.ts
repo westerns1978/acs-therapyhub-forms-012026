@@ -16,7 +16,7 @@ export interface Client {
   phone: string;
   avatarUrl: string;
   lastSession: string;
-  program: 'SATOP' | 'REACT' | 'Anger Management' | 'Compulsive Gambling' | 'GAMBLING_RECOVERY' | 'DOT' | 'Individual Counseling' | 'SROP';
+  program: 'SATOP' | 'REACT' | 'Anger Management' | 'Compulsive Gambling' | 'GAMBLING_RECOVERY' | 'OPIOID_RECOVERY' | 'DOT' | 'Individual Counseling' | 'SROP';
   programType: 'SATOP_Level_IV' | 'Individual_Counseling' | 'Substance_Use_Assessment';
   status: 'Compliant' | 'Non-Compliant' | 'Warrant Issued' | 'Completed' | 'Archived';
   enrollmentDate: string;

@@ -19,10 +19,20 @@ const getStatusColor = (status: Client['status']) => {
     }
 };
 
-const getProgramBadge = (program: Client['program']) => {
+const getProgramBadge = (client: Client) => {
+    const program = client.program;
+    const totalRequired = Number((client as any).total_sessions_required ?? 0);
     switch (program) {
-        case 'SATOP':
-            return { label: 'SATOP Level IV', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        case 'SATOP': {
+            // Differentiate Level III (~50 hrs) vs Level IV (75 hrs) using the
+            // total_sessions_required on the row. Falls back to bare "SATOP" when
+            // hours haven't been set.
+            const level =
+                totalRequired >= 75 ? 'SATOP Level IV'
+                : totalRequired >= 40 ? 'SATOP Level III'
+                : 'SATOP';
+            return { label: level, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        }
         case 'REACT':
             return { label: 'REACT', color: 'bg-purple-100 text-purple-800 border-purple-200' };
         case 'Anger Management':
@@ -31,6 +41,8 @@ const getProgramBadge = (program: Client['program']) => {
             return { label: 'Gambling Recovery', color: 'bg-teal-100 text-teal-800 border-teal-200' };
         case 'Compulsive Gambling':
             return { label: 'Compulsive Gambling', color: 'bg-teal-100 text-teal-800 border-teal-200' };
+        case 'OPIOID_RECOVERY':
+            return { label: 'Opioid Recovery', color: 'bg-violet-100 text-violet-800 border-violet-200' };
         case 'DOT':
             return { label: 'DOT', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
         default:
@@ -80,8 +92,8 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
         <div className="flex-1 text-center lg:text-left">
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-3">
               <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white">{client.name}</h1>
-              <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getProgramBadge(client.program).color}`}>
-                {getProgramBadge(client.program).label}
+              <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getProgramBadge(client).color}`}>
+                {getProgramBadge(client).label}
               </span>
               <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getStatusColor(client.status)}`}>
                 {client.status}

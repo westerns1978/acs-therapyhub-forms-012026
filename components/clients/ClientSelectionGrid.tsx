@@ -9,6 +9,7 @@ import { Search } from 'lucide-react';
 
 const programDisplayLabel = (program: Client['program']) => {
     if (program === 'GAMBLING_RECOVERY') return 'Gambling Recovery';
+    if (program === 'OPIOID_RECOVERY') return 'Opioid Recovery';
     return program;
 };
 
@@ -70,6 +71,7 @@ const ClientSelectionGrid: React.FC = () => {
             }
             return client.program === programFilter;
         };
+        // (OPIOID_RECOVERY uses default exact match on client.program)
         return clients
             .filter(client =>
                 client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -102,6 +104,7 @@ const ClientSelectionGrid: React.FC = () => {
                             <option value="SATOP">SATOP</option>
                             <option value="REACT">REACT</option>
                             <option value="GAMBLING_RECOVERY">Gambling Recovery</option>
+                            <option value="OPIOID_RECOVERY">Opioid Recovery</option>
                         </select>
                     </div>
                     <div className="relative">
