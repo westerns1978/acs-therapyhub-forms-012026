@@ -29,6 +29,7 @@ const OUTREACH_TEMPLATES: Record<ClientAlert['reason'], string> = {
   LICENSE_SUSPENDED: 'Hi {name}, checking in on your SATOP progress so we can keep your reinstatement paperwork on track. Please call 314-849-2800 with any questions.',
   MISSING_DOCUMENTS: 'Hi {name}, we are missing some documents required for your program placement. Please call 314-849-2800 today to complete them.',
   LAGGING_COMPLETION: 'Hi {name}, just checking in on your program progress. Let\'s talk about pacing — please call 314-849-2800.',
+  CSR_PLAN_REVIEW_DUE: 'Hi {name}, your 90-day treatment plan review is coming up per Missouri 9 CSR 30-3. Please call 314-849-2800 so we can confirm your next clinical staffing.',
 };
 
 const OutreachModal: React.FC<Props> = ({ alert, onClose, onActionComplete }) => {

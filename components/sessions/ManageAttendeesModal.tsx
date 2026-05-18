@@ -109,7 +109,7 @@ const ManageAttendeesModal: React.FC<ManageAttendeesModalProps> = ({ isOpen, onC
                                                         <img src={c.avatarUrl} alt={c.name} className="w-10 h-10 rounded-full"/>
                                                         <div>
                                                             <p className="font-semibold">{c.name}</p>
-                                                            <p className="text-xs text-on-surface-secondary">{c.program}</p>
+                                                            <p className="text-xs text-on-surface-secondary">{c.program === 'GAMBLING_RECOVERY' ? 'Gambling Recovery' : c.program}</p>
                                                         </div>
                                                     </>
                                                 )}

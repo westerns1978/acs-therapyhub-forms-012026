@@ -200,8 +200,9 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                                 <tr key={sub.id}>
                                     <td className="px-6 py-4 font-medium">
                                         <div className="flex items-center gap-2">
-                                            {form?.title}
+                                            {form?.title || sub.formName || sub.formId}
                                             {sub.data?.is_paper_upload && <FileText size={14} className="text-slate-400" />}
+                                            {sub.data?.signed && <CheckCircle size={14} className="text-emerald-500" />}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">

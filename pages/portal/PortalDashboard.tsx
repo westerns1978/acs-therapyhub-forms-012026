@@ -176,12 +176,13 @@ const PortalDashboard: React.FC = () => {
                     .order('start_time')
                     .limit(3);
 
-                // Get pending forms
+                // Pending/in-progress forms — the portal surfaces both as "pending action"
+                // since both states need the client to act before completion.
                 const { data: pendingForms } = await supabase
                     .from('form_submissions')
                     .select('*')
                     .eq('client_id', portalClient.id)
-                    .eq('status', 'pending');
+                    .in('status', ['pending', 'Pending', 'In Progress', 'Not Started']);
 
                 setDashboardData({
                     client: clientData,
@@ -205,8 +206,17 @@ const PortalDashboard: React.FC = () => {
     return (
         <PortalLayout>
             <div className="max-w-5xl mx-auto relative space-y-8 animate-fade-in-up">
-                <div className="flex justify-between items-center">
-                    <Header title={`Hello, ${client.name.split(' ')[0]}!`} subtitle="Welcome to your ACS client portal." />
+                <div className="flex justify-between items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        {client.avatar_url && (
+                            <img
+                                src={client.avatar_url}
+                                alt={client.name}
+                                className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md shrink-0"
+                            />
+                        )}
+                        <Header title={`Hello, ${client.name.split(' ')[0]}!`} subtitle="Welcome to your ACS client portal." />
+                    </div>
                     <button onClick={() => setIsResourceModalOpen(true)} className="hidden sm:flex items-center gap-2 bg-accent text-white px-5 py-2.5 rounded-2xl font-bold shadow-lg shadow-accent/20 hover:scale-105 transition-all">
                         <MapPin size={18} /> Find Support Near You
                     </button>
@@ -240,8 +250,12 @@ const PortalDashboard: React.FC = () => {
                         </div>
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex justify-around">
                             <div className="text-center">
-                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">SATOP Progress</p>
-                                <p className="text-2xl font-black text-amber-500">{client.srop_hours_completed || 0} / 75 hrs</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase mb-1">
+                                    {client.program_type === 'GAMBLING_RECOVERY' ? 'Program Progress' : 'SATOP Progress'}
+                                </p>
+                                <p className="text-2xl font-black text-amber-500">
+                                    {client.srop_hours_completed || 0} / {client.total_sessions_required || 75} {client.program_type === 'GAMBLING_RECOVERY' ? 'sessions' : 'hrs'}
+                                </p>
                             </div>
                             <div className="w-px bg-slate-200 dark:bg-slate-700"></div>
                             <div className="text-center">

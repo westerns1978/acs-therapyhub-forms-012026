@@ -13,6 +13,30 @@ interface BaseFormTemplateProps<T> {
   onBackToLibrary: () => void;
 }
 
+// Coerce any form value into a string an <input> can safely render. Without
+// this, boolean maps like {Mon:true, Thu:true} stringify to "[object Object]".
+const safeFieldValue = (raw: any): string => {
+    if (raw === null || raw === undefined || raw === '') return '';
+    if (typeof raw === 'string') return raw;
+    if (typeof raw === 'number') return String(raw);
+    if (typeof raw === 'boolean') return raw ? 'Yes' : '';
+    if (typeof raw === 'object') {
+        // Boolean-map (CheckboxGroup) values → comma-separated truthy keys.
+        const entries = Object.entries(raw);
+        if (entries.length > 0 && entries.every(([_, v]) => typeof v === 'boolean')) {
+            return entries.filter(([_, v]) => v).map(([k]) => k).join(', ');
+        }
+        // Otherwise, prefer common label-ish fields.
+        return raw.label ?? raw.name ?? raw.schedule ?? raw.text ?? '';
+    }
+    return '';
+};
+
+const INPUT_BASE_CLASSES =
+    "mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 " +
+    "px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white " +
+    "shadow-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors";
+
 export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLibrary }: BaseFormTemplateProps<T>) => {
   const [formData, setFormData] = useState<T>(() => {
     const savedData = localStorage.getItem(`draft-${formDefinition.id}`);
@@ -179,30 +203,50 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                 <div className="absolute top-8 right-16 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Form Progress</div>
                 
                 <div className="mt-16 relative min-h-[400px] space-y-6">
-                    {formDefinition.fieldDefinitions.map(field => (
-                        <div key={field.id}>
-                            <label htmlFor={field.id} className="block text-sm font-medium text-slate-700 dark:text-slate-300">{field.label}</label>
-                            {field.type === 'textarea' ? (
-                                <textarea
-                                    id={field.id}
-                                    value={(formData as any)[field.id] || ''}
-                                    onChange={(e) => setFormData({ ...formData, [field.id]: e.target.value })}
-                                    className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary focus:ring-primary dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                />
-                            ) : (
-                                <input
-                                    type={field.type}
-                                    id={field.id}
-                                    value={(formData as any)[field.id] || ''}
-                                    onChange={(e) => setFormData({ ...formData, [field.id]: field.type === 'number' ? parseInt(e.target.value) : e.target.value })}
-                                    min={field.min}
-                                    max={field.max}
-                                    className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-primary focus:ring-primary dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                                />
-                            )}
-                            {errors[field.id as keyof T] && <p className="text-red-500 text-xs mt-1">{errors[field.id as keyof T]}</p>}
-                        </div>
-                    ))}
+                    {formDefinition.fieldDefinitions.map(field => {
+                        const displayValue = safeFieldValue((formData as any)[field.id]);
+                        const isBoolean = field.type === 'boolean';
+                        const inputType = field.type === 'object' ? 'text' : field.type;
+                        return (
+                            <div key={field.id}>
+                                <label htmlFor={field.id} className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    {field.label}
+                                    {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                                </label>
+                                {isBoolean ? (
+                                    <label className="mt-1 inline-flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            id={field.id}
+                                            checked={!!(formData as any)[field.id]}
+                                            onChange={(e) => setFormData({ ...formData, [field.id]: e.target.checked })}
+                                            className="h-4 w-4 rounded border border-gray-300 dark:border-gray-600 text-primary focus:ring-primary"
+                                        />
+                                        <span className="text-sm text-slate-700 dark:text-slate-300">I acknowledge / agree</span>
+                                    </label>
+                                ) : field.type === 'textarea' ? (
+                                    <textarea
+                                        id={field.id}
+                                        value={displayValue}
+                                        onChange={(e) => setFormData({ ...formData, [field.id]: e.target.value })}
+                                        className={INPUT_BASE_CLASSES}
+                                        rows={4}
+                                    />
+                                ) : (
+                                    <input
+                                        type={inputType}
+                                        id={field.id}
+                                        value={displayValue}
+                                        onChange={(e) => setFormData({ ...formData, [field.id]: field.type === 'number' ? parseInt(e.target.value) : e.target.value })}
+                                        min={field.min}
+                                        max={field.max}
+                                        className={INPUT_BASE_CLASSES}
+                                    />
+                                )}
+                                {errors[field.id as keyof T] && <p className="text-red-500 text-xs mt-1">{errors[field.id as keyof T]}</p>}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 

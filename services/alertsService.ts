@@ -24,7 +24,8 @@ export type AlertReason =
   | 'NON_COMPLIANT_STATUS'
   | 'LICENSE_SUSPENDED'
   | 'MISSING_DOCUMENTS'
-  | 'LAGGING_COMPLETION';
+  | 'LAGGING_COMPLETION'
+  | 'CSR_PLAN_REVIEW_DUE';
 
 export interface ClientAlert {
   id: string; // stable — built from clientId + reason
@@ -83,7 +84,10 @@ export function computeAlertsForClients(clients: Client[]): ClientAlert[] {
   const now = new Date().toISOString();
 
   for (const c of clients) {
-    if (c.status === 'Completed' || c.status === 'Archived') continue;
+    // fetchAlerts passes raw DB rows where status is lowercase ('active', 'archived').
+    // Skip anything that's not currently in treatment.
+    const statusLc = (c.status || '').toString().toLowerCase();
+    if (statusLc === 'completed' || statusLc === 'archived' || statusLc === 'inactive') continue;
 
     const missed = consecutiveAbsences(c.attendanceHistory);
     const deadlineDays = daysUntil(c.nextDeadline);
@@ -167,6 +171,31 @@ export function computeAlertsForClients(clients: Client[]): ClientAlert[] {
         headline: 'License suspended',
         detail: `${c.name}'s license is suspended. Confirm SATOP completion is tracked toward reinstatement (RSMo 302.540).`,
         recommendedActions: ['CREATE_TASK'],
+        computedAt: now,
+      });
+    }
+
+    // 9 CSR 30-3 — every SATOP/SROP client needs a 90-day treatment plan review.
+    // Trigger when an active client is mid-program (≥40 of 75 hours, <75 total).
+    // Visible on the client record AND counted on the staff dashboard.
+    // NOTE: fetchAlerts passes raw Supabase rows here (no mapClientToApp), so
+    // we have to read `program_type` (DB column) as well as `program` (TS field).
+    const sropHours = Number((c as any).srop_hours_completed ?? 0);
+    const totalRequired = Number((c as any).total_sessions_required ?? 0);
+    const programRaw = ((c as any).program_type || c.program || '').toString().toUpperCase();
+    const isSatopFamily = programRaw === 'SATOP' || programRaw === 'SROP' || programRaw === 'REACT';
+    if (isSatopFamily && totalRequired >= 50 && sropHours >= 40 && sropHours < totalRequired) {
+      const programLabel = c.program || (c as any).program_type || 'program';
+      alerts.push({
+        id: alertId(c.id, 'CSR_PLAN_REVIEW_DUE'),
+        clientId: c.id,
+        clientName: c.name,
+        program: programLabel,
+        tier: 'ELEVATED',
+        reason: 'CSR_PLAN_REVIEW_DUE',
+        headline: '90-Day Treatment Plan Update Due',
+        detail: `${c.name} is ${sropHours}/${totalRequired} hours into their ${programLabel} program. Per 9 CSR 30-3, the 90-day treatment plan review is due within 7 days. Schedule clinical staffing.`,
+        recommendedActions: ['CREATE_TASK', 'FLAG_SUPERVISOR'],
         computedAt: now,
       });
     }

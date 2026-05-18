@@ -315,7 +315,31 @@ export const deleteAppointment = async (id: string): Promise<void> => {
         throw new Error(error.message || 'Failed to delete appointment');
     }
 };
-export const getFormSubmissions = async (filters: any) => (dbFormSubmissions || []).filter(s => !filters.clientId || s.clientId === filters.clientId);
+export const getFormSubmissions = async (filters: any) => {
+    // Real Supabase fetch — falls back to mock data only if Supabase is unreachable.
+    try {
+        let q = supabase.from('form_submissions').select('*').order('submitted_at', { ascending: false, nullsFirst: false });
+        if (filters?.clientId) q = q.eq('client_id', filters.clientId);
+        const { data, error } = await q;
+        if (error) throw error;
+        return (data || []).map((row: any) => ({
+            id: row.id,
+            formId: row.form_id || row.form_type || row.form_name || 'form',
+            formName: row.form_name || row.form_type || 'Form',
+            clientId: row.client_id,
+            status: row.status || 'Not Started',
+            submittedAt: row.submitted_at ? new Date(row.submitted_at) : undefined,
+            reviewedAt: row.reviewed_at ? new Date(row.reviewed_at) : undefined,
+            reviewedBy: row.reviewed_by || undefined,
+            assignedAt: row.created_at ? new Date(row.created_at) : undefined,
+            dueDate: row.due_date ? new Date(row.due_date) : undefined,
+            data: row.data || {},
+        }));
+    } catch (e) {
+        console.warn('[api] getFormSubmissions fell back to mock:', e);
+        return (dbFormSubmissions || []).filter(s => !filters?.clientId || s.clientId === filters.clientId);
+    }
+};
 export const saveFormSubmission = async (sub: any) => {
     // Real persistence — writes to form_submissions. Throws on failure so callers
     // can show the error to the user rather than silently losing data.

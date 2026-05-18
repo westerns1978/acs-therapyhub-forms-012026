@@ -168,8 +168,10 @@ const PortalBilling: React.FC = () => {
                                             {new Date(tx.payment_date).toLocaleDateString()}
                                         </td>
                                         <td className="py-4">
-                                            <p className="text-sm font-black text-slate-800 dark:text-slate-100">{tx.payment_type || 'Service Fee'}</p>
-                                            <p className="text-[10px] text-slate-400 font-medium">Ref: {tx.id.substring(0, 8)}</p>
+                                            <p className="text-sm font-black text-slate-800 dark:text-slate-100">{tx.description || tx.payment_type || 'Service Fee'}</p>
+                                            <p className="text-[10px] text-slate-400 font-medium">
+                                                {tx.payment_method ? `${tx.payment_method} · ` : ''}Ref: {tx.external_payment_id || tx.id.substring(0, 8)}
+                                            </p>
                                         </td>
                                         <td className="py-4">
                                             <span className={`text-sm font-black ${tx.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>

@@ -1,8 +1,10 @@
 /**
  * ACS TherapyHub — ClinicalMarkdown Renderer
- * Fixes raw markdown rendering in AI Synthesized Intelligence panel
- * DROP-IN: Place in components/ClinicalMarkdown.tsx
- * USAGE: Replace any raw {response} text render with <ClinicalMarkdown content={response} />
+ *
+ * Renders Gemini-generated markdown inside the "AI Synthesized Intelligence"
+ * panel on a client record. The panel sits on a light slate-50 background in
+ * light mode, so all colors below are tuned for dark-on-light readability with
+ * dark-mode variants applied via Tailwind.
  */
 
 import React, { useMemo } from "react";
@@ -14,7 +16,7 @@ interface ClinicalMarkdownProps {
 }
 
 interface ParsedBlock {
-  type: "h1" | "h2" | "h3" | "h4" | "paragraph" | "bullet" | "numbered" | 
+  type: "h1" | "h2" | "h3" | "h4" | "paragraph" | "bullet" | "numbered" |
         "risk_critical" | "risk_high" | "risk_elevated" | "risk_moderate" | "risk_low" |
         "action" | "divider" | "keyvalue";
   content: string;
@@ -77,13 +79,12 @@ function parseContent(raw: string): ParsedBlock[] {
     } else if (/^(next action|immediate action|action required|recommend|priority)[:\s]/i.test(line)) {
       blocks.push({ type: "action", content: line });
 
-    // Key-value pairs — "Label: Value" short lines
-    } else if (/^[A-Z][^:]{2,30}:\s+\S/.test(line) && line.length < 120) {
+    // Key-value pairs — "Label: Value" short lines (e.g. "Observation: …")
+    } else if (/^[A-Z][^:]{2,30}:\s+\S/.test(line) && line.length < 200) {
       blocks.push({ type: "keyvalue", content: line });
 
     // Regular paragraph
     } else {
-      // Merge with previous paragraph if exists
       const prev = blocks[blocks.length - 1];
       if (prev?.type === "paragraph") {
         prev.content += " " + line;
@@ -100,7 +101,6 @@ function parseContent(raw: string): ParsedBlock[] {
 // ─── Inline Formatter (bold, italic within text) ──────────────────────────────
 
 function renderInline(text: string): React.ReactNode[] {
-  // Process **bold** and *italic* inline
   const parts: React.ReactNode[] = [];
   const regex = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
   let last = 0;
@@ -111,9 +111,9 @@ function renderInline(text: string): React.ReactNode[] {
       parts.push(text.slice(last, match.index));
     }
     if (match[2]) {
-      parts.push(<strong key={match.index} className="font-semibold text-white">{match[2]}</strong>);
+      parts.push(<strong key={match.index} className="font-bold text-slate-900 dark:text-white">{match[2]}</strong>);
     } else if (match[3]) {
-      parts.push(<em key={match.index} className="italic text-gray-300">{match[3]}</em>);
+      parts.push(<em key={match.index} className="italic text-slate-700 dark:text-slate-200">{match[3]}</em>);
     }
     last = match.index + match[0].length;
   }
@@ -125,11 +125,11 @@ function renderInline(text: string): React.ReactNode[] {
 // ─── Block Renderers ──────────────────────────────────────────────────────────
 
 const RISK_STYLES = {
-  risk_critical: { bg: "bg-red-950", border: "border-red-500", text: "text-red-300", dot: "bg-red-500", pulse: true },
-  risk_high:     { bg: "bg-red-900", border: "border-red-600", text: "text-red-400", dot: "bg-red-400", pulse: true },
-  risk_elevated: { bg: "bg-orange-950", border: "border-orange-600", text: "text-orange-300", dot: "bg-orange-400", pulse: false },
-  risk_moderate: { bg: "bg-yellow-950", border: "border-yellow-700", text: "text-yellow-300", dot: "bg-yellow-400", pulse: false },
-  risk_low:      { bg: "bg-green-950", border: "border-green-700", text: "text-green-400", dot: "bg-green-500", pulse: false },
+  risk_critical: { bg: "bg-red-50 dark:bg-red-950/40", border: "border-red-200 dark:border-red-700", text: "text-red-700 dark:text-red-300", dot: "bg-red-500", pulse: true },
+  risk_high:     { bg: "bg-red-50 dark:bg-red-900/30", border: "border-red-200 dark:border-red-700", text: "text-red-700 dark:text-red-300", dot: "bg-red-400", pulse: true },
+  risk_elevated: { bg: "bg-orange-50 dark:bg-orange-950/40", border: "border-orange-200 dark:border-orange-700", text: "text-orange-700 dark:text-orange-300", dot: "bg-orange-400", pulse: false },
+  risk_moderate: { bg: "bg-yellow-50 dark:bg-yellow-950/40", border: "border-yellow-200 dark:border-yellow-700", text: "text-yellow-700 dark:text-yellow-300", dot: "bg-yellow-400", pulse: false },
+  risk_low:      { bg: "bg-emerald-50 dark:bg-green-950/40", border: "border-emerald-200 dark:border-green-700", text: "text-emerald-700 dark:text-green-400", dot: "bg-emerald-500", pulse: false },
 };
 
 function RiskBadge({ type, content }: { type: keyof typeof RISK_STYLES; content: string }) {
@@ -154,37 +154,41 @@ function renderBlock(block: ParsedBlock, idx: number, compact: boolean): React.R
       return <RiskBadge key={key} type={block.type} content={block.content} />;
 
     case "h1":
-      return <h1 key={key} className="text-xl font-bold text-white mt-5 mb-2 tracking-tight">{renderInline(block.content)}</h1>;
+      return <h1 key={key} className="text-xl font-bold text-slate-900 dark:text-white mt-5 mb-2 tracking-tight">{renderInline(block.content)}</h1>;
     case "h2":
-      return <h2 key={key} className="text-base font-bold text-white mt-4 mb-2 uppercase tracking-widest text-xs border-b border-gray-700 pb-1">{renderInline(block.content)}</h2>;
+      return <h2 key={key} className="text-base font-bold text-slate-900 dark:text-white mt-4 mb-2 uppercase tracking-widest text-xs border-b border-gray-200 dark:border-gray-700 pb-1">{renderInline(block.content)}</h2>;
     case "h3":
-      return <h3 key={key} className="text-sm font-semibold text-gray-200 mt-3 mb-1">{renderInline(block.content)}</h3>;
+      return <h3 key={key} className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-3 mb-1">{renderInline(block.content)}</h3>;
     case "h4":
-      return <h4 key={key} className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-2 mb-1">{renderInline(block.content)}</h4>;
+      return <h4 key={key} className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-2 mb-1">{renderInline(block.content)}</h4>;
 
     case "bullet":
       return (
-        <div key={key} className="flex items-start gap-2.5 mb-1.5">
-          <span className="text-red-500 mt-1.5 flex-shrink-0 text-xs">▸</span>
-          <span className="text-gray-300 text-sm leading-relaxed">{renderInline(block.content)}</span>
+        <div key={key} className="flex items-start gap-2.5 mb-2">
+          <span className="text-primary mt-1.5 flex-shrink-0 text-xs">▸</span>
+          <span className="text-gray-800 dark:text-gray-200 text-sm leading-relaxed">{renderInline(block.content)}</span>
         </div>
       );
 
     case "numbered":
+      // Each numbered item is treated as a section — divider underneath for
+      // visual separation of "1. Client Acquisition & Intake" etc.
       return (
-        <div key={key} className="flex items-start gap-3 mb-2">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-800 border border-gray-600 text-xs text-gray-400 flex items-center justify-center font-mono mt-0.5">
-            {block.index}
-          </span>
-          <span className="text-gray-300 text-sm leading-relaxed">{renderInline(block.content)}</span>
+        <div key={key} className="pb-4 mb-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0 last:mb-0 last:pb-0">
+          <div className="flex items-start gap-3">
+            <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center mt-0.5">
+              {block.index}
+            </span>
+            <span className="text-primary font-bold text-base leading-snug">{renderInline(block.content)}</span>
+          </div>
         </div>
       );
 
     case "action":
       return (
-        <div key={key} className={`flex items-start gap-2.5 ${compact ? "my-2" : "my-3"} px-3 py-2.5 bg-red-950/40 border border-red-900 rounded-lg`}>
-          <span className="text-red-400 flex-shrink-0 mt-0.5">→</span>
-          <span className="text-red-200 text-sm font-medium leading-relaxed">{renderInline(block.content)}</span>
+        <div key={key} className={`flex items-start gap-2.5 ${compact ? "my-2" : "my-3"} px-3 py-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg`}>
+          <span className="text-primary flex-shrink-0 mt-0.5 font-bold">→</span>
+          <span className="text-red-800 dark:text-red-200 text-sm font-medium leading-relaxed">{renderInline(block.content)}</span>
         </div>
       );
 
@@ -193,20 +197,20 @@ function renderBlock(block: ParsedBlock, idx: number, compact: boolean): React.R
       const label = block.content.slice(0, colonIdx).trim();
       const value = block.content.slice(colonIdx + 1).trim();
       return (
-        <div key={key} className="flex items-baseline gap-2 mb-1.5 text-sm">
-          <span className="text-gray-500 flex-shrink-0 min-w-24">{label}:</span>
-          <span className="text-gray-200 font-medium">{renderInline(value)}</span>
+        <div key={key} className="mb-2 text-sm leading-relaxed">
+          <span className="font-semibold text-primary">{label}:</span>{' '}
+          <span className="text-gray-800 dark:text-gray-200">{renderInline(value)}</span>
         </div>
       );
     }
 
     case "divider":
-      return <hr key={key} className="border-gray-800 my-4" />;
+      return <hr key={key} className="border-gray-200 dark:border-gray-700 my-4" />;
 
     case "paragraph":
     default:
       return (
-        <p key={key} className={`text-gray-300 text-sm leading-relaxed ${compact ? "mb-2" : "mb-3"}`}>
+        <p key={key} className={`text-gray-800 dark:text-gray-200 text-sm leading-relaxed ${compact ? "mb-2" : "mb-3"}`}>
           {renderInline(block.content)}
         </p>
       );
@@ -224,27 +228,3 @@ export default function ClinicalMarkdown({ content, compact = false, className =
     </div>
   );
 }
-
-/**
- * USAGE IN AI STUDIO:
- * 
- * Before (broken):
- * <div>{aiResponse}</div>
- * 
- * After (fixed):
- * <ClinicalMarkdown content={aiResponse} />
- * 
- * For compact sidebar panels:
- * <ClinicalMarkdown content={aiResponse} compact />
- * 
- * The component handles:
- * - **bold** and *italic* inline formatting
- * - # ## ### #### headers → styled clinical section headers
- * - - * • bullet points → ACS red arrow bullets
- * - 1. 2. numbered lists → numbered badge style
- * - --- dividers → subtle separator lines
- * - "Risk Tier: CRITICAL" → colored risk badge with pulse
- * - "Next Action: ..." → red action callout box
- * - "Label: Value" → key-value clinical data pairs
- * - Consecutive text → merged paragraphs (no orphaned lines)
- */

@@ -16,7 +16,7 @@ export interface Client {
   phone: string;
   avatarUrl: string;
   lastSession: string;
-  program: 'SATOP' | 'REACT' | 'Anger Management' | 'Compulsive Gambling' | 'DOT' | 'Individual Counseling' | 'SROP';
+  program: 'SATOP' | 'REACT' | 'Anger Management' | 'Compulsive Gambling' | 'GAMBLING_RECOVERY' | 'DOT' | 'Individual Counseling' | 'SROP';
   programType: 'SATOP_Level_IV' | 'Individual_Counseling' | 'Substance_Use_Assessment';
   status: 'Compliant' | 'Non-Compliant' | 'Warrant Issued' | 'Completed' | 'Archived';
   enrollmentDate: string;
@@ -362,7 +362,7 @@ export interface DocumentFile { id: string; nodeId: string; clientId: string; cl
 export interface FileSystemNode { id: string; name: string; type: 'folder' | 'document'; parentId?: string; clientId?: string; children?: FileSystemNode[]; documentId?: string; }
 export interface AiSuggestion { id: string; contextId: string; type: 'missing_document' | 'deadline_alert' | 'workflow_suggestion' | 'content_summary'; message: string; actionText?: string; priority: 'low' | 'medium' | 'high'; }
 export interface Form { id: string; title: string; category: 'Recovery Plans' | 'Assessments' | 'Intake'; description: string; format: 'electronic' | 'pdf'; pdfUrl?: string; }
-export interface FormSubmission { id: string; formId: string; clientId: string; status: 'Not Started' | 'In Progress' | 'Completed' | 'Reviewed'; submittedAt?: Date; reviewedAt?: Date; reviewedBy?: string; data?: any; assignedAt?: Date; dueDate?: Date; }
+export interface FormSubmission { id: string; formId: string; formName?: string; clientId: string; status: 'Not Started' | 'In Progress' | 'Completed' | 'Reviewed'; submittedAt?: Date; reviewedAt?: Date; reviewedBy?: string; data?: any; assignedAt?: Date; dueDate?: Date; }
 export interface AuthContextType { user: User | null; login: (user: User) => void; logout: () => void; }
 export interface AsamDimension { dimension: number; name: string; description: string; notes: string; }
 export interface AsamAssessmentData { [key: number]: AsamDimension; }

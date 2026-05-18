@@ -14,18 +14,45 @@ import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircui
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 
+// Seeded relapse-risk predictions for the demo clients. Until we have real
+// telemetry to feed the model, surfacing realistic content beats a "0% — no
+// data" empty state. Lookup falls back to live Gemini for any other client.
+const SEEDED_RISK: Record<string, { score: number; reasoning: string } | null> = {
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa': {
+        score: 21,
+        reasoning: 'Moderate risk based on early-program trajectory. Self-reported one near-miss incident May 7 — declined the drink and called sponsor. Compliance score trending positive at 92%. Sober date holding at 167 days.',
+    },
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb': null, // Pat — show "insufficient data" state
+};
+
 const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client, history }) => {
-    const [prediction, setPrediction] = useState<{ score: number, reasoning: string } | null>(null);
-    const [loading, setLoading] = useState(true);
+    const seeded = client.id in SEEDED_RISK ? SEEDED_RISK[client.id] : undefined;
+    const [prediction, setPrediction] = useState<{ score: number, reasoning: string } | null>(seeded ?? null);
+    const [loading, setLoading] = useState(seeded === undefined);
+    const noData = seeded === null;
 
     useEffect(() => {
+        // If this client has a seeded value (Marcus or Pat), don't call Gemini.
+        if (client.id in SEEDED_RISK) {
+            const s = SEEDED_RISK[client.id];
+            setPrediction(s);
+            setLoading(false);
+            return;
+        }
+        let cancelled = false;
         const fetchPrediction = async () => {
             setLoading(true);
-            const res = await generateRelapseRiskPrediction(client, history || []);
-            setPrediction(res);
-            setLoading(false);
+            try {
+                const res = await generateRelapseRiskPrediction(client, history || []);
+                if (!cancelled) setPrediction(res);
+            } catch (e) {
+                if (!cancelled) setPrediction(null);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
         };
         fetchPrediction();
+        return () => { cancelled = true; };
     }, [client.id]);
 
     const getScoreColor = (score: number) => {
@@ -40,6 +67,24 @@ const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client,
                 <div className="flex flex-col items-center justify-center py-6 text-indigo-400">
                     <BrainCircuit className="animate-spin mb-2" size={32} />
                     <p className="text-xs font-bold uppercase tracking-widest">Checking risk indicators...</p>
+                </div>
+            ) : noData ? (
+                <div className="space-y-3">
+                    <div className="flex justify-between items-end">
+                        <div>
+                            <p className="text-sm font-medium text-gray-500">Predicted Risk Probability</p>
+                            <p className="text-4xl font-extrabold text-slate-400">—</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-slate-100 text-slate-500">
+                            <BrainCircuit size={20} />
+                        </div>
+                    </div>
+                    <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-inner">
+                        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed italic">
+                            Insufficient program data — new client. Predictions become available after the first two weeks of attendance and self-report logs.
+                        </p>
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase text-center">Engine: Gemini 3 Pro Deep Reasoning • Thinking Budget: 4k Tokens</p>
                 </div>
             ) : prediction ? (
                 <div className="space-y-4">

@@ -7,20 +7,24 @@ const ClientLogin: React.FC = () => {
     const [password, setPassword] = useState('');
 
     const demoClients = [
-        { 
-          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 
-          name: 'Alice Johnson', 
-          email: 'alice@email.com', 
-          program: 'SATOP' 
+        {
+          id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+          name: 'Marcus Reyes',
+          email: 'marcus.reyes.demo@gemyndflow.com',
+          program: 'SATOP',
+          programLabel: 'SATOP Level IV',
+          photoUrl: '/images/clients/marcus.png',
         },
-        { 
-          id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 
-          name: 'Bob Smith', 
-          email: 'bob@email.com', 
-          program: 'REACT' 
+        {
+          id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+          name: 'Pat Novak',
+          email: 'pat.novak.demo@gemyndflow.com',
+          program: 'GAMBLING_RECOVERY',
+          programLabel: 'Gambling Recovery',
+          photoUrl: '/images/clients/pat.png',
         },
       ];
-      
+
       const handleDemoLogin = (client: typeof demoClients[0]) => {
         sessionStorage.setItem('portal_client', JSON.stringify(client));
         navigate('/portal/dashboard');
@@ -29,12 +33,13 @@ const ClientLogin: React.FC = () => {
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
         if (email && password) {
-            // For demo: log in as Alice
+            // For demo: log in as Marcus
             const client = {
               id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-              name: 'Alice Johnson',
+              name: 'Marcus Reyes',
               email: email,
-              program: 'SATOP'
+              program: 'SATOP',
+              programLabel: 'SATOP Level IV',
             };
             sessionStorage.setItem('portal_client', JSON.stringify(client));
             navigate('/portal/dashboard');
@@ -99,11 +104,18 @@ const ClientLogin: React.FC = () => {
                         <button
                             key={client.id}
                             onClick={() => handleDemoLogin(client)}
-                            className="w-full text-left px-4 py-3 mb-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all"
+                            className="w-full text-left px-4 py-3 mb-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all flex items-center gap-3"
                         >
-                            <div className="font-semibold text-sm">{client.name}</div>
-                            <div className="text-xs text-gray-500">
-                                {client.program} Program
+                            <img
+                                src={client.photoUrl}
+                                alt={client.name}
+                                className="w-12 h-12 rounded-full object-cover border border-gray-200 shrink-0"
+                            />
+                            <div className="min-w-0">
+                                <div className="font-semibold text-sm">{client.name}</div>
+                                <div className="text-xs text-gray-500">
+                                    {client.programLabel}
+                                </div>
                             </div>
                         </button>
                     ))}

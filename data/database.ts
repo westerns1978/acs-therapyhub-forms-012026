@@ -114,8 +114,8 @@ const initialDbDocumentFiles: DocumentFile[] = [
 ];
 
 const initialDbSropData: SROPProgress[] = [
-    { clientId: '1', totalHours: 75, phase1: { title: 'Phase I: Education & Awareness', requiredHours: 25, completedHours: 25 }, phase2: { title: 'Phase II: Relapse Prevention', requiredHours: 50, completedHours: 31.5 }, drugScreens: [{ date: getRelativeDateStr(-10), testType: '5-Panel Urine', chainOfCustodyId: 'COC-789123', result: 'Negative' }] },
-    { clientId: '2', totalHours: 75, phase1: { title: 'Phase I: Education & Awareness', requiredHours: 25, completedHours: 10 }, phase2: { title: 'Phase II: Relapse Prevention', requiredHours: 50, completedHours: 5 }, drugScreens: [{ date: getRelativeDateStr(-5), testType: '5-Panel Urine', chainOfCustodyId: 'COC-456789', result: 'Positive' }] },
+    // Marcus Reyes (SATOP Level IV) — 42 of 75 hours, mid-program
+    { clientId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', totalHours: 75, phase1: { title: 'Phase I: Education & Awareness', requiredHours: 25, completedHours: 25 }, phase2: { title: 'Phase II: Relapse Prevention', requiredHours: 50, completedHours: 17 }, drugScreens: [{ date: getRelativeDateStr(-21), testType: '5-Panel Urine', chainOfCustodyId: 'COC-MRY-001', result: 'Negative' }, { date: getRelativeDateStr(-7), testType: '5-Panel Urine', chainOfCustodyId: 'COC-MRY-002', result: 'Negative' }] },
 ];
 
 const initialDbMessages: Message[] = [
@@ -125,9 +125,9 @@ const initialDbMessages: Message[] = [
 ];
 
 const initialDbComplianceEvents: ComplianceEvent[] = [
-    { id: 'ce1', clientId: '1', clientName: 'Alice Johnson', type: 'Program Plan Review', dueDate: getRelativeDate(10), status: 'upcoming' },
-    { id: 'ce2', clientId: '2', clientName: 'Bob Williams', type: 'Court Report Due', dueDate: getRelativeDate(-5), status: 'overdue' },
-    { id: 'ce3', clientId: '4', clientName: 'Diana Prince', type: 'ASAM Reassessment', dueDate: getRelativeDate(15), status: 'upcoming' },
+    // Marcus Reyes — 90-day treatment plan update due (7 days from today). The CSR alert
+    // surfaces on his record and gets counted on the staff dashboard alerts widget.
+    { id: 'ce-marcus-90day', clientId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', clientName: 'Marcus Reyes', type: 'Program Plan Review', dueDate: getRelativeDate(7), status: 'upcoming' },
 ];
 
 const initialDbAuditLogs: AuditLog[] = [
@@ -147,10 +147,14 @@ const initialDbAiSuggestions: AiSuggestion[] = [
 ];
 
 const initialDbClientActivityFeed: ClientActivity[] = [
-    { id: 'act-a-1', clientId: '1', timestamp: getRelativeDate(-1), type: 'Session', description: 'Attended SROP Group session.' },
-    { id: 'act-b-1', clientId: '2', timestamp: getRelativeDate(-2), type: 'Session', description: 'Attended REACT Group session.' },
-    { id: 'act-a-2', clientId: '1', timestamp: getRelativeDate(-3), type: 'Achievement', description: "Earned 'Consistent Attendance' badge!" },
-    { id: 'act-a-5', clientId: '1', timestamp: getRelativeDate(-5), type: 'Payment', description: 'Payment of $150.00 was successfully processed.' },
+    // Marcus Reyes — recent activity (SATOP Level IV, 42/75 hours)
+    { id: 'act-marcus-1', clientId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', timestamp: getRelativeDate(-14), type: 'Session', description: 'Completed Individual Counseling (Zoom) with Karen Ventimiglia, LPC.' },
+    { id: 'act-marcus-2', clientId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', timestamp: getRelativeDate(-7), type: 'Achievement', description: "Earned 'Phase I Complete' milestone — 25/25 hours." },
+    { id: 'act-marcus-3', clientId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', timestamp: getRelativeDate(-2), type: 'Form', description: 'Continuing Recovery Plan updated — 60% complete.' },
+    // Pat Novak — recent activity (Gambling Recovery, just started)
+    { id: 'act-pat-1', clientId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', timestamp: getRelativeDate(-7), type: 'Session', description: 'Completed Intake Assessment (Zoom) with Dr. Anya Sharma.' },
+    { id: 'act-pat-2', clientId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', timestamp: getRelativeDate(-7), type: 'Payment', description: 'Payment of $300.00 received — Gambling Recovery Intake Assessment.' },
+    { id: 'act-pat-3', clientId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', timestamp: getRelativeDate(-7), type: 'Form', description: 'Intake form submitted.' },
 ];
 
 const initialDbForms: Form[] = [

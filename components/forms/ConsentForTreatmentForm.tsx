@@ -6,7 +6,13 @@ import { CheckboxGroup } from '../CheckboxGroup';
 import { Checkbox } from '../Checkbox';
 
 const initialState: ConsentForTreatmentData = {
-  clientName: '', clientEmail: '', groupDays: { 'Mon': false, 'Tue': false, 'Wed': false, 'Thu': false, 'Fri': false }, groupTimeFrom: '', groupTimeTo: '',
+  clientName: '', clientEmail: '',
+  // Pre-populate a real SATOP Level IV schedule so the field renders as a
+  // readable string ("Mon, Thu" via the form template's object coercion)
+  // instead of an empty value or [object Object].
+  groupDays: { 'Mon': true, 'Tue': false, 'Wed': false, 'Thu': true, 'Fri': false },
+  groupTimeFrom: '9:00 AM',
+  groupTimeTo: '12:15 PM',
   understandsAttendancePolicy: false, agreesToFee: false, understandsCancellationPolicy: false,
   understandsExcusedAbsences: false, agreesToAbstinence: false, consentsToTesting: false,
   understandsConsequences: false, acknowledgesMarijuanaPolicy: false, disclosedMedications: '',

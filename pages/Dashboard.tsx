@@ -9,7 +9,7 @@ import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
 import { Clock, Video, Calendar, CheckCircle, AlertCircle, DollarSign, FileText, AlertTriangle, Zap, Activity, HardDrive, ArrowUpRight, TrendingUp, Sparkles, Brain, ArrowDownRight, ShieldCheck, Shield } from 'lucide-react';
-import { fetchAlerts, summarizeAlerts, type AlertsSummary } from '../services/alertsService';
+import { fetchAlerts, summarizeAlerts, type AlertsSummary, type ClientAlert } from '../services/alertsService';
 
 const OperationalInsightCard: React.FC<{ title: string, value: string, icon: any, trend: 'up' | 'down', color: string }> = ({ title, value, icon: Icon, trend, color }) => (
     <div className="p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl transition-all hover:scale-[1.02] group">
@@ -33,6 +33,7 @@ const Dashboard: React.FC = () => {
     const [isBriefingModalOpen, setBriefingModalOpen] = useState(false);
     const [appointments, setAppointments] = useState<any[]>([]);
     const [alertSummary, setAlertSummary] = useState<AlertsSummary>({ critical: 0, high: 0, elevated: 0, moderate: 0, total: 0 });
+    const [topAlerts, setTopAlerts] = useState<ClientAlert[]>([]);
     const [metrics, setMetrics] = useState({
         complianceRate: 0,
         monthlyRevenue: 0,
@@ -99,6 +100,7 @@ const Dashboard: React.FC = () => {
                 try {
                     const alerts = await fetchAlerts();
                     setAlertSummary(summarizeAlerts(alerts));
+                    setTopAlerts(alerts.slice(0, 3));
                 } catch (e) {
                     console.warn('[dashboard] fetchAlerts failed:', e);
                 }
@@ -136,6 +138,15 @@ const Dashboard: React.FC = () => {
                     <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter">
                         Dashboard
                     </h1>
+                    {alertSummary.total > 0 && (
+                        <button
+                            onClick={() => navigate('/risk-monitor')}
+                            className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition text-xs font-black uppercase tracking-widest"
+                        >
+                            <AlertTriangle size={14} />
+                            Pending Alerts: {alertSummary.total}
+                        </button>
+                    )}
                 </div>
                 <div className="flex gap-4">
                     <button onClick={() => setBriefingModalOpen(true)} className="px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:shadow-2xl transition-all flex items-center gap-3 border border-white/10 group">
@@ -245,13 +256,23 @@ const Dashboard: React.FC = () => {
 
                     <Card title="Clinical Guardrails">
                         <div className="space-y-3">
-                            <div className="flex items-start gap-4 p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl group cursor-pointer hover:bg-red-100 transition-colors">
-                                <AlertTriangle className="text-primary shrink-0 mt-1" size={20} />
-                                <div>
-                                    <p className="text-[10px] font-black text-primary uppercase tracking-widest">Policy Violation</p>
-                                    <p className="text-sm font-bold text-slate-800 dark:text-red-200 mt-0.5">Missing QAP signature on 3 notes.</p>
+                            {topAlerts.length > 0 ? topAlerts.map(a => (
+                                <button
+                                    key={a.id}
+                                    onClick={() => navigate(`/program-compliance/${a.clientId}`)}
+                                    className="w-full text-left flex items-start gap-4 p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl hover:bg-red-100 transition-colors"
+                                >
+                                    <AlertTriangle className="text-primary shrink-0 mt-1" size={20} />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[10px] font-black text-primary uppercase tracking-widest">{a.tier} · {a.clientName}</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-red-200 mt-0.5">{a.headline}</p>
+                                    </div>
+                                </button>
+                            )) : (
+                                <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                                    No active alerts.
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </Card>
                 </div>

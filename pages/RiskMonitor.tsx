@@ -26,6 +26,15 @@ const TIER_LABEL: Record<AlertTier, string> = {
   MODERATE: 'Moderate',
 };
 
+// Cleans up program enum values for display. Acronyms (SATOP, REACT, DOT, SROP)
+// stay as-is; underscore-snake values get title-cased.
+const PROGRAM_ACRONYMS = new Set(['SATOP', 'REACT', 'DOT', 'SROP']);
+const formatProgram = (p: string | undefined | null): string => {
+  if (!p) return '';
+  if (PROGRAM_ACRONYMS.has(p)) return p;
+  return p.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+};
+
 const RiskMonitor: React.FC = () => {
   const navigate = useNavigate();
   const [alerts, setAlerts] = useState<ClientAlert[]>([]);
@@ -115,7 +124,7 @@ const RiskMonitor: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${s.badge}`}>{TIER_LABEL[alert.tier]}</span>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{alert.program}</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{formatProgram(alert.program)}</span>
                     </div>
                     <h3 className="font-black text-lg tracking-tight mt-1.5 dark:text-white">{alert.clientName}</h3>
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-0.5">{alert.headline}</p>

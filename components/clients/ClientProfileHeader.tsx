@@ -19,6 +19,25 @@ const getStatusColor = (status: Client['status']) => {
     }
 };
 
+const getProgramBadge = (program: Client['program']) => {
+    switch (program) {
+        case 'SATOP':
+            return { label: 'SATOP Level IV', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        case 'REACT':
+            return { label: 'REACT', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+        case 'Anger Management':
+            return { label: 'Anger Management', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+        case 'GAMBLING_RECOVERY':
+            return { label: 'Gambling Recovery', color: 'bg-teal-100 text-teal-800 border-teal-200' };
+        case 'Compulsive Gambling':
+            return { label: 'Compulsive Gambling', color: 'bg-teal-100 text-teal-800 border-teal-200' };
+        case 'DOT':
+            return { label: 'DOT', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
+        default:
+            return { label: program, color: 'bg-slate-100 text-slate-800 border-slate-200' };
+    }
+};
+
 const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => {
   const [isSnapshotExpanded, setIsSnapshotExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -59,14 +78,16 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
         </div>
 
         <div className="flex-1 text-center lg:text-left">
-          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 mb-3">
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-3">
               <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white">{client.name}</h1>
+              <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getProgramBadge(client.program).color}`}>
+                {getProgramBadge(client.program).label}
+              </span>
               <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getStatusColor(client.status)}`}>
                 {client.status}
               </span>
           </div>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm font-bold text-slate-500 uppercase tracking-widest">
-              <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-primary"></div> {client.program}</span>
               <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> ID: {client.caseNumber}</span>
           </div>
           

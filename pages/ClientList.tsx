@@ -25,10 +25,16 @@ const getProgramColor = (program: Client['program']) => {
         case 'SATOP': return 'bg-blue-100 text-blue-800';
         case 'REACT': return 'bg-purple-100 text-purple-800';
         case 'Anger Management': return 'bg-orange-100 text-orange-800';
-        case 'Compulsive Gambling': return 'bg-teal-100 text-teal-800';
+        case 'Compulsive Gambling':
+        case 'GAMBLING_RECOVERY': return 'bg-teal-100 text-teal-800';
         case 'DOT': return 'bg-indigo-100 text-indigo-800';
         default: return 'bg-gray-100 text-gray-800';
     }
+};
+
+const getProgramLabel = (program: Client['program']) => {
+    if (program === 'GAMBLING_RECOVERY') return 'Gambling Recovery';
+    return program;
 };
 
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({ isOpen, onClose, title, children }) => {
@@ -51,7 +57,8 @@ const ClientList: React.FC = () => {
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('All');
+    const [statusFilter, setStatusFilter] = useState('Active');
+    const [programFilter, setProgramFilter] = useState('All');
     
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -92,10 +99,34 @@ const ClientList: React.FC = () => {
     }, []);
 
     const filteredClients = useMemo(() => {
+        // Most-recent-activity sort: use enrollmentDate (mapped from created_at) if
+        // present, else fall back to lastSession. Newest first so freshly enrolled
+        // clients (Pat, Marcus) bubble to the top.
+        const recency = (c: Client) => {
+            const t = (c as any).created_at || c.enrollmentDate || c.lastSession;
+            const ms = t ? new Date(t).getTime() : 0;
+            return Number.isFinite(ms) ? ms : 0;
+        };
+        const statusMatches = (client: Client) => {
+            if (statusFilter === 'All') return true;
+            if (statusFilter === 'Active') return client.status !== 'Archived' && client.status !== 'Completed';
+            return client.status === statusFilter;
+        };
+        const programMatches = (client: Client) => {
+            if (programFilter === 'All') return true;
+            // GAMBLING_RECOVERY is the new track introduced for this demo;
+            // 'Compulsive Gambling' is the legacy label still used by other rows.
+            if (programFilter === 'GAMBLING_RECOVERY') {
+                return client.program === 'GAMBLING_RECOVERY' || client.program === 'Compulsive Gambling';
+            }
+            return client.program === programFilter;
+        };
         return clients
             .filter(client => client.name.toLowerCase().includes(searchTerm.toLowerCase()))
-            .filter(client => statusFilter === 'All' || client.status === statusFilter);
-    }, [clients, searchTerm, statusFilter]);
+            .filter(statusMatches)
+            .filter(programMatches)
+            .sort((a, b) => recency(b) - recency(a));
+    }, [clients, searchTerm, statusFilter, programFilter]);
 
     const handleOpenModal = (modalName: string, client: Client) => {
         setSelectedClient(client);
@@ -217,19 +248,36 @@ const ClientList: React.FC = () => {
                             className="pl-10 pr-4 py-2 border border-border rounded-lg w-full sm:w-64 focus:ring-2 focus:ring-primary focus:border-primary"
                         />
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">Status:</span>
-                        <select
-                            value={statusFilter}
-                            onChange={e => setStatusFilter(e.target.value)}
-                            className="border border-border rounded-lg py-2 px-3 focus:ring-2 focus:ring-primary focus:border-primary"
-                        >
-                            <option>All</option>
-                            <option>Compliant</option>
-                            <option>Non-Compliant</option>
-                            <option>Warrant Issued</option>
-                            <option>Completed</option>
-                        </select>
+                    <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">Program:</span>
+                            <select
+                                value={programFilter}
+                                onChange={e => setProgramFilter(e.target.value)}
+                                className="border border-border rounded-lg py-2 px-3 focus:ring-2 focus:ring-primary focus:border-primary"
+                            >
+                                <option value="All">All</option>
+                                <option value="SATOP">SATOP</option>
+                                <option value="REACT">REACT</option>
+                                <option value="GAMBLING_RECOVERY">Gambling Recovery</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">Status:</span>
+                            <select
+                                value={statusFilter}
+                                onChange={e => setStatusFilter(e.target.value)}
+                                className="border border-border rounded-lg py-2 px-3 focus:ring-2 focus:ring-primary focus:border-primary"
+                            >
+                                <option value="Active">Active</option>
+                                <option value="All">All</option>
+                                <option value="Compliant">Compliant</option>
+                                <option value="Non-Compliant">Non-Compliant</option>
+                                <option value="Warrant Issued">Warrant Issued</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Archived">Archived</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -259,7 +307,7 @@ const ClientList: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getProgramColor(client.program)}`}>
-                                            {client.program}
+                                            {getProgramLabel(client.program)}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-on-surface-secondary">{client.county}</td>
