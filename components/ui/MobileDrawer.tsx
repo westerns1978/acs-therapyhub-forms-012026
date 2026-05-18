@@ -2,10 +2,10 @@ import React, { useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import ThemeToggle from './ThemeToggle';
-import { 
-    Home, Users, MessageSquare, Calendar, 
-    DollarSign, LogOut, X, BarChart3, FileText, Settings, 
-    HardDrive, ClipboardList, Zap, ShieldCheck
+import {
+    Home, Users, MessageSquare, Calendar,
+    DollarSign, LogOut, X, BarChart3, FileText, Settings,
+    HardDrive, ClipboardList, Zap, ShieldCheck, BookOpen
 } from 'lucide-react';
 
 interface MobileDrawerProps {
@@ -45,6 +45,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
         { to: '/session-management', icon: Calendar, label: 'Calendar' },
         { to: '/communication-center', icon: MessageSquare, label: 'Messages' },
         { to: '/forms', icon: ClipboardList, label: 'Forms' },
+        { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library' },
         { to: '/document-intelligence', icon: Zap, label: 'AI Documents' },
         { to: '/financials', icon: DollarSign, label: 'Financials' },
         { to: '/compliance', icon: ShieldCheck, label: 'Compliance' },

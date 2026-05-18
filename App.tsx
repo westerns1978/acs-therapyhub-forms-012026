@@ -26,6 +26,7 @@ const Compliance = lazy(() => import('./pages/Compliance'));
 const ProgramPlan = lazy(() => import('./pages/TreatmentPlan'));
 const FeeLedger = lazy(() => import('./pages/Billing'));
 const Forms = lazy(() => import('./pages/Forms'));
+const TreatmentPlanLibrary = lazy(() => import('./pages/TreatmentPlanLibrary'));
 const Financials = lazy(() => import('./pages/Financials'));
 const VideoSessions = lazy(() => import('./pages/VideoSessions'));
 const VideoGreenRoom = lazy(() => import('./pages/VideoGreenRoom'));
@@ -87,6 +88,7 @@ function App() {
                   <Route path="/fee-ledger/:clientId" element={<ProtectedRoute><FeeLedger /></ProtectedRoute>} />
                   <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
+                  <Route path="/treatment-plan-library" element={<ProtectedRoute><TreatmentPlanLibrary /></ProtectedRoute>} />
                   <Route path="/document-intelligence" element={<ProtectedRoute><DocumentIntelligence supabase={supabase as any} /></ProtectedRoute>} />
                   <Route path="/risk-monitor" element={<ProtectedRoute><RiskMonitor /></ProtectedRoute>} />
                   

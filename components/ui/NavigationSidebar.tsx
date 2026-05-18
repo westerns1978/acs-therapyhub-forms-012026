@@ -6,7 +6,7 @@ import GemyndFlowLogo from './GemyndFlowLogo';
 import {
     Home, Users, MessageSquare, Calendar, Shield,
     DollarSign, LogOut, X, BarChart3, Settings,
-    ClipboardList, Zap, Activity
+    ClipboardList, Zap, Activity, BookOpen
 } from 'lucide-react';
 
 const adminNavItems = [
@@ -47,6 +47,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
     { to: '/session-management', icon: Calendar, label: 'Calendar' },
     { to: '/communication-center', icon: MessageSquare, label: 'Messages', notifications: 3 },
     { to: '/forms', icon: ClipboardList, label: 'Forms' },
+    { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library' },
     { to: '/document-intelligence', icon: Zap, label: 'AI Documents' },
     { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', notifications: 3 },
     { to: '/financials', icon: DollarSign, label: 'Financials' },
