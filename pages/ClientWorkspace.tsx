@@ -175,7 +175,18 @@ const ClientWorkspace: React.FC = () => {
         if (clientId) loadClientData(clientId);
         else setIsLoading(false);
     }, [clientId, loadClientData]);
-    
+
+    // Refresh after an edit lands so the workspace shows the updated values
+    // without a manual reload. EditClientModal dispatches this from MainLayout.
+    useEffect(() => {
+        const handler = (e: any) => {
+            const updatedId = e?.detail?.client?.id;
+            if (updatedId && updatedId === clientId) loadClientData(clientId);
+        };
+        window.addEventListener('client-updated', handler);
+        return () => window.removeEventListener('client-updated', handler);
+    }, [clientId, loadClientData]);
+
     const handleFormAssigned = () => { if(clientId) loadClientData(clientId); }
 
     if (!clientId) return <ClientSelectionGrid />;

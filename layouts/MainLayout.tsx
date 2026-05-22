@@ -14,6 +14,7 @@ import NotificationContainer from '../components/ui/NotificationContainer';
 import Modal from '../components/ui/Modal';
 import SmartNoteImporter from '../components/notes/SmartNoteImporter';
 import CreateClientModal from '../components/clients/CreateClientModal';
+import EditClientModal from '../components/clients/EditClientModal';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -28,6 +29,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [isNoteModalOpen, setNoteModalOpen] = useState(false); 
   const [isCreateClientModalOpen, setCreateClientModalOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [preselectedClientId, setPreselectedClientId] = useState<string | undefined>(undefined);
   const [clients, setClients] = useState<Client[]>([]);
 
@@ -55,6 +57,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
     window.addEventListener('open-note-modal', handleOpenNoteModal);
     return () => window.removeEventListener('open-note-modal', handleOpenNoteModal);
+  }, []);
+
+  // Open Create Client modal from anywhere — mirrors the open-note-modal pattern
+  // so deeper components (ClientSelectionGrid) don't need props threaded down.
+  useEffect(() => {
+    const handler = () => setCreateClientModalOpen(true);
+    window.addEventListener('open-create-client-modal', handler);
+    return () => window.removeEventListener('open-create-client-modal', handler);
+  }, []);
+
+  // Open Edit Client modal. Caller passes the client in event.detail.
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e?.detail?.client) setEditingClient(e.detail.client);
+    };
+    window.addEventListener('open-edit-client-modal', handler);
+    return () => window.removeEventListener('open-edit-client-modal', handler);
   }, []);
 
   if (!user) {
@@ -157,6 +176,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       )}
 
       <CreateClientModal isOpen={isCreateClientModalOpen} onClose={() => setCreateClientModalOpen(false)} />
+
+      <EditClientModal
+        isOpen={!!editingClient}
+        onClose={() => setEditingClient(null)}
+        client={editingClient}
+        onSaved={(updated) => {
+          // Broadcast so any open ClientWorkspace can refresh without us
+          // having to thread props down through ProtectedRoute → children.
+          window.dispatchEvent(new CustomEvent('client-updated', { detail: { client: updated } }));
+        }}
+      />
     </div>
   );
 };

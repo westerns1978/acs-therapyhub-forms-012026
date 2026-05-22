@@ -5,7 +5,7 @@ import { getClients } from '../../services/api';
 import { Client } from '../../types';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import ClientAvatar from './ClientAvatar';
-import { Search } from 'lucide-react';
+import { Search, UserPlus } from 'lucide-react';
 
 const programDisplayLabel = (program: Client['program']) => {
     if (program === 'GAMBLING_RECOVERY') return 'Gambling Recovery';
@@ -117,6 +117,14 @@ const ClientSelectionGrid: React.FC = () => {
                             className="w-64 pl-9 pr-3 py-2 text-sm bg-background dark:bg-dark-surface-secondary border border-border dark:border-dark-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary"
                         />
                     </div>
+                    {/* Opens the CreateClientModal owned by MainLayout via window event —
+                        same modal as the header's "+ Schedule → New Intake" entry point. */}
+                    <button
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-create-client-modal'))}
+                        className="flex items-center gap-2 bg-primary hover:bg-primary-focus text-white text-sm font-bold px-4 py-2 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-95"
+                    >
+                        <UserPlus size={16} /> Add Client
+                    </button>
                 </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">

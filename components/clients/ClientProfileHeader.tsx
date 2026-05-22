@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Client } from '../../types';
 import ClientAvatar from './ClientAvatar';
-import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap } from 'lucide-react';
+import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil } from 'lucide-react';
 import { generateClinicalSnapshot } from '../../services/api';
 import ClinicalMarkdown from '../ClinicalMarkdown';
 
@@ -116,6 +116,16 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
                 >
                     <Sparkles size={16} className={isGenerating ? "animate-pulse" : ""} />
                     {isGenerating ? "Pulling it together..." : "Clinical Snapshot"}
+                </button>
+                {/* Opens EditClientModal owned by MainLayout. Available to all
+                    roles; the modal itself locks clinical fields for Admin. */}
+                <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-edit-client-modal', { detail: { client } }))}
+                    aria-label="Edit client"
+                    title="Edit client"
+                    className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95"
+                >
+                    <Pencil size={14} /> Edit
                 </button>
           </div>
         </div>

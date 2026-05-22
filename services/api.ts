@@ -696,6 +696,52 @@ export const addClient = async (clientData: any): Promise<Client> => {
     if (error) throw error;
     return mapClientToApp(data);
 };
+
+// Explicit camelCase → DB column map for partial UPDATEs. Distinct from
+// mapAppToClientRow (which is geared for INSERTs and auto-generates avatar_url
+// + applies INSERT-time defaults). Here we touch only the fields the caller
+// explicitly passes — avoids clobbering avatar or other server-side values on
+// partial edits.
+const CLIENT_UPDATE_COLUMNS: Record<string, string> = {
+    name: 'name',
+    email: 'email',
+    phone: 'primary_phone',
+    primary_phone: 'primary_phone',
+    dob: 'dob',
+    caseNumber: 'case_number',
+    case_number: 'case_number',
+    program: 'program_type',
+    program_type: 'program_type',
+    status: 'status',
+    complianceScore: 'compliance_score',
+    compliance_score: 'compliance_score',
+    county: 'county',
+    probationOfficer: 'probation_officer',
+    probation_officer: 'probation_officer',
+    billingType: 'billing_type',
+    billing_type: 'billing_type',
+    primarySubstance: 'primary_substance',
+    primary_substance: 'primary_substance',
+};
+
+export const updateClient = async (id: string, changes: Record<string, any>): Promise<Client> => {
+    const row: Record<string, any> = {};
+    for (const [k, v] of Object.entries(changes)) {
+        const col = CLIENT_UPDATE_COLUMNS[k];
+        if (col && v !== undefined) row[col] = v;
+    }
+    if (Object.keys(row).length === 0) {
+        throw new Error('No editable fields provided.');
+    }
+    const { data, error } = await supabase
+        .from('clients')
+        .update(row)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return mapClientToApp(data);
+};
 export const analyzeTravelRisk = async (id: string, date: string, time: string) => ({ risk: 'Low' as const, reason: 'Commute cleared by GeMyndFlow Dispatcher.' });
 export const getSessionRecords = async (id: string) => (dbSessionRecords || []).filter(r => r.clientId === id);
 
