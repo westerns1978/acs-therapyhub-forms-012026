@@ -392,3 +392,38 @@ export interface AiMessage { id: string; content: string; timestamp: Date; isUse
 export interface ClientActivity { id: string; clientId: string; timestamp: Date; type: 'Session' | 'Achievement' | 'Document' | 'Task' | 'Payment' | 'Form'; description: string; }
 export interface VideoSession { id: string; clientId: string; clientName: string; therapistId: string; therapistName: string; zoomMeetingId: string; zoomJoinUrl: string; startTime: Date; durationMinutes: number; status: 'scheduled' | 'in_progress' | 'completed' | 'missed' | 'canceled'; createdAt: Date; }
 export interface PracticeMetrics { incomeMTD: number; unbilledAmount: number; missingNotesCount: number; outstandingInvoicesCount: number; totalActiveClients: number; }
+
+// --- Treatment Plans (Phase F2) ---
+// Mirrors the TreatmentPlanTemplate shape in data/treatmentPlanTemplates.ts
+// so applying a template to a client is a 1:1 JSON serialize.
+export interface TreatmentPlanIntervention {
+  description: string;
+  frequency?: string;
+}
+
+export interface TreatmentPlanProblem {
+  title: string;
+  goals: string[];
+  interventions: TreatmentPlanIntervention[];
+}
+
+export interface TreatmentPlanContent {
+  problems: TreatmentPlanProblem[];
+}
+
+export type TreatmentPlanStatus = 'Active' | 'Completed' | 'Archived';
+
+export interface TreatmentPlan {
+  id: string;
+  clientId: string;
+  templateId?: string;
+  title: string;
+  category: string;
+  estimatedDuration?: string;
+  content: TreatmentPlanContent;
+  status: TreatmentPlanStatus;
+  createdBy?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}

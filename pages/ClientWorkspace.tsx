@@ -8,12 +8,16 @@ import ClientProfileHeader from '../components/clients/ClientProfileHeader';
 import ClientDocumentsGrid from '../components/clients/ClientDocumentsGrid';
 import ClientOverviewTab from '../components/clients/ClientOverviewTab';
 import ClientFormsTab from '../components/clients/ClientFormsTab';
+import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import Card from '../components/ui/Card';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload } from 'lucide-react';
+import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
+import { useAuth } from '../contexts/AuthContext';
+
+const CLINICAL_ROLES: ReadonlyArray<string> = ['Director', 'Therapist'];
 
 // Seeded relapse-risk predictions for the demo clients. Until we have real
 // telemetry to feed the model, surfacing realistic content beats a "0% — no
@@ -121,6 +125,8 @@ const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client,
 const ClientWorkspace: React.FC = () => {
     const { clientId } = useParams<{ clientId: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const canSeeClinical = !!user && CLINICAL_ROLES.includes(user.role);
     const [client, setClient] = useState<Client | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
@@ -198,11 +204,19 @@ const ClientWorkspace: React.FC = () => {
         { id: 'documents', label: 'Documents', icon: FileText },
         { id: 'forms', label: 'Forms', icon: ClipboardList },
         { id: 'sessions', label: 'Sessions', icon: Video },
+        // Treatment Plan is clinical surface — hidden from Admin (Jess).
+        ...(canSeeClinical ? [{ id: 'treatment-plan', label: 'Treatment Plan', icon: Target }] : []),
         ...(TRIAL_HIDE_CLIENT_SCHEDULING_TAB ? [] : [{ id: 'scheduling', label: 'Scheduling', icon: Zap }]),
     ];
 
     const renderTabContent = () => {
         switch (activeTab) {
+            case 'treatment-plan':
+                // Defensive: same role guard as the tab strip, in case activeTab
+                // somehow lands here (no URL drives it today, but persisted state
+                // could). Falls through to overview when the role isn't allowed.
+                if (!canSeeClinical) return null;
+                return <TreatmentPlanTab client={client} />;
             case 'scheduling':
                 // Defensive: even if activeTab somehow gets set to 'scheduling' (no
                 // URL path drives it today, but persisted state could), fall through

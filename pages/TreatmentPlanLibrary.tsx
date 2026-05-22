@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ClipboardList,
@@ -6,7 +7,6 @@ import {
   Target,
   CheckCircle2,
   Clock,
-  Users,
 } from 'lucide-react';
 import {
   TREATMENT_PLAN_TEMPLATES,
@@ -14,15 +14,6 @@ import {
   TemplateCategory,
   CATEGORY_STYLES,
 } from '../data/treatmentPlanTemplates';
-import Modal from '../components/ui/Modal';
-import { useNotification } from '../contexts/NotificationContext';
-
-const DEMO_CLIENTS = [
-  { id: 'marcus', name: 'Marcus Reyes', program: 'SATOP Level IV' },
-  { id: 'pat', name: 'Pat Novak', program: 'Gambling Recovery' },
-  { id: 'emma', name: 'Emma Reeves', program: 'SATOP Level III' },
-  { id: 'margaret', name: 'Margaret Sullivan', program: 'Opioid Recovery' },
-];
 
 const CATEGORIES: ('All' | TemplateCategory)[] = [
   'All',
@@ -107,9 +98,10 @@ const TemplateCard: React.FC<{
 const TreatmentPlanLibrary: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<'All' | TemplateCategory>('All');
-  const [applyingTemplate, setApplyingTemplate] = useState<TreatmentPlanTemplate | null>(null);
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
-  const { addNotification } = useNotification();
+  const [searchParams] = useSearchParams();
+  // ?for=<clientId> — set by ClientWorkspace's empty-state CTA so the
+  // customize modal opens with the right client preselected.
+  const preselectedClientId = searchParams.get('for') || undefined;
 
   const filteredTemplates = useMemo(() => {
     return TREATMENT_PLAN_TEMPLATES.filter((t) => {
@@ -124,21 +116,12 @@ const TreatmentPlanLibrary: React.FC = () => {
     });
   }, [searchQuery, activeCategory]);
 
-  const handleConfirmApply = () => {
-    if (!applyingTemplate || !selectedClientId) return;
-    const client = DEMO_CLIENTS.find((c) => c.id === selectedClientId);
-    if (!client) return;
-    addNotification(
-      `Treatment Plan applied to ${client.name}. Karen will review and customize.`,
-      'success',
-    );
-    setApplyingTemplate(null);
-    setSelectedClientId('');
-  };
-
-  const handleCloseModal = () => {
-    setApplyingTemplate(null);
-    setSelectedClientId('');
+  // Opens the CustomizeTreatmentPlanModal owned by MainLayout via window event.
+  // Real Supabase clients are loaded inside the modal (no more DEMO_CLIENTS).
+  const handleApplyTemplate = (template: TreatmentPlanTemplate) => {
+    window.dispatchEvent(new CustomEvent('open-treatment-plan-modal', {
+      detail: { mode: { kind: 'apply-template', template, preselectedClientId } },
+    }));
   };
 
   return (
@@ -207,7 +190,7 @@ const TreatmentPlanLibrary: React.FC = () => {
               key={template.id}
               template={template}
               index={index}
-              onApply={setApplyingTemplate}
+              onApply={handleApplyTemplate}
             />
           ))
         ) : (
@@ -231,66 +214,6 @@ const TreatmentPlanLibrary: React.FC = () => {
         )}
       </div>
 
-      {applyingTemplate && (
-        <Modal
-          isOpen={true}
-          onClose={handleCloseModal}
-          title="Select Client"
-          maxWidth="max-w-lg"
-        >
-            <div className="p-6 space-y-6">
-              <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-black/5">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                  Applying Template
-                </p>
-                <p className="text-base font-bold text-slate-900 dark:text-white">
-                  {applyingTemplate.title}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  {applyingTemplate.problems.length} problems · {countInterventions(applyingTemplate)} interventions
-                </p>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="client-select"
-                  className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 mb-3"
-                >
-                  <Users size={12} /> Apply to client
-                </label>
-                <select
-                  id="client-select"
-                  value={selectedClientId}
-                  onChange={(e) => setSelectedClientId(e.target.value)}
-                  className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                >
-                  <option value="">-- Choose a client --</option>
-                  {DEMO_CLIENTS.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} — {c.program}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={handleCloseModal}
-                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmApply}
-                  disabled={!selectedClientId}
-                  className="flex-1 py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-focus transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-                >
-                  Apply Template
-                </button>
-              </div>
-            </div>
-        </Modal>
-      )}
     </div>
   );
 };

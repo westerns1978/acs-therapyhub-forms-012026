@@ -15,6 +15,7 @@ import Modal from '../components/ui/Modal';
 import SmartNoteImporter from '../components/notes/SmartNoteImporter';
 import CreateClientModal from '../components/clients/CreateClientModal';
 import EditClientModal from '../components/clients/EditClientModal';
+import CustomizeTreatmentPlanModal, { type CustomizeModalMode } from '../components/clients/CustomizeTreatmentPlanModal';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -30,6 +31,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [isNoteModalOpen, setNoteModalOpen] = useState(false); 
   const [isCreateClientModalOpen, setCreateClientModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [treatmentPlanMode, setTreatmentPlanMode] = useState<CustomizeModalMode | null>(null);
   const [preselectedClientId, setPreselectedClientId] = useState<string | undefined>(undefined);
   const [clients, setClients] = useState<Client[]>([]);
 
@@ -74,6 +76,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     };
     window.addEventListener('open-edit-client-modal', handler);
     return () => window.removeEventListener('open-edit-client-modal', handler);
+  }, []);
+
+  // Open Treatment Plan customize modal — apply-template or edit-plan mode.
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e?.detail?.mode) setTreatmentPlanMode(e.detail.mode as CustomizeModalMode);
+    };
+    window.addEventListener('open-treatment-plan-modal', handler);
+    return () => window.removeEventListener('open-treatment-plan-modal', handler);
   }, []);
 
   if (!user) {
@@ -186,6 +197,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           // having to thread props down through ProtectedRoute → children.
           window.dispatchEvent(new CustomEvent('client-updated', { detail: { client: updated } }));
         }}
+      />
+
+      <CustomizeTreatmentPlanModal
+        isOpen={!!treatmentPlanMode}
+        onClose={() => setTreatmentPlanMode(null)}
+        mode={treatmentPlanMode}
       />
     </div>
   );

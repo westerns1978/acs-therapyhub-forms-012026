@@ -193,7 +193,34 @@ schema-hardening pass that lands alongside BLOCKER 2.
 
 ---
 
-## 5. Replace `data/staffDirectory.ts` with a server-side phone→role resolver
+## 5. Treatment plans live in two tables (dual-store)
+
+Phase F2 introduced `public.treatment_plans` for the new customize/save flow.
+The previous storage path — `public.form_submissions` rows with
+`form_name = 'Individual Comprehensive Treatment Plan'` — was deliberately
+left alone (one fictional row: Margaret Sullivan's). Coexist-at-the-data-
+layer was the trial decision; building a UI surface to display one legacy
+row wasn't worth the complexity.
+
+**Post-trial revisit:**
+- If real treatment plans accumulate in `form_submissions` (i.e. clinicians
+  used the form-submissions surface for treatment plans during the trial),
+  build a "Legacy plans from intake documents" subsection on the per-client
+  Treatment Plan tab that unions the two queries.
+- If they don't accumulate, formally deprecate the `form_submissions`
+  treatment-plan path: backfill any remaining rows into `treatment_plans`
+  (one-time INSERT...SELECT) and update the Forms UI to filter out
+  `form_name ILIKE '%treatment plan%'`.
+
+Also deferred from F2 — "save customized plan adds it to the library" was
+implemented as reading (ii) only (saved plans = client's plan history).
+Reading (i) — promoting a customized plan to a reusable template in the
+library — would add a `treatment_plan_templates` table or an `is_template`
+flag, plus a Save-as-Template button. Decide post-trial based on usage.
+
+---
+
+## 6. Replace `data/staffDirectory.ts` with a server-side phone→role resolver
 
 Added in Phase D1 (May 2026 trial sprint) as a hardcoded client-side map of trial
 phone numbers to roles, so iVALT success can resolve to a known staff member without

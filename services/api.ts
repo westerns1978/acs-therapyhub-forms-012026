@@ -5,7 +5,8 @@ import {
   Client, Appointment, Payment, DocumentFile, FormSubmission,
   SessionRecord, SROPProgress, ClientActivity,
   VideoSession, PracticeMetrics, User, AsamAnalysisResult, DailyBriefingData, ComplianceStatus,
-  RevenueDataPoint, ComplianceDataPoint
+  RevenueDataPoint, ComplianceDataPoint,
+  TreatmentPlan, TreatmentPlanContent, TreatmentPlanStatus
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -742,6 +743,91 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
     if (error) throw error;
     return mapClientToApp(data);
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// Treatment Plans (Phase F2)
+// ────────────────────────────────────────────────────────────────────────────
+const mapTreatmentPlanRowToApp = (row: any): TreatmentPlan => ({
+    id: row.id,
+    clientId: row.client_id,
+    templateId: row.template_id ?? undefined,
+    title: row.title,
+    category: row.category,
+    estimatedDuration: row.estimated_duration ?? undefined,
+    content: row.content || { problems: [] },
+    status: (row.status || 'Active') as TreatmentPlanStatus,
+    createdBy: row.created_by ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+});
+
+export const getTreatmentPlansForClient = async (clientId: string): Promise<TreatmentPlan[]> => {
+    const { data, error } = await supabase
+        .from('treatment_plans')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(mapTreatmentPlanRowToApp);
+};
+
+export const saveTreatmentPlan = async (input: {
+    clientId: string;
+    templateId?: string;
+    title: string;
+    category: string;
+    estimatedDuration?: string;
+    content: TreatmentPlanContent;
+    notes?: string;
+}): Promise<TreatmentPlan> => {
+    const { data, error } = await supabase
+        .from('treatment_plans')
+        .insert({
+            client_id: input.clientId,
+            template_id: input.templateId ?? null,
+            title: input.title,
+            category: input.category,
+            estimated_duration: input.estimatedDuration ?? null,
+            content: input.content,
+            notes: input.notes ?? null,
+            status: 'Active',
+        })
+        .select()
+        .single();
+    if (error) throw error;
+    return mapTreatmentPlanRowToApp(data);
+};
+
+export const updateTreatmentPlan = async (
+    id: string,
+    changes: Partial<{
+        title: string;
+        estimatedDuration: string;
+        content: TreatmentPlanContent;
+        status: TreatmentPlanStatus;
+        notes: string;
+    }>
+): Promise<TreatmentPlan> => {
+    const row: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (changes.title !== undefined) row.title = changes.title;
+    if (changes.estimatedDuration !== undefined) row.estimated_duration = changes.estimatedDuration;
+    if (changes.content !== undefined) row.content = changes.content;
+    if (changes.status !== undefined) row.status = changes.status;
+    if (changes.notes !== undefined) row.notes = changes.notes;
+    const { data, error } = await supabase
+        .from('treatment_plans')
+        .update(row)
+        .eq('id', id)
+        .select()
+        .single();
+    if (error) throw error;
+    return mapTreatmentPlanRowToApp(data);
+};
+
+export const archiveTreatmentPlan = async (id: string): Promise<TreatmentPlan> =>
+    updateTreatmentPlan(id, { status: 'Archived' });
+
 export const analyzeTravelRisk = async (id: string, date: string, time: string) => ({ risk: 'Low' as const, reason: 'Commute cleared by GeMyndFlow Dispatcher.' });
 export const getSessionRecords = async (id: string) => (dbSessionRecords || []).filter(r => r.clientId === id);
 
