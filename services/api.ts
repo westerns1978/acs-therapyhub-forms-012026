@@ -67,6 +67,41 @@ const STATUS_MAP: Record<string, Client['status']> = {
     archived: 'Archived',
 };
 
+// Inverse of mapClientToApp — translates the camelCase shape the UI hands us
+// (from CreateClientModal etc.) into the snake_case row shape the clients
+// table expects. Only includes columns that actually exist on the table;
+// extras the modal collects but the schema doesn't store (firstName/lastName
+// separately, enrollmentDate, completionPercentage) are dropped here.
+const mapAppToClientRow = (c: any): Record<string, any> => {
+    const name = c.name
+        || [c.firstName, c.lastName].filter(Boolean).join(' ').trim()
+        || [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
+
+    const row: Record<string, any> = {
+        name,
+        email: c.email ?? null,
+        primary_phone: c.phone ?? c.primary_phone ?? null,
+        program_type: c.program ?? c.program_type ?? null,
+        status: c.status ?? 'active',
+        compliance_score: c.complianceScore ?? c.compliance_score ?? 100,
+        case_number: c.caseNumber ?? c.case_number ?? null,
+        dob: c.dob || null,
+        county: c.county ?? null,
+        probation_officer: c.probationOfficer ?? c.probation_officer ?? null,
+        billing_type: c.billingType ?? c.billing_type ?? null,
+        avatar_url: c.avatarUrl
+            ?? c.avatar_url
+            ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Client')}&background=8B1E24&color=fff`,
+    };
+
+    // Drop nulls so DB defaults (status='active', compliance_score=100, etc.)
+    // can fill in. Without this, passing null overrides the default with NULL.
+    for (const k of Object.keys(row)) {
+        if (row[k] === null || row[k] === undefined) delete row[k];
+    }
+    return row;
+};
+
 const mapClientToApp = (c: any): Client => {
     const statusRaw = (c.status || '').toString().toLowerCase();
     const status = STATUS_MAP[statusRaw] || c.status || 'Compliant';
@@ -626,7 +661,19 @@ export const generateMilestoneCelebration = async (clientName: string, milestone
     return `${downloadLink}&key=${apiKey}`;
 };
 
-export const addClient = async (clientData: any) => ({ ...clientData, id: uuidv4(), initials: clientData.name ? clientData.name.split(' ').map((n: string) => n[0]).join('') : '??', avatarUrl: `https://i.pravatar.cc/150?u=${uuidv4()}` });
+export const addClient = async (clientData: any): Promise<Client> => {
+    const row = mapAppToClientRow(clientData);
+    if (!row.name || !row.primary_phone) {
+        throw new Error('Client name and phone are required.');
+    }
+    const { data, error } = await supabase
+        .from('clients')
+        .insert(row)
+        .select()
+        .single();
+    if (error) throw error;
+    return mapClientToApp(data);
+};
 export const analyzeTravelRisk = async (id: string, date: string, time: string) => ({ risk: 'Low' as const, reason: 'Commute cleared by GeMyndFlow Dispatcher.' });
 export const getSessionRecords = async (id: string) => (dbSessionRecords || []).filter(r => r.clientId === id);
 

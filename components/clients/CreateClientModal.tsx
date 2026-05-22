@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { addClient } from '../../services/api';
-import { X, User, Shield, CreditCard, CheckCircle, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { X, User, Shield, CreditCard, CheckCircle, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
 
 interface CreateClientModalProps {
     isOpen: boolean;
@@ -8,8 +9,10 @@ interface CreateClientModalProps {
 }
 
 const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }) => {
+    const navigate = useNavigate();
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         firstName: '', lastName: '', email: '', phone: '', dob: '',
         program: 'SROP', caseNumber: '', county: 'St. Louis', probationOfficer: '',
@@ -21,25 +24,38 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
     };
 
     const handleSubmit = async () => {
+        setError(null);
+        const name = `${formData.firstName} ${formData.lastName}`.trim();
+        if (!name) {
+            setError('First and last name are required.');
+            setStep(1);
+            return;
+        }
+        if (!formData.phone) {
+            setError('Phone number is required.');
+            setStep(1);
+            return;
+        }
         setIsLoading(true);
         try {
-            await addClient({
-                name: `${formData.firstName} ${formData.lastName}`,
+            const newClient = await addClient({
+                name,
                 email: formData.email,
                 phone: formData.phone,
-                program: formData.program as any,
+                dob: formData.dob,
+                program: formData.program,
                 caseNumber: formData.caseNumber,
-                status: 'Non-Compliant',
-                enrollmentDate: new Date().toISOString(),
-                complianceScore: 100,
-                completionPercentage: 0,
-                billingType: formData.billingType as any,
-                county: formData.county as any,
-                probationOfficer: formData.probationOfficer
+                billingType: formData.billingType,
+                county: formData.county,
+                probationOfficer: formData.probationOfficer,
             });
             onClose();
-        } catch (e) {
-            console.error(e);
+            // Land the user on the new client's workspace so the create is
+            // visible immediately without a manual refresh of the clients list.
+            navigate(`/clients/${newClient.id}`);
+        } catch (e: any) {
+            console.error('addClient failed:', e);
+            setError(e?.message || 'Failed to create client. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -66,6 +82,12 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
 
                 {/* Content */}
                 <div className="p-8 overflow-y-auto flex-1">
+                    {error && (
+                        <div className="mb-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl flex items-start gap-2 text-red-700 dark:text-red-300">
+                            <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                            <p className="text-xs font-medium leading-relaxed">{error}</p>
+                        </div>
+                    )}
                     {step === 1 && (
                         <div className="space-y-6 animate-slide-in-up">
                             <h3 className="font-semibold text-lg flex items-center gap-2 text-slate-800 dark:text-slate-200 border-b pb-2 border-slate-100 dark:border-slate-800">
