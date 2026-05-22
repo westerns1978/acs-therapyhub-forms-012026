@@ -13,3 +13,9 @@ export const TRIAL_HIDDEN_ROUTES: readonly string[] = [
 
 export const isTrialHidden = (path: string): boolean =>
   TRIAL_MODE && TRIAL_HIDDEN_ROUTES.includes(path);
+
+// Per-component tab hides. Tied to TRIAL_MODE so flipping the master flag off
+// re-enables everything in one place. The scheduling tab on ClientWorkspace
+// fronts a DispatcherChat → schedulingService.createDispatcher stub that
+// doesn't actually reschedule anything — hide for the trial.
+export const TRIAL_HIDE_CLIENT_SCHEDULING_TAB = TRIAL_MODE;

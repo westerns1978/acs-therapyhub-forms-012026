@@ -13,6 +13,7 @@ import Card from '../components/ui/Card';
 import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
+import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 
 // Seeded relapse-risk predictions for the demo clients. Until we have real
 // telemetry to feed the model, surfacing realistic content beats a "0% — no
@@ -186,12 +187,16 @@ const ClientWorkspace: React.FC = () => {
         { id: 'documents', label: 'Documents', icon: FileText },
         { id: 'forms', label: 'Forms', icon: ClipboardList },
         { id: 'sessions', label: 'Sessions', icon: Video },
-        { id: 'scheduling', label: 'Scheduling', icon: Zap },
+        ...(TRIAL_HIDE_CLIENT_SCHEDULING_TAB ? [] : [{ id: 'scheduling', label: 'Scheduling', icon: Zap }]),
     ];
-    
+
     const renderTabContent = () => {
         switch (activeTab) {
             case 'scheduling':
+                // Defensive: even if activeTab somehow gets set to 'scheduling' (no
+                // URL path drives it today, but persisted state could), fall through
+                // to the overview while the trial flag is on.
+                if (TRIAL_HIDE_CLIENT_SCHEDULING_TAB) return null;
                 return <DispatcherChat clientId={client.id} clientName={client.name} supabase={supabase as any} onAppointmentChanged={() => loadClientData(clientId)} />;
             case 'documents':
                 if (loadErrors.documents) return <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />;

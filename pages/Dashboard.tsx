@@ -2,43 +2,46 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
-import { getWestFlowExecutiveSummary } from '../services/api';
-import { Appointment, PracticeMetrics } from '../types';
-import AIBriefingModal from '../components/ai/AIBriefingModal';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
-import { Clock, Video, Calendar, CheckCircle, AlertCircle, DollarSign, FileText, AlertTriangle, Zap, Activity, HardDrive, ArrowUpRight, TrendingUp, Sparkles, Brain, ArrowDownRight, ShieldCheck, Shield } from 'lucide-react';
+import { Video, Calendar, DollarSign, AlertTriangle, Activity, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { fetchAlerts, summarizeAlerts, type AlertsSummary, type ClientAlert } from '../services/alertsService';
 
-const OperationalInsightCard: React.FC<{ title: string, value: string, icon: any, trend: 'up' | 'down', color: string }> = ({ title, value, icon: Icon, trend, color }) => (
+// No delta shown — we have no historical baseline to compute period-over-period
+// change. Showing '—' in the delta slot keeps the visual real-estate but
+// doesn't fabricate a direction.
+const OperationalInsightCard: React.FC<{ title: string, value: string, icon: any, color: string }> = ({ title, value, icon: Icon, color }) => (
     <div className="p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl transition-all hover:scale-[1.02] group">
         <div className="flex justify-between items-start mb-4">
             <div className={`p-3 rounded-2xl ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
                 <Icon size={20} />
             </div>
-            <div className={`flex items-center gap-1 text-[10px] font-black ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
-                {trend === 'up' ? <TrendingUp size={12}/> : <ArrowDownRight size={12}/>}
-                {trend === 'up' ? '+4.2%' : '-1.5%'}
-            </div>
+            <div className="text-[10px] font-black text-slate-400 tabular-nums">—</div>
         </div>
         <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{title}</p>
         <h4 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tighter">{value}</h4>
     </div>
 );
 
+// null = query failed or no data yet, rendered as '—'.
+// 0 = honest zero, rendered as '0' / '$0' / '0%'.
+interface DashboardMetrics {
+    complianceRate: number | null;
+    monthlyRevenue: number | null;
+    activeClients: number | null;
+}
+
 const Dashboard: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [isBriefingModalOpen, setBriefingModalOpen] = useState(false);
     const [appointments, setAppointments] = useState<any[]>([]);
     const [alertSummary, setAlertSummary] = useState<AlertsSummary>({ critical: 0, high: 0, elevated: 0, moderate: 0, total: 0 });
     const [topAlerts, setTopAlerts] = useState<ClientAlert[]>([]);
-    const [metrics, setMetrics] = useState({
-        complianceRate: 0,
-        monthlyRevenue: 0,
-        activeClients: 0,
-        systemLatency: 0,
+    const [metrics, setMetrics] = useState<DashboardMetrics>({
+        complianceRate: null,
+        monthlyRevenue: null,
+        activeClients: null,
     });
     const [isLoading, setIsLoading] = useState(true);
 
@@ -76,10 +79,12 @@ const Dashboard: React.FC = () => {
                     : 0;
 
                 setMetrics({
-                    complianceRate: Math.round(avgCompliance * 10) / 10,
+                    // null if no active clients — average over zero clients is not a meaningful rate
+                    complianceRate: clients && clients.length > 0
+                        ? Math.round(avgCompliance * 10) / 10
+                        : null,
                     monthlyRevenue: revenue,
-                    activeClients: clientCount || 0,
-                    systemLatency: 14,
+                    activeClients: clientCount ?? 0,
                 });
 
                 // Today's schedule
@@ -105,14 +110,9 @@ const Dashboard: React.FC = () => {
                     console.warn('[dashboard] fetchAlerts failed:', e);
                 }
             } catch (error) {
-                console.warn("Failed to fetch dashboard, using defaults:", error);
-                // Fallback to defaults if supabase fails
-                setMetrics({
-                    complianceRate: 98.4,
-                    monthlyRevenue: 15400,
-                    activeClients: 42,
-                    systemLatency: 14,
-                });
+                console.warn("Failed to fetch dashboard:", error);
+                // Failed query → render '—' in each tile. No fabricated fallback numbers.
+                setMetrics({ complianceRate: null, monthlyRevenue: null, activeClients: null });
                 setAppointments([]);
             } finally {
                 setIsLoading(false);
@@ -120,13 +120,6 @@ const Dashboard: React.FC = () => {
         };
 
         fetchData();
-
-        /* 
-        if (!sessionStorage.getItem('briefingShown')) {
-            setBriefingModalOpen(true);
-            sessionStorage.setItem('briefingShown', 'true');
-        }
-        */
     }, [user]);
 
     if (isLoading || !metrics) return <DashboardSkeleton />;
@@ -148,23 +141,32 @@ const Dashboard: React.FC = () => {
                         </button>
                     )}
                 </div>
-                <div className="flex gap-4">
-                    <button onClick={() => setBriefingModalOpen(true)} className="px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:shadow-2xl transition-all flex items-center gap-3 border border-white/10 group">
-                        <Brain size={18} className="group-hover:scale-110 transition-transform" /> AI Summary
-                    </button>
-                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <OperationalInsightCard title="Compliance Rate" value={`${metrics.complianceRate}%`} icon={ShieldCheck} trend="up" color="bg-emerald-500" />
-                <OperationalInsightCard title="Monthly Revenue" value={`$${metrics.monthlyRevenue.toLocaleString()}`} icon={DollarSign} trend="up" color="bg-blue-500" />
-                <OperationalInsightCard title="Active Clients" value={metrics.activeClients.toString()} icon={Activity} trend="down" color="bg-primary" />
-                <OperationalInsightCard title="System Status" value={`${metrics.systemLatency}ms`} icon={Zap} trend="up" color="bg-amber-500" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <OperationalInsightCard
+                    title="Compliance Rate"
+                    value={metrics.complianceRate === null ? '—' : `${metrics.complianceRate}%`}
+                    icon={ShieldCheck}
+                    color="bg-emerald-500"
+                />
+                <OperationalInsightCard
+                    title="Monthly Revenue"
+                    value={metrics.monthlyRevenue === null ? '—' : `$${metrics.monthlyRevenue.toLocaleString()}`}
+                    icon={DollarSign}
+                    color="bg-blue-500"
+                />
+                <OperationalInsightCard
+                    title="Active Clients"
+                    value={metrics.activeClients === null ? '—' : metrics.activeClients.toString()}
+                    icon={Activity}
+                    color="bg-primary"
+                />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
-                    <Card title="Today's Schedule" subtitle="Active clinical sessions and upcoming dispatches.">
+                    <Card title="Today's Schedule" subtitle="Today's clinical sessions.">
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
                             {appointments.length > 0 ? appointments.map((apt) => {
                                 const dateObj = new Date(apt.start_time);
@@ -229,31 +231,6 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="lg:col-span-1 space-y-6">
-                    <Card title="Client Health" className="border-t-4 border-primary">
-                        <div className="space-y-6">
-                            <div className="bg-slate-50 dark:bg-slate-950 p-5 rounded-[1.5rem] border border-dashed border-slate-200 dark:border-slate-800">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <Sparkles size={16} className="text-primary animate-pulse" />
-                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">AI Insights</span>
-                                </div>
-                                <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
-                                    "ACS TherapyHub predicts a <span className="text-primary font-bold">12% throughput bottleneck</span> in SATOP IV certifications next week. Recommend pre-emptively drafting court reports for 4 high-compliance clients."
-                                </p>
-                            </div>
-                            
-                            <ul className="space-y-4">
-                                <li className="flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                                    <span className="text-sm font-bold">Compliance Trend</span>
-                                    <span className="text-xs font-black text-green-500 font-mono">-2.1% (Stable)</span>
-                                </li>
-                                <li className="flex justify-between items-center p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                                    <span className="text-sm font-bold">Session Integrity</span>
-                                    <span className="text-xs font-black text-primary font-mono">99.1%</span>
-                                </li>
-                            </ul>
-                        </div>
-                    </Card>
-
                     <Card title="Clinical Guardrails">
                         <div className="space-y-3">
                             {topAlerts.length > 0 ? topAlerts.map(a => (
@@ -278,7 +255,6 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            <AIBriefingModal isOpen={isBriefingModalOpen} onClose={() => setBriefingModalOpen(false)} />
         </div>
     );
 };
