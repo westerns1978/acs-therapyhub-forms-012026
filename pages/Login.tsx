@@ -1,224 +1,126 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../services/supabase';
 import IValtMfaModal from '../components/IValtMfaModal';
-import { Smartphone, Lock, Mail, AlertTriangle, Loader2, ShieldCheck, ChevronDown } from 'lucide-react';
-import type { User } from '../types';
+import { Smartphone, AlertTriangle, ChevronLeft, ArrowRight } from 'lucide-react';
+import type { User, UserRole } from '../types';
+import { lookupStaffByPhone } from '../data/staffDirectory';
 
 const ACS_LOGO_URL = 'https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg';
 
-// Phase D will rebuild this as a 3-role picker (David / Karen / Jess). For now
-// the existing 2-button demo block is repointed to the new role enum so it
-// still compiles and routes to the right gates.
-const demoStaff: User[] = [
-    {
-        id: 'staff-david-yoder',
-        name: 'David Yoder',
-        email: 'david.yoder@acs-therapy.com',
-        role: 'Director',
-    },
-    {
-        id: 'staff-anya-sharma',
-        name: 'Dr. Anya Sharma',
-        email: 'anya.sharma@acs-therapy.com',
-        role: 'Therapist',
-    },
+// Demo personas mirror the trial roster. Demo path never goes through iVALT —
+// clicking a role drops the user straight into the role-scoped view.
+const demoStaff: { role: UserRole; name: string; id: string; email: string }[] = [
+    { id: 'demo-director', role: 'Director', name: 'David Yoder',  email: 'david.yoder@acs-therapy.com' },
+    { id: 'demo-therapist', role: 'Therapist', name: 'Karen',       email: 'karen@acs-therapy.com' },
+    { id: 'demo-admin', role: 'Admin', name: 'Jessica',      email: 'jessica@acs-therapy.com' },
 ];
+
+const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+    Director: 'Full access — clinical, financial, settings.',
+    Therapist: 'Clinical work — notes, treatment plans, sessions.',
+    Admin: 'Office work — intake, scheduling, billing.',
+};
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
     const { login } = useAuth();
 
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [mobile, setMobile] = useState('');
-    const [useMfa, setUseMfa] = useState(false);
-
+    const [phone, setPhone] = useState('');
+    const [showDemoPicker, setShowDemoPicker] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isMfaOpen, setIsMfaOpen] = useState(false);
 
-    const handleDemoLogin = (staff: User) => {
-        login(staff);
-        navigate('/dashboard');
-    };
-
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleSignIn = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
-        if (!email || !password) {
-            setError('Email and password are required.');
-            return;
-        }
-        if (useMfa && (!mobile || mobile.length < 10)) {
-            setError('Enter a 10-digit mobile number for iVALT MFA.');
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length !== 10) {
+            setError('Enter a 10-digit phone number registered with iVALT.');
             return;
         }
 
         setIsLoading(true);
-
-        try {
-            const { error: authError } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-            if (authError) throw authError;
-
-            if (useMfa) {
-                setIsMfaOpen(true);
-            } else {
-                await completeLogin();
-            }
-        } catch (err: any) {
-            setError(err.message || 'Sign-in failed. Please try again.');
-            setIsLoading(false);
-        }
+        setIsMfaOpen(true);
     };
 
-    // Reads the authenticated Supabase user and the role from user_metadata.
-    // Fails closed if metadata.role is missing or unrecognized — without an
-    // explicit role assignment we won't guess. Dan sets role per account in
-    // Supabase Auth → Users → Edit user → User Metadata → {"role": "Director"}
-    // (or "Therapist" / "Admin").
-    const completeLogin = async () => {
+    // Called by IValtMfaModal.onSuccess. Phone is already validated by handleSignIn;
+    // here we map iVALT-approved phone → known staff entry. If the phone isn't in
+    // the directory we fail closed.
+    const completeRealLogin = () => {
         setIsMfaOpen(false);
 
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (!authUser) {
-            setError('Sign-in succeeded but no session was returned. Please try again.');
-            setIsLoading(false);
-            return;
-        }
-
-        const role = authUser.user_metadata?.role as User['role'] | undefined;
-        const validRoles: User['role'][] = ['Director', 'Therapist', 'Admin'];
-        if (!role || !validRoles.includes(role)) {
-            setError('This account has no role assigned. Contact your administrator.');
-            await supabase.auth.signOut();
+        const entry = lookupStaffByPhone(phone);
+        if (!entry) {
+            setError('iVALT approved but this phone number is not registered to a TherapyHub account. Contact your administrator.');
             setIsLoading(false);
             return;
         }
 
         const realUser: User = {
-            id: authUser.id,
-            name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Staff',
-            email: authUser.email || email,
-            role,
+            id: entry.email,
+            name: entry.name,
+            email: entry.email,
+            role: entry.role,
         };
         login(realUser);
         setIsLoading(false);
         navigate('/dashboard');
     };
 
+    const handleDemoLogin = (staff: typeof demoStaff[number]) => {
+        const user: User = {
+            id: staff.id,
+            name: staff.name,
+            email: staff.email,
+            role: staff.role,
+        };
+        login(user);
+        navigate('/dashboard');
+    };
+
+    const cardClass = 'w-full max-w-md p-8 space-y-6 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-black/5 dark:border-white/5';
+
     return (
-        <div className="flex items-center justify-center min-h-screen bg-surface p-4">
-            <div className="w-full max-w-md p-8 space-y-6 bg-background rounded-2xl shadow-lg border border-border">
-                <div className="text-center">
+        <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950 p-4">
+            <div className={cardClass}>
+                <div className="text-center space-y-3">
                     <img
                         src={ACS_LOGO_URL}
-                        alt="ACS Logo"
-                        className="mx-auto h-16 object-contain dark:bg-white/90 dark:p-2 dark:rounded-lg"
+                        alt="ACS TherapyHub"
+                        className="mx-auto h-14 object-contain dark:bg-white/90 dark:p-2 dark:rounded-lg"
                     />
-                    <h2 className="mt-6 text-2xl font-bold text-on-surface">Staff Portal</h2>
-                    <p className="mt-2 text-sm text-on-surface-secondary">
-                        Welcome. Sign in to access the clinical workspace.
-                    </p>
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">ACS TherapyHub</h1>
+                    <p className="text-sm text-slate-500">Clinical operations for Assessment &amp; Counseling Solutions.</p>
                 </div>
 
                 {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2 text-red-700">
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-2 text-red-700">
                         <AlertTriangle className="shrink-0 mt-0.5" size={16} />
                         <p className="text-xs font-medium leading-relaxed">{error}</p>
                     </div>
                 )}
 
-                <form className="space-y-4" onSubmit={handleLogin}>
-                    <div className="rounded-md shadow-sm -space-y-px">
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input
-                                type="email"
-                                autoComplete="email"
-                                required
-                                className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-on-surface rounded-t-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
-                                placeholder="Staff email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                            />
-                        </div>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input
-                                type="password"
-                                autoComplete="current-password"
-                                required
-                                className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-on-surface rounded-b-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
-                                placeholder="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                            />
-                        </div>
-                    </div>
+                {showDemoPicker ? (
+                    <DemoRolePicker
+                        staff={demoStaff}
+                        onPick={handleDemoLogin}
+                        onBack={() => { setShowDemoPicker(false); setError(''); }}
+                    />
+                ) : (
+                    <RealSignInForm
+                        phone={phone}
+                        setPhone={setPhone}
+                        isLoading={isLoading}
+                        onSubmit={handleSignIn}
+                        onSwitchToDemo={() => { setShowDemoPicker(true); setError(''); }}
+                    />
+                )}
 
-                    <button
-                        type="button"
-                        onClick={() => setUseMfa(v => !v)}
-                        className="w-full flex items-center justify-between text-xs font-semibold text-on-surface-secondary hover:text-primary transition"
-                    >
-                        <span className="flex items-center gap-2">
-                            <ShieldCheck size={14} />
-                            iVALT MFA (optional)
-                        </span>
-                        <ChevronDown size={14} className={`transition-transform ${useMfa ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {useMfa && (
-                        <div className="relative">
-                            <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <div className="absolute left-9 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 pr-2 ml-1 border-r border-gray-200">+1</div>
-                            <input
-                                type="tel"
-                                maxLength={10}
-                                className="appearance-none block w-full pl-16 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-on-surface rounded-md focus:outline-none focus:ring-primary focus:border-primary sm:text-sm font-mono"
-                                placeholder="10-digit mobile number"
-                                value={mobile}
-                                onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
-                            />
-                        </div>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={isLoading}
-                        className="group relative w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-focus focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition disabled:opacity-50"
-                    >
-                        {isLoading && <Loader2 className="animate-spin" size={16} />}
-                        Sign In
-                    </button>
-                </form>
-
-                <div className="pt-4 border-t border-gray-200">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">
-                        Demo Access
-                    </p>
-                    {demoStaff.map(staff => (
-                        <button
-                            key={staff.id}
-                            onClick={() => handleDemoLogin(staff)}
-                            className="w-full text-left px-4 py-3 mb-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-all"
-                        >
-                            <div className="font-semibold text-sm">{staff.name}</div>
-                            <div className="text-xs text-gray-500">
-                                {staff.role}
-                            </div>
-                        </button>
-                    ))}
-                </div>
-
-                <div className="text-center text-sm space-y-2">
-                    <Link to="/portal" className="block font-medium text-primary hover:text-primary-focus">
+                <div className="text-center text-sm pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <Link to="/portal" className="font-medium text-primary hover:text-primary-focus">
                         Are you a client? Log in here
                     </Link>
                 </div>
@@ -227,12 +129,110 @@ const Login: React.FC = () => {
             <IValtMfaModal
                 isOpen={isMfaOpen}
                 onClose={() => { setIsMfaOpen(false); setIsLoading(false); }}
-                onSuccess={completeLogin}
-                mobileNumber={mobile}
+                onSuccess={completeRealLogin}
+                mobileNumber={phone.replace(/\D/g, '')}
                 demoMode={false}
             />
         </div>
     );
 };
+
+interface RealSignInFormProps {
+    phone: string;
+    setPhone: (s: string) => void;
+    isLoading: boolean;
+    onSubmit: (e: React.FormEvent) => void;
+    onSwitchToDemo: () => void;
+}
+
+const RealSignInForm: React.FC<RealSignInFormProps> = ({ phone, setPhone, isLoading, onSubmit, onSwitchToDemo }) => (
+    <form onSubmit={onSubmit} className="space-y-5">
+        <div>
+            <label htmlFor="phone" className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">
+                Phone — used for sign-in approval
+            </label>
+            <div className="relative">
+                <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <span className="absolute left-12 top-1/2 -translate-y-1/2 text-sm font-mono text-slate-400 pr-3 border-r border-slate-200 dark:border-slate-700">+1</span>
+                <input
+                    id="phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    maxLength={14}
+                    placeholder="10-digit mobile number"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+                    className="block w-full pl-20 pr-4 py-3 border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-base font-mono"
+                />
+            </div>
+            <p className="text-xs text-slate-500 mt-2">Approve the request on your phone via iVALT.</p>
+        </div>
+
+        <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-primary hover:bg-primary-focus text-white font-bold text-sm rounded-2xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 active:scale-[0.98]"
+        >
+            Sign in to ACS TherapyHub
+            <ArrowRight size={16} />
+        </button>
+
+        <button
+            type="button"
+            onClick={onSwitchToDemo}
+            className="w-full py-3 px-4 bg-transparent border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold text-sm rounded-2xl transition-all"
+        >
+            Continue with demo access
+        </button>
+    </form>
+);
+
+interface DemoRolePickerProps {
+    staff: typeof demoStaff;
+    onPick: (s: typeof demoStaff[number]) => void;
+    onBack: () => void;
+}
+
+const DemoRolePicker: React.FC<DemoRolePickerProps> = ({ staff, onPick, onBack }) => (
+    <div className="space-y-4">
+        <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-primary transition-colors"
+        >
+            <ChevronLeft size={14} /> Back to sign in
+        </button>
+
+        <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2">
+                Enter the demo as
+            </p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+                Pick a role to enter the trial without iVALT. Each role lands in the same view a real login of that role would.
+            </p>
+        </div>
+
+        <div className="space-y-2">
+            {staff.map(s => (
+                <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => onPick(s)}
+                    className="w-full text-left p-4 bg-slate-50 dark:bg-slate-800 hover:bg-primary/5 dark:hover:bg-primary/10 border border-slate-200 dark:border-slate-700 hover:border-primary/30 rounded-2xl transition-all group"
+                >
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <div className="text-sm font-black text-slate-900 dark:text-white">{s.role}</div>
+                            <div className="text-xs text-slate-500 mt-0.5">{s.name}</div>
+                        </div>
+                        <ArrowRight size={16} className="text-slate-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">{ROLE_DESCRIPTIONS[s.role]}</p>
+                </button>
+            ))}
+        </div>
+    </div>
+);
 
 export default Login;
