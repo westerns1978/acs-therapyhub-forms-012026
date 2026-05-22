@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { addClient } from '../../services/api';
 import { X, User, Shield, CreditCard, CheckCircle, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
@@ -73,11 +72,16 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
 
     if (!isOpen) return null;
 
-    // Portaled to document.body to escape any ancestor that creates a
-    // containing block for position: fixed (e.g. the GlobalHeader's
-    // backdrop-blur-2xl, which would otherwise clip this modal to the
-    // header's ~64px bounding box and break the backdrop + max-height).
-    return ReactDOM.createPortal(
+    // This modal is rendered from MainLayout (sibling of GlobalHeader), NOT
+    // from inside GlobalHeader. That's deliberate: GlobalHeader sets
+    // backdrop-filter: blur(24px), which creates a containing block for any
+    // position: fixed descendants. A previous attempt portaled this modal to
+    // document.body to escape that trap; the portal call was correct but the
+    // bug still reproduced in production, so we changed the mount point in
+    // the React tree itself. Render path is now: MainLayout root <div>
+    // (no transform/filter) → this <div fixed inset-0>. ScheduleSessionModal
+    // uses the same mount-point pattern and works.
+    return (
         <div
             className="fixed inset-0 z-[100] flex items-center justify-center p-4"
             onClick={onClose}
@@ -236,8 +240,7 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                     )}
                 </div>
             </div>
-        </div>,
-        document.body
+        </div>
     );
 };
 

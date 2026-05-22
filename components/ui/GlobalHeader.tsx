@@ -2,22 +2,24 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import GemyndFlowLogo from './GemyndFlowLogo';
-import CreateClientModal from '../clients/CreateClientModal';
 import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
 
 interface GlobalHeaderProps {
     onCommandPaletteToggle: () => void;
     onScheduleSession: () => void;
     onOpenNote: () => void;
+    onNewIntake: () => void;
     onMobileMenuToggle?: () => void;
 }
 
-const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onScheduleSession, onOpenNote, onMobileMenuToggle }) => {
+// CreateClientModal is rendered by MainLayout, not here — keeping the modal
+// out of this <header> avoids the backdrop-filter containing-block trap that
+// clipped the modal to the header's bounding box.
+const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onScheduleSession, onOpenNote, onNewIntake, onMobileMenuToggle }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [isProfileOpen, setProfileOpen] = useState(false);
     const [isCreateMenuOpen, setCreateMenuOpen] = useState(false);
-    const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
 
     const handleLogout = () => {
         logout();
@@ -80,7 +82,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                                     <div className="p-2 bg-primary/10 text-primary rounded-xl"><CalendarPlus size={18} /></div>
                                     <div><p className="font-bold text-sm">Schedule Session</p></div>
                                 </button>
-                                <button onClick={() => { setIsCreateClientOpen(true); setCreateMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors">
+                                <button onClick={() => { onNewIntake(); setCreateMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors">
                                     <div className="p-2 bg-secondary/10 text-secondary rounded-xl"><UserPlus size={18} /></div>
                                     <div><p className="font-bold text-sm">New Intake</p></div>
                                 </button>
@@ -125,7 +127,6 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                     </div>
                 </div>
             </div>
-            <CreateClientModal isOpen={isCreateClientOpen} onClose={() => setIsCreateClientOpen(false)} />
         </header>
     );
 };

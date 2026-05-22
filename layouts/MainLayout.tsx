@@ -96,10 +96,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       ></div>
       <div className="fixed top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.04] dark:opacity-[0.06] pointer-events-none -z-[1]" style={{ zIndex: -1 }}></div>
 
-      <GlobalHeader 
+      <GlobalHeader
         onCommandPaletteToggle={() => setCommandPaletteOpen(prev => !prev)}
         onScheduleSession={() => setScheduleModalOpen(true)}
         onOpenNote={() => setNoteModalOpen(true)}
+        onNewIntake={() => setCreateClientModalOpen(true)}
         onMobileMenuToggle={() => setMobileDrawerOpen(prev => !prev)}
       />
       
