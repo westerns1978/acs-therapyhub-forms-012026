@@ -214,6 +214,28 @@ const combineDateAndTime = (date: Date, hhmm: string): Date => {
 };
 const diffMinutes = (start: Date, end: Date) => Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
 
+// The DB default for appointments.status is 'scheduled' (lowercase) and there
+// is no CHECK constraint, so writers landed a mix of 'completed'/'scheduled'
+// while the app's AppointmentStatus enum is capitalized. Mirrors the
+// STATUS_MAP pattern used for clients above. Post-trial fix is a DB CHECK
+// constraint or enum — logged in SECURITY_BACKLOG.md.
+const APPOINTMENT_STATUS_MAP: Record<string, Appointment['status']> = {
+    scheduled: 'Scheduled',
+    'in progress': 'In Progress',
+    in_progress: 'In Progress',
+    completed: 'Completed',
+    canceled: 'Canceled',
+    cancelled: 'Canceled',
+    'no show': 'No Show',
+    no_show: 'No Show',
+    rescheduled: 'Scheduled',
+};
+
+const normalizeAppointmentStatus = (raw: any): Appointment['status'] => {
+    const key = String(raw || '').trim().toLowerCase();
+    return APPOINTMENT_STATUS_MAP[key] || (raw as Appointment['status']) || 'Scheduled';
+};
+
 const mapAppointmentRowToApp = (row: any): Appointment => {
     const start = row.start_time ? new Date(row.start_time) : new Date();
     const end = row.end_time
@@ -230,7 +252,7 @@ const mapAppointmentRowToApp = (row: any): Appointment => {
         therapist: row.therapist_name || '',
         zoomLink: row.zoom_link || undefined,
         zoomMeetingId: row.zoom_meeting_id || undefined,
-        status: (row.status || 'Scheduled') as any,
+        status: normalizeAppointmentStatus(row.status),
         capacity: row.capacity ?? undefined,
         clientId: row.client_id || undefined,
         clientName: row.client_name || undefined,

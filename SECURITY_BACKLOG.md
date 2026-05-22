@@ -159,7 +159,41 @@ is the visible symptom of this gap.
 
 ---
 
-## 4. Replace `data/staffDirectory.ts` with a server-side phone→role resolver
+## 4. Harden `public.appointments.status` at the DB level
+
+The column default is `'scheduled'::text` (lowercase) and there is no
+`CHECK` constraint, so the DB will keep accepting any string and producing
+un-normalized casing on default-only inserts. Phase F3 added app-side read
+normalization (`APPOINTMENT_STATUS_MAP` + `normalizeAppointmentStatus` in
+`services/api.ts`) — that's the correct trial fix because the read side is
+in one place, but it leaves the source of truth lax.
+
+Post-trial source-level fix is one of:
+
+```sql
+-- Option (a) — CHECK constraint with the canonical capitalized values
+ALTER TABLE public.appointments
+  ADD CONSTRAINT appointments_status_check
+  CHECK (status IN ('Scheduled', 'In Progress', 'Completed', 'Canceled', 'No Show'));
+ALTER TABLE public.appointments
+  ALTER COLUMN status SET DEFAULT 'Scheduled';
+-- followed by a one-time UPDATE to normalize existing rows.
+```
+
+```sql
+-- Option (b) — full Postgres ENUM (stronger, slightly more migration cost)
+CREATE TYPE appointment_status AS ENUM ('Scheduled', 'In Progress', 'Completed', 'Canceled', 'No Show');
+ALTER TABLE public.appointments ALTER COLUMN status TYPE appointment_status USING (initcap(status)::appointment_status);
+ALTER TABLE public.appointments ALTER COLUMN status SET DEFAULT 'Scheduled';
+```
+
+Either makes the DB the source of truth and lets the app-side normalizer
+go away (or stay as defense-in-depth). Do this as part of the broader
+schema-hardening pass that lands alongside BLOCKER 2.
+
+---
+
+## 5. Replace `data/staffDirectory.ts` with a server-side phone→role resolver
 
 Added in Phase D1 (May 2026 trial sprint) as a hardcoded client-side map of trial
 phone numbers to roles, so iVALT success can resolve to a known staff member without
