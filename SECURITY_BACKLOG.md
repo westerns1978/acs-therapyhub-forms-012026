@@ -9,29 +9,37 @@ enters this database. The remaining items are smaller follow-ups.
 
 ---
 
-## BLOCKER 1 — Rotate the leaked Gemini API key in GCP Console
+## BLOCKER 1 — Rotate the leaked Gemini API key (cross-app scheduled task)
 
 **Key:** `AIzaSyBLU362ndX18qYQO7OiW3mGniyn2Lsk93M`
 
-Committed to git in `e913ed8` (April 2026) inside a `.env` file that was later
+**Status (2026-05-22):** This is Dan's **shared Gemini key** used across multiple
+Gemynd apps and wired into Supabase secrets app-wide. Rotation is a coordinated
+cross-app task — it is **NOT** happening as part of the ACS trial sprint. The ACS
+side of the mitigation (stop exposing the key in the client bundle) is being
+handled by Phase E2's server-side proxy migration; that closes the *new* exposure
+surface even though the key remains in git history.
+
+Committed to ACS git in `e913ed8` (April 2026) inside a `.env` file that was later
 untracked, and carried as a hardcoded fallback in `services/gemini.ts:10` until
 the fallback was removed in Phase D2 of the May 2026 trial sprint. Even with the
-fallback gone, the key string remains in git history reachable from `origin/main` —
-anyone with repo read access can recover it with `git log -S "AIzaSy"`.
+fallback gone, the key string remains in ACS git history reachable from
+`origin/main` — recoverable via `git log -S "AIzaSy"`.
 
-**Rotation is the only fix.** History rewriting is out of scope (would break clones,
-forks, and tags).
+**Rotation is the only fix for the historical exposure.** History rewriting is out
+of scope (would break clones, forks, and tags across every Gemynd repo that has
+this commit).
 
-**Required action (Dan):**
+**When rotation happens (scheduled, not this sprint):**
+- Coordinate across every app that reads from the shared Supabase secret
 - Open https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0121881478
 - Delete the key whose prefix is `AIzaSyBLU362…`
-- Regenerate a new Gemini key
-- Set the new key as `VITE_API_KEY` in the Cloud Shell / Firebase hosting env that
-  `firebase deploy --only hosting` reads from. Local `.env` already holds a different
-  key (`AIzaSyApFDxn…`); confirm whether *that* one has also been exposed (it has not
-  been committed — verified via `git log -S` — but rotate anyway if it was ever
-  shared off-machine).
-- Spot-check Clara voice (Phase E) after rotation so the new key is exercised end-to-end.
+- Regenerate a new Gemini key; update the Supabase secret in one place; every app
+  picks it up
+- After Phase E2 proxy migration, the ACS client bundle will not need a Gemini
+  key at all — only the orchestrator (server-side) holds it
+- Spot-check Clara voice across all apps after rotation so the new key is exercised
+  end-to-end
 
 ---
 

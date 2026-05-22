@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, SUPABASE_ANON_KEY } from './supabase';
 import { storageService } from './storageService';
 import { geminiText, geminiJSON, geminiGenerate, getApiKey } from './gemini';
 import {
@@ -107,7 +107,8 @@ export const callMcpOrchestrator = async (tool: string, params: any) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'apikey': SUPABASE_ANON_KEY,
             },
             body: JSON.stringify({ agent: 'ACS_THERAPYHUB', tool, params })
         });
