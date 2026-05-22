@@ -84,10 +84,13 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                                     <div className="p-2 bg-secondary/10 text-secondary rounded-xl"><UserPlus size={18} /></div>
                                     <div><p className="font-bold text-sm">New Intake</p></div>
                                 </button>
-                                <button onClick={() => { onOpenNote(); setCreateMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors">
-                                    <div className="p-2 bg-amber-100 text-amber-600 rounded-xl"><FilePlus size={18} /></div>
-                                    <div><p className="font-bold text-sm">Create Note</p></div>
-                                </button>
+                                {/* Create Note is clinical work — hidden from the office Admin role (Jess). */}
+                                {user?.role !== 'Admin' && (
+                                    <button onClick={() => { onOpenNote(); setCreateMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors">
+                                        <div className="p-2 bg-amber-100 text-amber-600 rounded-xl"><FilePlus size={18} /></div>
+                                        <div><p className="font-bold text-sm">Create Note</p></div>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -108,9 +111,11 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                                     <p className="text-sm font-bold">{user?.name}</p>
                                     <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                                 </div>
-                                <Link to="/settings" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                                    <Settings size={16} /> Settings
-                                </Link>
+                                {user?.role === 'Director' && (
+                                    <Link to="/settings" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                        <Settings size={16} /> Settings
+                                    </Link>
+                                )}
                                 <div className="my-1 border-t border-border dark:border-slate-800"></div>
                                 <button onClick={handleLogout} className="w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm text-primary hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                                     <LogOut size={16} /> Logout

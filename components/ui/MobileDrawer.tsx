@@ -8,6 +8,18 @@ import {
     HardDrive, ClipboardList, Zap, ShieldCheck, BookOpen
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
+import type { UserRole } from '../../types';
+
+type DrawerItemDef = {
+    to: string;
+    icon: React.ElementType;
+    label: string;
+    roles: readonly UserRole[];
+};
+
+const ALL_ROLES: readonly UserRole[] = ['Director', 'Therapist', 'Admin'];
+const CLINICAL_ROLES: readonly UserRole[] = ['Director', 'Therapist'];
+const DIRECTOR_ONLY: readonly UserRole[] = ['Director'];
 
 interface MobileDrawerProps {
     isOpen: boolean;
@@ -40,22 +52,26 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
         onClose();
     };
 
-    const navItems = [
-        { to: '/dashboard', icon: Home, label: 'Dashboard' },
-        { to: '/clients', icon: Users, label: 'Clients' },
-        { to: '/session-management', icon: Calendar, label: 'Calendar' },
-        { to: '/communication-center', icon: MessageSquare, label: 'Messages' },
-        { to: '/forms', icon: ClipboardList, label: 'Forms' },
-        { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library' },
-        { to: '/document-intelligence', icon: Zap, label: 'AI Documents' },
-        { to: '/financials', icon: DollarSign, label: 'Financials' },
-        { to: '/compliance', icon: ShieldCheck, label: 'Compliance' },
-    ].filter(item => !isTrialHidden(item.to));
+    const navItems: DrawerItemDef[] = ([
+        { to: '/dashboard', icon: Home, label: 'Dashboard', roles: ALL_ROLES },
+        { to: '/clients', icon: Users, label: 'Clients', roles: ALL_ROLES },
+        { to: '/session-management', icon: Calendar, label: 'Calendar', roles: ALL_ROLES },
+        { to: '/communication-center', icon: MessageSquare, label: 'Messages', roles: ALL_ROLES },
+        { to: '/forms', icon: ClipboardList, label: 'Forms', roles: ALL_ROLES },
+        { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library', roles: CLINICAL_ROLES },
+        { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
+        { to: '/financials', icon: DollarSign, label: 'Financials', roles: DIRECTOR_ONLY },
+        { to: '/compliance', icon: ShieldCheck, label: 'Compliance', roles: CLINICAL_ROLES },
+    ] satisfies DrawerItemDef[])
+        .filter(item => !isTrialHidden(item.to))
+        .filter(item => !user || item.roles.includes(user.role));
 
-    const adminItems = [
-        { to: '/reporting', icon: BarChart3, label: 'Analytics' },
-        { to: '/settings', icon: Settings, label: 'Settings' },
-    ].filter(item => !isTrialHidden(item.to));
+    const adminItems: DrawerItemDef[] = ([
+        { to: '/reporting', icon: BarChart3, label: 'Analytics', roles: DIRECTOR_ONLY },
+        { to: '/settings', icon: Settings, label: 'Settings', roles: DIRECTOR_ONLY },
+    ] satisfies DrawerItemDef[])
+        .filter(item => !isTrialHidden(item.to))
+        .filter(item => !user || item.roles.includes(user.role));
 
     return (
         <>
@@ -115,8 +131,8 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
                         ))}
                     </ul>
 
-                    {/* Admin Section */}
-                    {user?.role === 'Admin' && (
+                    {/* Admin Section — visible only if at least one item survives the role/trial filter above */}
+                    {adminItems.length > 0 && (
                         <>
                             <div className="px-4 pt-6 pb-2">
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Administration</p>

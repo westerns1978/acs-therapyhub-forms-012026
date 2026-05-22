@@ -1,11 +1,17 @@
 
 import React from 'react';
 
+// Role model for the trial. Director is the superuser (David); Therapist is the
+// clinician (Karen); Admin is the office role (Jessica) with no clinical access.
+// Be careful when reading any historical role === 'Admin' check — pre-rename,
+// 'Admin' meant superuser. Post-rename, 'Admin' is the office role.
+export type UserRole = 'Director' | 'Therapist' | 'Admin';
+
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Clinical';
+  role: UserRole;
 }
 
 export interface Client {

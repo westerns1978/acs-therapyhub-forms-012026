@@ -8,7 +8,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import AdminRoute from './components/AdminRoute';
+import RequireRole from './components/RequireRole';
 import PageLoader from './components/ui/PageLoader';
 import PortalLayout from './layouts/PortalLayout';
 import { isTrialHidden } from './config/trialMode';
@@ -72,45 +72,49 @@ function App() {
                   {/* Public Landing Page */}
                   <Route path="/" element={<WebsitePortalBridge />} />
 
-                  {/* Counselor-facing App */}
+                  {/* Counselor-facing App — open to all signed-in roles unless gated below */}
                   <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/clients" element={<ProtectedRoute><ClientWorkspace /></ProtectedRoute>} />
                   <Route path="/clients/:clientId" element={<ProtectedRoute><ClientWorkspace /></ProtectedRoute>} />
                   <Route path="/communication-center" element={<ProtectedRoute><CommunicationCenter /></ProtectedRoute>} />
                   <Route path="/session-management" element={<ProtectedRoute><SessionManagement /></ProtectedRoute>} />
-                  <Route path="/video-sessions" element={<ProtectedRoute><VideoSessions /></ProtectedRoute>} />
-                  <Route path="/video-sessions/:sessionId/green-room" element={<ProtectedRoute><VideoGreenRoom /></ProtectedRoute>} />
-                  <Route path="/program-compliance/:clientId" element={<ProtectedRoute><ProgramCompliance /></ProtectedRoute>} />
-                  <Route path="/compliance-assistant" element={<ProtectedRoute><ComplianceAssistant /></ProtectedRoute>} />
-                  <Route path="/assessments/:clientId" element={<ProtectedRoute><AsamAssessment /></ProtectedRoute>} />
+                  <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
                   <Route path="/sign/:documentType/:clientId" element={<ProtectedRoute><SignaturePage /></ProtectedRoute>} />
-                  <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
-                  <Route path="/program-plan/:clientId" element={<ProtectedRoute><ProgramPlan /></ProtectedRoute>} />
                   <Route path="/fee-ledger/:clientId" element={<ProtectedRoute><FeeLedger /></ProtectedRoute>} />
+
+                  {/* Clinical-only routes — Director + Therapist */}
+                  <Route path="/video-sessions" element={<RequireRole roles={['Director', 'Therapist']}><VideoSessions /></RequireRole>} />
+                  <Route path="/video-sessions/:sessionId/green-room" element={<RequireRole roles={['Director', 'Therapist']}><VideoGreenRoom /></RequireRole>} />
+                  <Route path="/program-compliance/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ProgramCompliance /></RequireRole>} />
+                  <Route path="/compliance-assistant" element={<RequireRole roles={['Director', 'Therapist']}><ComplianceAssistant /></RequireRole>} />
+                  <Route path="/assessments/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><AsamAssessment /></RequireRole>} />
+                  <Route path="/compliance" element={<RequireRole roles={['Director', 'Therapist']}><Compliance /></RequireRole>} />
+                  <Route path="/program-plan/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ProgramPlan /></RequireRole>} />
+                  <Route path="/treatment-plan-library" element={<RequireRole roles={['Director', 'Therapist']}><TreatmentPlanLibrary /></RequireRole>} />
+                  <Route path="/risk-monitor" element={<RequireRole roles={['Director', 'Therapist']}><RiskMonitor /></RequireRole>} />
+
+                  {/* TRIAL_MODE-hidden routes (redirect when on) — role gates kept for when flag flips */}
                   <Route
                     path="/financials"
                     element={isTrialHidden('/financials')
                       ? <Navigate to="/dashboard" replace />
-                      : <ProtectedRoute><Financials /></ProtectedRoute>}
+                      : <RequireRole roles={['Director']}><Financials /></RequireRole>}
                   />
-                  <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
-                  <Route path="/treatment-plan-library" element={<ProtectedRoute><TreatmentPlanLibrary /></ProtectedRoute>} />
                   <Route
                     path="/document-intelligence"
                     element={isTrialHidden('/document-intelligence')
                       ? <Navigate to="/dashboard" replace />
                       : <ProtectedRoute><DocumentIntelligence supabase={supabase as any} /></ProtectedRoute>}
                   />
-                  <Route path="/risk-monitor" element={<ProtectedRoute><RiskMonitor /></ProtectedRoute>} />
-
-                  {/* Admin-only Routes */}
                   <Route
                     path="/reporting"
                     element={isTrialHidden('/reporting')
                       ? <Navigate to="/dashboard" replace />
-                      : <AdminRoute><Reporting /></AdminRoute>}
+                      : <RequireRole roles={['Director']}><Reporting /></RequireRole>}
                   />
-                  <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
+
+                  {/* Director-only superuser routes */}
+                  <Route path="/settings" element={<RequireRole roles={['Director']}><Settings /></RequireRole>} />
 
                   {/* Client-facing Portal */}
                   <Route path="/portal/dashboard" element={<PortalDashboard />} />

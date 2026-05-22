@@ -9,10 +9,23 @@ import {
     ClipboardList, Zap, Activity, BookOpen
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
+import type { UserRole } from '../../types';
 
-const adminNavItems = [
-    { to: '/reporting', icon: BarChart3, label: 'Analytics' },
-    { to: '/settings', icon: Settings, label: 'Settings' },
+type NavItemDef = {
+    to: string;
+    icon: React.ElementType;
+    label: string;
+    roles: readonly UserRole[];
+    notifications?: number;
+};
+
+const ALL_ROLES: readonly UserRole[] = ['Director', 'Therapist', 'Admin'];
+const CLINICAL_ROLES: readonly UserRole[] = ['Director', 'Therapist'];
+const DIRECTOR_ONLY: readonly UserRole[] = ['Director'];
+
+const adminNavItems: NavItemDef[] = [
+    { to: '/reporting', icon: BarChart3, label: 'Analytics', roles: DIRECTOR_ONLY },
+    { to: '/settings', icon: Settings, label: 'Settings', roles: DIRECTOR_ONLY },
 ].filter(item => !isTrialHidden(item.to));
 
 const NavItem: React.FC<{ to: string; icon: React.ElementType; label: string; isCollapsed: boolean, notifications?: number }> = ({ to, icon: Icon, label, isCollapsed, notifications }) => (
@@ -42,17 +55,19 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const baseNavItems = [
-    { to: '/dashboard', icon: Home, label: 'Dashboard' },
-    { to: '/clients', icon: Users, label: 'Clients' },
-    { to: '/session-management', icon: Calendar, label: 'Calendar' },
-    { to: '/communication-center', icon: MessageSquare, label: 'Messages', notifications: 3 },
-    { to: '/forms', icon: ClipboardList, label: 'Forms' },
-    { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library' },
-    { to: '/document-intelligence', icon: Zap, label: 'AI Documents' },
-    { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', notifications: 3 },
-    { to: '/financials', icon: DollarSign, label: 'Financials' },
-  ].filter(item => !isTrialHidden(item.to));
+  const baseNavItems: NavItemDef[] = ([
+    { to: '/dashboard', icon: Home, label: 'Dashboard', roles: ALL_ROLES },
+    { to: '/clients', icon: Users, label: 'Clients', roles: ALL_ROLES },
+    { to: '/session-management', icon: Calendar, label: 'Calendar', roles: ALL_ROLES },
+    { to: '/communication-center', icon: MessageSquare, label: 'Messages', roles: ALL_ROLES, notifications: 3 },
+    { to: '/forms', icon: ClipboardList, label: 'Forms', roles: ALL_ROLES },
+    { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library', roles: CLINICAL_ROLES },
+    { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
+    { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', roles: CLINICAL_ROLES, notifications: 3 },
+    { to: '/financials', icon: DollarSign, label: 'Financials', roles: DIRECTOR_ONLY },
+  ] satisfies NavItemDef[])
+    .filter(item => !isTrialHidden(item.to))
+    .filter(item => !user || item.roles.includes(user.role));
 
   return (
     <aside className={`hidden lg:flex flex-col fixed top-0 left-0 h-full z-30 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} bg-white/80 dark:bg-dark-surface/80 backdrop-blur-2xl border-r border-white/20 dark:border-white/5 shadow-2xl`}>
@@ -67,14 +82,18 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
         <ul className="space-y-1">
           {baseNavItems.map(item => <NavItem key={item.to} {...item} isCollapsed={isCollapsed} />)}
         </ul>
-        {user?.role === 'Admin' && (
-            <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
-                {!isCollapsed && <div className="px-4 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Reports</div>}
-                <ul className="space-y-1">
-                  {adminNavItems.map(item => <NavItem key={item.to} {...item} isCollapsed={isCollapsed} />)}
-                </ul>
-            </div>
-        )}
+        {(() => {
+            const visibleAdminItems = adminNavItems.filter(item => user && item.roles.includes(user.role));
+            if (visibleAdminItems.length === 0) return null;
+            return (
+                <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
+                    {!isCollapsed && <div className="px-4 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Reports</div>}
+                    <ul className="space-y-1">
+                      {visibleAdminItems.map(item => <NavItem key={item.to} {...item} isCollapsed={isCollapsed} />)}
+                    </ul>
+                </div>
+            );
+        })()}
       </nav>
 
       <div className="p-4 border-t border-black/5 dark:border-white/10 bg-slate-50/50 dark:bg-black/20">

@@ -39,9 +39,14 @@ const BottomNavItem: React.FC<{ to: string; icon: React.ElementType; label: stri
     </NavLink>
 );
 
+// NOTE: this component is currently not imported anywhere — dead UI. Keeping the
+// role check consistent with the post-rename enum (Director = superuser, Admin
+// = office) so a future revival doesn't carry stale meaning. If revived, the
+// adminItems / clinicalItems arrays should also be reviewed against the new
+// three-role model.
 const BottomNavBar: React.FC = () => {
     const { user } = useAuth();
-    const navItems = user?.role === 'Admin' ? adminItems : clinicalItems;
+    const navItems = user?.role === 'Director' ? adminItems : clinicalItems;
     
     return (
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-t border-black/10 dark:border-slate-700/50 z-20 flex justify-around items-start pt-1 shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.1)]">

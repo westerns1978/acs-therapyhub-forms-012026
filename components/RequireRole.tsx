@@ -1,14 +1,15 @@
-
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import MainLayout from '../layouts/MainLayout';
+import type { UserRole } from '../types';
 
-interface AdminRouteProps {
+interface RequireRoleProps {
+  roles: readonly UserRole[];
   children: React.ReactElement;
 }
 
-const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
+const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => {
   const { user } = useAuth();
   const location = useLocation();
 
@@ -16,12 +17,11 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (user.role !== 'Admin') {
-    // Redirect non-admin users to the dashboard or an unauthorized page
+  if (!roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return <MainLayout>{children}</MainLayout>;
 };
 
-export default AdminRoute;
+export default RequireRole;

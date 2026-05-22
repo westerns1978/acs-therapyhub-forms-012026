@@ -8,18 +8,21 @@ import type { User } from '../types';
 
 const ACS_LOGO_URL = 'https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg';
 
+// Phase D will rebuild this as a 3-role picker (David / Karen / Jess). For now
+// the existing 2-button demo block is repointed to the new role enum so it
+// still compiles and routes to the right gates.
 const demoStaff: User[] = [
     {
         id: 'staff-david-yoder',
         name: 'David Yoder',
         email: 'david.yoder@acs-therapy.com',
-        role: 'Admin',
+        role: 'Director',
     },
     {
         id: 'staff-anya-sharma',
         name: 'Dr. Anya Sharma',
         email: 'anya.sharma@acs-therapy.com',
-        role: 'Clinical',
+        role: 'Therapist',
     },
 ];
 
@@ -66,7 +69,7 @@ const Login: React.FC = () => {
             if (useMfa) {
                 setIsMfaOpen(true);
             } else {
-                completeLogin();
+                await completeLogin();
             }
         } catch (err: any) {
             setError(err.message || 'Sign-in failed. Please try again.');
@@ -74,17 +77,38 @@ const Login: React.FC = () => {
         }
     };
 
-    const completeLogin = () => {
+    // Reads the authenticated Supabase user and the role from user_metadata.
+    // Fails closed if metadata.role is missing or unrecognized — without an
+    // explicit role assignment we won't guess. Dan sets role per account in
+    // Supabase Auth → Users → Edit user → User Metadata → {"role": "Director"}
+    // (or "Therapist" / "Admin").
+    const completeLogin = async () => {
         setIsMfaOpen(false);
-        setIsLoading(false);
-        const role: User['role'] = email.includes('admin') || email.includes('david') ? 'Admin' : 'Clinical';
-        const mockUser: User = {
-            id: 'staff-' + email.split('@')[0],
-            name: role === 'Admin' ? 'David Yoder' : 'Dr. Anya Sharma',
-            email,
+
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) {
+            setError('Sign-in succeeded but no session was returned. Please try again.');
+            setIsLoading(false);
+            return;
+        }
+
+        const role = authUser.user_metadata?.role as User['role'] | undefined;
+        const validRoles: User['role'][] = ['Director', 'Therapist', 'Admin'];
+        if (!role || !validRoles.includes(role)) {
+            setError('This account has no role assigned. Contact your administrator.');
+            await supabase.auth.signOut();
+            setIsLoading(false);
+            return;
+        }
+
+        const realUser: User = {
+            id: authUser.id,
+            name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Staff',
+            email: authUser.email || email,
             role,
         };
-        login(mockUser);
+        login(realUser);
+        setIsLoading(false);
         navigate('/dashboard');
     };
 
@@ -187,7 +211,7 @@ const Login: React.FC = () => {
                         >
                             <div className="font-semibold text-sm">{staff.name}</div>
                             <div className="text-xs text-gray-500">
-                                {staff.role === 'Admin' ? 'Director' : 'Clinical'}
+                                {staff.role}
                             </div>
                         </button>
                     ))}

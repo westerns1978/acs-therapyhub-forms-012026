@@ -32,8 +32,8 @@ const getRelativeMonthStr = (monthOffset: number): string => {
 // --- INITIAL STATE ---
 
 const initialDbUsers: User[] = [
-    { id: 'user1', name: 'Dr. Anya Sharma', email: 'dr.anya@therapyhub.com', role: 'Clinical' },
-    { id: 'user2', name: 'David Yoder', email: 'david.yoder@therapyhub.com', role: 'Admin' },
+    { id: 'user1', name: 'Dr. Anya Sharma', email: 'dr.anya@therapyhub.com', role: 'Therapist' },
+    { id: 'user2', name: 'David Yoder', email: 'david.yoder@therapyhub.com', role: 'Director' },
 ];
 
 export const programDocuments = {
