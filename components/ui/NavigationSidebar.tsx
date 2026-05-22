@@ -8,11 +8,12 @@ import {
     DollarSign, LogOut, X, BarChart3, Settings,
     ClipboardList, Zap, Activity, BookOpen
 } from 'lucide-react';
+import { isTrialHidden } from '../../config/trialMode';
 
 const adminNavItems = [
     { to: '/reporting', icon: BarChart3, label: 'Analytics' },
     { to: '/settings', icon: Settings, label: 'Settings' },
-]
+].filter(item => !isTrialHidden(item.to));
 
 const NavItem: React.FC<{ to: string; icon: React.ElementType; label: string; isCollapsed: boolean, notifications?: number }> = ({ to, icon: Icon, label, isCollapsed, notifications }) => (
   <li className="relative px-2">
@@ -51,7 +52,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
     { to: '/document-intelligence', icon: Zap, label: 'AI Documents' },
     { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', notifications: 3 },
     { to: '/financials', icon: DollarSign, label: 'Financials' },
-  ];
+  ].filter(item => !isTrialHidden(item.to));
 
   return (
     <aside className={`hidden lg:flex flex-col fixed top-0 left-0 h-full z-30 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} bg-white/80 dark:bg-dark-surface/80 backdrop-blur-2xl border-r border-white/20 dark:border-white/5 shadow-2xl`}>

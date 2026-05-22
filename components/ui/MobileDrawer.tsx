@@ -7,6 +7,7 @@ import {
     DollarSign, LogOut, X, BarChart3, FileText, Settings,
     HardDrive, ClipboardList, Zap, ShieldCheck, BookOpen
 } from 'lucide-react';
+import { isTrialHidden } from '../../config/trialMode';
 
 interface MobileDrawerProps {
     isOpen: boolean;
@@ -49,12 +50,12 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
         { to: '/document-intelligence', icon: Zap, label: 'AI Documents' },
         { to: '/financials', icon: DollarSign, label: 'Financials' },
         { to: '/compliance', icon: ShieldCheck, label: 'Compliance' },
-    ];
+    ].filter(item => !isTrialHidden(item.to));
 
     const adminItems = [
         { to: '/reporting', icon: BarChart3, label: 'Analytics' },
         { to: '/settings', icon: Settings, label: 'Settings' },
-    ];
+    ].filter(item => !isTrialHidden(item.to));
 
     return (
         <>

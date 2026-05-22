@@ -11,6 +11,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import PageLoader from './components/ui/PageLoader';
 import PortalLayout from './layouts/PortalLayout';
+import { isTrialHidden } from './config/trialMode';
 
 // Lazy-loaded Page imports
 const Login = lazy(() => import('./pages/Login'));
@@ -86,14 +87,29 @@ function App() {
                   <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
                   <Route path="/program-plan/:clientId" element={<ProtectedRoute><ProgramPlan /></ProtectedRoute>} />
                   <Route path="/fee-ledger/:clientId" element={<ProtectedRoute><FeeLedger /></ProtectedRoute>} />
-                  <Route path="/financials" element={<ProtectedRoute><Financials /></ProtectedRoute>} />
+                  <Route
+                    path="/financials"
+                    element={isTrialHidden('/financials')
+                      ? <Navigate to="/dashboard" replace />
+                      : <ProtectedRoute><Financials /></ProtectedRoute>}
+                  />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
                   <Route path="/treatment-plan-library" element={<ProtectedRoute><TreatmentPlanLibrary /></ProtectedRoute>} />
-                  <Route path="/document-intelligence" element={<ProtectedRoute><DocumentIntelligence supabase={supabase as any} /></ProtectedRoute>} />
+                  <Route
+                    path="/document-intelligence"
+                    element={isTrialHidden('/document-intelligence')
+                      ? <Navigate to="/dashboard" replace />
+                      : <ProtectedRoute><DocumentIntelligence supabase={supabase as any} /></ProtectedRoute>}
+                  />
                   <Route path="/risk-monitor" element={<ProtectedRoute><RiskMonitor /></ProtectedRoute>} />
-                  
+
                   {/* Admin-only Routes */}
-                  <Route path="/reporting" element={<AdminRoute><Reporting /></AdminRoute>} />
+                  <Route
+                    path="/reporting"
+                    element={isTrialHidden('/reporting')
+                      ? <Navigate to="/dashboard" replace />
+                      : <AdminRoute><Reporting /></AdminRoute>}
+                  />
                   <Route path="/settings" element={<AdminRoute><Settings /></AdminRoute>} />
 
                   {/* Client-facing Portal */}
