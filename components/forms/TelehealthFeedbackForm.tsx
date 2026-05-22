@@ -22,28 +22,28 @@ const FeedbackSection: React.FC<FormSectionProps<TelehealthFeedbackData>> = ({ f
   return (
     <div className="space-y-10 animate-fade-in-up">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-        <FormField id="clientName" label="Client Name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
-        <FormField id="clientEmail" label="Secure Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} />
+        <FormField id="clientName" label="Client name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
+        <FormField id="clientEmail" label="Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} />
       </div>
 
       <div className="space-y-6">
-        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b pb-2">Phone & Technology</h3>
-        <StarRating id="phoneClarity" label="Call Audio/Visual Clarity" value={formData.phoneClarity} onChange={(v) => setFormData({...formData, phoneClarity: v})} />
-        <StarRating id="groupTechnology" label="Telehealth Node Stability" value={formData.groupTechnology} onChange={(v) => setFormData({...formData, groupTechnology: v})} />
+        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b pb-2">Phone &amp; technology</h3>
+        <StarRating id="phoneClarity" label="Audio and video clarity" value={formData.phoneClarity} onChange={(v) => setFormData({...formData, phoneClarity: v})} />
+        <StarRating id="groupTechnology" label="Connection quality" value={formData.groupTechnology} onChange={(v) => setFormData({...formData, groupTechnology: v})} />
       </div>
 
       <div className="space-y-6">
-        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b pb-2">Clinical Experience</h3>
-        <StarRating id="groupHelpfulness" label="Group Logic Effectiveness" value={formData.groupHelpfulness} onChange={(v) => setFormData({...formData, groupHelpfulness: v})} />
-        <StarRating id="oneOnOneListening" label="Therapist Neural Tuning (Listening)" value={formData.oneOnOneListening} onChange={(v) => setFormData({...formData, oneOnOneListening: v})} />
+        <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-8 border-b pb-2">Clinical experience</h3>
+        <StarRating id="groupHelpfulness" label="How helpful were group sessions?" value={formData.groupHelpfulness} onChange={(v) => setFormData({...formData, groupHelpfulness: v})} />
+        <StarRating id="oneOnOneListening" label="Therapist listening" value={formData.oneOnOneListening} onChange={(v) => setFormData({...formData, oneOnOneListening: v})} />
       </div>
 
       <div className="pt-4 border-t border-black/5 dark:border-white/5 space-y-8">
-        <RadioGroup id="feltRespected" label="Did you feel clinical respect throughout the process?" value={formData.feltRespected} onChange={(v) => setFormData({...formData, feltRespected: v})} />
-        <RadioGroup id="wouldRecommend" label="Would you authorize a recommendation for this node?" value={formData.wouldRecommend} onChange={(v) => setFormData({...formData, wouldRecommend: v})} />
+        <RadioGroup id="feltRespected" label="Did you feel respected throughout?" value={formData.feltRespected} onChange={(v) => setFormData({...formData, feltRespected: v})} />
+        <RadioGroup id="wouldRecommend" label="Would you recommend ACS TherapyHub?" value={formData.wouldRecommend} onChange={(v) => setFormData({...formData, wouldRecommend: v})} />
       </div>
-      
-      <FormField id="additionalComments" label="Signal Analysis (Comments)" type="textarea" value={formData.additionalComments} onChange={handleChange} />
+
+      <FormField id="additionalComments" label="Additional comments" type="textarea" value={formData.additionalComments} onChange={handleChange} />
     </div>
   );
 };
@@ -51,7 +51,7 @@ const FeedbackSection: React.FC<FormSectionProps<TelehealthFeedbackData>> = ({ f
 export const TELEHEALTH_FEEDBACK_DEFINITION: FormDefinition<TelehealthFeedbackData> = {
   id: 'telehealth-feedback',
   title: 'Telehealth Experience Feedback',
-  description: 'Digital performance review and satisfaction protocol for telehealth services.',
+  description: 'Tell us about your telehealth experience.',
   category: 'Assessment',
   difficulty: 'Simple',
   estimatedTime: '6 min',
@@ -60,31 +60,31 @@ export const TELEHEALTH_FEEDBACK_DEFINITION: FormDefinition<TelehealthFeedbackDa
   validateStep: (data) => {
 
     const errs: FormErrors<TelehealthFeedbackData> = {};
-    if (!data.clientName) errs.clientName = 'Mandatory.';
-    if (data.feltRespected === null) errs.feltRespected = 'Select response.';
+    if (!data.clientName) errs.clientName = 'Required.';
+    if (data.feltRespected === null) errs.feltRespected = 'Please select an option.';
     return errs;
   },
   fieldDefinitions: [
-    { id: 'clientName', label: 'Client Name', type: 'text', required: true },
-    { id: 'clientEmail', label: 'Secure Email', type: 'email', required: false },
-    { id: 'phoneClarity', label: 'Call Audio/Visual Clarity', type: 'rating', required: true, min: 1, max: 5 },
-    { id: 'phoneResponsiveness', label: 'Phone Responsiveness', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'phoneHelpfulness', label: 'Phone Helpfulness', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'assessmentConvenience', label: 'Assessment Convenience', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'assessmentCommunication', label: 'Assessment Communication', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'assessmentConnection', label: 'Assessment Connection', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'groupConvenience', label: 'Group Convenience', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'groupParticipation', label: 'Group Participation', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'groupHelpfulness', label: 'Group Logic Effectiveness', type: 'rating', required: true, min: 1, max: 5 },
-    { id: 'groupTechnology', label: 'Telehealth Node Stability', type: 'rating', required: true, min: 1, max: 5 },
-    { id: 'oneOnOneConvenience', label: 'One On One Convenience', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'oneOnOneConnection', label: 'One On One Connection', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'oneOnOneListening', label: 'Therapist Neural Tuning (Listening)', type: 'rating', required: true, min: 1, max: 5 },
-    { id: 'oneOnOneHelpfulness', label: 'One On One Helpfulness', type: 'rating', required: false, min: 1, max: 5 },
-    { id: 'feltRespected', label: 'Did you feel clinical respect throughout the process?', type: 'boolean', required: true },
-    { id: 'wouldRecommend', label: 'Would you authorize a recommendation for this node?', type: 'boolean', required: true },
-    { id: 'likelyToRefer', label: 'Likely To Refer', type: 'boolean', required: false },
-    { id: 'referralExplanation', label: 'Referral Explanation', type: 'textarea', required: false },
-    { id: 'additionalComments', label: 'Signal Analysis (Comments)', type: 'textarea', required: false }
+    { id: 'clientName', label: 'Client name', type: 'text', required: true },
+    { id: 'clientEmail', label: 'Email', type: 'email', required: false },
+    { id: 'phoneClarity', label: 'Audio and video clarity', type: 'rating', required: true, min: 1, max: 5 },
+    { id: 'phoneResponsiveness', label: 'Phone responsiveness', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'phoneHelpfulness', label: 'Phone helpfulness', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'assessmentConvenience', label: 'Assessment convenience', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'assessmentCommunication', label: 'Assessment communication', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'assessmentConnection', label: 'Assessment connection', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'groupConvenience', label: 'Group convenience', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'groupParticipation', label: 'Group participation', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'groupHelpfulness', label: 'How helpful were group sessions?', type: 'rating', required: true, min: 1, max: 5 },
+    { id: 'groupTechnology', label: 'Connection quality', type: 'rating', required: true, min: 1, max: 5 },
+    { id: 'oneOnOneConvenience', label: '1:1 convenience', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'oneOnOneConnection', label: '1:1 connection', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'oneOnOneListening', label: 'Therapist listening', type: 'rating', required: true, min: 1, max: 5 },
+    { id: 'oneOnOneHelpfulness', label: '1:1 helpfulness', type: 'rating', required: false, min: 1, max: 5 },
+    { id: 'feltRespected', label: 'Did you feel respected throughout?', type: 'boolean', required: true },
+    { id: 'wouldRecommend', label: 'Would you recommend ACS TherapyHub?', type: 'boolean', required: true },
+    { id: 'likelyToRefer', label: 'Likely to refer', type: 'boolean', required: false },
+    { id: 'referralExplanation', label: 'Referral explanation', type: 'textarea', required: false },
+    { id: 'additionalComments', label: 'Additional comments', type: 'textarea', required: false }
   ]
 };

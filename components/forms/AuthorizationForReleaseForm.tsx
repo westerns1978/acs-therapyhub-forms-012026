@@ -20,9 +20,9 @@ const Step1: React.FC<FormSectionProps<AuthorizationForReleaseData>> = ({ formDa
   };
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 1: Basic Protocol</h3>
-      <FormField id="clientName" label="Client Name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
-      <FormField id="clientEmail" label="Secure Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} />
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Client information</h3>
+      <FormField id="clientName" label="Client name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
+      <FormField id="clientEmail" label="Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
         <Checkbox label="Authorize DMH Release" checked={formData.authorizeDMH} onChange={(v) => setFormData({...formData, authorizeDMH: v})} />
         <Checkbox label="Authorize Department of Revenue" checked={formData.authorizeRevenue} onChange={(v) => setFormData({...formData, authorizeRevenue: v})} />
@@ -33,8 +33,8 @@ const Step1: React.FC<FormSectionProps<AuthorizationForReleaseData>> = ({ formDa
 
 const ContactFields = ({ label, data, onChange }: { label: string, data: any, onChange: (field: string, val: string) => void }) => (
   <div className="space-y-4 p-6 bg-slate-50 dark:bg-slate-950/30 rounded-3xl border border-black/5 dark:border-white/5">
-    <h4 className="text-xs font-black uppercase tracking-widest text-primary mb-4">{label} Infrastructure</h4>
-    <FormField id="name" label="Name/Agency" value={data.name} onChange={(e) => onChange('name', e.target.value)} required={false} />
+    <h4 className="text-xs font-black uppercase tracking-widest text-primary mb-4">{label} contact</h4>
+    <FormField id="name" label="Name/agency" value={data.name} onChange={(e) => onChange('name', e.target.value)} required={false} />
     <FormField id="address" label="Address" value={data.address} onChange={(e) => onChange('address', e.target.value)} required={false} />
     <div className="grid grid-cols-2 gap-4">
       <FormField id="city" label="City" value={data.city} onChange={(e) => onChange('city', e.target.value)} required={false} />
@@ -46,7 +46,7 @@ const ContactFields = ({ label, data, onChange }: { label: string, data: any, on
 const Step2: React.FC<FormSectionProps<AuthorizationForReleaseData>> = ({ formData, setFormData }) => {
   return (
     <div className="space-y-10 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 2: Legal Transmitters</h3>
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Court and attorney</h3>
       <ContactFields label="Court" data={formData.courtInfo} onChange={(f, v) => setFormData({...formData, courtInfo: { ...formData.courtInfo, [f]: v }})} />
       <ContactFields label="Attorney" data={formData.attorneyInfo} onChange={(f, v) => setFormData({...formData, attorneyInfo: { ...formData.attorneyInfo, [f]: v }})} />
     </div>
@@ -56,9 +56,9 @@ const Step2: React.FC<FormSectionProps<AuthorizationForReleaseData>> = ({ formDa
 const Step3: React.FC<FormSectionProps<AuthorizationForReleaseData>> = ({ formData, setFormData }) => {
   return (
     <div className="space-y-10 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 3: Supervision Transmitters</h3>
-      <ContactFields label="Probation Officer" data={formData.probationOfficerInfo} onChange={(f, v) => setFormData({...formData, probationOfficerInfo: { ...formData.probationOfficerInfo, [f]: v }})} />
-      <ContactFields label="Other Facility" data={formData.otherInfo} onChange={(f, v) => setFormData({...formData, otherInfo: { ...formData.otherInfo, [f]: v }})} />
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Probation officer and other</h3>
+      <ContactFields label="Probation officer" data={formData.probationOfficerInfo} onChange={(f, v) => setFormData({...formData, probationOfficerInfo: { ...formData.probationOfficerInfo, [f]: v }})} />
+      <ContactFields label="Other facility" data={formData.otherInfo} onChange={(f, v) => setFormData({...formData, otherInfo: { ...formData.otherInfo, [f]: v }})} />
     </div>
   );
 };
@@ -69,15 +69,15 @@ const Step4: React.FC<FormSectionProps<AuthorizationForReleaseData>> = ({ formDa
   };
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 4: Regulatory Authorization</h3>
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Authorization</h3>
       <div className="p-6 bg-blue-500/5 dark:bg-blue-500/10 rounded-3xl border border-blue-500/20 space-y-4">
         <Checkbox label="I authorize according to 42 CFR Part 2 federal regulations." checked={formData.acknowledgesFederalRegulations} onChange={(v) => setFormData({...formData, acknowledgesFederalRegulations: v})} error={errors.acknowledgesFederalRegulations} />
         <Checkbox label="I understand I can revoke this authorization at any time." checked={formData.understandsRevocation} onChange={(v) => setFormData({...formData, understandsRevocation: v})} error={errors.understandsRevocation} />
         <Checkbox label="This authorization expires in one year from the date below." checked={formData.understandsExpiration} onChange={(v) => setFormData({...formData, understandsExpiration: v})} error={errors.understandsExpiration} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 pt-4">
-        <FormField id="clientSignature" label="Client Digital Signature" value={formData.clientSignature} onChange={handleChange} error={errors.clientSignature} />
-        <FormField id="ssn" label="SSN Verification (Last 4)" maxLength={4} value={formData.ssn} onChange={handleChange} error={errors.ssn} />
+        <FormField id="clientSignature" label="Client signature" value={formData.clientSignature} onChange={handleChange} error={errors.clientSignature} />
+        <FormField id="ssn" label="SSN (last 4 digits)" maxLength={4} value={formData.ssn} onChange={handleChange} error={errors.ssn} />
       </div>
     </div>
   );
@@ -86,7 +86,7 @@ const Step4: React.FC<FormSectionProps<AuthorizationForReleaseData>> = ({ formDa
 export const AUTHORIZATION_RELEASE_DEFINITION: FormDefinition<AuthorizationForReleaseData> = {
   id: 'authorization-release',
   title: 'Authorization for Release of Information',
-  description: 'Legal authorization for clinical node data sharing with courts and legal entities. 42 CFR Part 2 compliant.',
+  description: 'Legal authorization to share clinical information with courts and legal entities. 42 CFR Part 2 compliant.',
   category: 'Legal',
   tags: ['Required', 'SATOP'],
   difficulty: 'Moderate',
@@ -95,38 +95,38 @@ export const AUTHORIZATION_RELEASE_DEFINITION: FormDefinition<AuthorizationForRe
   validateStep: (data) => {
 
     const errs: FormErrors<AuthorizationForReleaseData> = {};
-    if (!data.clientName) errs.clientName = 'Mandatory.';
-    if (!data.acknowledgesFederalRegulations) errs.acknowledgesFederalRegulations = 'Acknowledgment required.';
-    if (!data.clientSignature) errs.clientSignature = 'Signature required.';
-    if (!data.ssn || data.ssn.length < 4) errs.ssn = 'SSN digits required.';
+    if (!data.clientName) errs.clientName = 'Required.';
+    if (!data.acknowledgesFederalRegulations) errs.acknowledgesFederalRegulations = 'Please acknowledge.';
+    if (!data.clientSignature) errs.clientSignature = 'Signature is required.';
+    if (!data.ssn || data.ssn.length < 4) errs.ssn = 'Last 4 digits of SSN required.';
 
     return errs;
   },
   fieldDefinitions: [
-    { id: 'clientName', label: 'Client Name', type: 'text', required: true },
-    { id: 'clientEmail', label: 'Secure Email', type: 'email', required: true },
-    { id: 'authorizeDMH', label: 'Authorize DMH Release', type: 'boolean', required: false },
+    { id: 'clientName', label: 'Client name', type: 'text', required: true },
+    { id: 'clientEmail', label: 'Email', type: 'email', required: true },
+    { id: 'authorizeDMH', label: 'Authorize DMH release', type: 'boolean', required: false },
     { id: 'authorizeRevenue', label: 'Authorize Department of Revenue', type: 'boolean', required: false },
-    { id: 'courtInfo.name', label: 'Court Name/Agency', type: 'text', required: false },
-    { id: 'courtInfo.address', label: 'Court Address', type: 'text', required: false },
-    { id: 'courtInfo.city', label: 'Court City', type: 'text', required: false },
-    { id: 'courtInfo.phone', label: 'Court Phone', type: 'tel', required: false },
-    { id: 'attorneyInfo.name', label: 'Attorney Name/Agency', type: 'text', required: false },
-    { id: 'attorneyInfo.address', label: 'Attorney Address', type: 'text', required: false },
-    { id: 'attorneyInfo.city', label: 'Attorney City', type: 'text', required: false },
-    { id: 'attorneyInfo.phone', label: 'Attorney Phone', type: 'tel', required: false },
-    { id: 'probationOfficerInfo.name', label: 'Probation Officer Name/Agency', type: 'text', required: false },
-    { id: 'probationOfficerInfo.address', label: 'Probation Officer Address', type: 'text', required: false },
-    { id: 'probationOfficerInfo.city', label: 'Probation Officer City', type: 'text', required: false },
-    { id: 'probationOfficerInfo.phone', label: 'Probation Officer Phone', type: 'tel', required: false },
-    { id: 'otherInfo.name', label: 'Other Facility Name/Agency', type: 'text', required: false },
-    { id: 'otherInfo.address', label: 'Other Facility Address', type: 'text', required: false },
-    { id: 'otherInfo.city', label: 'Other Facility City', type: 'text', required: false },
-    { id: 'otherInfo.phone', label: 'Other Facility Phone', type: 'tel', required: false },
+    { id: 'courtInfo.name', label: 'Court name/agency', type: 'text', required: false },
+    { id: 'courtInfo.address', label: 'Court address', type: 'text', required: false },
+    { id: 'courtInfo.city', label: 'Court city', type: 'text', required: false },
+    { id: 'courtInfo.phone', label: 'Court phone', type: 'tel', required: false },
+    { id: 'attorneyInfo.name', label: 'Attorney name/agency', type: 'text', required: false },
+    { id: 'attorneyInfo.address', label: 'Attorney address', type: 'text', required: false },
+    { id: 'attorneyInfo.city', label: 'Attorney city', type: 'text', required: false },
+    { id: 'attorneyInfo.phone', label: 'Attorney phone', type: 'tel', required: false },
+    { id: 'probationOfficerInfo.name', label: 'Probation officer name/agency', type: 'text', required: false },
+    { id: 'probationOfficerInfo.address', label: 'Probation officer address', type: 'text', required: false },
+    { id: 'probationOfficerInfo.city', label: 'Probation officer city', type: 'text', required: false },
+    { id: 'probationOfficerInfo.phone', label: 'Probation officer phone', type: 'tel', required: false },
+    { id: 'otherInfo.name', label: 'Other facility name/agency', type: 'text', required: false },
+    { id: 'otherInfo.address', label: 'Other facility address', type: 'text', required: false },
+    { id: 'otherInfo.city', label: 'Other facility city', type: 'text', required: false },
+    { id: 'otherInfo.phone', label: 'Other facility phone', type: 'tel', required: false },
     { id: 'acknowledgesFederalRegulations', label: 'I authorize according to 42 CFR Part 2 federal regulations.', type: 'boolean', required: true },
     { id: 'understandsRevocation', label: 'I understand I can revoke this authorization at any time.', type: 'boolean', required: true },
     { id: 'understandsExpiration', label: 'This authorization expires in one year from the date below.', type: 'boolean', required: true },
-    { id: 'clientSignature', label: 'Client Digital Signature', type: 'text', required: true },
-    { id: 'ssn', label: 'SSN Verification (Last 4)', type: 'text', required: true, min: 4, max: 4 } 
+    { id: 'clientSignature', label: 'Client signature', type: 'text', required: true },
+    { id: 'ssn', label: 'SSN (last 4 digits)', type: 'text', required: true, min: 4, max: 4 }
   ]
 };

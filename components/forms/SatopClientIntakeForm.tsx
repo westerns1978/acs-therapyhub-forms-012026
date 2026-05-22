@@ -32,26 +32,26 @@ const SatopIntakeSection: React.FC<FormSectionProps<SatopClientIntakeData>> = ({
   return (
     <div className="space-y-8 animate-fade-in-up">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-        <FormField id="clientName" label="Client Full Name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
-        <FormField id="dob" label="Date of Birth" type="date" value={formData.dob} onChange={handleChange} error={errors.dob} />
+        <FormField id="clientName" label="Full name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
+        <FormField id="dob" label="Date of birth" type="date" value={formData.dob} onChange={handleChange} error={errors.dob} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-        <FormField id="clientPhone" label="Mobile Number" type="tel" value={formData.clientPhone} onChange={handlePhoneChange} error={errors.clientPhone} placeholder="(314) 000-0000" />
-        <FormField id="clientEmail" label="Secure Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} placeholder="client@example.com" />
+        <FormField id="clientPhone" label="Mobile number" type="tel" value={formData.clientPhone} onChange={handlePhoneChange} error={errors.clientPhone} placeholder="(314) 000-0000" />
+        <FormField id="clientEmail" label="Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} placeholder="client@example.com" />
       </div>
 
       <div className="pt-8 border-t border-black/5 dark:border-white/5">
-        <h3 className="text-xs font-black uppercase text-slate-400 tracking-[0.3em] mb-8">Legal Record Synchronization</h3>
-        <FormField id="caseNumber" label="Court Case Number" value={formData.caseNumber} onChange={handleChange} error={errors.caseNumber} placeholder="24-CR-XXXXX" />
+        <h3 className="text-xs font-black uppercase text-slate-400 tracking-[0.3em] mb-8">Court information</h3>
+        <FormField id="caseNumber" label="Court case number" value={formData.caseNumber} onChange={handleChange} error={errors.caseNumber} placeholder="24-CR-XXXXX" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-            <FormField id="offenseDate" label="Offense Date" type="date" value={formData.offenseDate} onChange={handleChange} error={errors.offenseDate} />
-            <FormField id="convictionDate" label="Conviction Date" type="date" value={formData.convictionDate} onChange={handleChange} error={errors.convictionDate} />
+            <FormField id="offenseDate" label="Offense date" type="date" value={formData.offenseDate} onChange={handleChange} error={errors.offenseDate} />
+            <FormField id="convictionDate" label="Conviction date" type="date" value={formData.convictionDate} onChange={handleChange} error={errors.convictionDate} />
         </div>
       </div>
 
       <RadioGroupString
         id="programType"
-        label="Program Classification"
+        label="Program track"
         value={formData.programType}
         onChange={(val) => setFormData({ ...formData, programType: val as any })}
         error={errors.programType}
@@ -63,13 +63,13 @@ const SatopIntakeSection: React.FC<FormSectionProps<SatopClientIntakeData>> = ({
 
       <RadioGroup
         id="previousSatop"
-        label="Previous SATOP Protocol Commitments"
+        label="Have you completed SATOP before?"
         value={formData.previousSatop}
         onChange={(val) => setFormData({ ...formData, previousSatop: val })}
         error={errors.previousSatop}
       />
 
-      <FormField id="paymentMethod" label="Fiscal Ledger Category" value={formData.paymentMethod} onChange={handleChange} error={errors.paymentMethod} placeholder="State Funded / Private Insurance" />
+      <FormField id="paymentMethod" label="Payment method" value={formData.paymentMethod} onChange={handleChange} error={errors.paymentMethod} placeholder="State funded / private insurance" />
     </div>
   );
 };
@@ -77,7 +77,7 @@ const SatopIntakeSection: React.FC<FormSectionProps<SatopClientIntakeData>> = ({
 export const SATOP_INTAKE_DEFINITION: FormDefinition<SatopClientIntakeData> = {
   id: 'satop-intake',
   title: 'SATOP Client Intake',
-  description: 'Primary intake document for all SATOP Recidivism Reduction Programs. Mandatory for Level IV certification.',
+  description: 'Primary intake document for SATOP programs. Required for Level IV certification.',
   category: 'Intake',
   tags: ['Required', 'SATOP'],
   estimatedTime: '6 min',
@@ -88,23 +88,23 @@ export const SATOP_INTAKE_DEFINITION: FormDefinition<SatopClientIntakeData> = {
   validateStep: (data) => {
 
     const errs: FormErrors<SatopClientIntakeData> = {};
-    if (!data.clientName) errs.clientName = 'Mandatory field missing.';
-    if (!data.clientEmail) errs.clientEmail = 'Mandatory field missing.';
-    if (!data.caseNumber) errs.caseNumber = 'Mandatory field missing.';
-    if (!data.programType) errs.programType = 'Required selection.';
+    if (!data.clientName) errs.clientName = 'Required.';
+    if (!data.clientEmail) errs.clientEmail = 'Required.';
+    if (!data.caseNumber) errs.caseNumber = 'Required.';
+    if (!data.programType) errs.programType = 'Please select an option.';
     return errs;
   },
   fieldDefinitions: [
-    { id: 'clientName', label: 'Client Full Name', type: 'text', required: true },
-    { id: 'dob', label: 'Date of Birth', type: 'date', required: true },
-    { id: 'clientPhone', label: 'Mobile Number', type: 'tel', required: true },
-    { id: 'clientEmail', label: 'Secure Email', type: 'email', required: true },
-    { id: 'caseNumber', label: 'Court Case Number', type: 'text', required: true },
-    { id: 'offenseDate', label: 'Offense Date', type: 'date', required: true },
-    { id: 'convictionDate', label: 'Conviction Date', type: 'date', required: true },
-    { id: 'programType', label: 'Program Classification', type: 'text', required: true, options: [{ value: '12-week', label: '12-Week Track' }, { value: '16-week', label: '16-Week Track' }] },
-    { id: 'referralSource', label: 'Referral Source', type: 'text', required: false },
-    { id: 'previousSatop', label: 'Previous SATOP Protocol Commitments', type: 'boolean', required: true },
-    { id: 'paymentMethod', label: 'Fiscal Ledger Category', type: 'text', required: true }
+    { id: 'clientName', label: 'Full name', type: 'text', required: true },
+    { id: 'dob', label: 'Date of birth', type: 'date', required: true },
+    { id: 'clientPhone', label: 'Mobile number', type: 'tel', required: true },
+    { id: 'clientEmail', label: 'Email', type: 'email', required: true },
+    { id: 'caseNumber', label: 'Court case number', type: 'text', required: true },
+    { id: 'offenseDate', label: 'Offense date', type: 'date', required: true },
+    { id: 'convictionDate', label: 'Conviction date', type: 'date', required: true },
+    { id: 'programType', label: 'Program track', type: 'text', required: true, options: [{ value: '12-week', label: '12-Week Track' }, { value: '16-week', label: '16-Week Track' }] },
+    { id: 'referralSource', label: 'Referral source', type: 'text', required: false },
+    { id: 'previousSatop', label: 'Have you completed SATOP before?', type: 'boolean', required: true },
+    { id: 'paymentMethod', label: 'Payment method', type: 'text', required: true }
   ]
 };

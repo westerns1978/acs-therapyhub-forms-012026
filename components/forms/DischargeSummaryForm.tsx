@@ -32,12 +32,12 @@ const DischargeSection: React.FC<FormSectionProps<DischargeSummaryData>> = ({ fo
       <FormField id="diagnosis" label="Clinical Diagnosis (ICD-10)" value={formData.diagnosis} onChange={handleChange} error={errors.diagnosis} />
       
       <div className="pt-4">
-        <label className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4 block">Termination Classification</label>
-        <CheckboxGroup 
+        <label className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4 block">Reason for discharge</label>
+        <CheckboxGroup
           id="reasonForDischarge" label=""
           options={[
-            {id: 'completed', label: 'Protocol Completion'}, {id: 'clientRequest', label: 'Client Request'},
-            {id: 'nonCompliance', label: 'Administrative Discharge'}, {id: 'other', label: 'Other Transition'}
+            {id: 'completed', label: 'Program completed'}, {id: 'clientRequest', label: 'Client request'},
+            {id: 'nonCompliance', label: 'Non-compliance'}, {id: 'other', label: 'Other'}
           ]}
           values={formData.reasonForDischarge}
           onChange={(id) => setFormData({...formData, reasonForDischarge: { ...formData.reasonForDischarge, [id]: !formData.reasonForDischarge[id as keyof typeof formData.reasonForDischarge] }})}
@@ -45,11 +45,11 @@ const DischargeSection: React.FC<FormSectionProps<DischargeSummaryData>> = ({ fo
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 pt-4 border-t border-black/5 dark:border-white/5">
-        <FormField id="problem1_plan" label="Core Problem #1 Plan" value={formData.problem1_plan} onChange={handleChange} />
-        <FormField id="problem1_outcome" label="Outcome #1" value={formData.problem1_outcome} onChange={handleChange} />
+        <FormField id="problem1_plan" label="Problem #1: plan" value={formData.problem1_plan} onChange={handleChange} />
+        <FormField id="problem1_outcome" label="Problem #1: outcome" value={formData.problem1_outcome} onChange={handleChange} />
       </div>
 
-      <FormField id="counselorSignature" label="QMHP/Counselor Digital Verification" value={formData.counselorSignature} onChange={handleChange} error={errors.counselorSignature} />
+      <FormField id="counselorSignature" label="QMHP/Counselor signature" value={formData.counselorSignature} onChange={handleChange} error={errors.counselorSignature} />
     </div>
   );
 };
@@ -57,7 +57,7 @@ const DischargeSection: React.FC<FormSectionProps<DischargeSummaryData>> = ({ fo
 export const DISCHARGE_SUMMARY_DEFINITION: FormDefinition<DischargeSummaryData> = {
   id: 'discharge-summary',
   title: 'Clinical Discharge Summary',
-  description: 'Internal documentation of clinical transition or program completion. Required for case closure.',
+  description: 'Documents program completion or clinical transition. Required for case closure.',
   category: 'Clinical',
   tags: ['Internal'],
   difficulty: 'Moderate',
@@ -66,32 +66,32 @@ export const DISCHARGE_SUMMARY_DEFINITION: FormDefinition<DischargeSummaryData> 
   validateStep: (data) => {
 
     const errs: FormErrors<DischargeSummaryData> = {};
-    if (!data.clientName) errs.clientName = 'Mandatory.';
-    if (!data.counselorSignature) errs.counselorSignature = 'Verification required.';
+    if (!data.clientName) errs.clientName = 'Required.';
+    if (!data.counselorSignature) errs.counselorSignature = 'Signature is required.';
     return errs;
   },
   fieldDefinitions: [
-    { id: 'clientName', label: 'Client Name', type: 'text', required: true },
-    { id: 'clientEmail', label: 'Client Email', type: 'email', required: false },
-    { id: 'admissionDate', label: 'Admission Date', type: 'date', required: true },
-    { id: 'dischargeDate', label: 'Discharge Date', type: 'date', required: true },
-    { id: 'referralSource', label: 'Referral Source', type: 'text', required: true },
-    { id: 'diagnosis', label: 'Clinical Diagnosis (ICD-10)', type: 'text', required: true },
-    { id: 'reasonForAdmission', label: 'Reason For Admission', type: 'textarea', required: false },
-    { id: 'servicesProvided', label: 'Services Provided', type: 'textarea', required: false },
-    { id: 'problem1_plan', label: 'Core Problem #1 Plan', type: 'textarea', required: false },
-    { id: 'problem1_outcome', label: 'Outcome #1', type: 'textarea', required: false },
-    { id: 'problem2_plan', label: 'Core Problem #2 Plan', type: 'textarea', required: false },
-    { id: 'problem2_outcome', label: 'Outcome #2', type: 'textarea', required: false },
-    { id: 'problem3_plan', label: 'Core Problem #3 Plan', type: 'textarea', required: false },
-    { id: 'problem3_outcome', label: 'Outcome #3', type: 'textarea', required: false },
-    { id: 'reasonForDischarge', label: 'Termination Classification', type: 'object', required: true },
-    { id: 'otherReason', label: 'Other Reason', type: 'textarea', required: false },
+    { id: 'clientName', label: 'Client name', type: 'text', required: true },
+    { id: 'clientEmail', label: 'Client email', type: 'email', required: false },
+    { id: 'admissionDate', label: 'Admission date', type: 'date', required: true },
+    { id: 'dischargeDate', label: 'Discharge date', type: 'date', required: true },
+    { id: 'referralSource', label: 'Referral source', type: 'text', required: true },
+    { id: 'diagnosis', label: 'Diagnosis (ICD-10)', type: 'text', required: true },
+    { id: 'reasonForAdmission', label: 'Reason for admission', type: 'textarea', required: false },
+    { id: 'servicesProvided', label: 'Services provided', type: 'textarea', required: false },
+    { id: 'problem1_plan', label: 'Problem #1: plan', type: 'textarea', required: false },
+    { id: 'problem1_outcome', label: 'Problem #1: outcome', type: 'textarea', required: false },
+    { id: 'problem2_plan', label: 'Problem #2: plan', type: 'textarea', required: false },
+    { id: 'problem2_outcome', label: 'Problem #2: outcome', type: 'textarea', required: false },
+    { id: 'problem3_plan', label: 'Problem #3: plan', type: 'textarea', required: false },
+    { id: 'problem3_outcome', label: 'Problem #3: outcome', type: 'textarea', required: false },
+    { id: 'reasonForDischarge', label: 'Reason for discharge', type: 'object', required: true },
+    { id: 'otherReason', label: 'Other reason', type: 'textarea', required: false },
     { id: 'prognosis', label: 'Prognosis', type: 'textarea', required: false },
-    { id: 'medicalStatus', label: 'Medical Status', type: 'textarea', required: false },
-    { id: 'recommendedFollowUp', label: 'Recommended Follow Up', type: 'textarea', required: false },
-    { id: 'counselorSignature', label: 'QMHP/Counselor Digital Verification', type: 'text', required: true },
-    { id: 'counselorCredentials', label: 'Counselor Credentials', type: 'text', required: false },
-    { id: 'signatureDate', label: 'Signature Date', type: 'date', required: false }
+    { id: 'medicalStatus', label: 'Medical status', type: 'textarea', required: false },
+    { id: 'recommendedFollowUp', label: 'Recommended follow-up', type: 'textarea', required: false },
+    { id: 'counselorSignature', label: 'QMHP/Counselor signature', type: 'text', required: true },
+    { id: 'counselorCredentials', label: 'Counselor credentials', type: 'text', required: false },
+    { id: 'signatureDate', label: 'Signature date', type: 'date', required: false }
   ]
 };

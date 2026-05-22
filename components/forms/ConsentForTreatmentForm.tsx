@@ -26,12 +26,12 @@ const Step1: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, 
   };
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 1: Basic Parameters</h3>
-      <FormField id="clientName" label="Client Legal Name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
-      <FormField id="clientEmail" label="Secure Communication Channel" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} />
-      
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Your information</h3>
+      <FormField id="clientName" label="Client legal name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
+      <FormField id="clientEmail" label="Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} />
+
       <div className="pt-4">
-        <label className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4 block">Designated Group Schedule</label>
+        <label className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4 block">Group schedule</label>
         <CheckboxGroup 
           id="groupDays"
           label=""
@@ -50,7 +50,7 @@ const Step1: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, 
 const Step2: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, setFormData, errors }) => {
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 2: Operational Policies</h3>
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Attendance and fees</h3>
       <Checkbox id="understandsAttendancePolicy" label="I acknowledge that regular attendance is mandatory for certification." checked={formData.understandsAttendancePolicy} onChange={(val) => setFormData({...formData, understandsAttendancePolicy: val})} error={errors.understandsAttendancePolicy} />
       <Checkbox id="agreesToFee" label="I agree to the $40 missed session fee for any non-excused absence." checked={formData.agreesToFee} onChange={(val) => setFormData({...formData, agreesToFee: val})} error={errors.agreesToFee} />
       <Checkbox id="understandsCancellationPolicy" label="I acknowledge that 24-hour notice is required for cancellation." checked={formData.understandsCancellationPolicy} onChange={(val) => setFormData({...formData, understandsCancellationPolicy: val})} error={errors.understandsCancellationPolicy} />
@@ -61,7 +61,7 @@ const Step2: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, 
 const Step3: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, setFormData, errors }) => {
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 3: Clinical Compliance</h3>
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Treatment commitments</h3>
       <Checkbox id="agreesToAbstinence" label="I agree to maintain full abstinence from all non-prescribed substances." checked={formData.agreesToAbstinence} onChange={(val) => setFormData({...formData, agreesToAbstinence: val})} error={errors.agreesToAbstinence} />
       <Checkbox id="consentsToTesting" label="I consent to random toxicology screening as part of this protocol." checked={formData.consentsToTesting} onChange={(val) => setFormData({...formData, consentsToTesting: val})} error={errors.consentsToTesting} />
       <Checkbox id="acknowledgesMarijuanaPolicy" label="I acknowledge that medical marijuana use requires valid clinical documentation." checked={formData.acknowledgesMarijuanaPolicy} onChange={(val) => setFormData({...formData, acknowledgesMarijuanaPolicy: val})} error={errors.acknowledgesMarijuanaPolicy} />
@@ -72,8 +72,8 @@ const Step3: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, 
 const Step4: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, setFormData, errors }) => {
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 4: Disclosure Inventory</h3>
-      <FormField id="disclosedMedications" label="Active Medications Inventory" type="textarea" value={formData.disclosedMedications} onChange={(e) => setFormData({...formData, disclosedMedications: e.target.value})} error={errors.disclosedMedications} />
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Disclosures</h3>
+      <FormField id="disclosedMedications" label="Medications you're currently taking" type="textarea" value={formData.disclosedMedications} onChange={(e) => setFormData({...formData, disclosedMedications: e.target.value})} error={errors.disclosedMedications} />
       <Checkbox id="disclosesControlledSubstances" label="I disclosed any use of controlled substances within the last 30 days." checked={formData.disclosesControlledSubstances} onChange={(val) => setFormData({...formData, disclosesControlledSubstances: val})} error={errors.disclosesControlledSubstances} />
       <Checkbox id="agreesToSupportGroups" label="I agree to attend verified 12-step or support group modules." checked={formData.agreesToSupportGroups} onChange={(val) => setFormData({...formData, agreesToSupportGroups: val})} error={errors.agreesToSupportGroups} />
     </div>
@@ -86,10 +86,10 @@ const Step5: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, 
   };
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Phase 5: Legal Handshake</h3>
-      <FormField id="clientSignature" label="Client Digital Signature" value={formData.clientSignature} onChange={handleChange} error={errors.clientSignature} />
-      <FormField id="staffSignature" label="Staff Witness/QMHP Verification" value={formData.staffSignature} onChange={handleChange} error={errors.staffSignature} />
-      <FormField id="date" label="Commitment Timestamp" type="date" value={formData.date} onChange={handleChange} error={errors.date} />
+      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Signatures</h3>
+      <FormField id="clientSignature" label="Client signature" value={formData.clientSignature} onChange={handleChange} error={errors.clientSignature} />
+      <FormField id="staffSignature" label="Staff signature (witness/QMHP)" value={formData.staffSignature} onChange={handleChange} error={errors.staffSignature} />
+      <FormField id="date" label="Date" type="date" value={formData.date} onChange={handleChange} error={errors.date} />
     </div>
   );
 };
@@ -106,7 +106,7 @@ export const CONSENT_FORM_DEFINITION: FormDefinition<ConsentForTreatmentData> = 
   validateStep: (data) => {
 
     const errs: FormErrors<ConsentForTreatmentData> = {};
-    if (!data.clientName) errs.clientName = 'Mandatory.';
+    if (!data.clientName) errs.clientName = 'Required.';
     if (!data.understandsAttendancePolicy) errs.understandsAttendancePolicy = 'Policy acknowledgment required.';
     if (!data.agreesToFee) errs.agreesToFee = 'Fee acknowledgment required.';
     if (!data.understandsCancellationPolicy) errs.understandsCancellationPolicy = 'Policy acknowledgment required.';
@@ -119,9 +119,9 @@ export const CONSENT_FORM_DEFINITION: FormDefinition<ConsentForTreatmentData> = 
     return errs;
   },
   fieldDefinitions: [
-    { id: 'clientName', label: 'Client Legal Name', type: 'text', required: true },
-    { id: 'clientEmail', label: 'Secure Communication Channel', type: 'email', required: true },
-    { id: 'groupDays', label: 'Designated Group Schedule', type: 'object', required: false },
+    { id: 'clientName', label: 'Client legal name', type: 'text', required: true },
+    { id: 'clientEmail', label: 'Email', type: 'email', required: true },
+    { id: 'groupDays', label: 'Group schedule', type: 'object', required: false },
     { id: 'groupTimeFrom', label: 'Group Time From', type: 'text', required: false },
     { id: 'groupTimeTo', label: 'Group Time To', type: 'text', required: false },
     { id: 'understandsAttendancePolicy', label: 'I acknowledge that regular attendance is mandatory for certification.', type: 'boolean', required: true },
@@ -132,12 +132,12 @@ export const CONSENT_FORM_DEFINITION: FormDefinition<ConsentForTreatmentData> = 
     { id: 'consentsToTesting', label: 'I consent to random toxicology screening as part of this protocol.', type: 'boolean', required: true },
     { id: 'understandsConsequences', label: 'I understand the consequences of non-compliance.', type: 'boolean', required: false },
     { id: 'acknowledgesMarijuanaPolicy', label: 'I acknowledge that medical marijuana use requires valid clinical documentation.', type: 'boolean', required: true },
-    { id: 'disclosedMedications', label: 'Active Medications Inventory', type: 'textarea', required: false },
+    { id: 'disclosedMedications', label: "Medications you're currently taking", type: 'textarea', required: false },
     { id: 'disclosesControlledSubstances', label: 'I disclosed any use of controlled substances within the last 30 days.', type: 'boolean', required: false },
     { id: 'disclosesMedicalIssues', label: 'I disclosed any medical issues relevant to my treatment.', type: 'boolean', required: false },
     { id: 'agreesToSupportGroups', label: 'I agree to attend verified 12-step or support group modules.', type: 'boolean', required: false },
-    { id: 'clientSignature', label: 'Client Digital Signature', type: 'text', required: true },
-    { id: 'staffSignature', label: 'Staff Witness/QMHP Verification', type: 'text', required: false },
-    { id: 'date', label: 'Commitment Timestamp', type: 'date', required: true }
+    { id: 'clientSignature', label: 'Client signature', type: 'text', required: true },
+    { id: 'staffSignature', label: 'Staff signature (witness/QMHP)', type: 'text', required: false },
+    { id: 'date', label: 'Date', type: 'date', required: true }
   ]
 };
