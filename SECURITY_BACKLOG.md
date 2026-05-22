@@ -1,25 +1,65 @@
 # Security Backlog
 
 Post-demo (David Yoder, Tuesday 2026-05-19 1pm CT) items that we deliberately deferred
-to keep scope tight. Capture only — these are NOT changes for this sprint.
+to keep scope tight.
+
+The May 2026 trial uses **mock data only**. The two items below are named
+**trial-to-live blockers** — they must both be done before any real client or PHI data
+enters this database. The remaining items are smaller follow-ups.
 
 ---
 
-## 1. Enable RLS on 60 tables currently open to the anon key
+## BLOCKER 1 — Rotate the leaked Gemini API key in GCP Console
 
-**Severity:** Critical. With RLS disabled, every table below is fully exposed to the
-`anon` and `authenticated` roles — anyone with the Supabase publishable key can read or
-modify every row. Surfaced by the Supabase advisory check during the May 2026 demo prep.
+**Key:** `AIzaSyBLU362ndX18qYQO7OiW3mGniyn2Lsk93M`
 
-**Why we did not fix tonight:** Turning RLS on without first writing policies blocks all
-reads and writes, which would crater the demo. The proper fix is per-table policies
-(scoped by `auth.uid()` / `org_id` / `client_id`) before enabling RLS — that work didn't
-fit before Tuesday 1pm.
+Committed to git in `e913ed8` (April 2026) inside a `.env` file that was later
+untracked, and carried as a hardcoded fallback in `services/gemini.ts:10` until
+the fallback was removed in Phase D2 of the May 2026 trial sprint. Even with the
+fallback gone, the key string remains in git history reachable from `origin/main` —
+anyone with repo read access can recover it with `git log -S "AIzaSy"`.
 
-**Before running this, write policies for each table.** A naive `ENABLE ROW LEVEL SECURITY`
-without `CREATE POLICY` will make every table return zero rows.
+**Rotation is the only fix.** History rewriting is out of scope (would break clones,
+forks, and tags).
+
+**Required action (Dan):**
+- Open https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0121881478
+- Delete the key whose prefix is `AIzaSyBLU362…`
+- Regenerate a new Gemini key
+- Set the new key as `VITE_API_KEY` in the Cloud Shell / Firebase hosting env that
+  `firebase deploy --only hosting` reads from. Local `.env` already holds a different
+  key (`AIzaSyApFDxn…`); confirm whether *that* one has also been exposed (it has not
+  been committed — verified via `git log -S` — but rotate anyway if it was ever
+  shared off-machine).
+- Spot-check Clara voice (Phase E) after rotation so the new key is exercised end-to-end.
+
+---
+
+## BLOCKER 2 — Enable RLS + author policies on every public table
+
+**Severity statement (Dan, 2026-05-21):** "Enable RLS + author per-table policies on
+all public tables before any real client/PHI data enters the database. Trial is
+mock-data only; this gates the trial→live transition."
+
+Surfaced by the Supabase advisory during the May 2026 trial sprint — 66 tables in the
+`public` schema have RLS disabled. The high-leverage clinical ones are:
+`clinical_notes`, `form_submissions`, `users`, `documents`, `uploaded_files`. With the
+Supabase anon key being public-by-design (and committed in `services/supabase.ts`),
+anyone with the project URL can read or modify those rows today.
+
+**This is its own scoped sprint, not a tail-end task.** Turning RLS on without first
+writing policies blocks all reads and writes, which would crater the app. The proper
+fix is per-table policies (scoped by `auth.uid()` / `org_id` / `client_id`) authored
+*before* enabling RLS.
+
+**Highest-leverage tables for ACS specifically:** `form_submissions`, `clinical_notes`,
+`payments`, `clients`, `appointments`, `users`, `uploaded_files`, `documents`. PHI +
+billing — write policies for these first.
+
+**Reference SQL — DO NOT RUN until per-table policies exist:**
 
 ```sql
+-- A naive ENABLE without CREATE POLICY makes every table return zero rows.
 ALTER TABLE public.form_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clinical_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.verticals ENABLE ROW LEVEL SECURITY;
@@ -80,17 +120,19 @@ ALTER TABLE public.music_tracks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.story_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.probe_runs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.play_token_revocations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.manufacturers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_models ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.spec_constraints ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.manual_chunks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pudu_topics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pudu_conditions ENABLE ROW LEVEL SECURITY;
 ```
-
-**Highest-leverage tables for ACS specifically:** `form_submissions`, `clinical_notes`,
-`payments`, `clients`, `appointments`, `users`. Those carry PHI and billing data, so
-get policies in place there first.
 
 **See:** https://supabase.com/docs/guides/database/postgres/row-level-security
 
 ---
 
-## 2. Fold the assigned_therapist_id → therapists relationship into a real FK
+## 3. Fold the assigned_therapist_id → therapists relationship into a real FK
 
 Marcus's row references therapist UUID `44444444-…` for Karen Ventimiglia, but there's
 no `therapists` table and no FK enforcement. `public.users` carries an unrelated
@@ -106,3 +148,21 @@ Post-demo, decide:
 The temporary `THERAPIST_NAMES` lookup map in
 [components/clients/ClientOverviewTab.tsx](components/clients/ClientOverviewTab.tsx)
 is the visible symptom of this gap.
+
+---
+
+## 4. Replace `data/staffDirectory.ts` with a server-side phone→role resolver
+
+Added in Phase D1 (May 2026 trial sprint) as a hardcoded client-side map of trial
+phone numbers to roles, so iVALT success can resolve to a known staff member without
+a Supabase session. Acceptable for a 3-person trial; **not** acceptable post-trial
+because it ships staff phone numbers in the client bundle and has no audit trail.
+
+Replace with either:
+- (a) extend the `ivalt-auth` edge function so the `validate` action returns
+  `{role, full_name}` from `auth.users.raw_user_meta_data` on success, or
+- (b) a Supabase `staff_directory` table with a public-read RLS policy, seeded from
+  `auth.users.phone` + `auth.users.raw_user_meta_data`.
+
+Either option also unblocks tying iVALT success to a real Supabase session so the
+RLS work from Blocker 2 can take effect on the client-side path.

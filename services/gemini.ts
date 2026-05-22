@@ -7,7 +7,14 @@
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export function getApiKey(): string {
-  return import.meta.env.VITE_API_KEY || process.env.API_KEY || process.env.GEMINI_API_KEY || 'AIzaSyBLU362ndX18qYQO7OiW3mGniyn2Lsk93M';
+  const key = (import.meta as any).env?.VITE_API_KEY
+    || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined)
+    || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+  if (!key) {
+    console.error('[gemini] No Gemini API key — set VITE_API_KEY in .env (local) or the hosting env (deploy).');
+    return '';
+  }
+  return key;
 }
 
 export async function geminiGenerate(
