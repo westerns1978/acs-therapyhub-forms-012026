@@ -1,30 +1,54 @@
-
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { AuthContextType, User } from '../types';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { AuthContextType, User, UserRole } from '../types';
+import { supabase } from '../services/supabase';
+import {
+  mapSupabaseUser,
+  signInWithPassword,
+  signInDemo,
+  signOut,
+} from '../services/authService';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Auth state is now derived from the REAL Supabase Auth session — not
+ * sessionStorage. On mount we read the persisted session and then subscribe to
+ * `onAuthStateChange`, so the client's Postgres role is `authenticated` (not
+ * `anon`) whenever `user` is set. Role comes from the authenticated user's JWT
+ * metadata via `mapSupabaseUser` (see services/authService.ts).
+ */
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-        const storedUser = sessionStorage.getItem('user');
-        return storedUser ? JSON.parse(storedUser) : null;
-    } catch {
-        return null;
-    }
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = (userData: User) => {
-    sessionStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData);
-  };
+  useEffect(() => {
+    let mounted = true;
 
-  const logout = () => {
-    sessionStorage.removeItem('user');
-    setUser(null);
-  };
+    // 1. Hydrate from any persisted session (survives reloads).
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      setUser(session?.user ? mapSupabaseUser(session.user) : null);
+      setLoading(false);
+    });
 
-  const value = { user, login, logout };
+    // 2. Keep in sync with sign-in / sign-out / token refresh. Keep this
+    //    callback synchronous (no awaited supabase calls) per SDK guidance.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ? mapSupabaseUser(session.user) : null);
+      setLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const loginWithPassword = (email: string, password: string) => signInWithPassword(email, password);
+  const loginDemo = (role: UserRole) => signInDemo(role);
+  const logout = async () => { await signOut(); };
+
+  const value: AuthContextType = { user, loading, loginWithPassword, loginDemo, logout };
 
   return (
     <AuthContext.Provider value={value}>
@@ -38,8 +62,10 @@ export const useAuth = (): AuthContextType => {
   if (context === undefined) {
     return {
       user: null,
-      login: () => {},
-      logout: () => {},
+      loading: false,
+      loginWithPassword: async () => ({ error: 'Auth provider unavailable' }),
+      loginDemo: async () => ({ error: 'Auth provider unavailable' }),
+      logout: async () => {},
     };
   }
   return context;

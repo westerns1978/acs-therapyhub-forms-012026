@@ -369,7 +369,16 @@ export interface FileSystemNode { id: string; name: string; type: 'folder' | 'do
 export interface AiSuggestion { id: string; contextId: string; type: 'missing_document' | 'deadline_alert' | 'workflow_suggestion' | 'content_summary'; message: string; actionText?: string; priority: 'low' | 'medium' | 'high'; }
 export interface Form { id: string; title: string; category: 'Recovery Plans' | 'Assessments' | 'Intake'; description: string; format: 'electronic' | 'pdf'; pdfUrl?: string; }
 export interface FormSubmission { id: string; formId: string; formName?: string; clientId: string; status: 'Not Started' | 'In Progress' | 'Completed' | 'Reviewed'; submittedAt?: Date; reviewedAt?: Date; reviewedBy?: string; data?: any; assignedAt?: Date; dueDate?: Date; }
-export interface AuthContextType { user: User | null; login: (user: User) => void; logout: () => void; }
+export interface AuthContextType {
+  user: User | null;
+  /** True while the initial Supabase session is being resolved. */
+  loading: boolean;
+  /** Primary factor: real email/password sign-in. Returns a registered phone (if any) for the optional iVALT second factor. */
+  loginWithPassword: (email: string, password: string) => Promise<{ error?: string; phone?: string }>;
+  /** Demo path — still produces a REAL (test) Supabase session, not a stub. */
+  loginDemo: (role: UserRole) => Promise<{ error?: string }>;
+  logout: () => Promise<void>;
+}
 export interface AsamDimension { dimension: number; name: string; description: string; notes: string; }
 export interface AsamAssessmentData { [key: number]: AsamDimension; }
 export interface AsamAnalysisResult { clinicalSummary: string; dimensionRisks: Array<{ dimension: string; riskLevel: 'Low' | 'Moderate' | 'High' | string; }>; recommendedLevel: string; treatmentRecommendations: string[]; }
