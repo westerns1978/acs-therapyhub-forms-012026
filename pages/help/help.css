@@ -1,0 +1,201 @@
+/*
+ * Styling for rendered user-guide markdown on the public /help pages.
+ * Tailwind here is the CDN core (no typography plugin), so we style the
+ * generated HTML ourselves using the app's theme tokens (see tailwind.config in
+ * index.html): primary maroon #8B1E24, dark-mode primary #F87171, slate text.
+ * Dark mode is driven by the `.dark` class on <html> (ThemeProvider).
+ */
+
+.help-content {
+  color: #334155;
+  font-size: 1rem;
+  line-height: 1.7;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.dark .help-content {
+  color: #cbd5e1;
+}
+
+/* Headings ----------------------------------------------------------------- */
+.help-content h1,
+.help-content h2,
+.help-content h3,
+.help-content h4 {
+  color: #0f172a;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  /* Keep anchored headings clear of the sticky public header. */
+  scroll-margin-top: 6rem;
+}
+.dark .help-content h1,
+.dark .help-content h2,
+.dark .help-content h3,
+.dark .help-content h4 {
+  color: #f1f5f9;
+}
+.help-content h1 {
+  font-size: 1.95rem;
+  margin: 0 0 0.75em;
+}
+.help-content h2 {
+  font-size: 1.45rem;
+  margin: 1.9em 0 0.6em;
+  padding-top: 0.5em;
+  border-top: 1px solid #e2e8f0;
+}
+.dark .help-content h2 {
+  border-top-color: rgba(148, 163, 184, 0.22);
+}
+.help-content h3 {
+  font-size: 1.18rem;
+  margin: 1.6em 0 0.5em;
+}
+.help-content h4 {
+  font-size: 1.02rem;
+  margin: 1.3em 0 0.4em;
+}
+
+/* Text & links ------------------------------------------------------------- */
+.help-content p {
+  margin: 0 0 1.1em;
+}
+.help-content a {
+  color: #8b1e24;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.help-content a:hover {
+  color: #70181d;
+}
+.dark .help-content a {
+  color: #f87171;
+}
+.dark .help-content a:hover {
+  color: #fca5a5;
+}
+.help-content strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.dark .help-content strong {
+  color: #f8fafc;
+}
+
+/* Lists -------------------------------------------------------------------- */
+.help-content ul,
+.help-content ol {
+  margin: 0 0 1.1em;
+  padding-left: 1.5em;
+}
+.help-content li {
+  margin: 0.4em 0;
+}
+.help-content li > ul,
+.help-content li > ol {
+  margin: 0.4em 0;
+}
+
+/* Blockquote callouts (the ⚠️ / 💡 / 💬 notes) ----------------------------- */
+.help-content blockquote {
+  margin: 1.3em 0;
+  padding: 0.85em 1.1em;
+  border-left: 4px solid #8b1e24;
+  border-radius: 0.6rem;
+  background: rgba(139, 30, 36, 0.06);
+}
+.help-content blockquote p {
+  margin: 0.4em 0;
+}
+.help-content blockquote p:first-child {
+  margin-top: 0;
+}
+.help-content blockquote p:last-child {
+  margin-bottom: 0;
+}
+.dark .help-content blockquote {
+  border-left-color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* Tables (wrapped by HelpMarkdown for horizontal scroll on phones) --------- */
+.help-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin: 1.5em 0;
+  border-radius: 0.6rem;
+  border: 1px solid #e2e8f0;
+}
+.dark .help-table-wrap {
+  border-color: rgba(148, 163, 184, 0.22);
+}
+.help-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.help-content th,
+.help-content td {
+  padding: 0.6em 0.8em;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #e2e8f0;
+}
+.dark .help-content th,
+.dark .help-content td {
+  border-bottom-color: rgba(148, 163, 184, 0.18);
+}
+.help-content th {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+}
+.dark .help-content th {
+  background: rgba(148, 163, 184, 0.12);
+  color: #f1f5f9;
+}
+.help-content tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Code, rules, images ------------------------------------------------------ */
+.help-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: rgba(100, 116, 139, 0.14);
+  padding: 0.12em 0.36em;
+  border-radius: 0.3rem;
+}
+.dark .help-content code {
+  background: rgba(148, 163, 184, 0.2);
+}
+.help-content pre {
+  margin: 1.2em 0;
+  padding: 1em;
+  border-radius: 0.6rem;
+  overflow-x: auto;
+  background: #f1f5f9;
+}
+.dark .help-content pre {
+  background: rgba(15, 23, 42, 0.6);
+}
+.help-content pre code {
+  background: none;
+  padding: 0;
+}
+.help-content hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 2em 0;
+}
+.dark .help-content hr {
+  border-top-color: rgba(148, 163, 184, 0.22);
+}
+.help-content img {
+  max-width: 100%;
+  height: auto;
+}
