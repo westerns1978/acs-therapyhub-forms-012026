@@ -52,6 +52,11 @@ const PortalAppointments = lazy(() => import('./pages/portal/PortalAppointments'
 const RecoveryPlanForm = lazy(() => import('./pages/portal/RecoveryPlanForm'));
 const WebsitePortalBridge = lazy(() => import('./pages/WebsitePortalBridge'));
 
+// Public Help & Training (no auth — readable while signed out)
+const HelpLayout = lazy(() => import('./pages/help/HelpLayout'));
+const HelpHome = lazy(() => import('./pages/help/HelpHome'));
+const HelpPage = lazy(() => import('./pages/help/HelpPage'));
+
 function App() {
   return (
     <HashRouter>
@@ -68,6 +73,12 @@ function App() {
                   <Route path="/portal/login" element={<ClientLogin />} />
                   <Route path="/website" element={<WebsitePortalBridge />} />
                   <Route path="/visitor-resources" element={<PortalLayout><Resources /></PortalLayout>} />
+
+                  {/* Public Help & Training — no auth required, readable while signed out */}
+                  <Route path="/help" element={<HelpLayout />}>
+                    <Route index element={<HelpHome />} />
+                    <Route path=":slug" element={<HelpPage />} />
+                  </Route>
 
                   {/* Public Landing Page */}
                   <Route path="/" element={<WebsitePortalBridge />} />

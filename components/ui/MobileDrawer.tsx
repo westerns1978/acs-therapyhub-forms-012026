@@ -5,7 +5,7 @@ import ThemeToggle from './ThemeToggle';
 import {
     Home, Users, MessageSquare, Calendar,
     DollarSign, LogOut, X, BarChart3, FileText, Settings,
-    HardDrive, ClipboardList, Zap, ShieldCheck, BookOpen
+    HardDrive, ClipboardList, Zap, ShieldCheck, BookOpen, HelpCircle
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
 import type { UserRole } from '../../types';
@@ -62,6 +62,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
         { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
         { to: '/financials', icon: DollarSign, label: 'Financials', roles: DIRECTOR_ONLY },
         { to: '/compliance', icon: ShieldCheck, label: 'Compliance', roles: CLINICAL_ROLES },
+        { to: '/help', icon: HelpCircle, label: 'Help & Training', roles: ALL_ROLES },
     ] satisfies DrawerItemDef[])
         .filter(item => !isTrialHidden(item.to))
         .filter(item => !user || item.roles.includes(user.role));

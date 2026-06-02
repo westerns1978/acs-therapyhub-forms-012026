@@ -6,7 +6,7 @@ import GemyndFlowLogo from './GemyndFlowLogo';
 import {
     Home, Users, MessageSquare, Calendar, Shield,
     DollarSign, LogOut, X, BarChart3, Settings,
-    ClipboardList, Zap, Activity, BookOpen
+    ClipboardList, Zap, Activity, BookOpen, HelpCircle
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
 import type { UserRole } from '../../types';
@@ -65,6 +65,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
     { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
     { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', roles: CLINICAL_ROLES, notifications: 3 },
     { to: '/financials', icon: DollarSign, label: 'Financials', roles: DIRECTOR_ONLY },
+    { to: '/help', icon: HelpCircle, label: 'Help & Training', roles: ALL_ROLES },
   ] satisfies NavItemDef[])
     .filter(item => !isTrialHidden(item.to))
     .filter(item => !user || item.roles.includes(user.role));
