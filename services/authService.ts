@@ -23,26 +23,27 @@
  */
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabase';
-import type { User, UserRole } from '../types';
+import type { User, UserRole, StaffRole } from '../types';
 
-// Fallback role for an authenticated user whose record carries no role yet.
-// Least-privileged sensible default (NOT Director, which unlocks financials +
-// settings). Real staff accounts should carry `app_metadata.role` set by an
-// admin; provisioning real staff is out of scope for this step.
-const DEFAULT_ROLE: UserRole = 'Therapist';
-
-// Demo/trial accounts. The demo login self-provisions these as REAL Supabase
-// Auth users on first use (signUp), so the demo path produces a real session
-// rather than a stub. Clearly namespaced so they never collide with real
-// staff accounts. (Reported to the maintainer; safe to delete post-trial.)
+// Demo/trial STAFF accounts. The demo login self-provisions these as REAL
+// Supabase Auth users on first use (signUp), so the demo path produces a real
+// session rather than a stub. Clearly namespaced so they never collide with
+// real staff accounts. (Reported to the maintainer; safe to delete post-trial.)
 export const DEMO_PASSWORD = 'acs-demo-trial-2026!';
-export const DEMO_ACCOUNTS: Record<UserRole, { email: string; name: string }> = {
+export const DEMO_ACCOUNTS: Record<StaffRole, { email: string; name: string }> = {
   Director:  { email: 'demo.director@acs-therapyhub.com',  name: 'David Yoder (Demo Director)' },
   Therapist: { email: 'demo.therapist@acs-therapyhub.com', name: 'Karen (Demo Therapist)' },
   Admin:     { email: 'demo.admin@acs-therapyhub.com',     name: 'Jessica (Demo Admin)' },
 };
 
-/** Map the role string carried on the authenticated user to our UserRole. */
+/**
+ * Map the role string on the authenticated user to our UserRole.
+ *
+ * Anything that is not an explicit staff role resolves to 'Client' (non-staff).
+ * This INCLUDES users with no role at all. Previously unknown users defaulted to
+ * 'Therapist', which let any authenticated account into clinical routes — that
+ * hole is closed: counselor guards now require an explicit StaffRole.
+ */
 export function resolveRole(u: SupabaseUser | null | undefined): UserRole {
   const raw = (u?.app_metadata?.role ?? u?.user_metadata?.role ?? '')
     .toString().trim().toLowerCase();
@@ -50,12 +51,12 @@ export function resolveRole(u: SupabaseUser | null | undefined): UserRole {
     case 'director':  return 'Director';
     case 'admin':     return 'Admin';
     case 'therapist': return 'Therapist';
+    case 'client':    return 'Client';
     default:
-      console.warn(
-        `[auth] No recognized role on ${u?.email ?? 'user'} ` +
-        `(saw "${raw || 'none'}"); defaulting to ${DEFAULT_ROLE}.`
-      );
-      return DEFAULT_ROLE;
+      if (raw) {
+        console.warn(`[auth] Unrecognized role "${raw}" on ${u?.email ?? 'user'}; treating as non-staff (Client).`);
+      }
+      return 'Client';
   }
 }
 
@@ -89,7 +90,7 @@ export async function signInWithPassword(
  * sign in; on first run self-provisions the demo account via signUp with the
  * chosen role in `user_metadata`, then signs in.
  */
-export async function signInDemo(role: UserRole): Promise<{ error?: string }> {
+export async function signInDemo(role: StaffRole): Promise<{ error?: string }> {
   const acct = DEMO_ACCOUNTS[role];
   let res = await supabase.auth.signInWithPassword({
     email: acct.email,

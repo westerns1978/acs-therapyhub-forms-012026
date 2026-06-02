@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AuthContextType, User, UserRole } from '../types';
+import { AuthContextType, User, StaffRole } from '../types';
 import { supabase } from '../services/supabase';
 import {
   mapSupabaseUser,
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const loginWithPassword = (email: string, password: string) => signInWithPassword(email, password);
-  const loginDemo = (role: UserRole) => signInDemo(role);
+  const loginDemo = (role: StaffRole) => signInDemo(role);
   const logout = async () => { await signOut(); };
 
   const value: AuthContextType = { user, loading, loginWithPassword, loginDemo, logout };

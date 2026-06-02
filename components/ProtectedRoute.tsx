@@ -4,6 +4,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import MainLayout from '../layouts/MainLayout';
 import PageLoader from './ui/PageLoader';
+import { isStaffRole } from '../types';
 
 interface ProtectedRouteProps {
   children: React.ReactElement;
@@ -19,7 +20,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <PageLoader />;
   }
 
-  if (!user) {
+  // Counselor routes require an explicit STAFF role. Portal 'Client' users —
+  // and any authenticated user without a staff role — are denied.
+  if (!user || !isStaffRole(user.role)) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

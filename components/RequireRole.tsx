@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import MainLayout from '../layouts/MainLayout';
 import PageLoader from './ui/PageLoader';
-import type { UserRole } from '../types';
+import { isStaffRole, type UserRole } from '../types';
 
 interface RequireRoleProps {
   roles: readonly UserRole[];
@@ -19,10 +19,12 @@ const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => {
     return <PageLoader />;
   }
 
-  if (!user) {
+  // Require an explicit STAFF role first — denies 'Client' and no-role users.
+  if (!user || !isStaffRole(user.role)) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Authenticated staff, but not one of the roles this route allows.
   if (!roles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }

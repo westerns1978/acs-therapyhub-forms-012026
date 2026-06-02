@@ -3,20 +3,20 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import IValtMfaModal from '../components/IValtMfaModal';
 import { Mail, Lock, AlertTriangle, ChevronLeft, ArrowRight } from 'lucide-react';
-import type { UserRole } from '../types';
+import type { StaffRole } from '../types';
 
 const ACS_LOGO_URL = 'https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg';
 
 // Demo personas. Each maps to a REAL (test) Supabase Auth account that the demo
 // login self-provisions on first use (see services/authService.ts) — clicking a
 // role now creates an actual `authenticated` session, not a sessionStorage stub.
-const demoRoles: { role: UserRole; name: string }[] = [
+const demoRoles: { role: StaffRole; name: string }[] = [
   { role: 'Director',  name: 'David Yoder' },
   { role: 'Therapist', name: 'Karen' },
   { role: 'Admin',     name: 'Jessica' },
 ];
 
-const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
   Director: 'Full access — clinical, financial, settings.',
   Therapist: 'Clinical work — notes, treatment plans, sessions.',
   Admin: 'Office work — intake, scheduling, billing.',
@@ -82,7 +82,7 @@ const Login: React.FC = () => {
   };
 
   // DEMO PATH: bypasses iVALT (as before) but now produces a REAL test session.
-  const handleDemoLogin = async (role: UserRole) => {
+  const handleDemoLogin = async (role: StaffRole) => {
     setError('');
     setIsLoading(true);
     const res = await loginDemo(role);
@@ -225,9 +225,9 @@ const RealSignInForm: React.FC<RealSignInFormProps> = ({
 );
 
 interface DemoRolePickerProps {
-  roles: { role: UserRole; name: string }[];
+  roles: { role: StaffRole; name: string }[];
   isLoading: boolean;
-  onPick: (role: UserRole) => void;
+  onPick: (role: StaffRole) => void;
   onBack: () => void;
 }
 

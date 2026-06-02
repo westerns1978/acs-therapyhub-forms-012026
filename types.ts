@@ -5,7 +5,17 @@ import React from 'react';
 // clinician (Karen); Admin is the office role (Jessica) with no clinical access.
 // Be careful when reading any historical role === 'Admin' check — pre-rename,
 // 'Admin' meant superuser. Post-rename, 'Admin' is the office role.
-export type UserRole = 'Director' | 'Therapist' | 'Admin';
+//
+// StaffRole = the three counselor-app roles. UserRole also includes 'Client'
+// (portal users). Counselor routes are gated to StaffRole only (see
+// STAFF_ROLES / isStaffRole and components/ProtectedRoute + RequireRole).
+export type StaffRole = 'Director' | 'Therapist' | 'Admin';
+export type UserRole = StaffRole | 'Client';
+
+/** Allowlist for counselor-app access. Excludes 'Client' AND unknown/no-role. */
+export const STAFF_ROLES: readonly StaffRole[] = ['Director', 'Therapist', 'Admin'];
+export const isStaffRole = (r: UserRole | null | undefined): r is StaffRole =>
+  r === 'Director' || r === 'Therapist' || r === 'Admin';
 
 export interface User {
   id: string;
@@ -376,7 +386,7 @@ export interface AuthContextType {
   /** Primary factor: real email/password sign-in. Returns a registered phone (if any) for the optional iVALT second factor. */
   loginWithPassword: (email: string, password: string) => Promise<{ error?: string; phone?: string }>;
   /** Demo path — still produces a REAL (test) Supabase session, not a stub. */
-  loginDemo: (role: UserRole) => Promise<{ error?: string }>;
+  loginDemo: (role: StaffRole) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
 }
 export interface AsamDimension { dimension: number; name: string; description: string; notes: string; }
