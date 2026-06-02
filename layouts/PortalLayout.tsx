@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import SynapseChatPopover from '../components/ai/SynapseChatPopover';
+import { supabase } from '../services/supabase';
 import { Menu, X, Home, FileText, Calendar, CreditCard, BarChart, LogOut } from 'lucide-react';
 
 const LogOutIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>;
@@ -39,8 +40,9 @@ const PortalHeader: React.FC = () => {
         return () => { document.body.style.overflow = ''; };
     }, [isMobileMenuOpen]);
 
-    const handleLogout = () => {
-        sessionStorage.removeItem('portal_client');
+    const handleLogout = async () => {
+        // End the real Supabase session (replaces the old sessionStorage stub).
+        await supabase.auth.signOut();
         navigate('/portal/login');
     };
 

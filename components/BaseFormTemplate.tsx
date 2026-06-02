@@ -6,6 +6,7 @@ import { ProgressBar } from './ProgressBar';
 import { SuccessScreen } from './SuccessScreen';
 import { PrintPreview } from './PrintPreview';
 import { supabase } from '../services/supabase';
+import { usePortalClient } from '../hooks/usePortalClient';
 import { ChevronLeft, Save, Send, AlertTriangle, Loader2, X } from 'lucide-react';
 
 interface BaseFormTemplateProps<T> {
@@ -38,6 +39,9 @@ const INPUT_BASE_CLASSES =
     "shadow-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors";
 
 export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLibrary }: BaseFormTemplateProps<T>) => {
+  // Portal client now comes from the real Supabase session (null in the
+  // counselor context, where the legacy fallback in handleSubmit applies).
+  const portalClient = usePortalClient();
   const [formData, setFormData] = useState<T>(() => {
     const savedData = localStorage.getItem(`draft-${formDefinition.id}`);
     if (savedData) {
@@ -119,9 +123,11 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
     setSubmissionError(null);
 
     try {
-      const clientData = sessionStorage.getItem('portal_client');
-      const client = clientData ? JSON.parse(clientData) : null;
-      const clientId = client?.id || 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+      // Portal submissions use the authenticated client's id (from the real
+      // session). The hardcoded fallback is retained ONLY for the counselor-
+      // side template preview (Forms.tsx), where there is no portal client —
+      // unchanged from prior behavior.
+      const clientId = portalClient?.id || 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
       // If staff previously assigned this form, there's already a row with
       // status='Not Started'. Update it so we don't create a duplicate.

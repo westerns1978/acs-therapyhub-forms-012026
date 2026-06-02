@@ -8,6 +8,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import PortalProtectedRoute from './components/PortalProtectedRoute';
 import RequireRole from './components/RequireRole';
 import PageLoader from './components/ui/PageLoader';
 import PortalLayout from './layouts/PortalLayout';
@@ -127,15 +128,16 @@ function App() {
                   {/* Director-only superuser routes */}
                   <Route path="/settings" element={<RequireRole roles={['Director']}><Settings /></RequireRole>} />
 
-                  {/* Client-facing Portal */}
-                  <Route path="/portal/dashboard" element={<PortalDashboard />} />
-                  <Route path="/portal/documents" element={<PortalDocuments />} />
-                  <Route path="/portal/billing" element={<PortalBilling />} />
-                  <Route path="/portal/documents/sign/:docId" element={<PortalSignDocument />} />
-                  <Route path="/portal/compliance" element={<PortalCompliance />} />
-                  <Route path="/portal/appointments" element={<PortalAppointments />} />
-                  <Route path="/portal/forms/:formId" element={<PortalFormPage />} />
-                  <Route path="/portal/recovery-plan" element={<RecoveryPlanForm />} />
+                  {/* Client-facing Portal — gated on a real Supabase session (PortalProtectedRoute).
+                      /portal/login stays public (defined above). */}
+                  <Route path="/portal/dashboard" element={<PortalProtectedRoute><PortalDashboard /></PortalProtectedRoute>} />
+                  <Route path="/portal/documents" element={<PortalProtectedRoute><PortalDocuments /></PortalProtectedRoute>} />
+                  <Route path="/portal/billing" element={<PortalProtectedRoute><PortalBilling /></PortalProtectedRoute>} />
+                  <Route path="/portal/documents/sign/:docId" element={<PortalProtectedRoute><PortalSignDocument /></PortalProtectedRoute>} />
+                  <Route path="/portal/compliance" element={<PortalProtectedRoute><PortalCompliance /></PortalProtectedRoute>} />
+                  <Route path="/portal/appointments" element={<PortalProtectedRoute><PortalAppointments /></PortalProtectedRoute>} />
+                  <Route path="/portal/forms/:formId" element={<PortalProtectedRoute><PortalFormPage /></PortalProtectedRoute>} />
+                  <Route path="/portal/recovery-plan" element={<PortalProtectedRoute><RecoveryPlanForm /></PortalProtectedRoute>} />
                   <Route path="/portal" element={<Navigate to="/portal/dashboard" replace />} />
                 </Routes>
               </Suspense>
