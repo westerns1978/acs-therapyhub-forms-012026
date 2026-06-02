@@ -1,3 +1,16 @@
+> # ⚠️ STATUS: ASPIRATIONAL TARGET — INTERNAL DESIGN INTENT, NOT AS-BUILT
+>
+> **This document describes the *intended* design of GeMyndFlow. It is NOT a description of the system as currently built (as of 2026-06-02).** Many components below are aspirational, partially built, mocked, or absent in the actual code. Do not treat any statement here as current functionality, and do not repeat these claims to customers.
+>
+> **In particular, §7 (Security & Compliance) is NOT implemented:**
+> - **"AES-256 for all binary storage"** — not implemented; there is no application-level encryption, and uploaded documents are stored at public Storage URLs.
+> - **"Audit Integrity" / audit logging** — not implemented; the `audit_logs` table is never written to.
+> - **The "Grounded in PDS records" watermark** — not implemented; the string appears nowhere in the code.
+>
+> Other claims here are likewise not built as specified — e.g. "Gemini 3 Pro with a 32k thinking budget" (the code uses `gemini-2.5-flash`), PDS-Vault secure storage, and the "single atomic transaction" linking note → billing → tasks (the billing and task writes are no-ops). See `GAP_ANALYSIS.md` for a file-by-file reconciliation.
+
+---
+
 # GeMyndFlow (ACS TherapyHub) Technical Specification V2.0
 
 ## 1. Architectural Overview
