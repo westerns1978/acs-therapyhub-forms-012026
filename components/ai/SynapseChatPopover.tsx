@@ -101,18 +101,25 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         ]);
     }, [mode]);
 
+    // Role-aware tool set. Gemini rejects built-in tools (google_search) and
+    // function calling in the SAME request, so each role gets EXACTLY ONE set:
+    //   - CLIENT (portal): google_search grounding only. NO function_declarations,
+    //     and therefore NO path to callMcpOrchestrator — a portal client must never
+    //     reach staff data, app navigation, or MCP tools (security boundary).
+    //   - STAFF: function_declarations (navigation + MCP lookups) only; no search.
     const getTools = () => {
-        const baseTools: any[] = [
-            { function_declarations: [{ name: "navigate_to_page", description: "Navigate to a specific system page (e.g. /dashboard, /clients).", parameters: { type: "OBJECT", properties: { path: { type: "STRING" } }, required: ["path"] } }] },
-            { google_search: {} }
-        ];
-        if (mode === 'staff') {
-            baseTools[0].function_declarations.push(
-                { name: "patient_session_summary", description: "Get session status and compliance tracking for a client.", parameters: { type: "OBJECT", properties: { patient_id: { type: "STRING" } }, required: ["patient_id"] } },
-                { name: "billing_status", description: "Check billing and insurance claims for the practice.", parameters: { type: "OBJECT", properties: { practice_id: { type: "STRING" } } } }
-            );
+        if (mode === 'client') {
+            return [{ google_search: {} }];
         }
-        return baseTools;
+        return [
+            {
+                function_declarations: [
+                    { name: "navigate_to_page", description: "Navigate to a specific system page (e.g. /dashboard, /clients).", parameters: { type: "OBJECT", properties: { path: { type: "STRING" } }, required: ["path"] } },
+                    { name: "patient_session_summary", description: "Get session status and compliance tracking for a client.", parameters: { type: "OBJECT", properties: { patient_id: { type: "STRING" } }, required: ["patient_id"] } },
+                    { name: "billing_status", description: "Check billing and insurance claims for the practice.", parameters: { type: "OBJECT", properties: { practice_id: { type: "STRING" } } } }
+                ]
+            }
+        ];
     };
 
     const SYSTEM_INSTRUCTION = mode === 'staff'
@@ -178,14 +185,17 @@ You can navigate the staff UI and check client records via available tools.`
 
             const parts = candidate?.content?.parts || [];
             const functionCalls = parts.filter((p: any) => p.functionCall);
-            if (functionCalls.length > 0) {
+            // Tool calls are a STAFF-only path (client getTools() declares no
+            // function tools). Gating on mode here is defense-in-depth: a client
+            // session can never reach callMcpOrchestrator even if a tool call appeared.
+            if (mode === 'staff' && functionCalls.length > 0) {
                  for (const part of functionCalls) {
                      const fc = part.functionCall;
-                     setToolUseState(mode === 'staff' ? `Looking that up...` : `Looking that up for you...`);
+                     setToolUseState(`Looking that up...`);
                      if (fc.name === 'navigate_to_page') navigate(fc.args?.path);
                      else {
                         const mcpResult = await callMcpOrchestrator(fc.name, fc.args);
-                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: mode === 'staff' ? `Here's what I found: ${JSON.stringify(mcpResult)}` : `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
+                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
                      }
                  }
                  setToolUseState(null);
