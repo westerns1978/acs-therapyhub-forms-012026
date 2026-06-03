@@ -7,9 +7,11 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const SessionManagement: React.FC = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const canManage = isStaffRole(user?.role);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
@@ -18,6 +20,15 @@ const SessionManagement: React.FC = () => {
     const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
     const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
     const [savingStatus, setSavingStatus] = useState(false);
+
+    // Opens the live session (ActiveSession → wrap-up → saved note) for this
+    // appointment's client. Only reachable when the appointment carries a clientId.
+    const handleStartSession = () => {
+        const cid = selectedAppt?.clientId;
+        if (!cid) return;
+        setSelectedAppt(null);
+        navigate(`/session/${cid}`);
+    };
 
     // Real Supabase persistence: updateAppointmentStatus writes appointments.status,
     // then we patch local state with the mapped row so the card re-colors immediately
@@ -262,6 +273,7 @@ const SessionManagement: React.FC = () => {
                 onClose={() => setSelectedAppt(null)}
                 onSetStatus={handleSetStatus}
                 onDelete={handleDeleteAppointment}
+                onStartSession={handleStartSession}
                 isSaving={savingStatus}
                 canManage={canManage}
             />

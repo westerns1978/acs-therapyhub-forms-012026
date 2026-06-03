@@ -101,7 +101,9 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
 
     const handleFinish = () => {
         onClose();
-        navigate('/clients');
+        // Land on the client's record so the note just saved during wrap-up is
+        // right there in their Clinical Notes.
+        navigate(`/clients/${client.id}`);
     };
 
     const renderStepContent = () => {

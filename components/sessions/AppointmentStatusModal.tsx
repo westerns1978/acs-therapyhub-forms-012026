@@ -1,7 +1,7 @@
 import React from 'react';
 import { Appointment, AppointmentStatus } from '../../types';
 import Modal from '../ui/Modal';
-import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2 } from 'lucide-react';
+import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play } from 'lucide-react';
 
 // Single source of truth for status → Tailwind classes, shared with the schedule
 // grid (SessionManagement) so a card and its detail badge always agree. Mirrors
@@ -23,13 +23,16 @@ interface AppointmentStatusModalProps {
     onClose: () => void;
     onSetStatus: (status: AppointmentStatus) => void;
     onDelete: () => void;
+    /** Opens the live session for this appointment's client. Only offered when the
+     *  appointment has a clientId (1:1 sessions, not unassigned group slots). */
+    onStartSession?: () => void;
     isSaving: boolean;
     /** Staff-only gate. When false the actions are hidden (read-only detail). */
     canManage: boolean;
 }
 
 const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
-    appointment, isOpen, onClose, onSetStatus, onDelete, isSaving, canManage,
+    appointment, isOpen, onClose, onSetStatus, onDelete, onStartSession, isSaving, canManage,
 }) => {
     if (!appointment) return null;
 
@@ -68,6 +71,16 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
 
                 {canManage ? (
                     <>
+                        {appointment.clientId && onStartSession && (
+                            <button
+                                type="button"
+                                onClick={onStartSession}
+                                disabled={isSaving}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-700 text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                <Play size={16} /> Start Session
+                            </button>
+                        )}
                         <div className="grid grid-cols-1 gap-2">
                             <StatusAction status="Completed" label="Mark Completed" icon={CheckCircle2} className="bg-emerald-600 hover:bg-emerald-700 text-white" />
                             <StatusAction status="No Show" label="Mark No-Show" icon={UserX} className="bg-amber-500 hover:bg-amber-600 text-white" />

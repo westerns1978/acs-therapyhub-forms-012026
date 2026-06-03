@@ -20,6 +20,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ClientWorkspace = lazy(() => import('./pages/ClientWorkspace'));
 const CommunicationCenter = lazy(() => import('./pages/CommunicationCenter'));
 const SessionManagement = lazy(() => import('./pages/SessionManagement'));
+const ActiveSession = lazy(() => import('./pages/ActiveSession'));
 const ProgramCompliance = lazy(() => import('./pages/ProgressTracking'));
 const ComplianceAssistant = lazy(() => import('./pages/ComplianceAssistant'));
 const AsamAssessment = lazy(() => import('./pages/AsamAssessment'));
@@ -90,6 +91,7 @@ function App() {
                   <Route path="/clients/:clientId" element={<ProtectedRoute><ClientWorkspace /></ProtectedRoute>} />
                   <Route path="/communication-center" element={<ProtectedRoute><CommunicationCenter /></ProtectedRoute>} />
                   <Route path="/session-management" element={<ProtectedRoute><SessionManagement /></ProtectedRoute>} />
+                  <Route path="/session/:clientId" element={<ProtectedRoute><ActiveSession /></ProtectedRoute>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
                   <Route path="/sign/:documentType/:clientId" element={<ProtectedRoute><SignaturePage /></ProtectedRoute>} />
                   <Route path="/fee-ledger/:clientId" element={<ProtectedRoute><FeeLedger /></ProtectedRoute>} />

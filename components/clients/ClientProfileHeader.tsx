@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Client } from '../../types';
+import { useNavigate } from 'react-router-dom';
+import { Client, isStaffRole } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
-import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil } from 'lucide-react';
+import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play } from 'lucide-react';
 import { generateClinicalSnapshot } from '../../services/api';
 import ClinicalMarkdown from '../ClinicalMarkdown';
 
@@ -54,6 +56,9 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
   const [isSnapshotExpanded, setIsSnapshotExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [clinicalSnapshot, setClinicalSnapshot] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const canStartSession = isStaffRole(user?.role);
 
   const handleGenerateSnapshot = async () => {
     if (clinicalSnapshot) {
@@ -104,6 +109,14 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
           </div>
           
           <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-3">
+                {canStartSession && (
+                    <button
+                        onClick={() => navigate(`/session/${client.id}`)}
+                        className="flex items-center gap-3 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 hover:scale-105 transition-all shadow-xl shadow-indigo-600/20 active:scale-95"
+                    >
+                        <Play size={16} /> Start Session
+                    </button>
+                )}
                 <button className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10 active:scale-95">
                     <FilePlus size={16} /> Session Note
                 </button>
