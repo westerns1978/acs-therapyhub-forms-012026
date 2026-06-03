@@ -1,18 +1,20 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
-import { Video, Calendar, DollarSign, AlertTriangle, Activity, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { getAppointments, getClients, getRecentClientCommunications, type ClientCommunication } from '../services/api';
 import { fetchAlerts, summarizeAlerts, type AlertsSummary, type ClientAlert } from '../services/alertsService';
+import { Appointment } from '../types';
+import { Video, Calendar, AlertTriangle, Activity, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus } from 'lucide-react';
 
-// No delta shown — we have no historical baseline to compute period-over-period
-// change. Showing '—' in the delta slot keeps the visual real-estate but
-// doesn't fabricate a direction.
-const OperationalInsightCard: React.FC<{ title: string, value: string, icon: any, color: string }> = ({ title, value, icon: Icon, color }) => (
-    <div className="p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl transition-all hover:scale-[1.02] group">
+const greetingFor = (h: number) => (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening');
+const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+
+// Director-only aggregate stat tile. No delta — no historical baseline to compute one.
+const StatCard: React.FC<{ title: string; value: string; icon: any; color: string }> = ({ title, value, icon: Icon, color }) => (
+    <div className="p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl transition-all hover:scale-[1.02]">
         <div className="flex justify-between items-start mb-4">
             <div className={`p-3 rounded-2xl ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
                 <Icon size={20} />
@@ -24,237 +26,274 @@ const OperationalInsightCard: React.FC<{ title: string, value: string, icon: any
     </div>
 );
 
-// null = query failed or no data yet, rendered as '—'.
-// 0 = honest zero, rendered as '0' / '$0' / '0%'.
-interface DashboardMetrics {
-    complianceRate: number | null;
-    monthlyRevenue: number | null;
-    activeClients: number | null;
-}
-
 const Dashboard: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [appointments, setAppointments] = useState<any[]>([]);
+
+    const role = user?.role;
+    const isDirector = role === 'Director';
+    const isTherapist = role === 'Therapist';
+    const isAdmin = role === 'Admin';
+    const isClinical = isDirector || isTherapist;
+
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [alerts, setAlerts] = useState<ClientAlert[]>([]);
     const [alertSummary, setAlertSummary] = useState<AlertsSummary>({ critical: 0, high: 0, elevated: 0, moderate: 0, total: 0 });
-    const [topAlerts, setTopAlerts] = useState<ClientAlert[]>([]);
-    const [metrics, setMetrics] = useState<DashboardMetrics>({
+    const [recentComms, setRecentComms] = useState<ClientCommunication[]>([]);
+    const [clientNames, setClientNames] = useState<Record<string, string>>({});
+    // Director aggregate stats. null = query failed / not meaningful → render '—'.
+    // Monthly Revenue is intentionally absent until subscription/billing is real
+    // (payments is empty / not wired); it returns here once billing persists.
+    const [metrics, setMetrics] = useState<{ complianceRate: number | null; activeClients: number | null }>({
         complianceRate: null,
-        monthlyRevenue: null,
         activeClients: null,
     });
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
+        let cancelled = false;
         const fetchData = async () => {
+            setIsLoading(true);
             try {
-                setIsLoading(true);
-                
-                // Active clients
-                const { count: clientCount } = await supabase
-                    .from('clients')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('status', 'active');
+                // Today's schedule + client name map — real (appointments + clients tables).
+                const [appts, clientList] = await Promise.all([getAppointments(new Date()), getClients()]);
+                if (cancelled) return;
+                setAppointments(appts);
+                const nameMap: Record<string, string> = {};
+                clientList.forEach(c => { nameMap[c.id] = c.name; });
+                setClientNames(nameMap);
 
-                // Revenue this month
-                const monthStart = new Date(
-                    new Date().getFullYear(), 
-                    new Date().getMonth(), 1
-                ).toISOString();
-                const { data: payments } = await supabase
-                    .from('payments')
-                    .select('amount')
-                    .gte('payment_date', monthStart);
-                const revenue = payments?.reduce(
-                    (sum, p) => sum + Number(p.amount), 0
-                ) || 0;
-
-                // Average compliance score
-                const { data: clients } = await supabase
-                    .from('clients')
-                    .select('compliance_score')
-                    .eq('status', 'active');
-                const avgCompliance = clients?.length
-                    ? clients.reduce((sum, c) => sum + (c.compliance_score || 0), 0) / clients.length
-                    : 0;
-
-                setMetrics({
-                    // null if no active clients — average over zero clients is not a meaningful rate
-                    complianceRate: clients && clients.length > 0
-                        ? Math.round(avgCompliance * 10) / 10
-                        : null,
-                    monthlyRevenue: revenue,
-                    activeClients: clientCount ?? 0,
-                });
-
-                // Today's schedule
-                const today = new Date().toISOString().split('T')[0];
-                const tomorrow = new Date(Date.now() + 86400000)
-                    .toISOString().split('T')[0];
-                
-                const { data: scheduleData } = await supabase
-                    .from('appointments')
-                    .select('*, clients(name, program_type)')
-                    .gte('start_time', today)
-                    .lt('start_time', tomorrow)
-                    .order('start_time');
-                
-                setAppointments(scheduleData || []);
-
-                // Risk alerts (non-blocking — falls back to empty on failure)
-                try {
-                    const alerts = await fetchAlerts();
-                    setAlertSummary(summarizeAlerts(alerts));
-                    setTopAlerts(alerts.slice(0, 3));
-                } catch (e) {
-                    console.warn('[dashboard] fetchAlerts failed:', e);
+                // Compliance alerts — clinical only. Real, derived from the clients table.
+                if (isClinical) {
+                    try {
+                        const a = await fetchAlerts();
+                        if (!cancelled) { setAlerts(a); setAlertSummary(summarizeAlerts(a)); }
+                    } catch (e) { console.warn('[dashboard] fetchAlerts failed:', e); }
                 }
-            } catch (error) {
-                console.warn("Failed to fetch dashboard:", error);
-                // Failed query → render '—' in each tile. No fabricated fallback numbers.
-                setMetrics({ complianceRate: null, monthlyRevenue: null, activeClients: null });
-                setAppointments([]);
+
+                // Recent client messages — admin only. Real client_communications rows.
+                if (isAdmin) {
+                    try {
+                        const c = await getRecentClientCommunications(6);
+                        if (!cancelled) setRecentComms(c);
+                    } catch (e) { console.warn('[dashboard] recent comms failed:', e); }
+                }
+
+                // Aggregate stats — director only. Real counts off the clients table.
+                if (isDirector) {
+                    try {
+                        const { count } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active');
+                        const { data: cs } = await supabase.from('clients').select('compliance_score').eq('status', 'active');
+                        const avg = cs && cs.length ? cs.reduce((s, r) => s + (r.compliance_score || 0), 0) / cs.length : null;
+                        if (!cancelled) setMetrics({ activeClients: count ?? 0, complianceRate: avg === null ? null : Math.round(avg * 10) / 10 });
+                    } catch (e) { console.warn('[dashboard] metrics failed:', e); }
+                }
+            } catch (e) {
+                console.warn('[dashboard] load failed:', e);
             } finally {
-                setIsLoading(false);
+                if (!cancelled) setIsLoading(false);
             }
         };
-
         fetchData();
+        return () => { cancelled = true; };
     }, [user]);
 
-    if (isLoading || !metrics) return <DashboardSkeleton />;
+    if (isLoading) return <DashboardSkeleton />;
+
+    // ---- Briefing line: composed from REAL counts only (rule-based templating).
+    // No AI generates these numbers — a hallucinated count in a clinician's morning
+    // is unacceptable. (geminiJSON could rephrase tone around the numbers, but the
+    // numbers themselves stay deterministic.)
+    const firstName = (user?.name || '').split(' ')[0] || 'there';
+    const hello = `Good ${greetingFor(new Date().getHours())}, ${firstName}.`;
+    const todayCount = appointments.length;
+    const flaggedClients = new Set(alerts.map(a => a.clientId)).size;
+    const schedPhrase = todayCount === 0
+        ? 'No sessions are on today’s schedule'
+        : `${plural(todayCount, 'session')} ${todayCount === 1 ? 'is' : 'are'} on today’s schedule`;
+
+    let briefingDetail: string;
+    if (isAdmin) {
+        briefingDetail = recentComms.length === 0
+            ? `${schedPhrase}, and there are no recent client messages.`
+            : `${schedPhrase}, and ${plural(recentComms.length, 'recent client message')} ${recentComms.length === 1 ? 'is' : 'are'} waiting.`;
+    } else if (isTherapist) {
+        briefingDetail = flaggedClients === 0
+            ? `${schedPhrase}, and no clients are currently flagged.`
+            : `${schedPhrase}, and ${plural(flaggedClients, 'client')} ${flaggedClients === 1 ? 'has' : 'have'} a compliance flag.`;
+    } else {
+        // Director (and any other staff fallback): practice-wide.
+        const stats = metrics.activeClients != null ? `, and ${plural(metrics.activeClients, 'active client')}` : '';
+        briefingDetail = `${schedPhrase}, with ${plural(alertSummary.total, 'open alert')} across the caseload${stats}.`;
+    }
+
+    const ScheduleCard = (
+        <Card title="Today's Schedule" subtitle={isAdmin ? 'Appointments on the books for today.' : 'Today’s clinical sessions.'}>
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {appointments.length > 0 ? appointments.map(apt => (
+                    <button
+                        key={apt.id}
+                        onClick={() => apt.clientId ? navigate(`/clients/${apt.clientId}`) : navigate('/session-management')}
+                        className="w-full py-6 flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 px-4 rounded-2xl transition-all text-left"
+                    >
+                        <div className="flex items-center gap-8">
+                            <div className="text-center w-20">
+                                <p className="text-xl font-black text-slate-900 dark:text-white leading-none">{apt.startTime}</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{apt.endTime}</p>
+                            </div>
+                            <div className="h-10 w-px bg-slate-200 dark:bg-slate-700"></div>
+                            <div>
+                                <h4 className="font-black text-lg text-slate-800 dark:text-white group-hover:text-primary transition-colors">{apt.clientName || apt.title}</h4>
+                                <div className="flex items-center gap-4 mt-1.5">
+                                    <span className="text-[10px] font-black bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500">{apt.type}</span>
+                                    {apt.modality?.includes('Zoom') && <span className="flex items-center gap-1.5 text-[10px] font-bold text-secondary"><Video size={12}/> TELEHEALTH</span>}
+                                </div>
+                            </div>
+                        </div>
+                        <span className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                            <ArrowUpRight size={18}/>
+                        </span>
+                    </button>
+                )) : (
+                    <div className="py-20 text-center text-slate-300">
+                        <Calendar size={48} className="mx-auto mb-4 opacity-20" />
+                        <p className="text-xs font-black uppercase tracking-[0.3em]">No appointments scheduled for today.</p>
+                    </div>
+                )}
+            </div>
+        </Card>
+    );
+
+    const GuardrailsCard = (
+        <Card title="Clinical Guardrails" subtitle="Compliance flags from real client activity.">
+            <div className="space-y-3">
+                {alerts.length > 0 ? alerts.slice(0, 5).map(a => (
+                    <button
+                        key={a.id}
+                        onClick={() => navigate(`/clients/${a.clientId}`)}
+                        className="w-full text-left flex items-start gap-4 p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                        <AlertTriangle className="text-primary shrink-0 mt-1" size={20} />
+                        <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-black text-primary uppercase tracking-widest">{a.tier} · {a.clientName}</p>
+                            <p className="text-sm font-bold text-slate-800 dark:text-red-200 mt-0.5">{a.headline}</p>
+                        </div>
+                    </button>
+                )) : (
+                    <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No active alerts.</div>
+                )}
+            </div>
+        </Card>
+    );
 
     return (
         <div className="max-w-7xl mx-auto space-y-8 animate-fade-in-up">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-                <div>
-                    <h1 className="text-5xl font-black text-slate-900 dark:text-white tracking-tighter">
-                        Dashboard
-                    </h1>
-                    {alertSummary.total > 0 && (
-                        <button
-                            onClick={() => navigate('/risk-monitor')}
-                            className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition text-xs font-black uppercase tracking-widest"
-                        >
-                            <AlertTriangle size={14} />
-                            Pending Alerts: {alertSummary.total}
-                        </button>
-                    )}
+            {/* Briefing line — inline text, no popup. */}
+            <div>
+                <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tighter">{hello}</h1>
+                <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 mt-3 max-w-3xl">{briefingDetail}</p>
+                {isClinical && alertSummary.total > 0 && (
+                    <button
+                        onClick={() => navigate('/risk-monitor')}
+                        className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition text-xs font-black uppercase tracking-widest"
+                    >
+                        <AlertTriangle size={14} /> Review {plural(alertSummary.total, 'alert')}
+                    </button>
+                )}
+            </div>
+
+            {/* Director-only aggregate stats. Monthly Revenue intentionally omitted. */}
+            {isDirector && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <StatCard title="Compliance Rate" value={metrics.complianceRate === null ? '—' : `${metrics.complianceRate}%`} icon={ShieldCheck} color="bg-emerald-500" />
+                    <StatCard title="Active Clients" value={metrics.activeClients === null ? '—' : metrics.activeClients.toString()} icon={Activity} color="bg-primary" />
                 </div>
-            </div>
+            )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <OperationalInsightCard
-                    title="Compliance Rate"
-                    value={metrics.complianceRate === null ? '—' : `${metrics.complianceRate}%`}
-                    icon={ShieldCheck}
-                    color="bg-emerald-500"
-                />
-                <OperationalInsightCard
-                    title="Monthly Revenue"
-                    value={metrics.monthlyRevenue === null ? '—' : `$${metrics.monthlyRevenue.toLocaleString()}`}
-                    icon={DollarSign}
-                    color="bg-blue-500"
-                />
-                <OperationalInsightCard
-                    title="Active Clients"
-                    value={metrics.activeClients === null ? '—' : metrics.activeClients.toString()}
-                    icon={Activity}
-                    color="bg-primary"
-                />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-8">
-                    <Card title="Today's Schedule" subtitle="Today's clinical sessions.">
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {appointments.length > 0 ? appointments.map((apt) => {
-                                const dateObj = new Date(apt.start_time);
-                                const timeString = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                                const [time, period] = timeString.split(' ');
-                                return (
-                                <div key={apt.id} className="py-6 flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 px-4 rounded-2xl transition-all">
-                                    <div className="flex items-center gap-8">
-                                        <div className="text-center w-20">
-                                            <p className="text-xl font-black text-slate-900 dark:text-white leading-none">{time}</p>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{period}</p>
-                                        </div>
-                                        <div className="h-10 w-px bg-slate-200 dark:bg-slate-700"></div>
-                                        <div>
-                                            <h4 className="font-black text-lg text-slate-800 dark:text-white group-hover:text-primary transition-colors">{apt.clients?.name || 'Unknown Client'}</h4>
-                                            <div className="flex items-center gap-4 mt-1.5">
-                                                <span className="text-[10px] font-black bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500">{apt.appointment_type}</span>
-                                                {apt.modality?.includes('Zoom') && <span className="flex items-center gap-1.5 text-[10px] font-bold text-secondary"><Video size={12}/> TELEHEALTH</span>}
+            {/* YOUR DAY — role-filtered. */}
+            {isAdmin ? (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2">{ScheduleCard}</div>
+                    <div className="lg:col-span-1 space-y-6">
+                        <Card title="Quick Actions">
+                            <button
+                                onClick={() => window.dispatchEvent(new CustomEvent('open-create-client-modal'))}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary-focus transition shadow-lg shadow-primary/20"
+                            >
+                                <UserPlus size={16} /> New Client Intake
+                            </button>
+                            <button
+                                onClick={() => navigate('/session-management')}
+                                className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"
+                            >
+                                <Calendar size={16} /> Open Schedule
+                            </button>
+                        </Card>
+                        <Card title="Recent Client Messages" subtitle="Most recent communications sent.">
+                            <div className="space-y-3">
+                                {recentComms.length > 0 ? recentComms.map(m => (
+                                    <button
+                                        key={m.id}
+                                        onClick={() => m.clientId ? navigate(`/clients/${m.clientId}`) : navigate('/communication-center')}
+                                        className="w-full text-left flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                                    >
+                                        <MessageSquare className="text-primary shrink-0 mt-0.5" size={16} />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex justify-between items-baseline gap-2">
+                                                <p className="text-xs font-black text-slate-700 dark:text-slate-200 truncate">{(m.clientId && clientNames[m.clientId]) || 'Client'}</p>
+                                                <span className="text-[10px] text-slate-400 shrink-0">{new Date(m.sentAt).toLocaleDateString()}</span>
                                             </div>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{m.message}</p>
                                         </div>
-                                    </div>
-                                    <button className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
-                                        <ArrowUpRight size={18}/>
                                     </button>
-                                </div>
-                            )}) : (
-                                <div className="py-20 text-center text-slate-300">
-                                    <Calendar size={48} className="mx-auto mb-4 opacity-20" />
-                                    <p className="text-xs font-black uppercase tracking-[0.3em]">No appointments scheduled for today.</p>
-                                </div>
-                            )}
-                        </div>
-                    </Card>
-                    
-                    <Card title="Risk Monitor" subtitle="Actionable alerts from real client activity.">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div className="p-4 rounded-2xl border-2 border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10">
-                                <div className="text-3xl font-black tracking-tighter text-red-600">{alertSummary.critical}</div>
-                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Critical</div>
+                                )) : (
+                                    <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No recent messages.</div>
+                                )}
                             </div>
-                            <div className="p-4 rounded-2xl border-2 border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10">
-                                <div className="text-3xl font-black tracking-tighter text-orange-600">{alertSummary.high}</div>
-                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">High</div>
-                            </div>
-                            <div className="p-4 rounded-2xl border-2 border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10">
-                                <div className="text-3xl font-black tracking-tighter text-amber-600">{alertSummary.elevated}</div>
-                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Elevated</div>
-                            </div>
-                            <div className="p-4 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10">
-                                <div className="text-3xl font-black tracking-tighter text-blue-600">{alertSummary.moderate}</div>
-                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Moderate</div>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => navigate('/risk-monitor')}
-                            className="mt-4 w-full px-4 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition flex items-center justify-center gap-2"
-                        >
-                            {alertSummary.total > 0 ? `Review ${alertSummary.total} alert${alertSummary.total === 1 ? '' : 's'}` : 'Open Risk Monitor'}
-                            <ArrowUpRight size={14} />
-                        </button>
-                    </Card>
+                        </Card>
+                    </div>
                 </div>
-
-                <div className="lg:col-span-1 space-y-6">
-                    <Card title="Clinical Guardrails">
-                        <div className="space-y-3">
-                            {topAlerts.length > 0 ? topAlerts.map(a => (
-                                <button
-                                    key={a.id}
-                                    onClick={() => navigate(`/program-compliance/${a.clientId}`)}
-                                    className="w-full text-left flex items-start gap-4 p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl hover:bg-red-100 transition-colors"
-                                >
-                                    <AlertTriangle className="text-primary shrink-0 mt-1" size={20} />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-[10px] font-black text-primary uppercase tracking-widest">{a.tier} · {a.clientName}</p>
-                                        <p className="text-sm font-bold text-slate-800 dark:text-red-200 mt-0.5">{a.headline}</p>
-                                    </div>
-                                </button>
-                            )) : (
-                                <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                                    No active alerts.
-                                </div>
-                            )}
-                        </div>
-                    </Card>
+            ) : isTherapist ? (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2">{ScheduleCard}</div>
+                    <div className="lg:col-span-1">{GuardrailsCard}</div>
                 </div>
-            </div>
-
+            ) : (
+                // Director (and staff fallback): practice-wide view + alerts.
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 space-y-8">
+                        {ScheduleCard}
+                        <Card title="Risk Monitor" subtitle="Actionable alerts from real client activity.">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="p-4 rounded-2xl border-2 border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10">
+                                    <div className="text-3xl font-black tracking-tighter text-red-600">{alertSummary.critical}</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Critical</div>
+                                </div>
+                                <div className="p-4 rounded-2xl border-2 border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10">
+                                    <div className="text-3xl font-black tracking-tighter text-orange-600">{alertSummary.high}</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">High</div>
+                                </div>
+                                <div className="p-4 rounded-2xl border-2 border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10">
+                                    <div className="text-3xl font-black tracking-tighter text-amber-600">{alertSummary.elevated}</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Elevated</div>
+                                </div>
+                                <div className="p-4 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10">
+                                    <div className="text-3xl font-black tracking-tighter text-blue-600">{alertSummary.moderate}</div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Moderate</div>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => navigate('/risk-monitor')}
+                                className="mt-4 w-full px-4 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition flex items-center justify-center gap-2"
+                            >
+                                {alertSummary.total > 0 ? `Review ${plural(alertSummary.total, 'alert')}` : 'Open Risk Monitor'}
+                                <ArrowUpRight size={14} />
+                            </button>
+                        </Card>
+                    </div>
+                    <div className="lg:col-span-1">{GuardrailsCard}</div>
+                </div>
+            )}
         </div>
     );
 };

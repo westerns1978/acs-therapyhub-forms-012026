@@ -560,6 +560,23 @@ export const sendClientMessage = async (
     }
     return mapCommRow(data);
 };
+
+// Recent client communications across all clients (for the office/admin dashboard).
+// No embed/join — client names are resolved caller-side from the clients list to
+// avoid depending on a PostgREST FK relationship. NOTE: the table has no read/unread
+// flag, so this is "recent", not "unread" — callers must not present it as unread.
+export const getRecentClientCommunications = async (limit = 6): Promise<ClientCommunication[]> => {
+    const { data, error } = await supabase
+        .from('client_communications')
+        .select('*')
+        .order('sent_at', { ascending: false })
+        .limit(limit);
+    if (error) {
+        console.warn('[api] getRecentClientCommunications failed:', error);
+        return [];
+    }
+    return (data || []).map(mapCommRow);
+};
 export const submitPaperForm = async (clientId: string, formId: string, formName: string, file: File) => {
     // 1. Upload to Vault (triggers AI DNA extraction)
     const uploadedFile = await storageService.uploadToVault(file, clientId);
