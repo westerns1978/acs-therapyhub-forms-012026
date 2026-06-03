@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client } from '../../types';
 // Fix: Correctly import addSessionRecord and addClientAssignment from the services API.
-import { addSessionRecord, addAppointment, addClientAssignment } from '../../services/api';
+import { addSessionRecord, addAppointment, addClientAssignment, saveClinicalNote } from '../../services/api';
 
 // Icons
 const CheckCircleIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
@@ -38,9 +38,28 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
     const [editedNote, setEditedNote] = useState(noteContent);
     const [isSigned, setIsSigned] = useState(false);
     const [homework, setHomework] = useState('');
+    const [isSavingNote, setIsSavingNote] = useState(false);
     const navigate = useNavigate();
 
     const handleNext = async () => {
+        if (currentStep === 0) { // After signing the note
+            // Persist the signed clinical note to the client's record via the SAME
+            // real path SmartNoteImporter uses (saveClinicalNote → clinical_notes).
+            // Saved at sign time so the note survives even if the user abandons the
+            // later billing/scheduling steps.
+            const noteText = editedNote.trim();
+            if (noteText) {
+                setIsSavingNote(true);
+                try {
+                    await saveClinicalNote(client.id, noteText, { isSigned, noteType: 'Session' });
+                } catch (e) {
+                    setIsSavingNote(false);
+                    alert('Could not save the clinical note: ' + (e as Error).message);
+                    return; // stay on this step so the note isn't silently lost
+                }
+                setIsSavingNote(false);
+            }
+        }
         if (currentStep === 1) { // After billing step
             await addSessionRecord({
                 clientId: client.id,
@@ -183,8 +202,8 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                 <footer className="p-4 border-t border-border dark:border-slate-800 flex justify-end gap-3 flex-shrink-0">
                     <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-200 dark:bg-slate-700 rounded-md hover:bg-gray-300 dark:hover:bg-slate-600">Cancel</button>
                     {currentStep < 4 ? (
-                        <button onClick={handleNext} disabled={currentStep === 0 && !isSigned} className="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-focus transition disabled:bg-gray-400">
-                            {currentStep === 3 ? 'Finish & Assign' : 'Save & Continue'}
+                        <button onClick={handleNext} disabled={(currentStep === 0 && !isSigned) || isSavingNote} className="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-focus transition disabled:bg-gray-400">
+                            {isSavingNote ? 'Saving Note…' : currentStep === 3 ? 'Finish & Assign' : 'Save & Continue'}
                         </button>
                     ) : (
                         <button onClick={handleFinish} className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition">

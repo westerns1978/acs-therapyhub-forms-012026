@@ -435,17 +435,65 @@ export const saveFormSubmission = async (sub: any) => {
 };
 export const getSROPData = async (id: string) => (dbSropData || []).find(d => d.clientId === id) || null;
 export const getClientActivityFeed = async (id: string) => (dbClientActivityFeed || []).filter(a => a.clientId === id);
-export const saveClinicalNote = async (clientId: string, note: string) => {
-    if (!clientId || !note) throw new Error('clientId and note are required');
+// The clinical_notes table stores notes as discrete SOAP columns
+// (subjective/objective/assessment/plan) — there is NO `content` or `source`
+// column, so the previous insert (which wrote those) was rejected every time and
+// nothing persisted. We split a well-formed SOAP string into those columns;
+// anything not cleanly structured drops wholesale into `subjective` so no text is
+// lost and it still renders in the client's Clinical Notes card (subjective shows
+// under "Data:"). Existing columns only — no schema changes.
+const SOAP_KEYS = ['subjective', 'objective', 'assessment', 'plan'] as const;
+type SoapKey = (typeof SOAP_KEYS)[number];
+
+const splitSoapNote = (note: string): Partial<Record<SoapKey, string>> => {
+    const headerRe = /(?:^|\n)[ \t]*[*#>\-]*[ \t]*(subjective|objective|assessment|plan)\b[ \t]*[:\-–]?[ \t]*\*{0,2}/gi;
+    const matches = [...note.matchAll(headerRe)];
+    const keysFound = matches.map(m => m[1].toLowerCase());
+    // Only trust the split when it's an unambiguous, canonical S→O→A→P note;
+    // otherwise a stray heading-like line could scatter clinical text into the
+    // wrong sections. When unsure, keep the whole note intact in `subjective`.
+    const isCanonical = keysFound.length === 4 && SOAP_KEYS.every((k, i) => keysFound[i] === k);
+    if (!isCanonical) return { subjective: note.trim() };
+
+    const sections: Partial<Record<SoapKey, string>> = {};
+    for (let i = 0; i < matches.length; i++) {
+        const key = matches[i][1].toLowerCase() as SoapKey;
+        const start = (matches[i].index ?? 0) + matches[i][0].length;
+        const end = i + 1 < matches.length ? (matches[i + 1].index ?? note.length) : note.length;
+        sections[key] = note.slice(start, end).trim();
+    }
+    const preamble = note.slice(0, matches[0].index ?? 0).trim();
+    if (preamble) sections.subjective = `${preamble}\n\n${sections.subjective ?? ''}`.trim();
+    return sections;
+};
+
+export interface SaveClinicalNoteOptions {
+    /** Existing clinical_notes columns only — never invent new ones. */
+    appointmentId?: string | null;
+    therapistId?: string | null;
+    noteType?: string;
+    isSigned?: boolean;
+}
+
+export const saveClinicalNote = async (
+    clientId: string,
+    note: string,
+    opts: SaveClinicalNoteOptions = {},
+) => {
+    if (!clientId || !note?.trim()) throw new Error('clientId and note are required');
+    const row: Record<string, any> = {
+        client_id: clientId,
+        note_type: opts.noteType ?? 'Session',
+        is_signed: opts.isSigned ?? false,
+        created_at: new Date().toISOString(),
+        ...splitSoapNote(note),
+    };
+    if (opts.appointmentId) row.appointment_id = opts.appointmentId;
+    if (opts.therapistId) row.therapist_id = opts.therapistId;
+
     const { data, error } = await supabase
         .from('clinical_notes')
-        .insert({
-            client_id: clientId,
-            content: note,
-            note_type: 'Session',
-            created_at: new Date().toISOString(),
-            source: 'smart-note-importer',
-        })
+        .insert(row)
         .select()
         .single();
     if (error) {
