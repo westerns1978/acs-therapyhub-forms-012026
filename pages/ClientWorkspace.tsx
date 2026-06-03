@@ -42,6 +42,7 @@ const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client,
     const seeded = client.id in SEEDED_RISK ? SEEDED_RISK[client.id] : undefined;
     const [prediction, setPrediction] = useState<{ score: number, reasoning: string } | null>(seeded ?? null);
     const [loading, setLoading] = useState(seeded === undefined);
+    const [failed, setFailed] = useState(false);
     const noData = seeded === null;
 
     useEffect(() => {
@@ -55,11 +56,16 @@ const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client,
         let cancelled = false;
         const fetchPrediction = async () => {
             setLoading(true);
+            setFailed(false);
             try {
                 const res = await generateRelapseRiskPrediction(client, history || []);
-                if (!cancelled) setPrediction(res);
+                if (cancelled) return;
+                // The real call can fail or return nothing — never render a
+                // fabricated 0% in that case; surface the "unavailable" state.
+                if (res) setPrediction(res);
+                else { setPrediction(null); setFailed(true); }
             } catch (e) {
-                if (!cancelled) setPrediction(null);
+                if (!cancelled) { setPrediction(null); setFailed(true); }
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -81,7 +87,7 @@ const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client,
                     <BrainCircuit className="animate-spin mb-2" size={32} />
                     <p className="text-xs font-bold uppercase tracking-widest">Checking risk indicators...</p>
                 </div>
-            ) : noData ? (
+            ) : (noData || failed) ? (
                 <div className="space-y-3">
                     <div className="flex justify-between items-end">
                         <div>
@@ -94,7 +100,9 @@ const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client,
                     </div>
                     <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-inner">
                         <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed italic">
-                            Insufficient program data — new client. Predictions become available after the first two weeks of attendance and self-report logs.
+                            {failed
+                                ? 'Risk prediction is temporarily unavailable — the model did not return a result. Please retry shortly.'
+                                : 'Insufficient program data — new client. Predictions become available after the first two weeks of attendance and self-report logs.'}
                         </p>
                     </div>
                     <p className="text-[10px] text-gray-400 font-bold uppercase text-center">Engine: Gemini 3 Pro Deep Reasoning • Thinking Budget: 4k Tokens</p>

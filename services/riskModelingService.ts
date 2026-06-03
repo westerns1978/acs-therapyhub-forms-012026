@@ -1,5 +1,19 @@
 /**
- * ACS TherapyHub — Predictive Risk Modeling Service
+ * ACS TherapyHub — Risk Modeling types.
+ *
+ * The hardcoded "John Doe" mock profile, fixed cohort counts, and static report
+ * string that used to live here have been REMOVED — they had no callers and
+ * risked being mistaken for real output. The real, live risk prediction is
+ * `generateRelapseRiskPrediction` in services/api.ts (Gemini `gemini-2.5-flash`),
+ * already used by ClientWorkspace's RelapseRiskCard.
+ *
+ * These type contracts are retained only because RiskDashboard.tsx imports them.
+ * NOTE: RiskDashboard is not currently mounted anywhere, and its
+ * ClientRiskProfile / CohortRiskSummary shape (tiers, warrant probabilities,
+ * factor/recommendation lists, cohort counts) is much richer than the live
+ * engine's { score, reasoning }. Wiring it to real output would need an expanded
+ * model output schema plus a cohort data source — a product decision, not a
+ * drop-in replacement. See the sprint report.
  */
 
 export type RiskTier = "CRITICAL" | "RED" | "ORANGE" | "YELLOW" | "GREEN";
@@ -24,37 +38,4 @@ export interface CohortRiskSummary {
   yellowCount: number;
   greenCount: number;
   totalClients: number;
-}
-
-export async function getClientRiskProfile(clientId: string): Promise<ClientRiskProfile> {
-  // Logic to fetch attendance, compliance, and court data from Supabase
-  // Then call Gemini 3 Pro to analyze risk factors and generate profile.
-  return {
-    clientId,
-    clientName: "John Doe",
-    riskScore: 85,
-    riskTier: "RED",
-    warrantProbability7Day: 0.45,
-    warrantProbability30Day: 0.75,
-    primaryRiskFactors: ["Missed 3 consecutive appointments", "Court date approaching"],
-    protectiveFactors: ["Employed", "Stable housing"],
-    recommendations: ["Immediate outreach", "Reschedule appointment"],
-    trend: "UP",
-  };
-}
-
-export async function getCohortSummary(): Promise<CohortRiskSummary> {
-  return {
-    criticalCount: 5,
-    redCount: 12,
-    orangeCount: 25,
-    yellowCount: 40,
-    greenCount: 100,
-    totalClients: 182,
-  };
-}
-
-export async function generateCohortRiskReport(): Promise<string> {
-  // Logic to generate the report
-  return "Cohort risk report generated.";
 }

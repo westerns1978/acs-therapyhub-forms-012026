@@ -690,9 +690,17 @@ export const searchCommunityResources = async (query: string, coords?: { latitud
 /**
  * RELAPSE RISK PREDICTION: Gemini 3 reasoning for proactive clinical flagging.
  */
-export const generateRelapseRiskPrediction = async (client: Client, history: any[]) => {
+// Real Gemini call (gemini-2.5-flash). Returns null — never a fabricated score —
+// when the call fails, times out, or comes back empty/malformed, so the UI can
+// show a graceful "unavailable" state instead of a misleading 0%. Advisory output
+// only: callers display it; it must not be written to any record or drive
+// billing/compliance decisions.
+export const generateRelapseRiskPrediction = async (
+    client: Client,
+    history: any[],
+): Promise<{ score: number; reasoning: string } | null> => {
     try {
-        return await geminiJSON('gemini-2.5-flash',
+        const res = await geminiJSON<{ score?: number; reasoning?: string }>('gemini-2.5-flash',
             `Analyze historical telemetry for ${client.name} to predict relapse probability. Signals: ${JSON.stringify(history)}. Return probability (0-100) and rationale.`,
             {
                 type: "OBJECT",
@@ -703,8 +711,11 @@ export const generateRelapseRiskPrediction = async (client: Client, history: any
                 required: ["score", "reasoning"]
             }
         );
-    } catch {
-        return { score: 0, reasoning: "Orchestration timeout." };
+        if (!res || typeof res.score !== 'number') return null; // empty/malformed → no fake profile
+        return { score: res.score, reasoning: res.reasoning ?? '' };
+    } catch (e) {
+        console.warn('[api] generateRelapseRiskPrediction failed:', e);
+        return null;
     }
 };
 
