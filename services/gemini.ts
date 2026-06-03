@@ -1,11 +1,27 @@
 /**
  * ACS TherapyHub — Gemini REST API Helper
- * Replaces @google/genai SDK with direct fetch() calls.
- * No WebSocket connections on import.
+ *
+ * generateContent calls are routed through the `pds-gemini-proxy` Supabase edge
+ * function, which holds GEMINI_API_KEY as a server-side secret and injects it as
+ * `x-goog-api-key`. The real Gemini key is NEVER embedded in the client bundle
+ * for these (text / vision / JSON) paths.
+ *
+ * NOT routed here (these still hold the key client-side — tracked as follow-ups):
+ *   - Clara voice/Live API in components/ai/SynapseChatPopover.tsx (Live needs
+ *     the `gemini-live-token` ephemeral-token endpoint — a REST proxy can't
+ *     carry a websocket; its text chat fetch could be proxied later).
+ *   - generateMilestoneCelebration (Veo `generateVideos`) in services/api.ts.
  */
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+// pds-gemini-proxy mount + the Gemini REST prefix it transparently forwards.
+const GEMINI_PROXY_BASE = `${SUPABASE_URL}/functions/v1/pds-gemini-proxy/v1beta/models`;
 
+/**
+ * Returns the client-side Gemini key. Only used by the not-yet-proxied paths
+ * noted above (Clara Live, Veo). The proxied generateContent path below does
+ * NOT use this.
+ */
 export function getApiKey(): string {
   const key = (import.meta as any).env?.VITE_API_KEY
     || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined)
@@ -21,14 +37,20 @@ export async function geminiGenerate(
   model: string,
   body: Record<string, unknown>
 ): Promise<{ text: string; candidates: any[] }> {
-  const res = await fetch(`${GEMINI_API_BASE}/${model}:generateContent?key=${getApiKey()}`, {
+  // Route via the proxy edge function (server-side key injection). Auth uses the
+  // public Supabase anon JWT (verify_jwt is on); the real Gemini key stays server-side.
+  const res = await fetch(`${GEMINI_PROXY_BASE}/${model}:generateContent`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'apikey': SUPABASE_ANON_KEY,
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Gemini API ${res.status}: ${err}`);
+    throw new Error(`Gemini proxy ${res.status}: ${err}`);
   }
   const json = await res.json();
   const candidates = json.candidates || [];
