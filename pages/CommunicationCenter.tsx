@@ -1,52 +1,140 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getMessages, getConversation, getStaffMessages } from '../services/api';
-import { Message } from '../types';
-import { Search, Send, Paperclip, Video, Phone, MoreVertical, CheckCheck, Smile } from 'lucide-react';
+import { getStaffMessages, getConversation, getClients, getClientCommunications, sendClientMessage } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { Message, Client } from '../types';
+import { Search, Send, Paperclip, Video, Phone, MoreVertical, CheckCheck, Smile, Loader2 } from 'lucide-react';
+
+const fmtTime = (iso: string) => {
+    try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+    catch { return ''; }
+};
 
 const CommunicationCenter: React.FC = () => {
+    const { user } = useAuth();
+    const sentBy = user?.name || user?.role || 'staff';
+
     const [activeTab, setActiveTab] = useState<'clients' | 'team'>('clients');
     const [messageList, setMessageList] = useState<Message[]>([]);
     const [conversation, setConversation] = useState<Message[]>([]);
-    const [activeClientId, setActiveClientId] = useState<string | null>(null);
+    // For the Clients tab `activeId` is a REAL client uuid; for Team it's the mock
+    // conversation name. `activeName` is always the display label.
+    const [activeId, setActiveId] = useState<string | null>(null);
+    const [activeName, setActiveName] = useState<string>('');
     const [inputText, setInputText] = useState('');
+    const [sending, setSending] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
+    // Sidebar list. Clients tab is sourced from REAL clients so each conversation
+    // maps to a real client_id; Team tab stays on the mock staff feed (no team
+    // table exists — see sprint report).
     useEffect(() => {
+        let cancelled = false;
         const fetchList = async () => {
-            const data = activeTab === 'clients' ? await getMessages() : await getStaffMessages();
-            setMessageList(data);
-            if (data.length > 0) setActiveClientId(data[0].clientName);
+            if (activeTab === 'clients') {
+                const clients = await getClients();
+                if (cancelled) return;
+                const items: Message[] = clients.map((c: Client) => ({
+                    id: c.id,
+                    sender: 'client',
+                    clientName: c.name,
+                    avatarUrl: c.avatarUrl || '',
+                    text: (c.program as string) || 'Client',
+                    timestamp: '',
+                    read: true,
+                    status: 'read',
+                }));
+                setMessageList(items);
+                if (items.length > 0) { setActiveId(items[0].id); setActiveName(items[0].clientName); }
+                else { setActiveId(null); setActiveName(''); }
+            } else {
+                const data = await getStaffMessages();
+                if (cancelled) return;
+                setMessageList(data);
+                if (data.length > 0) { setActiveId(data[0].clientName); setActiveName(data[0].clientName); }
+                else { setActiveId(null); setActiveName(''); }
+            }
         };
         fetchList();
+        return () => { cancelled = true; };
     }, [activeTab]);
 
+    // Conversation history. Clients tab reads REAL rows from client_communications;
+    // Team tab uses the mock conversation feed.
     useEffect(() => {
-        if (activeClientId) {
-            const fetchConv = async () => {
-                const data = await getConversation(activeClientId);
+        let cancelled = false;
+        const fetchConv = async () => {
+            if (!activeId) { setConversation([]); return; }
+            if (activeTab === 'clients') {
+                const comms = await getClientCommunications(activeId);
+                if (cancelled) return;
+                setConversation(comms.map(cc => ({
+                    id: cc.id,
+                    sender: 'counselor', // table holds staff-sent (outbound) messages
+                    clientName: cc.sentBy,
+                    avatarUrl: '',
+                    text: cc.message,
+                    timestamp: fmtTime(cc.sentAt),
+                    read: true,
+                    status: 'read',
+                })));
+            } else {
+                const data = await getConversation(activeId);
+                if (cancelled) return;
                 setConversation(data);
-            };
-            fetchConv();
-        }
-    }, [activeClientId]);
+            }
+        };
+        fetchConv();
+        return () => { cancelled = true; };
+    }, [activeId, activeTab]);
 
     useEffect(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), [conversation]);
 
-    const handleSend = (e: React.FormEvent) => {
+    const handleSelect = (msg: Message) => {
+        // Clients tab: msg.id is the real client uuid. Team tab: key by name (mock).
+        setActiveId(activeTab === 'clients' ? msg.id : msg.clientName);
+        setActiveName(msg.clientName);
+    };
+
+    const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!inputText.trim()) return;
-        const newMsg: Message = {
-            id: Date.now().toString(),
-            sender: 'counselor',
-            text: inputText,
-            timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-            read: true,
-            status: 'sent',
-            clientName: 'Me',
-            avatarUrl: ''
-        };
-        setConversation(prev => [...prev, newMsg]);
-        setInputText('');
+        const text = inputText.trim();
+        if (!text || !activeId) return;
+
+        if (activeTab === 'clients') {
+            // REAL persistence to client_communications.
+            setSending(true);
+            try {
+                const saved = await sendClientMessage(activeId, text, sentBy);
+                setConversation(prev => [...prev, {
+                    id: saved.id,
+                    sender: 'counselor',
+                    text: saved.message,
+                    timestamp: fmtTime(saved.sentAt),
+                    read: true,
+                    status: 'sent',
+                    clientName: 'Me',
+                    avatarUrl: '',
+                }]);
+                setInputText('');
+            } catch (err) {
+                alert('Could not send message: ' + (err as Error).message);
+            } finally {
+                setSending(false);
+            }
+        } else {
+            // Team tab — no team-messaging table exists; keep local-only (unchanged).
+            setConversation(prev => [...prev, {
+                id: Date.now().toString(),
+                sender: 'counselor',
+                text,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                read: true,
+                status: 'sent',
+                clientName: 'Me',
+                avatarUrl: '',
+            }]);
+            setInputText('');
+        }
     };
 
     const quickReplies = ["Please confirm your appointment.", "Great job on your progress!", "Please sign the pending document.", "See you next week."];
@@ -67,10 +155,10 @@ const CommunicationCenter: React.FC = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-2">
                     {messageList.map(msg => (
-                        <div 
-                            key={msg.id} 
-                            onClick={() => setActiveClientId(msg.clientName)}
-                            className={`p-3 mb-1 rounded-xl cursor-pointer transition-all duration-200 ${activeClientId === msg.clientName ? 'bg-white dark:bg-slate-800 shadow-md border border-slate-100 dark:border-slate-700 scale-[1.02]' : 'hover:bg-white/50 dark:hover:bg-slate-800/50 border border-transparent'}`}
+                        <div
+                            key={msg.id}
+                            onClick={() => handleSelect(msg)}
+                            className={`p-3 mb-1 rounded-xl cursor-pointer transition-all duration-200 ${(activeTab === 'clients' ? activeId === msg.id : activeId === msg.clientName) ? 'bg-white dark:bg-slate-800 shadow-md border border-slate-100 dark:border-slate-700 scale-[1.02]' : 'hover:bg-white/50 dark:hover:bg-slate-800/50 border border-transparent'}`}
                         >
                             <div className="flex justify-between items-start mb-1">
                                 <span className={`font-bold text-sm ${!msg.read ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>{msg.clientName}</span>
@@ -84,16 +172,16 @@ const CommunicationCenter: React.FC = () => {
 
             {/* Chat Area */}
             <div className="flex-1 flex flex-col bg-white/50 dark:bg-slate-900/50 relative">
-                {activeClientId ? (
+                {activeId ? (
                     <>
                         {/* Chat Header */}
                         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-10 sticky top-0">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-lg font-bold text-primary shadow-inner">
-                                    {activeClientId[0]}
+                                    {activeName[0]}
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-800 dark:text-white leading-tight">{activeClientId}</h3>
+                                    <h3 className="font-bold text-slate-800 dark:text-white leading-tight">{activeName}</h3>
                                     <p className="text-[10px] font-bold text-green-600 flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> ONLINE</p>
                                 </div>
                             </div>
@@ -106,13 +194,16 @@ const CommunicationCenter: React.FC = () => {
 
                         {/* Messages */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                            {conversation.length === 0 && (
+                                <div className="h-full flex items-center justify-center text-slate-400 text-sm">No messages yet. Start the conversation below.</div>
+                            )}
                             {conversation.map(msg => {
                                 const isMe = msg.sender === 'counselor';
                                 return (
                                     <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[70%] group`}>
-                                            <div className={`px-5 py-3 text-sm shadow-md transition-all ${isMe 
-                                                ? 'bg-gradient-to-br from-primary to-red-700 text-white rounded-2xl rounded-tr-sm' 
+                                            <div className={`px-5 py-3 text-sm shadow-md transition-all ${isMe
+                                                ? 'bg-gradient-to-br from-primary to-red-700 text-white rounded-2xl rounded-tr-sm'
                                                 : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl rounded-tl-sm text-slate-700 dark:text-slate-200'
                                             }`}>
                                                 {msg.text}
@@ -138,18 +229,18 @@ const CommunicationCenter: React.FC = () => {
                                     </button>
                                 ))}
                             </div>
-                            
+
                             <form onSubmit={handleSend} className="flex gap-2 items-center bg-slate-50 dark:bg-slate-800 p-2 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all shadow-inner">
                                 <button type="button" className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"><Paperclip size={20}/></button>
-                                <input 
+                                <input
                                     className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 px-2 text-slate-800 dark:text-white placeholder-slate-400"
                                     placeholder="Type your message..."
                                     value={inputText}
                                     onChange={e => setInputText(e.target.value)}
                                 />
                                 <button type="button" className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"><Smile size={20}/></button>
-                                <button type="submit" disabled={!inputText.trim()} className="p-2.5 bg-primary text-white rounded-xl hover:bg-primary-focus disabled:opacity-50 disabled:hover:bg-primary transition-all shadow-md active:scale-95">
-                                    <Send size={18} className={inputText.trim() ? "translate-x-0.5" : ""} />
+                                <button type="submit" disabled={!inputText.trim() || sending} className="p-2.5 bg-primary text-white rounded-xl hover:bg-primary-focus disabled:opacity-50 disabled:hover:bg-primary transition-all shadow-md active:scale-95">
+                                    {sending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} className={inputText.trim() ? "translate-x-0.5" : ""} />}
                                 </button>
                             </form>
                         </div>

@@ -505,6 +505,61 @@ export const saveClinicalNote = async (
 export const getMessages = async () => dbMessages || [];
 export const getStaffMessages = async () => (dbMessages || []).filter(m => m.sender === 'counselor' || m.sender === 'system');
 export const getConversation = async (clientId?: string) => dbMessages || [];
+
+// --- Client communications: REAL Supabase persistence (client_communications) ---
+// The office/admin Communication Center sends client messages here. The table
+// has a permissive "Allow all" RLS policy, so authenticated inserts succeed
+// without any RLS change. `type` is NOT NULL on the table, so we always set it.
+// Human-sent only — advisory AI must never write here.
+export interface ClientCommunication {
+    id: string;
+    clientId: string | null;
+    message: string;
+    type: string;
+    sentBy: string;
+    sentAt: string;
+}
+
+const mapCommRow = (r: any): ClientCommunication => ({
+    id: r.id,
+    clientId: r.client_id ?? null,
+    message: r.message ?? '',
+    type: r.type ?? 'message',
+    sentBy: r.sent_by ?? 'staff',
+    sentAt: r.sent_at ?? r.created_at ?? new Date().toISOString(),
+});
+
+export const getClientCommunications = async (clientId: string): Promise<ClientCommunication[]> => {
+    if (!clientId) return [];
+    const { data, error } = await supabase
+        .from('client_communications')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('sent_at', { ascending: true });
+    if (error) {
+        console.warn('[api] getClientCommunications failed:', error);
+        return [];
+    }
+    return (data || []).map(mapCommRow);
+};
+
+export const sendClientMessage = async (
+    clientId: string,
+    text: string,
+    sentBy: string = 'staff',
+): Promise<ClientCommunication> => {
+    if (!clientId || !text?.trim()) throw new Error('clientId and message text are required');
+    const { data, error } = await supabase
+        .from('client_communications')
+        .insert({ client_id: clientId, message: text.trim(), type: 'message', sent_by: sentBy })
+        .select()
+        .single();
+    if (error) {
+        console.error('[api] sendClientMessage failed:', error);
+        throw new Error(error.message || 'Failed to send message');
+    }
+    return mapCommRow(data);
+};
 export const submitPaperForm = async (clientId: string, formId: string, formName: string, file: File) => {
     // 1. Upload to Vault (triggers AI DNA extraction)
     const uploadedFile = await storageService.uploadToVault(file, clientId);

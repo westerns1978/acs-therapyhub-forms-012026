@@ -13,6 +13,9 @@ const SessionManagement: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const canManage = isStaffRole(user?.role);
+    // Status actions are staff-wide (office work), but starting a live session writes
+    // a CLINICAL note — restrict that entry to Director/Therapist (not Admin/Jessica).
+    const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist');
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -273,7 +276,7 @@ const SessionManagement: React.FC = () => {
                 onClose={() => setSelectedAppt(null)}
                 onSetStatus={handleSetStatus}
                 onDelete={handleDeleteAppointment}
-                onStartSession={handleStartSession}
+                onStartSession={canStartSession ? handleStartSession : undefined}
                 isSaving={savingStatus}
                 canManage={canManage}
             />

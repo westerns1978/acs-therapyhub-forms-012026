@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Client, isStaffRole } from '../../types';
+import { Client } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play } from 'lucide-react';
@@ -58,7 +58,8 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
   const [clinicalSnapshot, setClinicalSnapshot] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canStartSession = isStaffRole(user?.role);
+  // A live session writes a CLINICAL note — Director/Therapist only (not Admin/Jessica).
+  const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist');
 
   const handleGenerateSnapshot = async () => {
     if (clinicalSnapshot) {
