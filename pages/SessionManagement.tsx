@@ -1,24 +1,49 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { getAppointments, getClients, deleteAppointment } from '../services/api';
-import { Appointment, Client } from '../types';
+import { getAppointments, getClients, deleteAppointment, updateAppointmentStatus } from '../services/api';
+import { Appointment, AppointmentStatus, Client, isStaffRole } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
+import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 
 const SessionManagement: React.FC = () => {
     const { user } = useAuth();
+    const canManage = isStaffRole(user?.role);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
-    const [cancellingId, setCancellingId] = useState<string | null>(null);
+    const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+    const [savingStatus, setSavingStatus] = useState(false);
 
-    const handleCancelAppointment = async (apt: Appointment) => {
-        if (!window.confirm(`Cancel "${apt.title}"? This will also remove the Google Calendar event and notify attendees.`)) return;
-        setCancellingId(apt.id);
+    // Real Supabase persistence: updateAppointmentStatus writes appointments.status,
+    // then we patch local state with the mapped row so the card re-colors immediately
+    // and the new status survives a refresh.
+    const handleSetStatus = async (status: AppointmentStatus) => {
+        if (!selectedAppt) return;
+        setSavingStatus(true);
+        try {
+            const updated = await updateAppointmentStatus(selectedAppt.id, status);
+            setAppointments(prev => prev.map(a => (a.id === updated.id ? updated : a)));
+            setSelectedAppt(updated);
+        } catch (err) {
+            console.error('[SessionManagement] status update failed:', err);
+            alert('Could not update status: ' + (err as Error).message);
+        } finally {
+            setSavingStatus(false);
+        }
+    };
+
+    // Hard delete (unchanged behavior): removes the row and its Google Calendar event.
+    // Distinct from the soft "Cancel Session" status, which keeps the record.
+    const handleDeleteAppointment = async () => {
+        const apt = selectedAppt;
+        if (!apt) return;
+        if (!window.confirm(`Delete "${apt.title}"? This permanently removes the appointment and its Google Calendar event.`)) return;
+        setSavingStatus(true);
         try {
             if (apt.googleEventId && user?.id) {
                 try {
@@ -31,12 +56,13 @@ const SessionManagement: React.FC = () => {
                 await deleteAppointment(apt.id);
             } catch (err) {
                 console.error('[SessionManagement] DB delete failed:', err);
-                alert('Could not cancel: ' + (err as Error).message);
+                alert('Could not delete: ' + (err as Error).message);
                 return;
             }
             setAppointments(prev => prev.filter(a => a.id !== apt.id));
+            setSelectedAppt(null);
         } finally {
-            setCancellingId(null);
+            setSavingStatus(false);
         }
     };
 
@@ -156,24 +182,35 @@ const SessionManagement: React.FC = () => {
                                     {hours.map(h => <div key={h} className="h-[92px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
                                     
                                     {/* Events */}
-                                    {dayEvents.map(apt => (
+                                    {dayEvents.map(apt => {
+                                        const s = getAppointmentStatusStyle(apt.status);
+                                        return (
                                         <div
                                             key={apt.id}
-                                            className="group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden bg-blue-50/90 dark:bg-blue-900/40 border-blue-200/50 dark:border-blue-700/50 text-blue-900 dark:text-blue-100 backdrop-blur-sm"
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => setSelectedAppt(apt)}
+                                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedAppt(apt); } }}
+                                            className={`group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${s.card}`}
                                             style={getEventStyle(apt)}
-                                            title={apt.title}
+                                            title={`${apt.title} — ${apt.status} (click to change status)`}
                                         >
                                             <div className="flex items-start gap-1">
-                                                <div className="w-1 h-full absolute left-0 top-0 bottom-0 bg-blue-500"></div>
+                                                <div className={`w-1 h-full absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
                                                 <div className="pl-2 overflow-hidden">
-                                                    <p className="font-bold text-xs truncate leading-tight">{apt.clientName || apt.title}</p>
+                                                    <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
                                                     <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
                                                         <Clock size={10} /> {apt.startTime} - {apt.endTime}
                                                     </div>
                                                     {apt.modality.includes('Zoom') && (
-                                                        <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold text-blue-700 dark:text-blue-300">
+                                                        <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold opacity-90">
                                                             <Video size={10}/> Virtual
                                                         </div>
+                                                    )}
+                                                    {apt.status !== 'Scheduled' && (
+                                                        <span className={`inline-flex items-center mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${s.badge}`}>
+                                                            {apt.status}
+                                                        </span>
                                                     )}
                                                     {apt.googleEventId && (
                                                         <a
@@ -182,26 +219,16 @@ const SessionManagement: React.FC = () => {
                                                             rel="noopener noreferrer"
                                                             onClick={e => e.stopPropagation()}
                                                             title="Open in Google Calendar"
-                                                            className="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-green-700 dark:text-green-300 hover:underline"
+                                                            className="flex items-center gap-1 mt-1 text-[10px] font-semibold text-green-700 dark:text-green-300 hover:underline"
                                                         >
                                                             <Check size={10}/> Synced to Google
                                                         </a>
                                                     )}
                                                 </div>
                                             </div>
-                                            {/* Hover cancel */}
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); handleCancelAppointment(apt); }}
-                                                disabled={cancellingId === apt.id}
-                                                aria-label="Cancel session"
-                                                title="Cancel session"
-                                                className="absolute top-1 right-1 p-1 rounded-full bg-white/80 text-red-600 opacity-0 group-hover/event:opacity-100 transition-opacity shadow-sm hover:bg-red-50 disabled:opacity-50"
-                                            >
-                                                <X size={12} />
-                                            </button>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                     
                                     {/* Current Time Indicator */}
                                     {isToday(day) && (
@@ -228,6 +255,16 @@ const SessionManagement: React.FC = () => {
                     clients={clients}
                 />
             )}
+
+            <AppointmentStatusModal
+                appointment={selectedAppt}
+                isOpen={!!selectedAppt}
+                onClose={() => setSelectedAppt(null)}
+                onSetStatus={handleSetStatus}
+                onDelete={handleDeleteAppointment}
+                isSaving={savingStatus}
+                canManage={canManage}
+            />
         </div>
     );
 };

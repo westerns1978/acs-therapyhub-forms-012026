@@ -367,6 +367,16 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
     return mapAppointmentRowToApp(data);
 };
 
+// Focused convenience wrapper for the single-field status change the schedule UI
+// drives (Mark Completed / No-Show / Cancel). Delegates to updateAppointment so
+// the real Supabase write + the row→app mapping stay in exactly one place. The
+// `status` column is plain text with no CHECK constraint, so the capitalized
+// AppointmentStatus values persist as-is and round-trip via normalizeAppointmentStatus.
+export const updateAppointmentStatus = async (
+    appointmentId: string,
+    status: Appointment['status'],
+): Promise<Appointment> => updateAppointment(appointmentId, { status });
+
 export const deleteAppointment = async (id: string): Promise<void> => {
     const { error } = await supabase.from('appointments').delete().eq('id', id);
     if (error) {
