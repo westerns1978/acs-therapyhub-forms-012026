@@ -1,37 +1,16 @@
 /**
  * ACS TherapyHub — Gemini REST API Helper
  *
- * generateContent calls are routed through the `pds-gemini-proxy` Supabase edge
+ * All generateContent calls route through the `pds-gemini-proxy` Supabase edge
  * function, which holds GEMINI_API_KEY as a server-side secret and injects it as
- * `x-goog-api-key`. The real Gemini key is NEVER embedded in the client bundle
- * for these (text / vision / JSON) paths.
- *
- * NOT routed here (these still hold the key client-side — tracked as follow-ups):
- *   - Clara voice/Live API in components/ai/SynapseChatPopover.tsx (Live needs
- *     the `gemini-live-token` ephemeral-token endpoint — a REST proxy can't
- *     carry a websocket; its text chat fetch could be proxied later).
- *   - generateMilestoneCelebration (Veo `generateVideos`) in services/api.ts.
+ * `x-goog-api-key`. The real Gemini key is NEVER embedded in the client bundle.
+ * (Clara's Live voice uses ephemeral tokens from `gemini-live-token` — see
+ * components/ai/SynapseChatPopover.tsx.)
  */
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 
 // pds-gemini-proxy mount + the Gemini REST prefix it transparently forwards.
 const GEMINI_PROXY_BASE = `${SUPABASE_URL}/functions/v1/pds-gemini-proxy/v1beta/models`;
-
-/**
- * Returns the client-side Gemini key. Only used by the not-yet-proxied paths
- * noted above (Clara Live, Veo). The proxied generateContent path below does
- * NOT use this.
- */
-export function getApiKey(): string {
-  const key = (import.meta as any).env?.VITE_API_KEY
-    || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined)
-    || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
-  if (!key) {
-    console.error('[gemini] No Gemini API key — set VITE_API_KEY in .env (local) or the hosting env (deploy).');
-    return '';
-  }
-  return key;
-}
 
 export async function geminiGenerate(
   model: string,

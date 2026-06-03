@@ -4,9 +4,12 @@ import { ChatMessage } from '../../types';
 import { callMcpOrchestrator } from '../../services/api';
 import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink, Heart } from 'lucide-react';
 import VisualAuditPanel from './VisualAuditPanel';
-import { getApiKey } from '../../services/gemini';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../services/supabase';
 
-const GEMINI_API_KEY = getApiKey();
+// Text chat routes through pds-gemini-proxy; Live voice uses an ephemeral token
+// from gemini-live-token. The raw Gemini key is no longer held client-side.
+const PROXY_MODELS = `${SUPABASE_URL}/functions/v1/pds-gemini-proxy/v1beta/models`;
+const LIVE_TOKEN_URL = `${SUPABASE_URL}/functions/v1/gemini-live-token`;
 const LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025';
 const TEXT_MODEL = 'gemini-2.5-flash';
 
@@ -151,10 +154,14 @@ You can navigate the staff UI and check client records via available tools.`
 
         try {
             const res = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+                `${PROXY_MODELS}/${TEXT_MODEL}:generateContent`,
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'apikey': SUPABASE_ANON_KEY,
+                    },
                     body: JSON.stringify({
                         system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
                         contents: [{ role: 'user', parts: [{ text: userMsgText }] }],
@@ -214,8 +221,30 @@ You can navigate the staff UI and check client records via available tools.`
 
             // Dynamic import — only loads SDK when voice mode is activated
             const { GoogleGenAI, Modality } = await import('@google/genai');
-            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-            console.log('✅ GoogleGenAI SDK loaded');
+
+            // Fetch a short-lived ephemeral token from gemini-live-token (which
+            // holds the real GEMINI_API_KEY server-side) and init the SDK with the
+            // token — the raw key never reaches the browser.
+            // NOTE: ephemeral tokens require apiVersion 'v1alpha'. This is NOT the
+            // websocket-breaking apiProxy/httpOptions anti-pattern — it only selects
+            // the API version. The Live model + audio config below are UNCHANGED.
+            const tokenRes = await fetch(LIVE_TOKEN_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'apikey': SUPABASE_ANON_KEY,
+                },
+            });
+            const tokenJson = await tokenRes.json();
+            if (!tokenRes.ok || !tokenJson?.success || !tokenJson?.token?.name) {
+                throw new Error(tokenJson?.error || 'Could not obtain a Live voice token.');
+            }
+            const ai = new GoogleGenAI({
+                apiKey: tokenJson.token.name,
+                httpOptions: { apiVersion: 'v1alpha' },
+            });
+            console.log('✅ GoogleGenAI SDK loaded (ephemeral token)');
 
             const session = await ai.live.connect({
                 model: LIVE_MODEL,

@@ -1,6 +1,6 @@
-import { supabase, SUPABASE_ANON_KEY } from './supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { storageService } from './storageService';
-import { geminiText, geminiJSON, geminiGenerate, getApiKey } from './gemini';
+import { geminiText, geminiJSON, geminiGenerate } from './gemini';
 import {
   Client, Appointment, Payment, DocumentFile, FormSubmission,
   SessionRecord, SROPProgress, ClientActivity,
@@ -796,33 +796,36 @@ export const generateRelapseRiskPrediction = async (
  * Uses REST API for video generation (Imagen/Veo endpoint).
  */
 export const generateMilestoneCelebration = async (clientName: string, milestone: string) => {
-    if (!(await (window as any).aistudio.hasSelectedApiKey())) {
-        await (window as any).aistudio.openSelectKey();
-    }
-    const apiKey = getApiKey();
-    const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-fast-generate-preview:generateVideos?key=${apiKey}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt: `A vibrant cinematic celebration for ${clientName} completing ${milestone}. Background shows a sunrise over a peaceful road, symbolizing a new path in recovery. Inspirational, cinematic 4k style.`,
-                config: { numberOfVideos: 1, resolution: '1080p', aspectRatio: '16:9' }
-            })
-        }
-    );
+    // Routed through pds-gemini-proxy so no Gemini key is held client-side.
+    // NOTE: this function currently has NO callers and is legacy (it previously
+    // required the AI Studio `window.aistudio` key picker, which doesn't exist in
+    // production). The generateVideos + polling calls route cleanly through the
+    // proxy; the returned video URL, however, can't be rendered directly via the
+    // verify_jwt proxy (a media <src> can't carry the auth header) — fetching it
+    // as an authenticated blob is a follow-up. Left minimal and key-free.
+    const PROXY = `${SUPABASE_URL}/functions/v1/pds-gemini-proxy/v1beta`;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+    };
+    const res = await fetch(`${PROXY}/models/veo-3.1-fast-generate-preview:generateVideos`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            prompt: `A vibrant cinematic celebration for ${clientName} completing ${milestone}. Background shows a sunrise over a peaceful road, symbolizing a new path in recovery. Inspirational, cinematic 4k style.`,
+            config: { numberOfVideos: 1, resolution: '1080p', aspectRatio: '16:9' }
+        })
+    });
     let operation = await res.json();
 
     while (!operation.done) {
         await new Promise(resolve => setTimeout(resolve, 10000));
-        const pollRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${operation.name}?key=${apiKey}`
-        );
+        const pollRes = await fetch(`${PROXY}/${operation.name}`, { headers });
         operation = await pollRes.json();
     }
 
-    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    return `${downloadLink}&key=${apiKey}`;
+    return operation.response?.generatedVideos?.[0]?.video?.uri || '';
 };
 
 export const addClient = async (clientData: any): Promise<Client> => {
