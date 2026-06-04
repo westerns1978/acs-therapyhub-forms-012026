@@ -30,11 +30,33 @@ import {
 const DEFAULT_ORG_ID = '71077b47-66e8-4fd9-90e7-709773ea6582';
 const MCP_ORCHESTRATOR_URL = 'https://ldzzlndsspkyohvzfiiu.supabase.co/functions/v1/mcp-orchestrator';
 
+// Map the REAL uploaded_files.document_type (documentExtraction taxonomy) to a
+// human display category for the Documents "file cabinet". Anything missing or
+// unrecognized is honestly "Uncategorized" — never mislabeled.
+const DOC_TYPE_LABELS: Record<string, string> = {
+    court_order: 'Court Order',
+    intake_form: 'Intake',
+    treatment_plan: 'Treatment Plan',
+    verification_slip: 'Verification',
+    consent: 'Consent',
+    billing_record: 'Billing',
+    progress_note: 'Progress Note',
+    id_copy: 'ID / License',
+    completion_certificate: 'Completion Certificate',
+    drug_screen: 'Drug Screen',
+    other: 'Other',
+    profile: 'Other',
+};
+const categorizeDocType = (raw?: string | null): string => {
+    const key = (raw ?? '').toString().trim().toLowerCase();
+    return DOC_TYPE_LABELS[key] || 'Uncategorized';
+};
+
 const mapVaultDocToApp = (vDoc: any): DocumentFile => ({
     id: vDoc.id,
     nodeId: vDoc.id,
     clientId: vDoc.metadata?.clientId || '',
-    clientName: 'Client', 
+    clientName: 'Client',
     filename: vDoc.file_name,
     documentType: 'Unknown',
     gcs_file_path: vDoc.file_path,
@@ -44,11 +66,17 @@ const mapVaultDocToApp = (vDoc: any): DocumentFile => ({
     mimeType: vDoc.file_type,
     url: vDoc.public_url,
     extractedData: {
-        summary: vDoc.metadata?.summary || '',
+        summary: vDoc.metadata?.summary || vDoc.extracted_summary || '',
         fields: vDoc.metadata?.fields || [],
         actionItems: vDoc.metadata?.actionItems || [],
-        suggestedSubfolder: vDoc.metadata?.suggestedSubfolder || 'Intake'
+        // No real subfolder is stored; leave undefined rather than defaulting to
+        // a misleading "Intake". The real grouping is `category` below.
+        suggestedSubfolder: vDoc.metadata?.suggestedSubfolder,
     },
+    // Real category from the uploaded_files.document_type column (previously
+    // dropped here, which is why every doc displayed the hardcoded "Intake").
+    category: categorizeDocType(vDoc.document_type),
+    needsReview: !!vDoc.needs_review,
     complianceStatus: 'Approved',
     auditTrail: []
 });
