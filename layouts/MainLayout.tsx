@@ -33,6 +33,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [treatmentPlanMode, setTreatmentPlanMode] = useState<CustomizeModalMode | null>(null);
   const [preselectedClientId, setPreselectedClientId] = useState<string | undefined>(undefined);
+  const [preselectedScheduleClient, setPreselectedScheduleClient] = useState<Client | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
 
   useEffect(() => {
@@ -87,6 +88,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return () => window.removeEventListener('open-treatment-plan-modal', handler);
   }, []);
 
+  // Open Schedule modal pre-scoped to a client (e.g. from the client header).
+  // Reuses ScheduleSessionModal's existing preselectedClient prop.
+  useEffect(() => {
+    const handler = (e: any) => {
+      setPreselectedScheduleClient(e?.detail?.client ?? null);
+      setScheduleModalOpen(true);
+    };
+    window.addEventListener('open-schedule-modal', handler);
+    return () => window.removeEventListener('open-schedule-modal', handler);
+  }, []);
+
   if (!user) {
     return <Navigate to="/login" replace />;
   }
@@ -128,8 +140,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       <GlobalHeader
         onCommandPaletteToggle={() => setCommandPaletteOpen(prev => !prev)}
-        onScheduleSession={() => setScheduleModalOpen(true)}
-        onOpenNote={() => setNoteModalOpen(true)}
+        onScheduleSession={() => { setPreselectedScheduleClient(null); setScheduleModalOpen(true); }}
+        onOpenNote={() => { setPreselectedClientId(undefined); setNoteModalOpen(true); }}
         onNewIntake={() => setCreateClientModalOpen(true)}
         onMobileMenuToggle={() => setMobileDrawerOpen(prev => !prev)}
       />
@@ -169,9 +181,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {isScheduleModalOpen && (
           <ScheduleSessionModal
             isOpen={isScheduleModalOpen}
-            onClose={() => setScheduleModalOpen(false)}
+            onClose={() => { setScheduleModalOpen(false); setPreselectedScheduleClient(null); }}
             onSave={(newApt) => console.log('New appointment scheduled:', newApt)}
             clients={clients}
+            preselectedClient={preselectedScheduleClient ?? undefined}
           />
       )}
 

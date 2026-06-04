@@ -118,10 +118,20 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
                         <Play size={16} /> Start Session
                     </button>
                 )}
-                <button className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10 active:scale-95">
+                {/* Opens Smart Note Studio (owned by MainLayout) pre-scoped to THIS
+                    client via the existing open-note-modal event (e.detail.clientId). */}
+                <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-note-modal', { detail: { clientId: client.id } }))}
+                    className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10 active:scale-95"
+                >
                     <FilePlus size={16} /> Session Note
                 </button>
-                <button className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95">
+                {/* Opens the existing ScheduleSessionModal pre-scoped to this client
+                    (its preselectedClient prop → "Schedule Makeup for {name}"). */}
+                <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('open-schedule-modal', { detail: { client } }))}
+                    className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95"
+                >
                     <CalendarPlus size={16} /> Schedule
                 </button>
                 <button
@@ -179,14 +189,14 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
                     <div className="lg:col-span-3 prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
                         {clinicalSnapshot && <ClinicalMarkdown content={clinicalSnapshot} />}
                         <p className="text-[9px] text-slate-400 mt-6 font-mono border-t border-slate-200 dark:border-slate-800 pt-4 uppercase tracking-tighter flex items-center gap-2">
-                           <ShieldAlert size={10} /> Clinical use only. Data grounded in PDS records via Gemini 3 Deep Reasoning.
+                           <ShieldAlert size={10} /> Clinical use only. AI-generated summary (Gemini 2.5 Flash) — review before relying on it.
                         </p>
                     </div>
                     <div className="lg:col-span-1 border-l border-slate-200 dark:border-slate-800 pl-8 space-y-6">
-                         <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Priority Action</p>
-                            <button className="w-full py-3 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all">Draft Court Report</button>
-                         </div>
+                         {/* "Draft Court Report" was a dead placeholder button. The real
+                             court/DMH document is the Status Report PDF, already a
+                             first-class action in the client workspace action row, so the
+                             redundant placeholder is removed rather than duplicated here. */}
                          <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Risk Marker</p>
                             <div className="flex items-center gap-2 text-amber-500 font-bold text-xs">
