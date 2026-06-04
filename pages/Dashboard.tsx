@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
 import { getAppointments, getClients, getRecentClientCommunications, type ClientCommunication } from '../services/api';
 import { fetchAlerts, summarizeAlerts, type AlertsSummary, type ClientAlert } from '../services/alertsService';
+import { fetchComplianceGuardrails, type GuardrailVerdict } from '../services/complianceEngine';
 import { Appointment } from '../types';
 import { Video, Calendar, AlertTriangle, Activity, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus } from 'lucide-react';
 
@@ -39,6 +40,8 @@ const Dashboard: React.FC = () => {
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [alerts, setAlerts] = useState<ClientAlert[]>([]);
     const [alertSummary, setAlertSummary] = useState<AlertsSummary>({ critical: 0, high: 0, elevated: 0, moderate: 0, total: 0 });
+    // Deterministic compliance-engine verdicts (Missouri pack) for the Guardrails card.
+    const [guardrails, setGuardrails] = useState<GuardrailVerdict[]>([]);
     const [recentComms, setRecentComms] = useState<ClientCommunication[]>([]);
     const [clientNames, setClientNames] = useState<Record<string, string>>({});
     // Director aggregate stats. null = query failed / not meaningful → render '—'.
@@ -69,6 +72,11 @@ const Dashboard: React.FC = () => {
                         const a = await fetchAlerts();
                         if (!cancelled) { setAlerts(a); setAlertSummary(summarizeAlerts(a)); }
                     } catch (e) { console.warn('[dashboard] fetchAlerts failed:', e); }
+                    // Deterministic compliance verdicts (no AI) — drives the Guardrails card.
+                    try {
+                        const g = await fetchComplianceGuardrails();
+                        if (!cancelled) setGuardrails(g);
+                    } catch (e) { console.warn('[dashboard] compliance guardrails failed:', e); }
                 }
 
                 // Recent client messages — admin only. Real client_communications rows.
@@ -165,22 +173,31 @@ const Dashboard: React.FC = () => {
     );
 
     const GuardrailsCard = (
-        <Card title="Clinical Guardrails" subtitle="Compliance flags from real client activity.">
+        <Card title="Clinical Guardrails" subtitle="Deterministic Missouri compliance checks (9 CSR) — engine-computed, advisory.">
             <div className="space-y-3">
-                {alerts.length > 0 ? alerts.slice(0, 5).map(a => (
-                    <button
-                        key={a.id}
-                        onClick={() => navigate(`/clients/${a.clientId}`)}
-                        className="w-full text-left flex items-start gap-4 p-4 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
-                    >
-                        <AlertTriangle className="text-primary shrink-0 mt-1" size={20} />
-                        <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-black text-primary uppercase tracking-widest">{a.tier} · {a.clientName}</p>
-                            <p className="text-sm font-bold text-slate-800 dark:text-red-200 mt-0.5">{a.headline}</p>
-                        </div>
-                    </button>
-                )) : (
-                    <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No active alerts.</div>
+                {guardrails.length > 0 ? guardrails.slice(0, 6).map(g => {
+                    const isViolation = g.status === 'violation';
+                    const accent = isViolation ? 'text-red-600' : 'text-amber-600';
+                    const box = isViolation
+                        ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
+                        : 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/20';
+                    return (
+                        <button
+                            key={g.id}
+                            onClick={() => navigate(`/clients/${g.clientId}`)}
+                            className={`w-full text-left flex items-start gap-4 p-4 border rounded-2xl transition-colors ${box}`}
+                        >
+                            <AlertTriangle className={`shrink-0 mt-1 ${accent}`} size={20} />
+                            <div className="min-w-0 flex-1">
+                                <p className={`text-[10px] font-black uppercase tracking-widest ${accent}`}>{g.status} · {g.clientName} · {g.program}</p>
+                                <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">{g.headline}</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{g.detail}</p>
+                                <p className="text-[10px] font-mono text-slate-400 mt-1.5">{g.citation}</p>
+                            </div>
+                        </button>
+                    );
+                }) : (
+                    <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No compliance flags.</div>
                 )}
             </div>
         </Card>

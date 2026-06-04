@@ -1,0 +1,485 @@
+{
+  "pack_id": "us-mo",
+  "pack_name": "Missouri — SATOP, Outpatient SUD, CSTAR, REACT",
+  "version": "1.0.0",
+  "jurisdiction": "Missouri",
+  "regulatory_authority": "Missouri Department of Mental Health, Division of Behavioral Health",
+  "last_reviewed": "2026-06-04",
+  "disclaimer": "Deterministic rule definitions for engine enforcement. Thresholds and citations transcribed from source regulatory analysis; verify against current CSR text before production enforcement. This pack drives counts/verdicts; explanatory text for staff/clients is served separately via the RAG knowledge base and is never the source of a compliance verdict.",
+
+  "primitives_used": ["HOURS", "DEADLINE", "DOCUMENT", "SIGNATURE", "CONSTRAINT", "SEQUENCE", "CREDENTIAL"],
+
+  "credentials": {
+    "_comment": "Credential definitions used by SIGNATURE/CREDENTIAL rules. A staff profile must carry one of these verified codes to perform the gated action.",
+    "LMHP": {
+      "label": "Licensed Mental Health Professional",
+      "examples": ["Licensed Physician", "Psychiatrist", "Psychologist", "APRN", "LPC", "LMFT", "LCSW"],
+      "can_diagnose": true,
+      "can_sign_treatment_plan": true,
+      "can_supervise": true,
+      "citation": "9 CSR 30-3.151"
+    },
+    "PROVISIONAL_LMHP": {
+      "label": "Provisional LMHP (PLPC / LMSW)",
+      "examples": ["PLPC", "LMSW"],
+      "can_diagnose": "draft_only",
+      "can_sign_treatment_plan": "draft_only",
+      "requires_cosign_by": "LMHP",
+      "note": "LMSW may render diagnoses only if under registered supervision for LCSW; unsupervised LMSW must be blocked from diagnostic execution.",
+      "citation": "9 CSR 30-3.151"
+    },
+    "QAP": {
+      "label": "Qualified Addiction Professional / QMHP",
+      "examples": ["CADC", "CRADC", "CRAADC", "CCJP", "CCDP", "CCDP-D"],
+      "can_diagnose": false,
+      "can_sign_treatment_plan": "draft_then_route_to_LMHP",
+      "note": "May gather clinical data and draft; diagnostic and clinical summary must be routed to and co-signed by an LMHP (dual-signature workflow).",
+      "citation": "9 CSR 30-3.151, 9 CSR 30-3.155"
+    },
+    "SQP": {
+      "label": "SATOP Qualified Professional",
+      "variants": ["SQP", "SQP-R"],
+      "can_perform_omu_screening": true,
+      "can_assign_satop_level": true,
+      "note": "OMU screenings executed independently; WIP individual sessions require clinical supervisor oversight.",
+      "citation": "9 CSR 30-3.204, MCB SQP/SQP-R criteria"
+    },
+    "QSAP": {
+      "label": "Qualified Substance Abuse Professional",
+      "note": "Required to deliver intensive outpatient treatment (CIP, YCIP, SROP). Physician, licensed QMHP w/ 1yr SUD experience, MCB-certified/registered, or associate within 1yr under approved training plan.",
+      "can_deliver_intensive_outpatient": true,
+      "citation": "9 CSR 10-7.140"
+    },
+    "ASSOCIATE": {
+      "label": "Associate Counselor (RASAC I / RASAC II)",
+      "can_deliver_counseling": true,
+      "requires_supervision": true,
+      "note": "May deliver individual/group counseling and group education only under direct oversight and full professional responsibility of a trained clinical supervisor.",
+      "citation": "9 CSR 10-7.140"
+    }
+  },
+
+  "programs": {
+
+    "OUTPATIENT_SUD": {
+      "label": "Outpatient Substance Use Disorder Treatment",
+      "citation": "9 CSR 30-3.195",
+      "rules": [
+        {
+          "id": "MO-OP-CONSENT-ANNUAL",
+          "primitive": "DOCUMENT",
+          "subtype": "consent",
+          "label": "Informed treatment consent (annual)",
+          "requirement": "Written informed consent executed at intake and renewed at least every 365 days.",
+          "enforcement": "HARD_BLOCK",
+          "blocks": ["progress_note_creation", "billing_submission"],
+          "condition": "active_signed_consent_present AND consent_age_days <= 365",
+          "citation": "9 CSR 30-3.195"
+        },
+        {
+          "id": "MO-OP-INTAKE-GOAL",
+          "primitive": "DOCUMENT",
+          "label": "Initial admission goal at intake",
+          "requirement": "At least one preliminary treatment target documented at the time of intake before client can move to active status.",
+          "enforcement": "HARD_BLOCK",
+          "blocks": ["transition_client_to_active"],
+          "condition": "at_least_one_initial_goal_documented",
+          "citation": "9 CSR 30-3.195"
+        },
+        {
+          "id": "MO-OP-TXPLAN-BY-3VISITS",
+          "primitive": "DEADLINE",
+          "label": "Treatment plan within first 3 outpatient visits",
+          "requirement": "Comprehensive individualized treatment plan finalized within the first three outpatient visits.",
+          "enforcement_steps": [
+            { "at": "visit_2", "action": "WARN", "target": "therapist_dashboard" },
+            { "at": "visit_4_scheduling", "action": "HARD_BLOCK", "blocks": ["schedule_fourth_visit"], "unless": "treatment_plan_executed" }
+          ],
+          "citation": "9 CSR 30-3.195"
+        },
+        {
+          "id": "MO-OP-TXPLAN-REVIEW-90D",
+          "primitive": "DEADLINE",
+          "label": "Treatment plan review every 90 days",
+          "requirement": "Treatment plan formally reviewed and updated at least every 90 days.",
+          "enforcement": "HARD_LOCK",
+          "trigger": "day_90_post_plan_execution",
+          "locks": ["charting_access"],
+          "unlock_condition": "documented_review_completed",
+          "warn_before_days": 7,
+          "citation": "9 CSR 30-3.195"
+        },
+        {
+          "id": "MO-OP-TXPLAN-REWRITE-365D",
+          "primitive": "DEADLINE",
+          "label": "Treatment plan full rewrite annually",
+          "requirement": "Treatment plan revised and rewritten in its entirety at least every 365 days.",
+          "enforcement": "HARD_BLOCK",
+          "trigger": "day_365_active_care",
+          "action": "archive_existing_plan AND launch_rewrite_wizard",
+          "blocks": ["general_progress_note_entry"],
+          "unlock_condition": "rewrite_complete",
+          "citation": "9 CSR 30-3.195"
+        },
+        {
+          "id": "MO-OP-TXPLAN-SIGN",
+          "primitive": "SIGNATURE",
+          "label": "Treatment plan sign-off credential gate",
+          "requirement": "Treatment plans developed, approved, and signed by an LMHP or QAP with appropriate routing.",
+          "enforcement": "CREDENTIAL_GATE",
+          "allowed_signers": ["LMHP"],
+          "draft_allowed_by": ["PROVISIONAL_LMHP", "QAP"],
+          "cosign_required_when_drafted_by": ["PROVISIONAL_LMHP", "QAP"],
+          "cosigner_credential": "LMHP",
+          "citation": "9 CSR 30-3.195, 9 CSR 30-3.151"
+        },
+        {
+          "id": "MO-OP-DIAGNOSIS-DSM5TR",
+          "primitive": "CONSTRAINT",
+          "label": "Diagnoses restricted to DSM-5-TR",
+          "requirement": "All diagnoses rendered per DSM-5-TR using active codes/specifiers.",
+          "enforcement": "INPUT_RESTRICTION",
+          "allowed_values_source": "dsm_5_tr_active_codes",
+          "citation": "9 CSR 30-3.151"
+        },
+        {
+          "id": "MO-OP-DIAGNOSIS-CREDENTIAL",
+          "primitive": "CREDENTIAL",
+          "label": "Diagnostic privilege gate",
+          "requirement": "Diagnoses restricted to LMHPs. Non-licensed (QAP/QMHP) intake routes to LMHP via dual-signature workflow. Unsupervised LMSW blocked.",
+          "enforcement": "CREDENTIAL_GATE",
+          "allowed": ["LMHP"],
+          "draft_then_route": ["QAP", "PROVISIONAL_LMHP"],
+          "hard_block": ["unsupervised_LMSW"],
+          "citation": "9 CSR 30-3.151"
+        }
+      ]
+    },
+
+    "SATOP": {
+      "label": "Substance Awareness Traffic Offender Program",
+      "citation": "9 CSR 30-3.201 et seq.",
+      "entry_rule": {
+        "id": "MO-SATOP-OMU-SEQUENCE",
+        "primitive": "SEQUENCE",
+        "label": "OMU screening precedes level placement",
+        "requirement": "All in-state SATOP clients enter via OMU standardized screening, conducted by a credentialed SQP, before level assignment.",
+        "enforcement": "SEQUENCE_GATE",
+        "order": ["omu_screening_by_SQP", "level_assignment"],
+        "citation": "9 CSR 30-3.206"
+      },
+      "levels": {
+        "OEP": {
+          "label": "Level I — Offender Education Program",
+          "rules": [
+            {
+              "id": "MO-SATOP-OEP-HOURS",
+              "primitive": "HOURS",
+              "label": "OEP 10 education hours within 6 months",
+              "total_required_hours": 10,
+              "category": "education",
+              "window_days": 180,
+              "enforcement": "HARD_BLOCK",
+              "blocks": ["completion_certificate"],
+              "condition": "education_hours_logged == 10 AND within_window",
+              "citation": "9 CSR 30-3.201"
+            }
+          ]
+        },
+        "WIP": {
+          "label": "Level II — Weekend Intervention Program",
+          "rules": [
+            {
+              "id": "MO-SATOP-WIP-HOURS",
+              "primitive": "HOURS",
+              "label": "WIP 20 continuous hours",
+              "total_required_hours": 20,
+              "category": "education_and_counseling",
+              "structure": "20 continuous hours over a 48-hour weekend",
+              "enforcement": "HARD_BLOCK",
+              "blocks": ["completion_certificate"],
+              "validate": ["20_continuous_hours_documented", "funding_code_entered"],
+              "citation": "9 CSR 30-3.201"
+            }
+          ]
+        },
+        "CIP": {
+          "label": "Level III — Clinical Intervention Program",
+          "rules": [
+            {
+              "id": "MO-SATOP-CIP-HOURS-SPLIT",
+              "primitive": "HOURS",
+              "label": "CIP exact 50-hour split (10/20/20)",
+              "total_required_hours": 50,
+              "components": [
+                { "category": "individual_counseling", "required_hours": 10 },
+                { "category": "group_counseling", "required_hours": 20 },
+                { "category": "group_education", "required_hours": 20 }
+              ],
+              "additional_constraint": {
+                "label": "At least 10 hours focused explicitly on drinking-and-driving issues",
+                "min_hours": 10,
+                "topic_tag": "impaired_driving"
+              },
+              "enforcement": "HARD_BLOCK",
+              "blocks": ["completion_certificate"],
+              "condition": "each_component_met AND impaired_driving_hours >= 10",
+              "citation": "9 CSR 30-3.201 (CIP)"
+            },
+            {
+              "id": "MO-SATOP-CIP-DELIVERY-CREDENTIAL",
+              "primitive": "CREDENTIAL",
+              "label": "CIP delivered by QSAP",
+              "requirement": "Intensive outpatient (CIP) services delivered by a QSAP; associates only under supervision.",
+              "enforcement": "CREDENTIAL_GATE",
+              "allowed": ["QSAP"],
+              "allowed_under_supervision": ["ASSOCIATE"],
+              "citation": "9 CSR 10-7.140"
+            }
+          ]
+        },
+        "SROP": {
+          "label": "Level IV — Serious and Repeat Offender Program",
+          "rules": [
+            {
+              "id": "MO-SATOP-SROP-HOURS",
+              "primitive": "HOURS",
+              "label": "SROP minimum 75 hours",
+              "total_required_hours": 75,
+              "category": "clinical_treatment",
+              "enforcement": "HARD_BLOCK",
+              "blocks": ["completion_certificate"],
+              "citation": "9 CSR 30-3.201 (SROP)"
+            },
+            {
+              "id": "MO-SATOP-SROP-DURATION",
+              "primitive": "DEADLINE",
+              "subtype": "minimum_duration",
+              "label": "SROP minimum 90 calendar days",
+              "requirement": "Program delivered over no less than 90 calendar days.",
+              "enforcement": "HARD_BLOCK",
+              "blocks": ["completion_certificate"],
+              "condition": "days_between(enrollment, completion) >= 90",
+              "citation": "9 CSR 30-3.201 (SROP)"
+            },
+            {
+              "id": "MO-SATOP-SROP-DELIVERY-CREDENTIAL",
+              "primitive": "CREDENTIAL",
+              "label": "SROP delivered by QSAP",
+              "enforcement": "CREDENTIAL_GATE",
+              "allowed": ["QSAP"],
+              "allowed_under_supervision": ["ASSOCIATE"],
+              "citation": "9 CSR 10-7.140"
+            }
+          ]
+        }
+      },
+      "comparable_out_of_state": {
+        "label": "Comparable Out-of-State Program (in lieu of SATOP)",
+        "rules": [
+          {
+            "id": "MO-SATOP-COMP-HOURS",
+            "primitive": "HOURS",
+            "label": "Comparable program 120 total hours",
+            "total_required_hours": 120,
+            "components": [
+              { "category": "group_or_individual_counseling", "min_hours": 40 },
+              { "category": "drug_alcohol_education", "min_hours": 10 }
+            ],
+            "note": "Remaining hours: driver-related education, group education, or family therapy.",
+            "enforcement": "HARD_BLOCK",
+            "blocks": ["comparable_completion_acceptance"],
+            "citation": "Comparable Program Completion requirements"
+          },
+          {
+            "id": "MO-SATOP-COMP-WINDOW",
+            "primitive": "DEADLINE",
+            "label": "Comparable program within 6 months of assessment",
+            "window_days": 180,
+            "anchor": "out_of_state_initial_assessment",
+            "enforcement": "HARD_BLOCK",
+            "citation": "Comparable Program Completion requirements"
+          },
+          {
+            "id": "MO-SATOP-COMP-PROVIDER",
+            "primitive": "CONSTRAINT",
+            "label": "Out-of-state provider must be certified/accredited",
+            "requirement": "Provider state-certified or accredited by recognized national body (e.g., The Joint Commission, CARF).",
+            "enforcement": "VALIDATION",
+            "citation": "Comparable Program Completion requirements"
+          },
+          {
+            "id": "MO-SATOP-COMP-FORM",
+            "primitive": "DOCUMENT",
+            "label": "Comparable Program Completion Form sections + supplemental fee",
+            "requirement": "Track/store Sections II, III, IV of the Comparable Program Completion Form; verify $249 supplemental fee submitted to MO DMH.",
+            "enforcement": "VALIDATION",
+            "fields": ["section_IIA_out_of_state_clinician", "sections_III_IV", "supplemental_fee_249_submitted"],
+            "citation": "Comparable Program Completion requirements"
+          }
+        ]
+      }
+    },
+
+    "CSTAR": {
+      "label": "Comprehensive Substance Treatment and Rehabilitation",
+      "citation": "9 CSR 30-3.151 / .152 / .155",
+      "rules": [
+        {
+          "id": "MO-CSTAR-ASAM-TRAINING",
+          "primitive": "CREDENTIAL",
+          "label": "Direct-care staff ASAM-trained",
+          "requirement": "All direct care staff trained in ASAM Criteria (2013, 3rd ed.), co-occurring disorders, Zero Suicide prevention, trauma-informed care.",
+          "enforcement": "VALIDATION",
+          "tracks": ["asam_training", "co_occurring_training", "suicide_prevention_training", "trauma_informed_training"],
+          "citation": "9 CSR 30-3.155"
+        },
+        {
+          "id": "MO-CSTAR-DUAL-SIGNATURE",
+          "primitive": "SIGNATURE",
+          "label": "QAP/QMHP intake dual-signature routing",
+          "requirement": "When QAP/QMHP conducts intake, diagnostic and clinical summary routed to and co-signed by an approved LMHP with dated e-signature.",
+          "enforcement": "DUAL_SIGNATURE_WORKFLOW",
+          "drafter": ["QAP", "QMHP"],
+          "cosigner_credential": "LMHP",
+          "citation": "9 CSR 30-3.151"
+        }
+      ]
+    },
+
+    "GROUP_THERAPY": {
+      "label": "Group Counseling (cross-program)",
+      "citation": "9 CSR 30-3.110",
+      "rules": [
+        {
+          "id": "MO-GROUP-SIZE-CAP",
+          "primitive": "CONSTRAINT",
+          "label": "Group size avg ≤ 12 per facilitator per month",
+          "requirement": "Group counseling capped at a strict average of 12 individuals per facilitator per calendar month.",
+          "enforcement": "WARN_THEN_FLAG",
+          "metric": "avg_group_size_per_facilitator_per_calendar_month",
+          "threshold": 12,
+          "citation": "9 CSR 30-3.110"
+        },
+        {
+          "id": "MO-GROUP-LOG-ATTENDANCE",
+          "primitive": "DOCUMENT",
+          "label": "Group log with exact in/out times",
+          "requirement": "Secure group log capturing service type, summary, date, and exact attendee check-in/check-out times.",
+          "enforcement": "VALIDATION",
+          "required_fields": ["service_type", "summary", "date", "per_attendee_checkin", "per_attendee_checkout"],
+          "citation": "9 CSR 30-3.110, 9 CSR 10-7.030"
+        },
+        {
+          "id": "MO-GROUP-NO-STAMP-SIGNATURE",
+          "primitive": "SIGNATURE",
+          "label": "Per-session facilitator signature (no stamps)",
+          "requirement": "Block pre-saved signature stamps; facilitator must authenticate signature for each session.",
+          "enforcement": "HARD_BLOCK",
+          "blocks": ["presaved_signature_stamp"],
+          "citation": "9 CSR 30-3.110"
+        }
+      ]
+    },
+
+    "REACT": {
+      "label": "Required Educational Assessment and Community Treatment",
+      "citation": "Missouri DOC / Probation & Parole",
+      "rules": [
+        {
+          "id": "MO-REACT-EDU-HOURS",
+          "primitive": "HOURS",
+          "label": "REACT minimum 10 education hours",
+          "total_required_hours": 10,
+          "category": "drug_alcohol_education",
+          "enforcement": "HARD_BLOCK",
+          "blocks": ["completion_certificate"],
+          "citation": "REACT program requirements"
+        },
+        {
+          "id": "MO-REACT-OUT-OF-STATE-REPORT",
+          "primitive": "SEQUENCE",
+          "label": "Out-of-state relocation reporting",
+          "requirement": "If offender relocates, equivalent accredited program completed and compliance reported to supervising MO Probation & Parole officer.",
+          "enforcement": "VALIDATION",
+          "citation": "REACT program requirements"
+        }
+      ]
+    },
+
+    "CONSENT_42CFR2": {
+      "label": "42 CFR Part 2 + HIPAA Consent Management",
+      "citation": "42 CFR Part 2 (Feb 2024 final rule), § 2.32",
+      "rules": [
+        {
+          "id": "MO-CONSENT-TPO-SINGLE",
+          "primitive": "DOCUMENT",
+          "label": "Single comprehensive TPO consent allowed",
+          "requirement": "Patient may sign a single written consent authorizing all future TPO uses/disclosures.",
+          "enforcement": "WORKFLOW",
+          "citation": "42 CFR Part 2 (2024)"
+        },
+        {
+          "id": "MO-CONSENT-NO-COMBINE-LEGAL-TPO",
+          "primitive": "CONSTRAINT",
+          "label": "Hard stop: cannot combine TPO + legal-proceeding consent",
+          "requirement": "Consent for use/disclosure in civil/criminal/administrative/legislative proceedings must be a separate standalone form; combining with TPO is prohibited.",
+          "enforcement": "HARD_BLOCK",
+          "blocks": ["combined_tpo_and_legal_consent_form"],
+          "citation": "42 CFR Part 2 (2024)"
+        },
+        {
+          "id": "MO-CONSENT-232-NOTICE",
+          "primitive": "DOCUMENT",
+          "label": "Mandatory § 2.32 redisclosure notice",
+          "requirement": "Every consented disclosure must append the § 2.32 notice prohibiting further redisclosure unless permitted.",
+          "enforcement": "AUTO_APPEND",
+          "citation": "42 CFR § 2.32"
+        },
+        {
+          "id": "MO-CONSENT-AUDIT-LOG",
+          "primitive": "DOCUMENT",
+          "label": "Immutable consent + disclosure audit log",
+          "requirement": "Maintain audit logs of all active/expired/revoked consents and all partner-portal views, downloads, and transfers.",
+          "enforcement": "VALIDATION",
+          "depends_on": "real_audit_logging_infrastructure",
+          "note": "ENFORCEMENT REQUIRES the trust-layer rebuild (audit_logs). Encoding this rule does NOT make the app 42-CFR compliant on its own.",
+          "citation": "42 CFR Part 2, 9 CSR 30-3.195"
+        }
+      ]
+    },
+
+    "WAITLIST": {
+      "label": "Waitlist & Priority Populations",
+      "citation": "9 CSR 30-3.100",
+      "rules": [
+        {
+          "id": "MO-WAITLIST-PRIORITY-FLAG",
+          "primitive": "CONSTRAINT",
+          "label": "Priority population flagging",
+          "requirement": "Flag and prioritize: pregnant women who inject drugs; pregnant women; persons who injected in past 30 days; civil involuntary commitments; high-risk P&P/DOC referrals; TANF referrals; Children's System of Care.",
+          "enforcement": "FLAG_AND_PROMPT",
+          "priority_categories": [
+            "pregnant_injecting", "pregnant", "injected_past_30_days",
+            "civil_involuntary_commitment", "high_risk_probation_parole_doc",
+            "tanf_referral", "childrens_system_of_care"
+          ],
+          "citation": "9 CSR 30-3.100"
+        }
+      ]
+    }
+  },
+
+  "rag_handoff": {
+    "_comment": "These items are EXPLANATORY and belong in the Clara knowledge base (pgvector), NOT in this deterministic pack. Listed here only as a manifest of what to route to RAG.",
+    "topics": [
+      "What SATOP is and why completion is required for license reinstatement",
+      "Plain-language explanation of each SATOP level and who it's for",
+      "What a comparable out-of-state program is and how the process works",
+      "Plain-language 42 CFR Part 2 explanation (redisclosure, bifurcated consent, why it matters for court-involved clients)",
+      "Credential definitions in plain language (what an LMHP/QAP/SQP/QSAP is)",
+      "Fee structures and funding (screening fee, supplemental fee, Mental Health Earnings Fund)",
+      "Recovery support, care coordination, CCBHC alignment context"
+    ]
+  }
+}
