@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 import { geminiGenerate } from './gemini';
-import { extractFromFile } from './documentExtraction';
+// documentExtraction pulls in heavy parsers (mammoth + xlsx). It is imported
+// DYNAMICALLY inside ingestDocument (below) so those parsers stay OUT of the main
+// bundle and load only when a document is actually ingested — not on app startup.
 
 const STORAGE_BUCKET = 'gemynd-files';
 const DEFAULT_ORG_ID = '71077b47-66e8-4fd9-90e7-709773ea6582';
@@ -152,6 +154,8 @@ export const storageService = {
     if (!documentType) {
       onProgress?.('NEURAL_ANALYSIS');
       try {
+        // Lazy-load the heavy analyzer only when classification is actually needed.
+        const { extractFromFile } = await import('./documentExtraction');
         const ex = await extractFromFile(file);
         documentType = ex.documentType || 'other';
         summary = summary ?? ex.summary;

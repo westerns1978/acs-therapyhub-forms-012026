@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getClient, getDocumentFilesForClient, getFormSubmissions, getSessionRecords, getSROPData, getClientActivityFeed, generateRelapseRiskPrediction } from '../services/api';
-import { Client, DocumentFile, FormSubmission, SessionRecord, SROPProgress, ClientActivity } from '../types';
+import { getClient, getDocumentFilesForClient, getFormSubmissions, getSROPData, getClientActivityFeed, generateRelapseRiskPrediction } from '../services/api';
+import { Client, DocumentFile, FormSubmission, SROPProgress, ClientActivity } from '../types';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ClientSelectionGrid from '../components/clients/ClientSelectionGrid';
 import ClientProfileHeader from '../components/clients/ClientProfileHeader';
@@ -9,6 +9,7 @@ import ClientDocumentsGrid from '../components/clients/ClientDocumentsGrid';
 import ClientOverviewTab from '../components/clients/ClientOverviewTab';
 import ClientFormsTab from '../components/clients/ClientFormsTab';
 import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
+import ClientSessionsTab from '../components/clients/ClientSessionsTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import Card from '../components/ui/Card';
 import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive } from 'lucide-react';
@@ -143,7 +144,6 @@ const ClientWorkspace: React.FC = () => {
     
     const [documents, setDocuments] = useState<DocumentFile[]>([]);
     const [formSubmissions, setFormSubmissions] = useState<FormSubmission[]>([]);
-    const [sessionRecords, setSessionRecords] = useState<SessionRecord[]>([]);
     const [sropData, setSropData] = useState<SROPProgress | null>(null);
     const [activityFeed, setActivityFeed] = useState<ClientActivity[]>([]);
     const [loadErrors, setLoadErrors] = useState<Record<string, boolean>>({});
@@ -158,10 +158,11 @@ const ClientWorkspace: React.FC = () => {
             const clientData = await getClient(id);
             if (clientData) {
                 setClient(clientData);
+                // Sessions tab now loads its own real data (ClientSessionsTab);
+                // getSessionRecords (mock dbSessionRecords) is no longer fetched here.
                 const results = await Promise.allSettled([
                     getDocumentFilesForClient(id),
                     getFormSubmissions({ clientId: id }),
-                    getSessionRecords(id),
                     getSROPData(id),
                     getClientActivityFeed(id)
                 ]);
@@ -170,11 +171,9 @@ const ClientWorkspace: React.FC = () => {
                 else setLoadErrors(prev => ({...prev, documents: true}));
                 if (results[1].status === 'fulfilled') setFormSubmissions(results[1].value || []);
                 else setLoadErrors(prev => ({...prev, forms: true}));
-                if (results[2].status === 'fulfilled') setSessionRecords(results[2].value || []);
-                else setLoadErrors(prev => ({...prev, sessions: true}));
-                if (results[3].status === 'fulfilled') setSropData(results[3].value || null);
+                if (results[2].status === 'fulfilled') setSropData(results[2].value || null);
                 else setLoadErrors(prev => ({...prev, srop: true}));
-                if (results[4].status === 'fulfilled') setActivityFeed(results[4].value || []);
+                if (results[3].status === 'fulfilled') setActivityFeed(results[3].value || []);
                 else setLoadErrors(prev => ({...prev, activity: true}));
             } else {
                 setClient(null);
@@ -244,9 +243,8 @@ const ClientWorkspace: React.FC = () => {
             case 'forms': 
                 if (loadErrors.forms) return <ErrorFallback message="Failed to load forms." onRetry={() => loadClientData(clientId)} />;
                 return <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>;
-            case 'sessions': 
-                if (loadErrors.sessions) return <ErrorFallback message="Failed to load session history." onRetry={() => loadClientData(clientId)} />;
-                return <Card title="Session History"><p>Session history for {client.name}. ({ (sessionRecords || []).length } found)</p></Card>;
+            case 'sessions':
+                return <ClientSessionsTab client={client} />;
             case 'overview': 
             default: 
                 return (
