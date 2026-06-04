@@ -11,13 +11,13 @@ import ClientFormsTab from '../components/clients/ClientFormsTab';
 import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import Card from '../components/ui/Card';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award } from 'lucide-react';
+import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
 import { assessClient } from '../services/complianceEngine';
-import { downloadCompletionCertificate, downloadStatusReport } from '../services/pdfDocuments';
+import { downloadCompletionCertificate, downloadStatusReport, downloadClientRecordPacket } from '../services/pdfDocuments';
 
 const CLINICAL_ROLES: ReadonlyArray<string> = ['Director', 'Therapist'];
 
@@ -149,6 +149,7 @@ const ClientWorkspace: React.FC = () => {
     const [loadErrors, setLoadErrors] = useState<Record<string, boolean>>({});
 
     const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const [isCompiling, setIsCompiling] = useState(false);
 
     const loadClientData = useCallback(async (id: string) => {
         setIsLoading(true);
@@ -292,6 +293,24 @@ const ClientWorkspace: React.FC = () => {
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'}`}
                     >
                         <Award size={14} /> Completion Certificate
+                    </button>
+                    <button
+                        onClick={async () => {
+                            if (isCompiling) return;
+                            setIsCompiling(true);
+                            try {
+                                await downloadClientRecordPacket(client, assessment.verdicts, assessment.completion, documents);
+                            } catch (e) {
+                                alert('Could not compile the record packet: ' + (e as Error).message);
+                            } finally {
+                                setIsCompiling(false);
+                            }
+                        }}
+                        disabled={isCompiling}
+                        title="Compile a downloadable record packet (ZIP): summary, completion certificate if eligible, and the client's documents by category"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60"
+                    >
+                        <Archive size={14} /> {isCompiling ? 'Compiling…' : 'Record Packet'}
                     </button>
                     <button
                         onClick={() => setIsUploadOpen(true)}

@@ -12,7 +12,9 @@
  * No server, no AI. Pulls from existing client fields + engine verdicts.
  */
 import { jsPDF } from 'jspdf';
+import JSZip from 'jszip';
 import type { CompletionAssessment, RuleVerdict } from './complianceEngine';
+import type { DocumentFile } from '../types';
 
 const MAROON: [number, number, number] = [139, 30, 36]; // #8B1E24 (ACS brand)
 const SLATE: [number, number, number] = [71, 85, 105];
@@ -77,9 +79,10 @@ function kv(doc: jsPDF, label: string, value: string, y: number): number {
 }
 
 // ── 1. Completion Certificate ────────────────────────────────────────────────
-export function downloadCompletionCertificate(client: any, completion: CompletionAssessment): void {
-  // Hard guard — never fabricate a completion. The button is also disabled when
-  // ineligible; this is defense-in-depth around the engine's verdict.
+// Builds the certificate jsPDF. The completion GATE lives here, so every path
+// (direct download AND the record packet) reuses the engine's verdict and can
+// never fabricate a completion.
+export function buildCompletionCertificateDoc(client: any, completion: CompletionAssessment): jsPDF {
   if (!completion.eligible) {
     throw new Error(`Completion certificate blocked — criteria not met: ${completion.unmetReasons.join('; ')}`);
   }
@@ -175,11 +178,15 @@ export function downloadCompletionCertificate(client: any, completion: Completio
   doc.text('MO 650-7743 (8-98)', MARGIN, 775);
   doc.text('DMH 9409', PAGE_W - MARGIN, 775, { align: 'right' });
 
-  doc.save(`SATOP_Completion_Certificate_${safeName(client)}.pdf`);
+  return doc;
+}
+
+export function downloadCompletionCertificate(client: any, completion: CompletionAssessment): void {
+  buildCompletionCertificateDoc(client, completion).save(`SATOP_Completion_Certificate_${safeName(client)}.pdf`);
 }
 
 // ── 2. Status / Progress Report ──────────────────────────────────────────────
-export function downloadStatusReport(client: any, verdicts: RuleVerdict[], completion: CompletionAssessment): void {
+export function buildStatusReportDoc(client: any, verdicts: RuleVerdict[], completion: CompletionAssessment): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   let y = letterhead(doc);
 
@@ -256,5 +263,120 @@ export function downloadStatusReport(client: any, verdicts: RuleVerdict[], compl
     `Generated ${fmtDate(new Date().toISOString())} by ACS TherapyHub. All counts and statuses are computed deterministically by the compliance engine from recorded data — no AI produces any verdict. Advisory; verify against current 9 CSR text before submission.`
   );
 
-  doc.save(`Compliance_Status_${safeName(client)}.pdf`);
+  return doc;
+}
+
+export function downloadStatusReport(client: any, verdicts: RuleVerdict[], completion: CompletionAssessment): void {
+  buildStatusReportDoc(client, verdicts, completion).save(`Compliance_Status_${safeName(client)}.pdf`);
+}
+
+// ── 3. End-of-program Client Record Packet (ZIP) ─────────────────────────────
+// One downloadable bundle: a generated Record Summary PDF (status-report content
+// + engine verdicts), the Completion Certificate ONLY when the engine confirms
+// eligibility (gate reused via buildCompletionCertificateDoc — not duplicated),
+// a truthful MANIFEST, and the client's ACTUAL stored documents fetched from
+// their public Storage URLs, foldered by real category. Completion is never
+// implied unless the engine confirms it. Client-side only (JSZip) — no server.
+
+const sanitizeSeg = (s: string): string =>
+  (s || '').replace(/[<>:"/\\|?* -]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 120) || 'file';
+
+function friendlyMime(d: DocumentFile): string {
+  const m = (d.mimeType || '').toLowerCase();
+  if (m.includes('pdf')) return 'PDF';
+  if (m.startsWith('image/')) return (m.split('/')[1] || 'image').toUpperCase();
+  if (m.includes('word')) return 'DOC';
+  if (m.includes('sheet')) return 'XLS';
+  return (d.filename.split('.').pop() || 'file').toUpperCase();
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function downloadClientRecordPacket(
+  client: any,
+  verdicts: RuleVerdict[],
+  completion: CompletionAssessment,
+  documents: DocumentFile[] = [],
+): Promise<{ embedded: number; listed: number; complete: boolean }> {
+  const zip = new JSZip();
+  const complete = completion.eligible;
+
+  // 1. Record Summary PDF (the cover/summary — status-report content).
+  zip.file('Record_Summary.pdf', buildStatusReportDoc(client, verdicts, completion).output('blob'));
+
+  // 2. Completion Certificate — ONLY when the engine confirms eligibility.
+  if (complete) {
+    zip.file('SATOP_Completion_Certificate.pdf', buildCompletionCertificateDoc(client, completion).output('blob'));
+  }
+
+  // 3. Stored documents → fetch from public URLs, folder by real category.
+  const docsFolder = zip.folder('documents');
+  const byCat: Record<string, DocumentFile[]> = {};
+  for (const d of documents) {
+    const cat = d.category || 'Uncategorized';
+    (byCat[cat] = byCat[cat] || []).push(d);
+  }
+  let embedded = 0;
+  const docLines: string[] = [];
+  for (const cat of Object.keys(byCat).sort()) {
+    docLines.push('', `${cat} (${byCat[cat].length}):`);
+    const catFolder = docsFolder?.folder(sanitizeSeg(cat));
+    for (const d of byCat[cat]) {
+      const sizeKb = Math.max(1, Math.round((d.fileSize || 0) / 1024));
+      const dateStr = fmtDate(d.uploadDate instanceof Date ? d.uploadDate.toISOString() : (d.uploadDate as any));
+      let status = 'listed (not embedded)';
+      if (d.url) {
+        try {
+          const res = await fetch(d.url);
+          if (res.ok) {
+            catFolder?.file(sanitizeSeg(d.filename), await res.blob());
+            embedded++;
+            status = 'embedded';
+          }
+        } catch {
+          // CORS / network — leave listed-only; the URL is recorded below.
+        }
+      }
+      docLines.push(`  - ${d.filename} [${friendlyMime(d)}, ${dateStr}, ~${sizeKb} KB] — ${status}${status !== 'embedded' && d.url ? ` (${d.url})` : ''}`);
+    }
+  }
+
+  // 4. MANIFEST.txt — truthful packet header (no implied completion).
+  const manifest = [
+    'ACS THERAPYHUB — CLIENT RECORD PACKET',
+    '======================================',
+    `Client:    ${client.name || '—'}`,
+    `Client ID: ${client.case_number || client.caseNumber || client.id || '—'}`,
+    `Program:   ${completion.programLabel}`,
+    `Generated: ${fmtDate(new Date().toISOString())}`,
+    '',
+    complete
+      ? 'PACKET TYPE: COMPLETION RECORD — the compliance engine confirms all completion criteria are met; the SATOP Completion Certificate is included.'
+      : `PACKET TYPE: CURRENT RECORD / STATUS — program is NOT yet complete, so no completion certificate is included.${completion.unmetReasons.length ? ' Outstanding: ' + completion.unmetReasons.join('; ') : ''}`,
+    '',
+    'CONTENTS:',
+    '  - Record_Summary.pdf  (compliance status + engine verdicts with CSR citations)',
+    ...(complete ? ['  - SATOP_Completion_Certificate.pdf'] : []),
+    `  - documents/  (${embedded} of ${documents.length} stored file(s) embedded)`,
+    '',
+    'STORED DOCUMENTS:',
+    ...(documents.length ? docLines : ['  (none on file)']),
+    '',
+    'All counts and statuses are computed deterministically by the compliance engine — no AI produces any verdict. Verify against current 9 CSR text before submission to the Missouri DMH.',
+  ].join('\n');
+  zip.file('MANIFEST.txt', manifest);
+
+  // 5. Generate + download.
+  const blob = await zip.generateAsync({ type: 'blob' });
+  triggerDownload(blob, `Client_Record_Packet_${complete ? 'Completion' : 'Status'}_${safeName(client)}.zip`);
+  return { embedded, listed: documents.length, complete };
 }
