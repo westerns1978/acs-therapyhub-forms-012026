@@ -11,11 +11,13 @@ import ClientFormsTab from '../components/clients/ClientFormsTab';
 import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import Card from '../components/ui/Card';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target } from 'lucide-react';
+import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
+import { assessClient } from '../services/complianceEngine';
+import { downloadCompletionCertificate, downloadStatusReport } from '../services/pdfDocuments';
 
 const CLINICAL_ROLES: ReadonlyArray<string> = ['Director', 'Therapist'];
 
@@ -207,6 +209,10 @@ const ClientWorkspace: React.FC = () => {
     if (isLoading) return <LoadingSpinner />;
     if (!client) return <div className="text-center p-8">Client not found.</div>;
 
+    // Deterministic compliance assessment for this client. The engine — not the
+    // UI — decides whether the completion certificate may be generated.
+    const assessment = assessClient(client);
+
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },
         { id: 'documents', label: 'Documents', icon: FileText },
@@ -267,12 +273,33 @@ const ClientWorkspace: React.FC = () => {
                         </button>
                     ))}
                 </nav>
-                <button
-                    onClick={() => setIsUploadOpen(true)}
-                    className="my-2 flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-focus text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
-                >
-                    <Upload size={14} /> Upload Document
-                </button>
+                <div className="my-2 flex items-center gap-2 flex-wrap">
+                    <button
+                        onClick={() => downloadStatusReport(client, assessment.verdicts, assessment.completion)}
+                        title="Download an audit-ready compliance status report (PDF)"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-border dark:border-dark-border text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
+                    >
+                        <FileText size={14} /> Status Report
+                    </button>
+                    <button
+                        onClick={() => { if (assessment.completion.eligible) downloadCompletionCertificate(client, assessment.completion); }}
+                        disabled={!assessment.completion.eligible}
+                        title={assessment.completion.eligible
+                            ? 'Generate the SATOP completion certificate (PDF)'
+                            : `Completion certificate unavailable — ${assessment.completion.unmetReasons[0] || 'criteria not yet met'}`}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all ${assessment.completion.eligible
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-[1.02] active:scale-95'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'}`}
+                    >
+                        <Award size={14} /> Completion Certificate
+                    </button>
+                    <button
+                        onClick={() => setIsUploadOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-focus text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
+                    >
+                        <Upload size={14} /> Upload Document
+                    </button>
+                </div>
             </div>
             <div>{renderTabContent()}</div>
 

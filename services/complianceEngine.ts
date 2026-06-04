@@ -347,3 +347,74 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
   base.notEnforceable = Array.from(neMap.values()).sort((a, b) => a.label.localeCompare(b.label));
   return base;
 }
+
+// ── Program completion (gates the completion certificate) ─────────────────────
+// Completion is decided DETERMINISTICALLY: a program is "eligible" only when every
+// completion-certificate-gating rule for that program/level evaluates to 'met'.
+// No AI, no hardcoded "complete" — the engine's verdicts are the sole authority.
+
+export interface CompletionAssessment {
+  program: string;
+  programLabel: string;
+  hasCriteria: boolean;          // false when no completion rules are wired for this program/level
+  eligible: boolean;             // true ONLY if every gating rule is 'met'
+  gatingVerdicts: RuleVerdict[]; // the rules that gate the completion certificate
+  unmetReasons: string[];        // human-readable reasons any gating rule is not met
+}
+
+export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Date.now()): CompletionAssessment {
+  let programLabel = facts.program || 'Program';
+  let gatingIds: string[] = [];
+
+  // SATOP level inferred from the required-hours signature (data-driven).
+  if (facts.program === 'SATOP' && facts.totalRequired === 75) {
+    programLabel = 'SATOP — Serious & Repeat Offender Program (SROP, Level IV)';
+    gatingIds = ['MO-SATOP-SROP-HOURS', 'MO-SATOP-SROP-DURATION'];
+  } else if (facts.program === 'SATOP' && facts.totalRequired === 50) {
+    programLabel = 'SATOP — Clinical Intervention Program (CIP, Level III)';
+    gatingIds = ['MO-SATOP-CIP-HOURS-SPLIT'];
+  }
+
+  if (gatingIds.length === 0) {
+    return {
+      program: facts.program,
+      programLabel,
+      hasCriteria: false,
+      eligible: false,
+      gatingVerdicts: [],
+      unmetReasons: ['No deterministic completion criteria are wired for this program/level with the data captured today.'],
+    };
+  }
+
+  const gatingVerdicts = gatingIds
+    .map((id) => getRule(id))
+    .filter((r): r is RuleDef => !!r)
+    .map((r) => evaluateRule(r, facts, nowMs));
+  const unmet = gatingVerdicts.filter((v) => v.status !== 'met');
+
+  return {
+    program: facts.program,
+    programLabel,
+    hasCriteria: true,
+    eligible: unmet.length === 0,
+    gatingVerdicts,
+    unmetReasons: unmet.map((v) => `${v.label}: ${v.detail}`),
+  };
+}
+
+/**
+ * One-call assessment for a single client row/object (snake_case fields present,
+ * as on both raw rows and the mapped Client). Pure + deterministic; no AI.
+ */
+export function assessClient(row: any, nowMs: number = Date.now()): {
+  facts: ClientFacts;
+  verdicts: RuleVerdict[];
+  completion: CompletionAssessment;
+} {
+  const facts = toFacts(row);
+  return {
+    facts,
+    verdicts: evaluateClientCompliance(facts, nowMs),
+    completion: evaluateProgramCompletion(facts, nowMs),
+  };
+}
