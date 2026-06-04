@@ -263,3 +263,87 @@ export async function fetchComplianceGuardrails(): Promise<GuardrailVerdict[]> {
   out.sort((a, b) => (a.status === b.status ? 0 : a.status === 'violation' ? -1 : 1));
   return out;
 }
+
+// ── Practice-wide readiness (Director view) ───────────────────────────────────
+// Same pure engine, aggregated across ALL active clients. Surfaces every status
+// (met / warning / violation / not_enforceable) so an owner sees what the system
+// can verify now vs. what still needs data captured. No AI.
+
+export interface NotEnforceableItem {
+  ruleId: string;
+  label: string;
+  primitive: Primitive;
+  citation: string;
+  reason: string;       // the missing-field detail from the evaluator
+  clientCount: number;  // how many active clients this rule would apply to
+}
+
+export interface ComplianceReadiness {
+  packId: string;
+  packVersion: string;
+  clientsEvaluated: number;
+  counts: Record<VerdictStatus, number>;
+  flags: GuardrailVerdict[];            // warning/violation, violations first
+  notEnforceable: NotEnforceableItem[]; // deduped by rule, with reason + client count
+}
+
+export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
+  const base: ComplianceReadiness = {
+    packId: PACK_ID,
+    packVersion: PACK_VERSION,
+    clientsEvaluated: 0,
+    counts: { met: 0, warning: 0, violation: 0, not_enforceable: 0 },
+    flags: [],
+    notEnforceable: [],
+  };
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .not('status', 'in', '(Completed,Archived,completed,archived)');
+  if (error || !data) {
+    if (error) console.warn('[complianceEngine] readiness query failed:', error.message);
+    return base;
+  }
+
+  const nowMs = Date.now();
+  const neMap = new Map<string, NotEnforceableItem>();
+
+  for (const row of data) {
+    const facts = toFacts(row);
+    if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
+    base.clientsEvaluated++;
+
+    for (const v of evaluateClientCompliance(facts, nowMs)) {
+      base.counts[v.status]++;
+      if (v.status === 'warning' || v.status === 'violation') {
+        base.flags.push({
+          id: `${facts.id}__${v.ruleId}`,
+          clientId: facts.id,
+          clientName: facts.name,
+          program: facts.program,
+          ruleId: v.ruleId,
+          status: v.status,
+          headline: v.label,
+          detail: v.detail,
+          citation: v.citation,
+        });
+      } else if (v.status === 'not_enforceable') {
+        const existing = neMap.get(v.ruleId);
+        if (existing) existing.clientCount++;
+        else neMap.set(v.ruleId, {
+          ruleId: v.ruleId,
+          label: v.label,
+          primitive: v.primitive,
+          citation: v.citation,
+          reason: v.detail,
+          clientCount: 1,
+        });
+      }
+    }
+  }
+
+  base.flags.sort((a, b) => (a.status === b.status ? 0 : a.status === 'violation' ? -1 : 1));
+  base.notEnforceable = Array.from(neMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  return base;
+}

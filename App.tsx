@@ -41,6 +41,7 @@ const OAuthCallback = lazy(() => import('./pages/OAuthCallback'));
 // Admin Pages
 const Reporting = lazy(() => import('./pages/Reporting'));
 const Settings = lazy(() => import('./pages/Settings'));
+const ComplianceReadiness = lazy(() => import('./pages/ComplianceReadiness'));
 
 // Client Portal Pages
 const ClientLogin = lazy(() => import('./pages/portal/ClientLogin'));
@@ -128,6 +129,7 @@ function App() {
                   />
 
                   {/* Director-only superuser routes */}
+                  <Route path="/compliance-readiness" element={<RequireRole roles={['Director']}><ComplianceReadiness /></RequireRole>} />
                   <Route path="/settings" element={<RequireRole roles={['Director']}><Settings /></RequireRole>} />
 
                   {/* Client-facing Portal — gated on a real Supabase session (PortalProtectedRoute).

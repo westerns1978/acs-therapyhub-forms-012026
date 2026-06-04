@@ -6,7 +6,7 @@ import GemyndFlowLogo from './GemyndFlowLogo';
 import {
     Home, Users, MessageSquare, Calendar, Shield,
     DollarSign, LogOut, X, BarChart3, Settings,
-    ClipboardList, Zap, Activity, BookOpen, HelpCircle
+    ClipboardList, Zap, Activity, BookOpen, HelpCircle, ShieldCheck
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
 import type { UserRole } from '../../types';
@@ -25,6 +25,7 @@ const DIRECTOR_ONLY: readonly UserRole[] = ['Director'];
 
 const adminNavItems: NavItemDef[] = [
     { to: '/reporting', icon: BarChart3, label: 'Analytics', roles: DIRECTOR_ONLY },
+    { to: '/compliance-readiness', icon: ShieldCheck, label: 'Compliance Readiness', roles: DIRECTOR_ONLY },
     { to: '/settings', icon: Settings, label: 'Settings', roles: DIRECTOR_ONLY },
 ].filter(item => !isTrialHidden(item.to));
 

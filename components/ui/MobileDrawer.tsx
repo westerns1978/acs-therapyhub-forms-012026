@@ -69,6 +69,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
 
     const adminItems: DrawerItemDef[] = ([
         { to: '/reporting', icon: BarChart3, label: 'Analytics', roles: DIRECTOR_ONLY },
+        { to: '/compliance-readiness', icon: ShieldCheck, label: 'Compliance Readiness', roles: DIRECTOR_ONLY },
         { to: '/settings', icon: Settings, label: 'Settings', roles: DIRECTOR_ONLY },
     ] satisfies DrawerItemDef[])
         .filter(item => !isTrialHidden(item.to))
