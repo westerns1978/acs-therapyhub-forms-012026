@@ -38,7 +38,7 @@ export interface IngestAnalysis {
 
 export interface IngestOptions {
   clientId: string;
-  source: 'scan' | 'dropzone' | 'upload';
+  source: 'scan' | 'dropzone' | 'upload' | 'paper_form';
   uploadedBy?: string;
   analysis?: IngestAnalysis;
   onProgress?: (status: string) => void;

@@ -33,10 +33,11 @@ const CLIENT_FORMS = [
 const PaperUploadModal: React.FC<{ 
     isOpen: boolean, 
     onClose: () => void, 
-    form: any, 
+    form: any,
     clientId: string,
-    onSuccess: () => void 
-}> = ({ isOpen, onClose, form, clientId, onSuccess }) => {
+    clientName: string,
+    onSuccess: () => void
+}> = ({ isOpen, onClose, form, clientId, clientName, onSuccess }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -47,7 +48,7 @@ const PaperUploadModal: React.FC<{
         setIsUploading(true);
         setError(null);
         try {
-            await submitPaperForm(clientId, form.id, form.name, file);
+            await submitPaperForm(clientId, form.id, form.name, file, clientName);
             onSuccess();
             onClose();
         } catch (err: any) {
@@ -360,6 +361,7 @@ const PortalDocuments: React.FC = () => {
                     onClose={() => setUploadingForm(null)}
                     form={uploadingForm}
                     clientId={portalClient.id}
+                    clientName={portalClient.name}
                     onSuccess={fetchData}
                 />
 
