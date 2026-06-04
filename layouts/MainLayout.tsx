@@ -11,8 +11,7 @@ import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import { getClients } from '../services/api';
 import { Client } from '../types';
 import NotificationContainer from '../components/ui/NotificationContainer';
-import Modal from '../components/ui/Modal';
-import SmartNoteImporter from '../components/notes/SmartNoteImporter';
+import NoteStudioDock from '../components/notes/NoteStudioDock';
 import CreateClientModal from '../components/clients/CreateClientModal';
 import EditClientModal from '../components/clients/EditClientModal';
 import CustomizeTreatmentPlanModal, { type CustomizeModalMode } from '../components/clients/CustomizeTreatmentPlanModal';
@@ -112,7 +111,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         setCommandPaletteOpen(false);
         setClaraOpen(false);
         setScheduleModalOpen(false);
-        setNoteModalOpen(false);
+        // Note: the Note Studio dock is intentionally NOT closed on Escape — it is a
+        // persistent, non-blocking panel and closing it mid-session would discard an
+        // unsaved note. Close it via its own Minimize/Close controls instead.
         setCreateClientModalOpen(false);
         setMobileDrawerOpen(false);
       }
@@ -188,16 +189,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           />
       )}
 
-      {isNoteModalOpen && (
-          <Modal isOpen={isNoteModalOpen} onClose={() => setNoteModalOpen(false)} title="Clinical Smart Note Studio">
-              <div className="p-4">
-                  <SmartNoteImporter 
-                      clientId={preselectedClientId} 
-                      onNoteGenerated={() => setNoteModalOpen(false)} 
-                  />
-              </div>
-          </Modal>
-      )}
+      {/* Dockable, non-blocking Note Studio — sits beside a Zoom window during a live
+          session (replaces the old blocking centered modal). */}
+      <NoteStudioDock
+          isOpen={isNoteModalOpen}
+          onClose={() => setNoteModalOpen(false)}
+          clientId={preselectedClientId}
+      />
 
       <CreateClientModal isOpen={isCreateClientModalOpen} onClose={() => setCreateClientModalOpen(false)} />
 
