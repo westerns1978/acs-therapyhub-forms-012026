@@ -12,6 +12,7 @@ import { Upload, X, FileText, CheckCircle2, AlertTriangle, Loader2 } from "lucid
 import { supabase } from "../../services/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { extractFromFile, fileSizeError, isSupportedFile, ACCEPT_ATTRIBUTE } from "../../services/documentExtraction";
+import { storageService } from "../../services/storageService";
 
 interface Client {
   id: string;
@@ -34,9 +35,6 @@ type Phase =
   | "saving"
   | "done"
   | "error";
-
-const STORAGE_BUCKET = "client-documents";
-const DEFAULT_ORG_ID = "71077b47-66e8-4fd9-90e7-709773ea6582";
 
 const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
   isOpen, onClose, onComplete, presetClientId, presetClientName,
@@ -116,56 +114,26 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
     if (!clientId) { setError("Pick a client first."); setPhase("pick_client"); return; }
 
     try {
-      // 1. Upload to Storage
-      setPhase("uploading");
-      const safeName = file.name.replace(/\s+/g, "_");
-      const filePath = `${clientId}/${Date.now()}_${safeName}`;
-      const { error: storageErr } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(filePath, file, { upsert: false });
-      if (storageErr) throw new Error(`Storage upload failed: ${storageErr.message}`);
-
-      const { data: urlData } = supabase.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(filePath);
-      const publicUrl = urlData.publicUrl;
-
-      // 2. Run Gemini extraction
+      // 1. Gemini classification (via pds-gemini-proxy).
       setPhase("extracting");
       const extraction = await extractFromFile(file);
 
-      // 3. Save row in uploaded_files
+      // 2. Unified ingest core — one bucket, document_type set, real uploader.
       setPhase("saving");
-      const insertPayload: Record<string, unknown> = {
-        file_name: file.name,
-        file_path: filePath,
-        file_type: file.type || guessMimeFromName(file.name),
-        file_size: file.size,
-        public_url: publicUrl,
-        bucket_id: STORAGE_BUCKET,
-        org_id: DEFAULT_ORG_ID,
-        hire_id: clientId,
-        uploaded_by: user?.name || "Staff",
-        document_type: extraction.documentType,
-        document_status: extraction.ok ? "extracted" : "saved_no_extract",
-        extracted_text: extraction.extractedText,
-        extracted_summary: extraction.summary,
-        ocr_extracted_json: { fields: extraction.fields },
-        ocr_processed_at: extraction.ok ? new Date().toISOString() : null,
-        needs_review: !extraction.ok,
-        metadata: {
-          clientId,
-          clientName: effectiveClientName,
-          uploadedFrom: presetClientId ? "client-detail" : "ai-documents",
+      await storageService.ingestDocument(file, {
+        clientId,
+        source: 'upload',
+        uploadedBy: user?.name,
+        analysis: {
+          documentType: extraction.documentType,
+          summary: extraction.summary,
+          extractedText: extraction.extractedText,
+          fields: extraction.fields,
+          needsReview: !extraction.ok,
         },
-      };
+      });
 
-      const { error: dbErr } = await (supabase as any)
-        .from("uploaded_files")
-        .insert(insertPayload);
-      if (dbErr) throw new Error(`Save failed: ${dbErr.message}`);
-
-      // 4. Done
+      // 3. Done
       setPhase("done");
       setTimeout(() => {
         onComplete();
@@ -333,17 +301,5 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
     </div>
   );
 };
-
-function guessMimeFromName(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase();
-  if (!ext) return "application/octet-stream";
-  if (ext === "pdf") return "application/pdf";
-  if (["jpg", "jpeg"].includes(ext)) return "image/jpeg";
-  if (ext === "png") return "image/png";
-  if (ext === "webp") return "image/webp";
-  if (ext === "docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  if (ext === "xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  return "application/octet-stream";
-}
 
 export default StaffDocumentUpload;

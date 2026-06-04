@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Loader2, CheckCircle2, AlertTriangle, RotateCcw, X, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { extractHandwrittenForm, type OcrExtractionResult, type ExtractedFormField } from '../../services/ocrService';
-import { supabase } from '../../services/supabase';
 import { storageService } from '../../services/storageService';
+import { useAuth } from '../../contexts/AuthContext';
 
 type SupportedMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
@@ -36,6 +36,7 @@ const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; label: strin
 };
 
 export default function MobileDocumentUpload({ clientId, onComplete, onClose, initialImage }: MobileDocumentUploadProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>('capture');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -116,20 +117,21 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose, in
     if (!imageFile || !ocrResult) return;
     setStep('saving');
     try {
-      // Upload file to storage + extract DNA
-      const vaultDoc = await storageService.uploadToVault(imageFile, clientId ?? 'hub_unassigned');
-
-      // Update the uploaded_files record with OCR data
-      await supabase
-        .from('uploaded_files')
-        .update({
-          ocr_form_type: ocrResult.formType,
-          ocr_completion_score: ocrResult.completionScore,
-          ocr_extracted_json: buildFieldMap(editedFields),
-          needs_review: ocrResult.flaggedFields.length > 0 || ocrResult.completionScore < 80,
-          document_status: 'ocr_complete',
-        })
-        .eq('id', vaultDoc.id);
+      // Unified ingest core: one bucket, document_type carried from the OCR
+      // form-type (so scans stop landing "Uncategorized"), OCR fields +
+      // needs_review recorded, and the real authenticated uploader.
+      await storageService.ingestDocument(imageFile, {
+        clientId: clientId ?? 'hub_unassigned',
+        source: 'scan',
+        uploadedBy: user?.name,
+        analysis: {
+          ocrFormType: ocrResult.formType,
+          ocrCompletionScore: ocrResult.completionScore,
+          ocrExtractedJson: buildFieldMap(editedFields),
+          fields: editedFields,
+          needsReview: ocrResult.flaggedFields.length > 0 || ocrResult.completionScore < 80,
+        },
+      });
 
       setStep('done');
     } catch (err: any) {

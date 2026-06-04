@@ -141,7 +141,7 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
     for (const file of acceptedFiles) {
       try {
         setTransmissionLogs(prev => [...prev, `Uploading: ${file.name}`]);
-        const savedDoc = await saveDocumentFile({ clientId: client.id } as any, file);
+        const savedDoc = await saveDocumentFile({ clientId: client.id } as any, file, user?.name);
         setTransmissionLogs(prev => [...prev, `Upload complete: ${savedDoc.id}`]);
         setDocuments(prev => [savedDoc, ...prev]);
       } catch (error: any) {

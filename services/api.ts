@@ -222,9 +222,10 @@ export const getDocumentFilesForClient = async (clientId: string): Promise<Docum
     }
 };
 
-export const saveDocumentFile = async (doc: DocumentFile, file?: File): Promise<DocumentFile> => {
+export const saveDocumentFile = async (doc: DocumentFile, file?: File, uploadedBy?: string): Promise<DocumentFile> => {
     if (!file) throw new Error("Binary required for Vault ingestion.");
-    const vDoc = await storageService.uploadToVault(file, doc.clientId);
+    // Dropzone path → unified ingest core (one bucket + always-classified + real uploader).
+    const vDoc = await storageService.ingestDocument(file, { clientId: doc.clientId, source: 'dropzone', uploadedBy });
     return mapVaultDocToApp(vDoc);
 };
 
