@@ -496,12 +496,48 @@ const splitSoapNote = (note: string): Partial<Record<SoapKey, string>> => {
     return sections;
 };
 
+// DAP (Data / Assessment / Plan) is stored LOSSLESSLY in the existing SOAP
+// columns — NO schema change. Data -> subjective, Assessment -> assessment,
+// Plan -> plan; `objective` is left empty for DAP. Mirrors splitSoapNote: only a
+// clean, canonical D->A->P note is split; anything else drops whole into
+// `subjective` so no text is lost.
+// TODO(isolation-migration): add a dedicated `note_format` column + a `data`
+// column to clinical_notes so DAP is stored natively, instead of reusing the
+// SOAP `subjective` column and encoding the format in `note_type`.
+const DAP_KEYS = ['data', 'assessment', 'plan'] as const;
+const splitDapNote = (note: string): Partial<Record<SoapKey, string>> => {
+    const headerRe = /(?:^|\n)[ \t]*[*#>\-]*[ \t]*(data|assessment|plan)\b[ \t]*[:\-–]?[ \t]*\*{0,2}/gi;
+    const matches = [...note.matchAll(headerRe)];
+    const keysFound = matches.map(m => m[1].toLowerCase());
+    const isCanonical = keysFound.length === 3 && DAP_KEYS.every((k, i) => keysFound[i] === k);
+    if (!isCanonical) return { subjective: note.trim() };
+
+    const sections: Record<string, string> = {};
+    for (let i = 0; i < matches.length; i++) {
+        const key = matches[i][1].toLowerCase();
+        const start = (matches[i].index ?? 0) + matches[i][0].length;
+        const end = i + 1 < matches.length ? (matches[i + 1].index ?? note.length) : note.length;
+        sections[key] = note.slice(start, end).trim();
+    }
+    const preamble = note.slice(0, matches[0].index ?? 0).trim();
+    const data = preamble ? `${preamble}\n\n${sections.data ?? ''}`.trim() : (sections.data ?? '');
+    // Data -> subjective; Assessment/Plan keep their names; objective stays empty.
+    return { subjective: data, assessment: sections.assessment, plan: sections.plan };
+};
+
 export interface SaveClinicalNoteOptions {
     /** Existing clinical_notes columns only — never invent new ones. */
     appointmentId?: string | null;
     therapistId?: string | null;
     noteType?: string;
     isSigned?: boolean;
+    /**
+     * Note format the therapist chose. 'SOAP' (default) keeps today's behavior.
+     * 'DAP' is recorded as a "(DAP)" marker in the EXISTING note_type column and
+     * stored in the existing SOAP columns (see splitDapNote). No schema change.
+     * TODO(isolation-migration): replace with a dedicated `note_format` column.
+     */
+    noteFormat?: 'SOAP' | 'DAP';
 }
 
 export const saveClinicalNote = async (
@@ -510,12 +546,17 @@ export const saveClinicalNote = async (
     opts: SaveClinicalNoteOptions = {},
 ) => {
     if (!clientId || !note?.trim()) throw new Error('clientId and note are required');
+    const format = opts.noteFormat ?? 'SOAP';
+    const baseType = opts.noteType ?? 'Session';
     const row: Record<string, any> = {
         client_id: clientId,
-        note_type: opts.noteType ?? 'Session',
+        // Format recorded in the EXISTING note_type column (no schema change): DAP
+        // notes get a "(DAP)" marker so the format round-trips and shows in the
+        // note badge. SOAP notes are unchanged (note_type stays the base type).
+        note_type: format === 'DAP' ? `${baseType} (DAP)` : baseType,
         is_signed: opts.isSigned ?? false,
         created_at: new Date().toISOString(),
-        ...splitSoapNote(note),
+        ...(format === 'DAP' ? splitDapNote(note) : splitSoapNote(note)),
     };
     if (opts.appointmentId) row.appointment_id = opts.appointmentId;
     if (opts.therapistId) row.therapist_id = opts.therapistId;
@@ -606,11 +647,51 @@ export const getRecentClientCommunications = async (limit = 6): Promise<ClientCo
     }
     return (data || []).map(mapCommRow);
 };
-export const submitPaperForm = async (clientId: string, formId: string, formName: string, file: File) => {
-    // 1. Upload to Vault (triggers AI DNA extraction)
-    const uploadedFile = await storageService.uploadToVault(file, clientId);
-    
-    // 2. Create Form Submission record
+// A portal paper-form upload has a KNOWN type (the form being submitted), so we
+// classify from the form name rather than re-detecting — it never lands as
+// "Uncategorized". Keyword map mirrors storageService's document_type taxonomy.
+const PAPER_FORM_DOCTYPE: Array<[RegExp, string]> = [
+    [/court|order|dwi|disposition/i, 'court_order'],
+    [/intake/i, 'intake_form'],
+    [/consent|authorization|release/i, 'consent'],
+    [/treatment plan|recovery plan/i, 'treatment_plan'],
+    [/checklist|verification|certification|slip|completion/i, 'verification_slip'],
+    [/progress|session note|clinical note/i, 'progress_note'],
+    [/drug|screen|urinalysis|uds/i, 'drug_screen'],
+];
+const formNameToDocType = (name: string): string => {
+    for (const [re, t] of PAPER_FORM_DOCTYPE) if (re.test(name || '')) return t;
+    return 'other';
+};
+
+export const submitPaperForm = async (
+    clientId: string,
+    formId: string,
+    formName: string,
+    file: File,
+    submittedByName?: string,
+) => {
+    // Paper forms carry a signature/tag signal the submission record surfaces, so
+    // keep the DNA pass (it detects is_signed). All Gemini via pds-gemini-proxy.
+    const dna = await storageService.extractDocumentDNA(file);
+
+    // 1. Persist the file through the SAME unified core as scan/dropzone/upload:
+    //    one bucket (gemynd-files), a real document_type (from the known form), and
+    //    an honest portal uploader. The type is known, so we pass it as the
+    //    classification rather than re-detecting (no extra Gemini call).
+    const uploadedFile = await storageService.ingestDocument(file, {
+        clientId,
+        source: 'paper_form',
+        uploadedBy: submittedByName ? `${submittedByName} (portal upload)` : 'Client (portal upload)',
+        analysis: {
+            documentType: formNameToDocType(formName),
+            summary: dna.summary,
+            needsReview: true, // client-submitted paper forms always get clinician review
+        },
+    });
+
+    // 2. Create Form Submission record (unchanged shape — carry through the
+    //    summary/tags/signature the portal already surfaced from the DNA pass).
     const { data, error } = await supabase
         .from('form_submissions')
         .insert({
@@ -623,16 +704,16 @@ export const submitPaperForm = async (clientId: string, formId: string, formName
                 is_paper_upload: true,
                 file_id: uploadedFile.id,
                 file_url: uploadedFile.public_url,
-                ai_summary: uploadedFile.metadata?.summary,
-                ai_tags: uploadedFile.metadata?.tags,
-                is_signed: uploadedFile.metadata?.isSigned,
+                ai_summary: dna.summary,
+                ai_tags: dna.tags,
+                is_signed: dna.isSigned,
                 requires_review: true,
                 extracted_at: new Date().toISOString()
             }
         })
         .select()
         .single();
-        
+
     if (error) throw error;
     return data;
 };
@@ -760,9 +841,18 @@ export const generateAsamAnalysis = async (notes: string): Promise<AsamAnalysisR
 /**
  * SPEED-OPTIMIZED CLINICAL SYNTHESIS: Gemini 3 Flash.
  */
-export const generateSoapNoteFromTranscript = async (transcript: string, clientName: string) => {
-    return geminiText('gemini-2.5-flash',
-        `Construct a structural SOAP note for ${clientName}. Content must be HIPAA-compliant. Source: ${transcript}`);
+// Formats a transcript into a structured note. SOAP (default) is unchanged; when
+// format='DAP' the prompt yields canonical Data/Assessment/Plan headings that
+// splitDapNote maps onto the existing columns. All Gemini via pds-gemini-proxy.
+export const generateSoapNoteFromTranscript = async (
+    transcript: string,
+    clientName: string,
+    format: 'SOAP' | 'DAP' = 'SOAP',
+) => {
+    const prompt = format === 'DAP'
+        ? `Construct a structured DAP progress note for ${clientName}. Use EXACTLY three sections, each beginning with its heading on its own line: "Data:", then "Assessment:", then "Plan:". Data = factual/observed session information (what the client reported and did, presentation, events); Assessment = clinical interpretation, progress toward goals, and risk; Plan = next steps, interventions, and follow-up. Content must be HIPAA-compliant. Source: ${transcript}`
+        : `Construct a structural SOAP note for ${clientName}. Content must be HIPAA-compliant. Source: ${transcript}`;
+    return geminiText('gemini-2.5-flash', prompt);
 };
 
 export const generateClinicalSnapshot = async (client: Client) => {

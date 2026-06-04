@@ -16,6 +16,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
+    const [noteFormat, setNoteFormat] = useState<'SOAP' | 'DAP'>('SOAP');
     const recognitionRef = useRef<any>(null);
 
     useEffect(() => {
@@ -32,7 +33,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
         setIsProcessing(true);
         try {
             const clientName = clients.find(c => c.id === selectedClientId)?.name || "Client";
-            const note = await generateSoapNoteFromTranscript(rawText, clientName);
+            const note = await generateSoapNoteFromTranscript(rawText, clientName, noteFormat);
             setFormattedNote(note);
         } catch (e) {
             console.error(e);
@@ -45,7 +46,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
         if (!selectedClientId) return;
         setIsSaving(true);
         try {
-            await saveClinicalNote(selectedClientId, formattedNote || rawText);
+            await saveClinicalNote(selectedClientId, formattedNote || rawText, { noteFormat });
             onNoteGenerated(formattedNote || rawText);
         } catch (e) {
             alert("Error saving note");
@@ -94,7 +95,23 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
                     </div>
                 )}
                 
-                <div className="flex gap-2">
+                <div className="flex items-center gap-3">
+                    {/* Note format toggle — therapist chooses SOAP (default) or DAP per note. */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wide hidden sm:inline">Format:</span>
+                        <div className="flex items-center gap-1 bg-white dark:bg-slate-700 rounded-full p-1 shadow-sm border border-gray-100 dark:border-slate-600">
+                            {(['SOAP', 'DAP'] as const).map(fmt => (
+                                <button
+                                    key={fmt}
+                                    onClick={() => { setNoteFormat(fmt); setFormattedNote(''); }}
+                                    title={fmt === 'DAP' ? 'Data / Assessment / Plan' : 'Subjective / Objective / Assessment / Plan'}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wide transition-all ${noteFormat === fmt ? 'bg-primary text-white shadow' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'}`}
+                                >
+                                    {fmt}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <button onClick={toggleRecording} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/50' : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100'}`}>
                         {isRecording ? <><MicOff size={14}/> Stop</> : <><Mic size={14}/> Dictate</>}
                     </button>
@@ -126,7 +143,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
                 {/* Right: AI Output */}
                 <div className="flex flex-col relative">
                     <label className="text-xs font-bold uppercase text-indigo-500 mb-2 flex items-center gap-2 tracking-wider">
-                        <Sparkles size={14} className="fill-indigo-500"/> Structured SOAP
+                        <Sparkles size={14} className="fill-indigo-500"/> Structured {noteFormat}
                     </label>
                     <div className="flex-1 relative group">
                         <textarea 

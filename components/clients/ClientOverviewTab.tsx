@@ -254,6 +254,10 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                             {notes.map(n => {
                                 const therapist = THERAPIST_NAMES[n.therapist_id || ''] || 'Clinician';
                                 const noteLabel = (n.note_type || 'Note').toUpperCase();
+                                // Format is encoded in note_type (a "(DAP)" marker — see saveClinicalNote).
+                                // DAP notes render Data/Assessment/Plan with NO Objective; SOAP notes are
+                                // unchanged (subjective + objective shown together under "Data:").
+                                const isDap = noteLabel.includes('DAP');
                                 return (
                                     <div key={n.id} className="p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-2xl">
                                         <div className="flex items-center justify-between mb-3">
@@ -274,7 +278,7 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                                             {n.subjective && (
                                                 <div>
                                                     <span className="font-bold text-slate-700 dark:text-slate-200">Data: </span>
-                                                    <span className="text-slate-600 dark:text-slate-300">{n.subjective}{n.objective ? ` ${n.objective}` : ''}</span>
+                                                    <span className="text-slate-600 dark:text-slate-300">{n.subjective}{!isDap && n.objective ? ` ${n.objective}` : ''}</span>
                                                 </div>
                                             )}
                                             {n.assessment && (
