@@ -85,52 +85,95 @@ export function downloadCompletionCertificate(client: any, completion: Completio
   }
 
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  let y = letterhead(doc);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(22);
-  doc.setTextColor(...MAROON);
-  doc.text('CERTIFICATE OF COMPLETION', PAGE_W / 2, y + 18, { align: 'center' });
-  y += 54;
+  // Labeled fill-in field (mirrors the official paper form). A real value sits on
+  // the rule line; an unknown field renders as an empty labeled line so the form
+  // is print-and-complete ready. It NEVER invents a value — callers pass null for
+  // anything the app cannot verify.
+  const field = (label: string, value: string | null, x: number, yy: number, width: number) => {
+    if (value) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(20, 20, 20);
+      doc.text(doc.splitTextToSize(value, width - 4), x + 2, yy - 3);
+    }
+    doc.setDrawColor(...GREY); doc.setLineWidth(0.5); doc.line(x, yy, x + width, yy);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(...GREY);
+    doc.text(label.toUpperCase(), x, yy + 8);
+  };
+  const section = (text: string, yy: number): number => {
+    doc.setFillColor(...MAROON); doc.rect(MARGIN, yy - 9, CONTENT_W, 14, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
+    doc.text(text.toUpperCase(), MARGIN + 4, yy + 1);
+    return yy + 24;
+  };
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.setTextColor(20, 20, 20);
-  const intro = `This certifies that the client named below has satisfied the deterministic completion requirements of the program indicated, as verified by the ACS TherapyHub compliance engine against the client's recorded treatment data.`;
-  doc.text(doc.splitTextToSize(intro, CONTENT_W), MARGIN, y);
-  y += 52;
+  // ── Official title block ──
+  doc.setFillColor(...MAROON); doc.rect(0, 0, PAGE_W, 6, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...MAROON);
+  let y = 40;
+  for (const line of ['STATE OF MISSOURI', 'DEPARTMENT OF MENTAL HEALTH', 'DIVISION OF ALCOHOL AND DRUG ABUSE']) {
+    doc.text(line, PAGE_W / 2, y, { align: 'center' }); y += 15;
+  }
+  doc.setFontSize(14);
+  doc.text('SATOP COMPLETION CERTIFICATE', PAGE_W / 2, y + 4, { align: 'center' });
+  y += 22;
+  doc.setDrawColor(...SLATE); doc.setLineWidth(1); doc.line(MARGIN, y, PAGE_W - MARGIN, y);
+  y += 22;
 
-  const hours = num(client.srop_hours_completed ?? client.sropHoursCompleted);
-  const required = num(client.total_sessions_required ?? client.totalSessionsRequired);
-  const enrolled = client.created_at ?? client.createdAt ?? null;
-  const completed = client.program_end_date ?? client.programEndDate ?? new Date().toISOString();
-  const csr = completion.gatingVerdicts[0]?.citation || '9 CSR 30-3.201';
+  // Real values only — anything not genuinely in the record stays null (blank).
+  const provider = 'Assessment & Counseling Solutions';
+  const dob: string | null = client.dob ?? null;
+  const phone: string | null = client.primary_phone ?? client.phone ?? null;
+  const completionDate = client.program_end_date ?? client.programEndDate ?? new Date().toISOString();
+  const half = CONTENT_W / 2;
+  const third = CONTENT_W / 3;
 
-  y = kv(doc, 'Client', String(client.name || '—'), y);
-  y = kv(doc, 'Client ID', clientIdOf(client), y);
-  y = kv(doc, 'Program', completion.programLabel, y);
-  y = kv(doc, 'Clinical hours completed', hours == null ? '—' : `${hours}${required != null ? ` (minimum ${required} required)` : ''}`, y);
-  y = kv(doc, 'Program duration', `${fmtDate(enrolled)} → ${fmtDate(completed)}`, y);
-  y = kv(doc, 'Regulatory reference', csr, y);
-  y = kv(doc, 'Date issued', fmtDate(new Date().toISOString()), y);
+  // I. OFFENDER INFORMATION
+  y = section('I.  Offender Information', y);
+  field('Name (Last, First, MI)', client.name || null, MARGIN, y, CONTENT_W); y += 28;
+  field('Street Address', null, MARGIN, y, CONTENT_W); y += 28;
+  field('City', null, MARGIN, y, third - 8);
+  field('State', null, MARGIN + third, y, third - 8);
+  field('Zip', null, MARGIN + 2 * third, y, third); y += 28;
+  field('Date of Birth', dob ? fmtDate(dob) : null, MARGIN, y, third - 8);
+  field('Sex', null, MARGIN + third, y, third - 8);
+  field('Phone', phone, MARGIN + 2 * third, y, third); y += 28;
+  field("Driver's License No. & State", null, MARGIN, y, half - 8);
+  field('Social Security Number', null, MARGIN + half, y, half); y += 30;
 
-  // Signature block
-  y += 48;
-  doc.setDrawColor(...SLATE);
-  doc.setLineWidth(0.7);
-  doc.line(MARGIN, y, MARGIN + 240, y);
-  doc.line(PAGE_W - MARGIN - 160, y, PAGE_W - MARGIN, y);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...SLATE);
-  doc.text('Authorized ACS Clinician (signature)', MARGIN, y + 14);
-  doc.text('Date', PAGE_W - MARGIN - 160, y + 14);
+  // II. OFFENDER MANAGEMENT UNIT CERTIFYING COMPLETION
+  y = section('II.  Offender Management Unit Certifying Completion', y);
+  field('Corporate Name', provider, MARGIN, y, CONTENT_W); y += 28;
+  field('Address', null, MARGIN, y, CONTENT_W); y += 28;
+  field('Qualified Professional', null, MARGIN, y, half - 8);
+  field('Phone', null, MARGIN + half, y, half / 2 - 8);
+  field('Certificate Number', null, MARGIN + half + half / 2, y, half / 2); y += 30;
 
-  footer(
-    doc,
-    'Generated by ACS TherapyHub. Completion is determined deterministically by the compliance engine from recorded treatment data; ' +
-    'this certificate is issued only when all completion-gating rules are met. Verify against current 9 CSR text before submission to the Missouri Department of Mental Health.'
+  // III. OFFENDER STATUS
+  y = section('III.  Offender Status', y);
+  field('Program Was Required Due To (e.g., Administrative DWI)', null, MARGIN, y, CONTENT_W); y += 30;
+
+  // IV. SATOP COMPLETION INFORMATION
+  y = section('IV.  SATOP Completion Information', y);
+  field('Program Completed', completion.programLabel, MARGIN, y, CONTENT_W); y += 28;
+  field('Provider Site', provider, MARGIN, y, half - 8);
+  field('Completion Date', fmtDate(completionDate), MARGIN + half, y, half); y += 28;
+  field('Other Approved Program (Non-SATOP)', null, MARGIN, y, CONTENT_W); y += 30;
+
+  // V. COURT INFORMATION (IF APPLICABLE)
+  y = section('V.  Court Information (If Applicable)', y);
+  field('Court / Circuit Name', null, MARGIN, y, CONTENT_W); y += 28;
+  field('Case Number', null, MARGIN, y, half - 8);
+  field('Date of Conviction / Disposition', null, MARGIN + half, y, half); y += 26;
+
+  // Provenance note + official form identifiers.
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(...GREY);
+  doc.text(
+    doc.splitTextToSize('Populated fields reflect ACS TherapyHub records verified by the deterministic compliance engine. Blank fields are not captured by the system and must be completed by the certifying Offender Management Unit. No identity or court data is system-generated.', CONTENT_W),
+    MARGIN, 738
   );
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...SLATE);
+  doc.text('MO 650-7743 (8-98)', MARGIN, 775);
+  doc.text('DMH 9409', PAGE_W - MARGIN, 775, { align: 'right' });
 
   doc.save(`SATOP_Completion_Certificate_${safeName(client)}.pdf`);
 }
