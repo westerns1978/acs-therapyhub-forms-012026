@@ -60,7 +60,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
     { to: '/dashboard', icon: Home, label: 'Dashboard', roles: ALL_ROLES },
     { to: '/clients', icon: Users, label: 'Clients', roles: ALL_ROLES },
     { to: '/session-management', icon: Calendar, label: 'Calendar', roles: ALL_ROLES },
-    { to: '/communication-center', icon: MessageSquare, label: 'Messages', roles: ALL_ROLES, notifications: 3 },
+    { to: '/communication-center', icon: MessageSquare, label: 'Messages', roles: ALL_ROLES },
     { to: '/forms', icon: ClipboardList, label: 'Forms', roles: ALL_ROLES },
     { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library', roles: CLINICAL_ROLES },
     { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },

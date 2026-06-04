@@ -647,6 +647,45 @@ export const getRecentClientCommunications = async (limit = 6): Promise<ClientCo
     }
     return (data || []).map(mapCommRow);
 };
+
+// --- Staff -> Support/Admin channel (reuses client_communications) ----------
+// A staff member messaging ACS support/admin (Dan) is stored as a client_communications
+// row with client_id = NULL and type = 'support'. This is additive REUSE of the existing
+// table: client_id is nullable, there is no CHECK on `type`, and the table's permissive
+// "Allow all" RLS policy lets the authenticated client insert/select. No new schema, no
+// RLS change. Outbound-only today (support replies are handled out of band).
+export const SUPPORT_COMM_TYPE = 'support';
+
+export const getSupportMessages = async (): Promise<ClientCommunication[]> => {
+    const { data, error } = await supabase
+        .from('client_communications')
+        .select('*')
+        .is('client_id', null)
+        .eq('type', SUPPORT_COMM_TYPE)
+        .order('sent_at', { ascending: true });
+    if (error) {
+        console.warn('[api] getSupportMessages failed:', error);
+        return [];
+    }
+    return (data || []).map(mapCommRow);
+};
+
+export const sendSupportMessage = async (
+    text: string,
+    sentBy: string = 'staff',
+): Promise<ClientCommunication> => {
+    if (!text?.trim()) throw new Error('message text is required');
+    const { data, error } = await supabase
+        .from('client_communications')
+        .insert({ client_id: null, message: text.trim(), type: SUPPORT_COMM_TYPE, sent_by: sentBy })
+        .select()
+        .single();
+    if (error) {
+        console.error('[api] sendSupportMessage failed:', error);
+        throw new Error(error.message || 'Failed to send support message');
+    }
+    return mapCommRow(data);
+};
 // A portal paper-form upload has a KNOWN type (the form being submitted), so we
 // classify from the form name rather than re-detecting — it never lands as
 // "Uncategorized". Keyword map mirrors storageService's document_type taxonomy.
