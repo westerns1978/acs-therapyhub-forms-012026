@@ -42,6 +42,13 @@ const SEEDED_RISK: Record<string, { score: number; reasoning: string } | null> =
     },
 };
 
+// HIDDEN (2026-06-05): the relapse predictor renders an LLM-shaped risk score on a clinical
+// SUD record — including a fabricated default when no telemetry exists — which violates the
+// narrate-only rule and is a liability/credibility risk. The card render is gated off below.
+// The component AND the client_risk_profiles table are intentionally kept (not deleted)
+// pending the remove-vs-rebuild-narrate-only decision (see PRODUCT_BACKLOG.md).
+const SHOW_RELAPSE_RISK_CARD = false;
+
 const RelapseRiskCard: React.FC<{ client: Client, history: any[] }> = ({ client, history }) => {
     const seeded = client.id in SEEDED_RISK ? SEEDED_RISK[client.id] : undefined;
     const [prediction, setPrediction] = useState<{ score: number, reasoning: string } | null>(seeded ?? null);
@@ -255,7 +262,7 @@ const ClientWorkspace: React.FC = () => {
                 return <ClientSessionsTab client={client} />;
             case 'overview': 
             default: 
-                return (
+                return SHOW_RELAPSE_RISK_CARD ? (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2">
                              <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} />
@@ -264,6 +271,8 @@ const ClientWorkspace: React.FC = () => {
                              <RelapseRiskCard client={client} history={activityFeed || []} />
                         </div>
                     </div>
+                ) : (
+                    <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} />
                 );
         }
     };
