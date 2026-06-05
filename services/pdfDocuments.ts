@@ -27,7 +27,11 @@ const CONTENT_W = PAGE_W - MARGIN * 2;
 
 function fmtDate(d?: string | null): string {
   if (!d) return '—';
-  const dt = new Date(d);
+  // Parse date-only strings (YYYY-MM-DD, e.g. DOB / program_end_date columns) as
+  // LOCAL midnight. `new Date('YYYY-MM-DD')` parses as UTC midnight, which renders
+  // a day early in any behind-UTC timezone (e.g. Central) — so DOB and Completion
+  // Date would drift back one day on the certificate. Full timestamps parse as-is.
+  const dt = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00') : new Date(d);
   return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 function clientIdOf(c: any): string {
