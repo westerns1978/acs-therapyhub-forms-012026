@@ -49,6 +49,49 @@ this commit).
 all public tables before any real client/PHI data enters the database. Trial is
 mock-data only; this gates the trial→live transition."
 
+> ### ✅ RESOLVED for the ACS client-data tables (2026-06-05 — WS0)
+>
+> Applied to the live project (`ldzzlndsspkyohvzfiiu`) via present-then-apply, with a live
+> **authenticated Director** check between each enforcement step (anon probe + Director read).
+> Migrations: `ws0_rls_helpers`, `ws0_rls_scoped_policies`,
+> `ws0_rls_close_clinical_notes_form_submissions`, `ws0_rls_close_remaining_seven`,
+> `ws0_rls_drop_user_metadata_fallback`, `ws0_rls_is_staff_fail_closed`.
+>
+> **Recon found the bigger hole:** seven of these tables had RLS *on* but a permissive
+> `Allow all` policy (`USING (true)` for `public`) — so they were wide open too, not just the
+> two with RLS off. Every `Allow all` policy is now dropped.
+>
+> - [x] `clinical_notes` — RLS enabled; **clinician-only** (Director/Therapist; Admin excluded)
+> - [x] `form_submissions` — RLS enabled; staff full + client self-read
+> - [x] `clients`, `appointments`, `payments`, `client_communications` — `Allow all` dropped; staff full + client self-read
+> - [x] `treatment_plans` — `Allow all` dropped; **clinician-only** write + client self-read
+> - [x] `client_risk_profiles`, `therapist_availability` — `Allow all` dropped; staff-only
+> - [x] Role authority hardened to **`app_metadata.role`** (server-controlled) for the demo
+>   accounts; `private.is_staff()` / `private.is_clinician()` are app_metadata-only and
+>   fail-closed (`coalesce(..., false)`), so a user can no longer self-escalate via
+>   `auth.updateUser({ data: { role } })`.
+> - [x] Helpers `private.is_staff()`, `private.is_clinician()`, `private.my_client_ids()`
+>   (the last is SECURITY DEFINER, maps client→rows by **email** — there is no
+>   `clients.auth_user_id` link column).
+> - **Verified:** Director session reads all nine tables; anon (anon key, no session) returns
+>   **0 rows** on all nine; forged `user_metadata.role=Director` → `is_staff()=false`.
+>
+> **Auth model note:** the staff app and client portal share one Supabase Auth session;
+> the demo staff/client accounts are real `auth.users` rows. This is a **shared multi-app**
+> Supabase project — the `organizations`/`users`/`profiles`/`org_id` tables belong to *other*
+> apps; ACS clinical tables have **no `org_id`**, so policies are **role-scoped, not org-scoped**
+> (single clinic).
+>
+> **Still open:**
+> - The remaining shared/cross-app tables in the reference list below remain RLS-off — other
+>   apps' responsibility, out of ACS scope.
+> - `assessment_inputs` / `placement_determinations` **do not exist yet** — enable RLS +
+>   scoped policies at creation time (WS1 / WS2).
+> - **Client policies are read-only.** When the portal's write flows go live (client submits/
+>   updates a form, sends a message), add scoped `insert`/`update` policies on
+>   `form_submissions` and `client_communications`. Prefer adding a real
+>   `clients.auth_user_id` FK over email-matching at that point.
+
 Surfaced by the Supabase advisory during the May 2026 trial sprint — 66 tables in the
 `public` schema have RLS disabled. The high-leverage clinical ones are:
 `clinical_notes`, `form_submissions`, `users`, `documents`, `uploaded_files`. With the
@@ -235,3 +278,33 @@ Replace with either:
 
 Either option also unblocks tying iVALT success to a real Supabase session so the
 RLS work from Blocker 2 can take effect on the client-side path.
+
+---
+
+## 7. `appointments.client_id` is `text` while every other `client_id` is `uuid` (data hygiene)
+
+Found during WS0 (2026-06-05). `public.appointments.client_id` is **`text`**, but the
+matching column on `clinical_notes`, `form_submissions`, `payments`,
+`client_communications`, `treatment_plans`, `client_risk_profiles` (and `clients.id`) is
+**`uuid`**. Consequences:
+- The RLS client self-read policy on `appointments` had to special-case the type
+  (`client_id IN (SELECT cid::text FROM private.my_client_ids() AS t(cid))`) instead of the
+  clean `client_id IN (SELECT private.my_client_ids())` used everywhere else.
+- There is **no FK** from `appointments.client_id` → `clients.id`, so orphaned/garbage
+  values are possible and joins are unprotected.
+
+Post-trial: normalize to `uuid` and add the FK, then simplify the policy.
+
+```sql
+-- 1) confirm every value is uuid-shaped (expect 0)
+select count(*) from public.appointments
+where client_id is not null and client_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+
+-- 2) convert + enforce
+alter table public.appointments
+  alter column client_id type uuid using nullif(client_id, '')::uuid;
+alter table public.appointments
+  add constraint appointments_client_id_fkey
+  foreign key (client_id) references public.clients(id);
+```
+Then drop the text cast in `client_self_read_appointments` so it matches the other tables.
