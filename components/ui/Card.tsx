@@ -16,15 +16,12 @@ const Card: React.FC<CardProps> = ({ children, className = '', title, subtitle, 
     <div 
       onClick={onClick}
       className={`
-      bg-white/70 dark:bg-slate-800/60
-      backdrop-blur-xl
-      border border-white/40 dark:border-slate-700
+      bg-white dark:bg-slate-800
+      border border-border dark:border-slate-700
       rounded-2xl 
-      shadow-xl 
+      shadow-card dark:shadow-card-dark
       transition-all duration-300
-      hover:shadow-2xl hover:border-white/60 dark:hover:border-slate-600
-      hover:scale-[1.01]
-      ${onClick ? 'cursor-pointer' : ''}
+      ${onClick ? 'cursor-pointer hover:shadow-card-hover dark:hover:shadow-card-hover-dark hover:-translate-y-0.5' : ''}
       ${className}`
     }>
       {(title || actions) && (

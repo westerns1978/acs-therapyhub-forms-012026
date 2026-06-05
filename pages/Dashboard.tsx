@@ -14,16 +14,22 @@ const greetingFor = (h: number) => (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
 // Director-only aggregate stat tile. No delta — no historical baseline to compute one.
-const StatCard: React.FC<{ title: string; value: string; icon: any; color: string }> = ({ title, value, icon: Icon, color }) => (
-    <div className="p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl transition-all hover:scale-[1.02]">
-        <div className="flex justify-between items-start mb-4">
-            <div className={`p-3 rounded-2xl ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
-                <Icon size={20} />
+// Director-only aggregate stat tile. Shares the app card treatment (warm border +
+// layered shadow + 16px radius). `trend` is optional and intentionally NOT fabricated —
+// when there's no historical baseline we render nothing (no fake delta), but the slot is
+// reserved in the icon row for when a real trend exists.
+const StatCard: React.FC<{ title: string; value: string; icon: any; color: string; trend?: { dir: 'up' | 'down' | 'flat'; label: string } | null }> = ({ title, value, icon: Icon, color, trend }) => (
+    <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-border dark:border-slate-700 shadow-card dark:shadow-card-dark">
+        <div className="flex items-center justify-between min-h-[2.25rem]">
+            <div className={`p-2.5 rounded-xl ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
+                <Icon size={18} />
             </div>
-            <div className="text-[10px] font-black text-slate-400 tabular-nums">—</div>
+            {trend && (
+                <span className={`text-[10px] font-black tabular-nums px-2 py-0.5 rounded-full ${trend.dir === 'up' ? 'text-emerald-600 bg-emerald-500/10' : trend.dir === 'down' ? 'text-primary bg-primary/10' : 'text-slate-400 bg-slate-400/10'}`}>{trend.label}</span>
+            )}
         </div>
-        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{title}</p>
-        <h4 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tighter">{value}</h4>
+        <p className="mt-4 text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">{title}</p>
+        <p className="mt-1 text-3xl font-black text-slate-900 dark:text-white tracking-tight tabular-nums leading-none">{value}</p>
     </div>
 );
 
