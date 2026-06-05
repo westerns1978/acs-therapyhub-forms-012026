@@ -66,9 +66,10 @@ on conflict (id) do update set
   assigned_therapist_id = excluded.assigned_therapist_id;
 
 -- =================================================================
--- 2) Payment bringing the balance to zero for the OEP Level I fee
---    (~$200 per the kickoff brief's table; VERIFY against the current
---     ACS/DMH fee schedule before any real use.)
+-- 2) Payment bringing the balance to zero for the OEP Level I fee.
+--    Amount mirrors SATOP_FEES.I in config/satopFees.ts (the app-side single
+--    source of truth) — keep the two in sync. $200 is a PLACEHOLDER; VERIFY
+--    against the current ACS/DMH fee schedule before any real use.
 -- =================================================================
 
 insert into public.payments (

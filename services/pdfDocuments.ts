@@ -118,14 +118,19 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   // the rule line; an unknown field renders as an empty labeled line so the form
   // is print-and-complete ready. It NEVER invents a value — callers pass null for
   // anything the app cannot verify.
+  // Each field renders as: LABEL (small, on top) / value (just above the rule) /
+  // the rule line. The label MUST sit above its own value+line so each value
+  // groups with the correct box. (Bug fix: the label was previously drawn BELOW
+  // the line while the value sat above it, so a value visually paired with the row
+  // label ABOVE it — DOB landed under "City", phone under "Zip" on MO 650-7743.)
   const field = (label: string, value: string | null, x: number, yy: number, width: number) => {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(...GREY);
+    doc.text(label.toUpperCase(), x, yy - 14);
     if (value) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(20, 20, 20);
       doc.text(doc.splitTextToSize(value, width - 4), x + 2, yy - 3);
     }
     doc.setDrawColor(...GREY); doc.setLineWidth(0.5); doc.line(x, yy, x + width, yy);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(...GREY);
-    doc.text(label.toUpperCase(), x, yy + 8);
   };
   const section = (text: string, yy: number): number => {
     doc.setFillColor(...MAROON); doc.rect(MARGIN, yy - 9, CONTENT_W, 14, 'F');

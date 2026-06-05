@@ -284,6 +284,10 @@ const mapAppointmentRowToApp = (row: any): Appointment => {
         zoomMeetingId: row.zoom_meeting_id || undefined,
         status: normalizeAppointmentStatus(row.status),
         capacity: row.capacity ?? undefined,
+        // NOTE: appointments.client_id is TEXT in the DB, while every other
+        // client_id column is uuid (SECURITY_BACKLOG.md #7). It maps fine to a
+        // string here, but the WS0 RLS self-read policy must cast it to compare
+        // against uuids — normalize this column to uuid + add an FK to drop that cast.
         clientId: row.client_id || undefined,
         clientName: row.client_name || undefined,
         isRecurring: row.is_recurring ?? false,

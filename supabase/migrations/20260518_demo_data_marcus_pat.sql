@@ -29,13 +29,13 @@ update public.clients set
   assigned_therapist_id = '44444444-4444-4444-4444-444444444444',
   srop_hours_completed = 42,
   total_sessions_required = 75,
-  created_at = '2026-04-06 14:00:00+00',
+  created_at = now() - interval '45 days',  -- ~45/90 days: keeps the SROP minimum-duration gate PENDING for the demo (a fixed past date drifted to >90 days and the chip went green)
   employment_status = 'Full-time',
   support_system_strength = 'Moderate',
   primary_substance = 'Alcohol',
   prior_warrants = 0,
   prior_treatment_dropouts = 0,
-  program_end_date = '2026-09-01',
+  program_end_date = null,  -- mid-program: no completion date yet. (A future date here is read as the completion anchor by the SROP minimum-duration gate, turning the chip green.)
   avatar_url = 'https://api.dicebear.com/7.x/personas/svg?seed=marcus-reyes&backgroundColor=d4e5ff,b8d4ff,a8c9ff&radius=50'
 where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
