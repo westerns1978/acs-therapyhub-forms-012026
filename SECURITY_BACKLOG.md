@@ -308,3 +308,24 @@ alter table public.appointments
   foreign key (client_id) references public.clients(id);
 ```
 Then drop the text cast in `client_self_read_appointments` so it matches the other tables.
+
+---
+
+## 8. Legacy clients show negative derived balances (WS-Billing data artifact)
+
+Found during WS-Billing (2026-06-05). `clients.balance` now **derives** from the ledger
+(`public.client_balance()` = charges − succeeded payments, trigger-maintained). Clients who
+predate the ledger have recorded **payments but no `charges`**, so their derived balance is
+**negative** (e.g. a $300 legacy payment with no matching charge → −$300).
+
+This is the **honest** derived value, **not** "overpaid" — those clients simply have no
+historical charges captured. The active demo clients (Jordan/Marcus/Pat) were seeded with
+matching charges in migration `20260605_wsbilling_3_demo_charges_seed.sql`, so they read correctly
+($0 / +$499 / $0); the negatives are confined to archived/legacy rows.
+
+Do **not** treat this as a bug or hand-fix `clients.balance` — it derives, never hand-set.
+Follow-ups:
+- **Display layer (do this):** clamp/hide negative balances for **non-active** clients (show
+  `$0.00` or `—` rather than a negative), so a raw `clients.balance` never reads as "overpaid".
+- **Optional data backfill:** if historical charges matter, seed `charges` reconstructing what
+  each legacy payment was for; the trigger recomputes balances. Out of scope for WS-Billing.

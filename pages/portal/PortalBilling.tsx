@@ -19,24 +19,32 @@ const PortalBilling: React.FC = () => {
         const fetchBilling = async () => {
             setIsLoading(true);
             try {
-                // Get client balance and payment info
+                // Real ledger read: derived balance + charges (debits) + payments (credits).
+                // (Previously selected clients.payment_method — which doesn't exist — so the
+                //  query errored silently and balance always read 0. WS-Billing fix.)
                 const { data: clientData } = await supabase
                     .from('clients')
-                    .select('balance, payment_method')
+                    .select('balance')
                     .eq('id', portalClient.id)
                     .single();
 
-                // Get transaction history
-                const { data: transactions } = await supabase
+                const { data: charges } = await supabase
+                    .from('charges')
+                    .select('*')
+                    .eq('client_id', portalClient.id)
+                    .order('created_at', { ascending: false });
+
+                const { data: payments } = await supabase
                     .from('payments')
                     .select('*')
                     .eq('client_id', portalClient.id)
                     .order('payment_date', { ascending: false });
 
                 setBillingData({
-                    balance: clientData?.balance || 0,
-                    paymentMethod: clientData?.payment_method || 'None',
-                    transactions: transactions || []
+                    balance: Number(clientData?.balance ?? 0),
+                    paymentMethod: payments && payments.length ? (payments[0].payment_method || 'None') : 'None',
+                    charges: charges || [],
+                    transactions: payments || []
                 });
             } catch (err) {
                 console.warn('Failed to fetch billing:', err);
@@ -48,11 +56,16 @@ const PortalBilling: React.FC = () => {
 
     const handlePayNow = async () => {
         if (isPaying) return;
-        const balance = Math.max(0, Number(billingData?.balance) || 0);
-        const amountCents = Math.round(balance * 100) || 4900;
         setPayError(null);
         setIsPaying(true);
         try {
+            // Prefer paying the actual unpaid charges (so the webhook can mark them paid);
+            // fall back to the raw balance amount only when there are no itemized charges.
+            const unpaidChargeIds = (billingData?.charges || [])
+                .filter((c: any) => c.status === 'pending')
+                .map((c: any) => c.id);
+            const balance = Math.max(0, Number(billingData?.balance) || 0);
+            const amountCents = Math.round(balance * 100) || 4900;
             const res = await fetch(`${SUPABASE_URL}/functions/v1/acs-create-checkout`, {
                 method: 'POST',
                 headers: {
@@ -61,11 +74,12 @@ const PortalBilling: React.FC = () => {
                     Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
                 },
                 body: JSON.stringify({
-                    amount_cents: amountCents,
-                    description: balance > 0 ? 'ACS Session Balance' : 'ACS Intake Fee',
-                    return_url: window.location.href,
                     client_id: portalClient?.id,
                     client_email: (portalClient as any)?.email,
+                    return_url: window.location.href,
+                    ...(unpaidChargeIds.length
+                        ? { charge_ids: unpaidChargeIds }
+                        : { amount_cents: amountCents, description: balance > 0 ? 'ACS Session Balance' : 'ACS Intake Fee' }),
                 }),
             });
             const data = await res.json();
@@ -149,6 +163,38 @@ const PortalBilling: React.FC = () => {
                         </div>
                     </Card>
                 </div>
+
+                {billingData.charges && billingData.charges.length > 0 && (
+                    <Card title="Charges">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="border-b border-slate-100 dark:border-slate-800">
+                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                                    {billingData.charges.map((ch: any) => (
+                                        <tr key={ch.id}>
+                                            <td className="py-4">
+                                                <p className="text-sm font-black text-slate-800 dark:text-slate-100">{ch.description || ch.charge_type}</p>
+                                                {ch.is_pass_through && <p className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">State pass-through</p>}
+                                            </td>
+                                            <td className="py-4 text-sm font-black text-slate-700 dark:text-slate-200">${Number(ch.amount).toFixed(2)}</td>
+                                            <td className="py-4 text-right">
+                                                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${ch.status === 'paid' ? 'bg-green-100 text-green-700' : ch.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                    {ch.status}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                )}
 
                 <Card title="Transaction History">
                     <div className="overflow-x-auto">
