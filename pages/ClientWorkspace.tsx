@@ -17,8 +17,9 @@ import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
-import { assessClient } from '../services/complianceEngine';
-import { downloadCompletionCertificate, downloadStatusReport, downloadClientRecordPacket } from '../services/pdfDocuments';
+import { assessClient, fetchCompletionSignoff } from '../services/complianceEngine';
+import { downloadClientRecordPacket } from '../services/pdfDocuments';
+import DocumentPreviewModal, { PreviewKind } from '../components/clients/DocumentPreviewModal';
 
 const CLINICAL_ROLES: ReadonlyArray<string> = ['Director', 'Therapist'];
 
@@ -150,6 +151,10 @@ const ClientWorkspace: React.FC = () => {
 
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const [isCompiling, setIsCompiling] = useState(false);
+    // Completion sign-off is a separate clinical_notes event (note_type=
+    // 'completion_signoff'); it's one of the three real certificate gates.
+    const [completionSignedOff, setCompletionSignedOff] = useState(false);
+    const [preview, setPreview] = useState<PreviewKind | null>(null);
 
     const loadClientData = useCallback(async (id: string) => {
         setIsLoading(true);
@@ -164,17 +169,19 @@ const ClientWorkspace: React.FC = () => {
                     getDocumentFilesForClient(id),
                     getFormSubmissions({ clientId: id }),
                     getSROPData(id),
-                    getClientActivityFeed(id)
+                    getClientActivityFeed(id),
+                    fetchCompletionSignoff(id)
                 ]);
 
-                if (results[0].status === 'fulfilled') setDocuments(results[0].value || []);
+                if (results[0].status === 'fulfilled') setDocuments(results[0].value as DocumentFile[] || []);
                 else setLoadErrors(prev => ({...prev, documents: true}));
-                if (results[1].status === 'fulfilled') setFormSubmissions(results[1].value || []);
+                if (results[1].status === 'fulfilled') setFormSubmissions(results[1].value as FormSubmission[] || []);
                 else setLoadErrors(prev => ({...prev, forms: true}));
-                if (results[2].status === 'fulfilled') setSropData(results[2].value || null);
+                if (results[2].status === 'fulfilled') setSropData(results[2].value as SROPProgress || null);
                 else setLoadErrors(prev => ({...prev, srop: true}));
-                if (results[3].status === 'fulfilled') setActivityFeed(results[3].value || []);
+                if (results[3].status === 'fulfilled') setActivityFeed(results[3].value as ClientActivity[] || []);
                 else setLoadErrors(prev => ({...prev, activity: true}));
+                setCompletionSignedOff(results[4].status === 'fulfilled' ? !!results[4].value : false);
             } else {
                 setClient(null);
                 navigate('/clients');
@@ -210,8 +217,9 @@ const ClientWorkspace: React.FC = () => {
     if (!client) return <div className="text-center p-8">Client not found.</div>;
 
     // Deterministic compliance assessment for this client. The engine — not the
-    // UI — decides whether the completion certificate may be generated.
-    const assessment = assessClient(client);
+    // UI — decides whether the completion certificate may be generated. Sign-off
+    // (a separate clinical_notes event) is injected as one of the three gates.
+    const assessment = assessClient(client, { completionSignedOff });
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },
@@ -274,21 +282,20 @@ const ClientWorkspace: React.FC = () => {
                 </nav>
                 <div className="my-2 flex items-center gap-2 flex-wrap">
                     <button
-                        onClick={() => downloadStatusReport(client, assessment.verdicts, assessment.completion)}
-                        title="Download an audit-ready compliance status report (PDF)"
+                        onClick={() => setPreview('status')}
+                        title="Preview the compliance status report, then create the PDF"
                         className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-border dark:border-dark-border text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
                     >
                         <FileText size={14} /> Status Report
                     </button>
                     <button
-                        onClick={() => { if (assessment.completion.eligible) downloadCompletionCertificate(client, assessment.completion); }}
-                        disabled={!assessment.completion.eligible}
+                        onClick={() => setPreview('certificate')}
                         title={assessment.completion.eligible
-                            ? 'Generate the SATOP completion certificate (PDF)'
-                            : `Completion certificate unavailable — ${assessment.completion.unmetReasons[0] || 'criteria not yet met'}`}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all ${assessment.completion.eligible
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-[1.02] active:scale-95'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'}`}
+                            ? 'Preview the SATOP completion certificate, then create the PDF'
+                            : `Preview the completion gates — ${assessment.completion.unmetReasons[0] || 'criteria not yet met'}`}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 ${assessment.completion.eligible
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-border dark:border-dark-border hover:bg-slate-200 dark:hover:bg-slate-700'}`}
                     >
                         <Award size={14} /> Completion Certificate
                     </button>
@@ -319,6 +326,17 @@ const ClientWorkspace: React.FC = () => {
                 </div>
             </div>
             <div>{renderTabContent()}</div>
+
+            {preview && (
+                <DocumentPreviewModal
+                    isOpen={!!preview}
+                    onClose={() => setPreview(null)}
+                    kind={preview}
+                    client={client}
+                    verdicts={assessment.verdicts}
+                    completion={assessment.completion}
+                />
+            )}
 
             <StaffDocumentUpload
                 isOpen={isUploadOpen}

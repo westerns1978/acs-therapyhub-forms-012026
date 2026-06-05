@@ -22,6 +22,7 @@ const GREY: [number, number, number] = [148, 163, 184];
 
 const MARGIN = 56;        // pt
 const PAGE_W = 612;       // letter width (pt)
+const PAGE_H = 792;       // letter height (pt)
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
 function fmtDate(d?: string | null): string {
@@ -65,6 +66,29 @@ function footer(doc: jsPDF, note: string): void {
   doc.text(lines, MARGIN, 760);
 }
 
+/**
+ * Diagonal SAMPLE watermark — stamped on demo/sample documents (client.is_demo)
+ * so a generated PDF can never be mistaken for an issued state instrument if it
+ * gets emailed around. The ONLY legitimate use of the demo flag here is this
+ * presentation stamp; it never affects the completion gate. Drawn last so it
+ * overlays all content; light opacity keeps the document readable underneath.
+ */
+function sampleWatermark(doc: jsPDF): void {
+  doc.saveGraphicsState();
+  const GS = (doc as any).GState;
+  if (typeof GS === 'function') doc.setGState(new GS({ opacity: 0.12 }));
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(34);
+  doc.setTextColor(...MAROON);
+  doc.text('SAMPLE — NOT VALID FOR SUBMISSION', PAGE_W / 2, PAGE_H / 2, { align: 'center', angle: 35 });
+  doc.restoreGraphicsState();
+}
+
+/** True when the record is a demo/sample client (drives the SAMPLE watermark). */
+function isDemoClient(c: any): boolean {
+  return c?.is_demo === true || c?.isDemo === true;
+}
+
 /** Key/value detail row. Returns the next y. */
 function kv(doc: jsPDF, label: string, value: string, y: number): number {
   doc.setFont('helvetica', 'bold');
@@ -88,6 +112,7 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   }
 
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const isDemo = isDemoClient(client);
 
   // Labeled fill-in field (mirrors the official paper form). A real value sits on
   // the rule line; an unknown field renders as an empty labeled line so the form
@@ -119,6 +144,11 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   doc.setFontSize(14);
   doc.text('SATOP COMPLETION CERTIFICATE', PAGE_W / 2, y + 4, { align: 'center' });
   y += 22;
+  if (isDemo) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...MAROON);
+    doc.text('DEMONSTRATION SAMPLE — NOT A VALID STATE CERTIFICATE', PAGE_W / 2, y, { align: 'center' });
+    y += 14;
+  }
   doc.setDrawColor(...SLATE); doc.setLineWidth(1); doc.line(MARGIN, y, PAGE_W - MARGIN, y);
   y += 22;
 
@@ -149,7 +179,10 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   field('Address', null, MARGIN, y, CONTENT_W); y += 28;
   field('Qualified Professional', null, MARGIN, y, half - 8);
   field('Phone', null, MARGIN + half, y, half / 2 - 8);
-  field('Certificate Number', null, MARGIN + half + half / 2, y, half / 2); y += 30;
+  // A real certificate number is assigned by the certifying OMU, never by this app.
+  // For a demo record we stamp a clearly non-real value so it can't be confused
+  // with an issued certificate; for a real record the field stays blank to fill in.
+  field('Certificate Number', isDemo ? 'SAMPLE-DEMO-0001' : null, MARGIN + half + half / 2, y, half / 2); y += 30;
 
   // III. OFFENDER STATUS
   y = section('III.  Offender Status', y);
@@ -178,6 +211,9 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   doc.text('MO 650-7743 (8-98)', MARGIN, 775);
   doc.text('DMH 9409', PAGE_W - MARGIN, 775, { align: 'right' });
 
+  // Stamp the SAMPLE watermark last so it overlays the whole certificate.
+  if (isDemo) sampleWatermark(doc);
+
   return doc;
 }
 
@@ -188,6 +224,7 @@ export function downloadCompletionCertificate(client: any, completion: Completio
 // ── 2. Status / Progress Report ──────────────────────────────────────────────
 export function buildStatusReportDoc(client: any, verdicts: RuleVerdict[], completion: CompletionAssessment): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const isDemo = isDemoClient(client);
   let y = letterhead(doc);
 
   doc.setFont('helvetica', 'bold');
@@ -260,7 +297,7 @@ export function buildStatusReportDoc(client: any, verdicts: RuleVerdict[], compl
 
   footer(
     doc,
-    `Generated ${fmtDate(new Date().toISOString())} by ACS TherapyHub. All counts and statuses are computed deterministically by the compliance engine from recorded data — no AI produces any verdict. Advisory; verify against current 9 CSR text before submission.`
+    `${isDemo ? 'DEMONSTRATION SAMPLE — sample data, not for submission. ' : ''}Generated ${fmtDate(new Date().toISOString())} by ACS TherapyHub. All counts and statuses are computed deterministically by the compliance engine from recorded data — no AI produces any verdict. Advisory; verify against current 9 CSR text before submission.`
   );
 
   return doc;

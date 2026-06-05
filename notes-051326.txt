@@ -1,0 +1,146 @@
+Let me dig a bit deeper for the most recent state.Good — I have substantial context. The May 13 chat (today) was the most recent, and it already laid out the demo-prep framing. Let me give you a clean handoff document.
+
+---
+
+# ACS TherapyHub — Full Context Brief for New Chat
+
+## Why this brief exists
+Dan is closing out a major Story Scribe sprint day (FamilySearch integration + video pipeline shipped) and switching to ACS TherapyHub to prep for the Yoder demo at 1pm ET tomorrow. This document gives a new Claude session full context without re-discovery.
+
+## The product
+
+ACS TherapyHub is a dual-interface clinical management platform built for **Assessment & Counseling Solutions** in St. Louis, Missouri. Specializes in court-mandated substance abuse treatment workflows (SATOP and REACT programs, Missouri DUI compliance).
+
+- **Staff/Counselor interface:** Dashboard for caseloads, forms review, compliance tracking
+- **Client portal:** Mobile-first interface for clients to complete intake forms, track progress, manage appointments
+- **Clara:** Gemini Live voice assistant — empathetic mode for clients, clinical orchestration for staff
+
+## The client
+
+**David Yoder** — Director of ACS, St. Louis MO. Dan's former substance abuse counselor (Dan is four years sober). 
+
+Relationship history:
+- David said no to ACS TherapyHub ~4 months ago (Jan 2026)
+- David proactively re-engaged via his work email `davidy@stlacs.com` (NOT his personal `d.yoder.acs@gmail.com`) — signal that he's now treating it as actual business
+- David's April reply: "Web layout looks terrific visually"
+- Demo scheduled Thursday/Friday at 1pm ET (Dan said 1pm ET tomorrow as of evening 5/13)
+- **Pricing already established: $600/month** per Dan's memory — but unclear if this is paid or pending
+
+## Current deployment state
+
+**Live URL:** `https://acs-therapyhub.web.app` (Firebase Hosting under `gen-lang-client-0121881478`)
+
+**Repo:** `westerns1978/acs-therapyhub-forms-012026` (the good code)
+- Worktree visible in screenshot: `C:\Users\dlwes\Documents\WestFlow\acs-therapyhub\012026\acs-therapyhub-forms-012026\.claude\worktrees\elegant-williams-14be36`
+- Contains: services/, src/, supabase/, App.tsx, blog_post.md, communication_guidelines.md, gamification_strategy.md, .env.local, firebase.json, manifest.json, index.html
+
+**Status per Dan's memory:** "ACS TherapyHub (client: David Yoder) deployment to Firebase is live at `acs-therapyhub.web.app` with Clara's voice fixed after an intensive session resolving multiple voice/WebSocket issues including an incorrect model string."
+
+## The Clara voice fix (CRITICAL — required for any Gemini Live app)
+
+Three requirements, must all be met or voice breaks in production:
+
+1. API key declared as `import.meta.env.VITE_API_KEY || process.env.API_KEY` (NOT just `process.env`)
+2. `new GoogleGenAI({ apiKey })` with NO `httpOptions` or `api-proxy` — the proxy breaks WebSocket
+3. Model string must be `gemini-2.5-flash-native-audio-preview-12-2025`
+
+Per Dan's memory: this is confirmed working on Katie 4/5/2026 and the same fix was applied to ACS during a prior intensive session. **Needs re-verification before demo.**
+
+Why Firebase Hosting and not Cloud Run: Cloud Run's proxy injection breaks the Gemini Live WebSocket. All voice-enabled Gemynd apps must deploy to Firebase Hosting.
+
+## Demo personas / login bypass
+
+The app has demo-mode bypass for two personas (per past chats):
+- David Yoder (Admin)
+- Dr. Anya Sharma (Clinical)
+
+Plus a client demo: Alice Johnson (SATOP Level IV, 85% progress)
+
+## Forms inventory (real ACS forms)
+
+The app contains real ACS form definitions including:
+- Continuing Recovery Plan
+- Consent for Treatment
+- AA/NA Group Meeting Report
+- Plus 4+ more (7 total per the demo walkthrough)
+
+Forms management includes multi-step validation, progress tracking, auto-save.
+
+## What Dan asked tonight (May 13, evening)
+
+Direct quote from Dan: *"I need to dig into acs therapy and do some review, polish, and include our recent ingestion/scan work to allow therapists to upload/capture/scan stuff, feed ai, and feed the system. or get help from clara."*
+
+**The honest framing from this morning's chat** (which Dan should re-read): 
+
+The 1pm ET demo tomorrow is ~12-15 hours away. "Review, polish, and add scan/ingestion" is three different scopes:
+- Review = look at it fresh, find what's broken
+- Polish = fix the obvious stuff
+- Scan/ingestion integration = NEW FEATURE WORK
+
+David already liked what he saw in April ("looks terrific visually"). He's asking for a test drive, not new features. The win condition for tomorrow is *"David sees a polished, working version of what he already approved of."* Anything beyond that bets against the clock.
+
+**Recommended scope: Polish-only.** Specifically:
+1. Verify Clara voice works at `acs-therapyhub.web.app` (3-line fix per Katie pattern)
+2. Walk the demo flow end-to-end (Landing → Client Portal → Alice Johnson → Forms → Clara)
+3. Make a punch list of every visible defect, fix only those
+4. Make sure realistic Missouri DUI sample data is in place (no Lorem Ipsum, no `test@test.com`)
+5. Have ONE complete ACS workflow story ready to walk: intake → SATOP scheduling → session → court report
+
+## What Dan is bringing from today's Story Scribe work
+
+The cascade orchestration, scan/ingestion patterns, FamilySearch-style integrations, and the Gemini Live voice fix all originated as patterns Dan has battle-tested across Story Scribe, Katie, FlowView, AIVA. ACS TherapyHub has historically lagged behind these and Dan has wanted to bring it up to "WestFlow standard."
+
+But — *not before tomorrow's demo*. The scan/ingestion code from Story Scribe is reusable, but not in the next 12 hours against a customer call.
+
+## What needs to happen first in the new chat
+
+1. **Open `https://acs-therapyhub.web.app` in incognito browser** and walk the full demo flow
+2. **Test Clara voice** — verify the three-part fix is still holding
+3. **Document any defects** that surface
+4. **Decide what scope is real** — polish-only is the safe default; only add scan/ingestion if 90% of polish is done with >4 hours to spare
+
+After tomorrow's demo:
+- ACS will get the scan/ingestion integration as a real follow-up
+- The "review and polish" framing becomes a longer arc, not a 12-hour sprint
+- Productizing ACS TherapyHub for other Missouri SATOP providers becomes the BD conversation
+
+## Other context worth knowing
+
+**Dan's other commitments this week:**
+- Mynd Keeper role infrastructure (Story Scribe) — tomorrow morning before 1pm
+- Service role key rotation (still leaked)
+- Reply to Marcus at Passare (Story Scribe partner integration, big win today)
+- Possible Wilbert tribute link to Trent Lewis (Lewis Funeral Home, real local funeral home prospect)
+
+**Dan's mental state:** 
+- Crushed a big day (FS integration, video pipeline, Passare sandbox)
+- Just showered, ready to switch gears
+- Solo dev, no team
+- Four years sober, often references this casually
+
+**Working preferences:**
+- Python, Google AI Studio, Google Cloud Run for non-voice apps
+- Firebase Hosting for voice apps
+- Solo-dev workflow — skip team-process advice (no PR reviews, branch protection, etc.)
+- Voice dictation via Wispr Flow during walks with Sissy (husky) — natural ideation pattern
+
+---
+
+## Suggested first message in new chat
+
+```
+I'm prepping for a 1pm ET demo tomorrow with David Yoder at 
+ACS TherapyHub (https://acs-therapyhub.web.app). 
+
+Yesterday I shipped a major FamilySearch integration in Story 
+Scribe and just context-switched. I'm fresh on ACS.
+
+Help me run a pre-demo verification pass tonight. Start by 
+having me walk through the live deployment and document any 
+defects we find. The honest scope is "polish what works, don't 
+add features" given the time budget.
+
+[paste this context brief]
+```
+
+That should give a new Claude session everything it needs to pick up cleanly without re-discovery. Want me to add or adjust anything before you switch chats?

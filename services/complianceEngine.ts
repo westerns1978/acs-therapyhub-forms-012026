@@ -47,6 +47,8 @@ export interface ClientFacts {
   completionDate: string | null;     // clients.program_end_date (or null while active)
   planExecutionDate: string | null;  // treatment-plan execution date — absent today
   hourComponents: Record<string, number> | null; // per-category hours — absent today
+  outstandingBalance: number | null;  // clients.balance — completion gate (must be 0)
+  completionSignedOff: boolean | null; // signed completion_signoff note — completion gate
 }
 
 export const PACK_ID: string = (pack as any).pack_id;
@@ -182,6 +184,12 @@ export function evaluateClientCompliance(facts: ClientFacts, nowMs: number = Dat
   const verdicts: RuleVerdict[] = [];
   const isSatop = facts.program === 'SATOP';
 
+  if (isSatop && facts.totalRequired === 10) {
+    const h = getRule('MO-SATOP-OEP-HOURS'); if (h) verdicts.push(evaluateRule(h, facts, nowMs));
+  }
+  if (isSatop && facts.totalRequired === 20) {
+    const h = getRule('MO-SATOP-WIP-HOURS'); if (h) verdicts.push(evaluateRule(h, facts, nowMs));
+  }
   if (isSatop && facts.totalRequired === 75) {
     const h = getRule('MO-SATOP-SROP-HOURS'); if (h) verdicts.push(evaluateRule(h, facts, nowMs));
     const d = getRule('MO-SATOP-SROP-DURATION'); if (d) verdicts.push(evaluateRule(d, facts, nowMs));
@@ -209,7 +217,7 @@ export interface GuardrailVerdict {
   citation: string;
 }
 
-function toFacts(row: any): ClientFacts {
+function toFacts(row: any, completionSignedOff?: boolean): ClientFacts {
   return {
     id: row.id,
     name: row.name,
@@ -221,6 +229,13 @@ function toFacts(row: any): ClientFacts {
     completionDate: row.program_end_date ?? null,
     planExecutionDate: null,   // treatment_plans empty / no plan_executed_at — see evaluateDeadline
     hourComponents: null,      // no per-category hours in schema yet
+    // Completion-gate inputs. Balance is on the client row (clients.balance);
+    // sign-off is a separate clinical_notes lookup the caller injects (see
+    // fetchCompletionSignoff / assessClient). When unknown we pass null and the
+    // gate treats it as NOT satisfied — a certificate never issues on missing proof.
+    outstandingBalance: row.balance == null ? null : Number(row.balance),
+    completionSignedOff:
+      completionSignedOff ?? (typeof row.completionSignedOff === 'boolean' ? row.completionSignedOff : null),
   };
 }
 
@@ -353,13 +368,28 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
 // completion-certificate-gating rule for that program/level evaluates to 'met'.
 // No AI, no hardcoded "complete" — the engine's verdicts are the sole authority.
 
+/**
+ * One human-facing completion gate for the certificate viewer. The certificate
+ * issues only when EVERY gate.passed is true. The three the addendum surfaces —
+ * hours · payment · sign-off — are always present for a SATOP level (a duration
+ * gate is added for SROP/Level IV). Each is derived from the engine verdicts and
+ * the completion-gate facts; none of these is a bypass flag.
+ */
+export interface CompletionGate {
+  key: 'hours' | 'duration' | 'payment' | 'signoff';
+  label: string;
+  passed: boolean;
+  detail: string;
+}
+
 export interface CompletionAssessment {
   program: string;
   programLabel: string;
   hasCriteria: boolean;          // false when no completion rules are wired for this program/level
-  eligible: boolean;             // true ONLY if every gating rule is 'met'
-  gatingVerdicts: RuleVerdict[]; // the rules that gate the completion certificate
-  unmetReasons: string[];        // human-readable reasons any gating rule is not met
+  eligible: boolean;             // true ONLY if every gate passes (rules MET + balance 0 + signed)
+  gates: CompletionGate[];       // hours · [duration] · payment · sign-off — for the viewer
+  gatingVerdicts: RuleVerdict[]; // the underlying rule verdicts (hours/duration)
+  unmetReasons: string[];        // human-readable reasons any gate is not satisfied
 }
 
 export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Date.now()): CompletionAssessment {
@@ -367,12 +397,18 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
   let gatingIds: string[] = [];
 
   // SATOP level inferred from the required-hours signature (data-driven).
-  if (facts.program === 'SATOP' && facts.totalRequired === 75) {
-    programLabel = 'SATOP — Serious & Repeat Offender Program (SROP, Level IV)';
-    gatingIds = ['MO-SATOP-SROP-HOURS', 'MO-SATOP-SROP-DURATION'];
+  if (facts.program === 'SATOP' && facts.totalRequired === 10) {
+    programLabel = 'SATOP — Offender Education Program (OEP, Level I)';
+    gatingIds = ['MO-SATOP-OEP-HOURS'];
+  } else if (facts.program === 'SATOP' && facts.totalRequired === 20) {
+    programLabel = 'SATOP — Weekend Intervention Program (WIP, Level II)';
+    gatingIds = ['MO-SATOP-WIP-HOURS'];
   } else if (facts.program === 'SATOP' && facts.totalRequired === 50) {
     programLabel = 'SATOP — Clinical Intervention Program (CIP, Level III)';
     gatingIds = ['MO-SATOP-CIP-HOURS-SPLIT'];
+  } else if (facts.program === 'SATOP' && facts.totalRequired === 75) {
+    programLabel = 'SATOP — Serious & Repeat Offender Program (SROP, Level IV)';
+    gatingIds = ['MO-SATOP-SROP-HOURS', 'MO-SATOP-SROP-DURATION'];
   }
 
   if (gatingIds.length === 0) {
@@ -381,6 +417,7 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
       programLabel,
       hasCriteria: false,
       eligible: false,
+      gates: [],
       gatingVerdicts: [],
       unmetReasons: ['No deterministic completion criteria are wired for this program/level with the data captured today.'],
     };
@@ -390,15 +427,55 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
     .map((id) => getRule(id))
     .filter((r): r is RuleDef => !!r)
     .map((r) => evaluateRule(r, facts, nowMs));
-  const unmet = gatingVerdicts.filter((v) => v.status !== 'met');
+
+  // Build the human-facing gates the certificate viewer renders. The certificate
+  // issues ONLY when every gate passes — hours/duration (program rules) AND a
+  // settled balance AND a signed clinician completion sign-off. This is the real
+  // three-(or four-)part gate; seeding the underlying data is what opens it.
+  const gates: CompletionGate[] = gatingVerdicts.map((v) => ({
+    key: v.primitive === 'DEADLINE' ? 'duration' : 'hours',
+    label: v.primitive === 'DEADLINE' ? 'Minimum duration' : 'Hours',
+    passed: v.status === 'met',
+    detail: v.detail,
+  }));
+
+  // Payment gate — clients.balance must be a KNOWN zero. Unknown (null) never
+  // passes: a certificate cannot issue without confirming the balance is settled.
+  const bal = facts.outstandingBalance;
+  gates.push({
+    key: 'payment',
+    label: 'Balance paid',
+    passed: bal != null && bal <= 0,
+    detail:
+      bal == null
+        ? 'Outstanding balance unknown — cannot confirm payment.'
+        : bal <= 0
+          ? 'No outstanding balance.'
+          : `Outstanding balance of $${bal.toFixed(2)} must be cleared.`,
+  });
+
+  // Sign-off gate — a signed completion_signoff clinical note must exist. This is
+  // a DISTINCT event from the placement sign-off (placement_determinations).
+  gates.push({
+    key: 'signoff',
+    label: 'Clinician sign-off',
+    passed: facts.completionSignedOff === true,
+    detail:
+      facts.completionSignedOff === true
+        ? 'Completion sign-off signed by the qualified professional.'
+        : 'Awaiting the clinician’s signed completion sign-off.',
+  });
+
+  const unmet = gates.filter((g) => !g.passed);
 
   return {
     program: facts.program,
     programLabel,
     hasCriteria: true,
     eligible: unmet.length === 0,
+    gates,
     gatingVerdicts,
-    unmetReasons: unmet.map((v) => `${v.label}: ${v.detail}`),
+    unmetReasons: unmet.map((g) => `${g.label}: ${g.detail}`),
   };
 }
 
@@ -406,15 +483,40 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
  * One-call assessment for a single client row/object (snake_case fields present,
  * as on both raw rows and the mapped Client). Pure + deterministic; no AI.
  */
-export function assessClient(row: any, nowMs: number = Date.now()): {
+export function assessClient(
+  row: any,
+  opts: { nowMs?: number; completionSignedOff?: boolean } = {},
+): {
   facts: ClientFacts;
   verdicts: RuleVerdict[];
   completion: CompletionAssessment;
 } {
-  const facts = toFacts(row);
+  const nowMs = opts.nowMs ?? Date.now();
+  const facts = toFacts(row, opts.completionSignedOff);
   return {
     facts,
     verdicts: evaluateClientCompliance(facts, nowMs),
     completion: evaluateProgramCompletion(facts, nowMs),
   };
+}
+
+/**
+ * Completion sign-off lookup (integration layer): true iff a SIGNED clinical_notes
+ * row with note_type='completion_signoff' exists for the client. This is the
+ * distinct completion event (separate from the placement sign-off); the cert gate
+ * reads it via assessClient({ completionSignedOff }). Reads data only — no AI.
+ */
+export async function fetchCompletionSignoff(clientId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('clinical_notes')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('note_type', 'completion_signoff')
+    .eq('is_signed', true)
+    .limit(1);
+  if (error) {
+    console.warn('[complianceEngine] completion sign-off query failed:', error.message);
+    return false;
+  }
+  return !!(data && data.length > 0);
 }
