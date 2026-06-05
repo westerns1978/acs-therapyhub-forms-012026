@@ -288,19 +288,19 @@ const Dashboard: React.FC = () => {
                         {ScheduleCard}
                         <Card title="Risk Monitor" subtitle="Actionable alerts from real client activity.">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div className="p-4 rounded-2xl border-2 border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10">
+                                <div className="p-4 rounded-2xl border-2 border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-red-600">{alertSummary.critical}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Critical</div>
                                 </div>
-                                <div className="p-4 rounded-2xl border-2 border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10">
+                                <div className="p-4 rounded-2xl border-2 border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-orange-600">{alertSummary.high}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">High</div>
                                 </div>
-                                <div className="p-4 rounded-2xl border-2 border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10">
+                                <div className="p-4 rounded-2xl border-2 border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-amber-600">{alertSummary.elevated}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Elevated</div>
                                 </div>
-                                <div className="p-4 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10">
+                                <div className="p-4 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-blue-600">{alertSummary.moderate}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Moderate</div>
                                 </div>

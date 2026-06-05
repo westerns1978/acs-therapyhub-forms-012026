@@ -17,7 +17,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return storedTheme as Theme;
       }
     }
-    return 'system';
+    // Default to LIGHT. Dark mode is partially broken under the Tailwind Play CDN
+    // (custom dark.* tokens don't emit), so don't auto-land users in it via 'system'.
+    // The toggle still offers dark/system. See PRODUCT_BACKLOG.md #2 / #3.
+    return 'light';
   });
 
   useEffect(() => {
@@ -59,7 +62,7 @@ export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
   if (context === undefined) {
     return {
-      theme: 'system',
+      theme: 'light',
       setTheme: () => {},
     };
   }

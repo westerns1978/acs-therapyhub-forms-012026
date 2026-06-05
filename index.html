@@ -53,7 +53,7 @@
                 secondary: '#64748B'
               },
               border: {
-                DEFAULT: '#E7E3DB',
+                DEFAULT: '#D6CFC2',
               },
               dark: {
                 primary: {
@@ -95,11 +95,12 @@
               'xl': '24px',
             },
             boxShadow: {
-              // Layered soft shadow so cards lift off the page (tight + wide, low opacity).
-              'card': '0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06)',
-              'card-hover': '0 1px 3px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.10)',
-              'card-dark': '0 1px 2px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.40)',
-              'card-hover-dark': '0 1px 3px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.55)',
+              // Layered soft shadow so cards lift off the page (tight + wide). Strengthened
+              // in polish-v2 for clearer definition against the warm bg.
+              'card': '0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.08)',
+              'card-hover': '0 1px 3px rgba(0, 0, 0, 0.08), 0 10px 24px rgba(0, 0, 0, 0.12)',
+              'card-dark': '0 1px 2px rgba(0, 0, 0, 0.40), 0 6px 16px rgba(0, 0, 0, 0.50)',
+              'card-hover-dark': '0 1px 3px rgba(0, 0, 0, 0.45), 0 12px 30px rgba(0, 0, 0, 0.60)',
             }
           },
         },
