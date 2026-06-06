@@ -145,6 +145,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         onOpenNote={() => { setPreselectedClientId(undefined); setNoteModalOpen(true); }}
         onNewIntake={() => setCreateClientModalOpen(true)}
         onMobileMenuToggle={() => setMobileDrawerOpen(prev => !prev)}
+        onClaraToggle={() => setClaraOpen(prev => !prev)}
+        isClaraOpen={isClaraOpen}
       />
       
       <NotificationContainer />
@@ -158,7 +160,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             isCollapsed={isSidebarCollapsed} 
             setIsCollapsed={setSidebarCollapsed} 
         />
-        <div className={`flex flex-col flex-1 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
+        <div className={`flex flex-col flex-1 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} ${isClaraOpen ? 'lg:mr-[420px]' : ''}`}>
             <main className="flex-1 p-4 sm:p-6 pt-20 pb-8 lg:pt-20 lg:p-8 motion-safe:animate-fade-in-up">
                 <Breadcrumbs />
                 {children}
@@ -167,17 +169,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       </div>
       
       <CommandPalette isOpen={isCommandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
-      
-      {/* Clara Floating Button */}
-      <button 
-        onClick={() => setClaraOpen(prev => !prev)}
-        className="fixed bottom-8 right-8 z-50 w-16 h-16 bg-gradient-to-br from-primary to-[#70181D] text-white rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ease-in-out hover:scale-110 hover:shadow-primary/50 focus:outline-none focus:ring-4 focus:ring-primary/30 animate-pulse-shadow" 
-        aria-label="Open Clara AI Assistant"
-      >
-          <img src="https://storage.googleapis.com/westerns1978-digital-assets/ACS%20TherapyHub/clara2.png" alt="Clara" className="w-full h-full object-cover rounded-full border-2 border-white/20" />
-      </button>
 
-      <SynapseChatPopover isOpen={isClaraOpen} onClose={() => setClaraOpen(false)} mode="staff" />
+      {/* Clara on staff surfaces is launched from the header (GlobalHeader → onClaraToggle)
+          and opens as a docked right-side panel that PUSHES the content (lg:mr above),
+          so she never floats over the ledger. The portal keeps the floating bubble
+          (PortalLayout, unchanged). Same shared brain — only the shell differs. */}
+      <SynapseChatPopover isOpen={isClaraOpen} onClose={() => setClaraOpen(false)} mode="staff" variant="panel" />
       
       {isScheduleModalOpen && (
           <ScheduleSessionModal
