@@ -283,6 +283,7 @@ const mapAppointmentRowToApp = (row: any): Appointment => {
         zoomLink: row.zoom_link || undefined,
         zoomMeetingId: row.zoom_meeting_id || undefined,
         status: normalizeAppointmentStatus(row.status),
+        serviceType: row.service_type || undefined,
         capacity: row.capacity ?? undefined,
         // NOTE: appointments.client_id is TEXT in the DB, while every other
         // client_id column is uuid (SECURITY_BACKLOG.md #7). It maps fine to a
@@ -368,6 +369,7 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
     if ('zoomLink' in patch) row.zoom_link = patch.zoomLink ?? null;
     if ('zoomMeetingId' in patch) row.zoom_meeting_id = patch.zoomMeetingId ?? null;
     if ('status' in patch) row.status = patch.status ?? 'Scheduled';
+    if ('serviceType' in patch) row.service_type = patch.serviceType ?? null;
     if ('capacity' in patch) row.capacity = patch.capacity ?? null;
     if ('clientId' in patch) row.client_id = patch.clientId ?? null;
     if ('clientName' in patch) row.client_name = patch.clientName ?? null;
@@ -408,7 +410,9 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
 export const updateAppointmentStatus = async (
     appointmentId: string,
     status: Appointment['status'],
-): Promise<Appointment> => updateAppointment(appointmentId, { status });
+    serviceType?: Appointment['serviceType'],
+): Promise<Appointment> =>
+    updateAppointment(appointmentId, serviceType ? { status, serviceType } : { status });
 
 export const deleteAppointment = async (id: string): Promise<void> => {
     const { error } = await supabase.from('appointments').delete().eq('id', id);

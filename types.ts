@@ -342,6 +342,10 @@ export interface SessionAttendanceData {
 
 export type AppointmentStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Canceled' | 'No Show';
 export type AppointmentType = 'SATOP Group' | 'REACT Group' | 'Anger Management Group' | 'Gambling Group' | 'Individual Counseling' | 'DOT Assessment' | 'Intake Assessment';
+// WS3 reg hour-category (9 CSR 30-3.206) for session-hours accrual — distinct from
+// AppointmentType (program/format). Required before an appointment can be Completed;
+// 'other' = a non-program session that deliberately does not accrue.
+export type ServiceType = 'counseling' | 'education' | 'rehabilitative_support' | 'other';
 
 export interface Attendee {
     clientId: string;
@@ -363,6 +367,7 @@ export interface Appointment {
   zoomLink?: string;
   zoomMeetingId?: string;
   status: AppointmentStatus;
+  serviceType?: ServiceType;
   capacity?: number;
   attendees?: Attendee[];
   clientId?: string;

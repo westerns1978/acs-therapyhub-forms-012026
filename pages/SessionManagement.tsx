@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { getAppointments, getClients, deleteAppointment, updateAppointmentStatus } from '../services/api';
-import { Appointment, AppointmentStatus, Client, isStaffRole } from '../types';
+import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -36,11 +36,11 @@ const SessionManagement: React.FC = () => {
     // Real Supabase persistence: updateAppointmentStatus writes appointments.status,
     // then we patch local state with the mapped row so the card re-colors immediately
     // and the new status survives a refresh.
-    const handleSetStatus = async (status: AppointmentStatus) => {
+    const handleSetStatus = async (status: AppointmentStatus, serviceType?: ServiceType) => {
         if (!selectedAppt) return;
         setSavingStatus(true);
         try {
-            const updated = await updateAppointmentStatus(selectedAppt.id, status);
+            const updated = await updateAppointmentStatus(selectedAppt.id, status, serviceType);
             setAppointments(prev => prev.map(a => (a.id === updated.id ? updated : a)));
             setSelectedAppt(updated);
         } catch (err) {
