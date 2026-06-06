@@ -20,6 +20,7 @@
  */
 import pack from '../compliance/missouri-compliance-pack.json';
 import { supabase } from './supabase';
+import { REQUIRED_HOURS_BY_LEVEL, type SatopLevel } from '../config/satopFees';
 
 export type Primitive =
   | 'HOURS' | 'DEADLINE' | 'DOCUMENT' | 'SIGNATURE' | 'CONSTRAINT' | 'SEQUENCE' | 'CREDENTIAL';
@@ -42,7 +43,8 @@ export interface ClientFacts {
   program: string;            // UPPER-cased program_type
   status: string;             // lower-cased status
   hoursCompleted: number | null;
-  totalRequired: number | null;
+  determinedLevel: SatopLevel | null;  // WS4: from the SIGNED determination (current, non-superseded) — the level source
+  totalRequired: number | null;        // WS4: DERIVED from determinedLevel (the static column is no longer the source)
   enrollmentDate: string | null;     // clients.created_at — the real program-start anchor
   completionDate: string | null;     // clients.program_end_date (or null while active)
   planExecutionDate: string | null;  // treatment-plan execution date — absent today
@@ -196,17 +198,18 @@ export function evaluateClientCompliance(facts: ClientFacts, nowMs: number = Dat
   const verdicts: RuleVerdict[] = [];
   const isSatop = facts.program === 'SATOP';
 
-  if (isSatop && facts.totalRequired === 10) {
+  // WS4: applicable rules selected by the SIGNED determination level, not a static number.
+  if (isSatop && facts.determinedLevel === 'I') {
     const h = getRule('MO-SATOP-OEP-HOURS'); if (h) verdicts.push(evaluateRule(h, facts, nowMs));
   }
-  if (isSatop && facts.totalRequired === 20) {
+  if (isSatop && facts.determinedLevel === 'II') {
     const h = getRule('MO-SATOP-WIP-HOURS'); if (h) verdicts.push(evaluateRule(h, facts, nowMs));
   }
-  if (isSatop && facts.totalRequired === 75) {
+  if (isSatop && facts.determinedLevel === 'IV') {
     const h = getRule('MO-SATOP-SROP-HOURS'); if (h) verdicts.push(evaluateRule(h, facts, nowMs));
     const d = getRule('MO-SATOP-SROP-DURATION'); if (d) verdicts.push(evaluateRule(d, facts, nowMs));
   }
-  if (isSatop && facts.totalRequired === 50) {
+  if (isSatop && facts.determinedLevel === 'III') {
     const c = getRule('MO-SATOP-CIP-HOURS-SPLIT'); if (c) verdicts.push(evaluateRule(c, facts, nowMs));
   }
   // Backbone outpatient review applies to every active client (currently not_enforceable).
@@ -235,10 +238,14 @@ export interface GuardrailVerdict {
 export interface AccruedHours { total: number; counseling: number; education: number; rehabilitative_support: number; }
 const ZERO_ACCRUAL: AccruedHours = { total: 0, counseling: 0, education: 0, rehabilitative_support: 0 };
 
-function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?: boolean } = {}): ClientFacts {
+function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?: boolean; determinedLevel?: SatopLevel | null } = {}): ClientFacts {
   // No fallback to srop_hours_completed: a client with no Completed sessions reads 0
   // accrued hours and does NOT pass on seeded data.
   const accrual = opts.accrual ?? ZERO_ACCRUAL;
+  // WS4: the level comes from the SIGNED determination (current, non-superseded), never
+  // inferred from the static total_sessions_required. The required total is DERIVED
+  // from that level; no signed determination ⇒ null (completion not established).
+  const determinedLevel = opts.determinedLevel ?? null;
   return {
     id: row.id,
     name: row.name,
@@ -247,7 +254,8 @@ function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?:
     // WS3: completed hours + per-category come from the categorized accrual (Completed
     // appointments), never the static srop_hours_completed column.
     hoursCompleted: accrual.total,
-    totalRequired: row.total_sessions_required == null ? null : Number(row.total_sessions_required),
+    determinedLevel,
+    totalRequired: determinedLevel ? REQUIRED_HOURS_BY_LEVEL[determinedLevel] : null,
     enrollmentDate: row.created_at ?? null,
     completionDate: row.program_end_date ?? null,
     planExecutionDate: null,   // treatment_plans empty / no plan_executed_at — see evaluateDeadline
@@ -295,6 +303,53 @@ async function fetchAllAccruals(): Promise<Map<string, AccruedHours>> {
   return out;
 }
 
+/** Current = the signed row not superseded by any other (latest determined_at wins). */
+function currentLevelFromRows(rows: any[]): SatopLevel | null {
+  const supersededIds = new Set(rows.filter((r) => r.supersedes_id).map((r) => r.supersedes_id));
+  const current = rows
+    .filter((r) => !supersededIds.has(r.id))
+    .sort((a, b) => new Date(b.determined_at).getTime() - new Date(a.determined_at).getTime())[0];
+  return (current?.determined_level as SatopLevel) ?? null;
+}
+
+/** WS4 — the CURRENT (signed, non-superseded, latest) determination LEVEL for one client.
+ *  null when the client has no signed determination (gate → not established). */
+export async function fetchClientDetermination(clientId: string): Promise<SatopLevel | null> {
+  const { data, error } = await supabase
+    .from('placement_determinations')
+    .select('id, determined_level, supersedes_id, determined_at')
+    .eq('client_id', clientId).eq('status', 'signed');
+  if (error || !data || data.length === 0) {
+    if (error) console.warn('[complianceEngine] determination query failed:', error.message);
+    return null;
+  }
+  return currentLevelFromRows(data);
+}
+
+/** Batch — current determination level keyed by client_id (for the practice-wide fetchers). */
+async function fetchAllCurrentDeterminations(): Promise<Map<string, SatopLevel>> {
+  const out = new Map<string, SatopLevel>();
+  const { data, error } = await supabase
+    .from('placement_determinations')
+    .select('id, client_id, determined_level, supersedes_id, determined_at')
+    .eq('status', 'signed');
+  if (error || !data) {
+    if (error) console.warn('[complianceEngine] batch determination query failed:', error.message);
+    return out;
+  }
+  const byClient = new Map<string, any[]>();
+  for (const r of data) {
+    const arr = byClient.get(r.client_id) ?? [];
+    arr.push(r);
+    byClient.set(r.client_id, arr);
+  }
+  for (const [cid, rows] of byClient) {
+    const lvl = currentLevelFromRows(rows);
+    if (lvl) out.set(cid, lvl);
+  }
+  return out;
+}
+
 /**
  * Fetch active clients and compute their guardrail verdicts. Only surfaced
  * statuses (warning/violation) are returned for the Clinical Guardrails card;
@@ -311,9 +366,10 @@ export async function fetchComplianceGuardrails(): Promise<GuardrailVerdict[]> {
   }
   const nowMs = Date.now();
   const accruals = await fetchAllAccruals();
+  const determinations = await fetchAllCurrentDeterminations();
   const out: GuardrailVerdict[] = [];
   for (const row of data) {
-    const facts = toFacts(row, { accrual: accruals.get(row.id) });
+    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null });
     if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
     for (const v of evaluateClientCompliance(facts, nowMs)) {
       if (v.status === 'warning' || v.status === 'violation') {
@@ -380,10 +436,11 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
 
   const nowMs = Date.now();
   const accruals = await fetchAllAccruals();
+  const determinations = await fetchAllCurrentDeterminations();
   const neMap = new Map<string, NotEnforceableItem>();
 
   for (const row of data) {
-    const facts = toFacts(row, { accrual: accruals.get(row.id) });
+    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null });
     if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
     base.clientsEvaluated++;
 
@@ -464,17 +521,19 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
   let programLabel = facts.program || 'Program';
   let gatingIds: string[] = [];
 
-  // SATOP level inferred from the required-hours signature (data-driven).
-  if (facts.program === 'SATOP' && facts.totalRequired === 10) {
+  // WS4: SATOP level comes from the SIGNED determination (facts.determinedLevel), not
+  // inferred from a static hours number. The per-level required totals + SROP counseling
+  // floor live in the pack rules selected here (reused, not re-encoded).
+  if (facts.program === 'SATOP' && facts.determinedLevel === 'I') {
     programLabel = 'SATOP — Offender Education Program (OEP, Level I)';
     gatingIds = ['MO-SATOP-OEP-HOURS'];
-  } else if (facts.program === 'SATOP' && facts.totalRequired === 20) {
+  } else if (facts.program === 'SATOP' && facts.determinedLevel === 'II') {
     programLabel = 'SATOP — Weekend Intervention Program (WIP, Level II)';
     gatingIds = ['MO-SATOP-WIP-HOURS'];
-  } else if (facts.program === 'SATOP' && facts.totalRequired === 50) {
+  } else if (facts.program === 'SATOP' && facts.determinedLevel === 'III') {
     programLabel = 'SATOP — Clinical Intervention Program (CIP, Level III)';
     gatingIds = ['MO-SATOP-CIP-HOURS-SPLIT'];
-  } else if (facts.program === 'SATOP' && facts.totalRequired === 75) {
+  } else if (facts.program === 'SATOP' && facts.determinedLevel === 'IV') {
     programLabel = 'SATOP — Serious & Repeat Offender Program (SROP, Level IV)';
     gatingIds = ['MO-SATOP-SROP-HOURS', 'MO-SATOP-SROP-DURATION'];
   }
@@ -487,7 +546,11 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
       eligible: false,
       gates: [],
       gatingVerdicts: [],
-      unmetReasons: ['No deterministic completion criteria are wired for this program/level with the data captured today.'],
+      unmetReasons: [
+        facts.program === 'SATOP' && !facts.determinedLevel
+          ? 'No signed placement determination — completion not established (a clinician must sign a determination before the gate applies).'
+          : 'No deterministic completion criteria are wired for this program/level with the data captured today.',
+      ],
     };
   }
 
@@ -553,14 +616,14 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
  */
 export function assessClient(
   row: any,
-  opts: { nowMs?: number; completionSignedOff?: boolean; accrual?: AccruedHours } = {},
+  opts: { nowMs?: number; completionSignedOff?: boolean; accrual?: AccruedHours; determinedLevel?: SatopLevel | null } = {},
 ): {
   facts: ClientFacts;
   verdicts: RuleVerdict[];
   completion: CompletionAssessment;
 } {
   const nowMs = opts.nowMs ?? Date.now();
-  const facts = toFacts(row, { accrual: opts.accrual, completionSignedOff: opts.completionSignedOff });
+  const facts = toFacts(row, { accrual: opts.accrual, completionSignedOff: opts.completionSignedOff, determinedLevel: opts.determinedLevel });
   return {
     facts,
     verdicts: evaluateClientCompliance(facts, nowMs),
