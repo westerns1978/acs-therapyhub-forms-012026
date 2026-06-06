@@ -17,6 +17,8 @@ import {
 import { Loader2, AlertTriangle, CheckCircle2, XCircle, Save, Info, ShieldCheck, Lock, PenLine, ArrowUp, Ban, History, FileCheck } from 'lucide-react';
 import DocumentPreviewModal from './DocumentPreviewModal';
 import { buildCimorPacketDoc, cimorPacketFileName, fetchCimorNarrative, type NarrativeContext } from '../../services/cimorPacket';
+import { computeComplianceClock } from '../../services/complianceClock';
+import ComplianceDeadlineStrip from './ComplianceDeadlineStrip';
 
 /**
  * WS1 capture screen + WS2 clinician sign-off.
@@ -188,6 +190,12 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
   const [packetSummary, setPacketSummary] = useState<string | null>(null);
   const [packetError, setPacketError] = useState<string | null>(null);
 
+  // WS2.5 — facts for the deadline clock. clientRow = program_end_date + balance;
+  // loadedScreeningDate = the latest PERSISTED screening (NOT the live form, so the
+  // strip never recomputes from unsaved edits).
+  const [clientRow, setClientRow] = useState<{ program_end_date: string | null; balance: number | null } | null>(null);
+  const [loadedScreeningDate, setLoadedScreeningDate] = useState<string | null>(null);
+
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
     setSavedAt(null);
@@ -224,8 +232,10 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
           notes: data.notes ?? '',
         });
         setLoadedInputId(data.id);
+        setLoadedScreeningDate(data.screening_date ?? null);
       } else {
         setLoadedInputId(null);
+        setLoadedScreeningDate(null);
       }
       setDirty(false);
       setLoading(false);
@@ -249,6 +259,17 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
   useEffect(() => {
     loadDeterminations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id]);
+
+  // WS2.5 — load the client facts the deadline clock needs (program_end_date + balance).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from('clients').select('program_end_date, balance').eq('id', client.id).maybeSingle();
+      if (cancelled) return;
+      setClientRow(data ? { program_end_date: data.program_end_date ?? null, balance: data.balance == null ? null : Number(data.balance) } : null);
+    })();
+    return () => { cancelled = true; };
   }, [client.id]);
 
   // LIVE recommendation — recomputed from the engine as fields change.
@@ -288,6 +309,23 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
     [result.recommendedFloor],
   );
 
+  // WS2.5 — the deadline clock. Reads ONLY persisted/signed facts: the latest
+  // persisted screening, and (cert/DOR only once there IS a signed determination)
+  // the client's recorded completion date + balance. Never the live form, never an
+  // unsigned recompute. asOf = now (date-free engine; the witness injects boundaries).
+  const clock = useMemo(
+    () =>
+      computeComplianceClock(
+        {
+          screeningDate: loadedScreeningDate,
+          completionDate: current ? (clientRow?.program_end_date ?? null) : null,
+          balance: clientRow?.balance ?? null,
+        },
+        new Date(),
+      ),
+    [loadedScreeningDate, current, clientRow],
+  );
+
   /** Insert the current form as a NEW assessment_inputs row; returns its id. */
   const persistInputs = async (): Promise<string> => {
     const { data: auth } = await supabase.auth.getUser();
@@ -314,6 +352,7 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
       .single();
     if (insErr) throw insErr;
     setLoadedInputId(data.id);
+    setLoadedScreeningDate(form.screening_date || todayLocal()); // keep the deadline strip in sync after save-then-sign
     setDirty(false);
     return data.id;
   };
@@ -819,6 +858,9 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
           </div>
         </div>
       </Card>
+
+      {/* WS2.5 — advisory per-client deadline clock (display only; not an alert feed) */}
+      <ComplianceDeadlineStrip clock={clock} signedLevel={current?.determined_level ?? null} />
 
       {packetOpen && packetDet && packetClient && (
         <DocumentPreviewModal

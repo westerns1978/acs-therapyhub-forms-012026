@@ -369,6 +369,16 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
 // No AI, no hardcoded "complete" — the engine's verdicts are the sole authority.
 
 /**
+ * The fees-paid gate rule, factored out so it is defined ONCE. The completion
+ * payment gate below AND the WS2.5 compliance clock (services/complianceClock.ts)
+ * both call it — no drift. A balance is "settled" only when KNOWN and ≤ 0;
+ * unknown (null) never passes (a certificate never issues on an unconfirmed balance).
+ */
+export function isBalanceSettled(balance: number | null): boolean {
+  return balance != null && balance <= 0;
+}
+
+/**
  * One human-facing completion gate for the certificate viewer. The certificate
  * issues only when EVERY gate.passed is true. The three the addendum surfaces —
  * hours · payment · sign-off — are always present for a SATOP level (a duration
@@ -445,7 +455,7 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
   gates.push({
     key: 'payment',
     label: 'Balance paid',
-    passed: bal != null && bal <= 0,
+    passed: isBalanceSettled(bal),
     detail:
       bal == null
         ? 'Outstanding balance unknown — cannot confirm payment.'
