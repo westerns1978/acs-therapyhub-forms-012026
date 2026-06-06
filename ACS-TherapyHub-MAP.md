@@ -60,8 +60,9 @@ ACS TherapyHub is a practice-management web app for **Assessment & Counseling So
 | **Director Reports** | Read-only SQL functions (`acs_report_*`, security-invoker, Central-tz buckets): payments-by-method, outstanding-by-client, money summary. Self-auditing (`revenue + remittance + unallocated = total`); pass-through never in revenue. `/financials` un-hidden for **Director/Admin**. | Live |
 | **WS1 — Placement engine** | Deterministic `computePlacement` (single source, date-free) encoding 9 CSR 30-3.206: offense-base 1→OEP/2→WIP/3+→CIP, SROP hard floor (BAC≥0.15 AND 2+ DUI-arrests-w/-DOR-action AND SUD dx), upgrade factors surfaced (not auto-applied), screening 6-month validity at view-time. Typed `assessment_inputs` table (staff-only RLS, no client self-read). Live recommendation in the Assessment tab, labeled "not a determination." Witnessed: **120/120 truth table**, RLS denials, 3 eyes-on cases. | Live |
 | **Clara — surface-aware** | One shared brain (`SynapseChatPopover`, Gemini Live voice — `gemini-2.5-flash-native-audio-preview-12-2025`, ephemeral-token flow), two front doors: **staff** = header launcher (Clara's `clara2.png` avatar + `animate-ping` maroon pulse, by the bell) → **docked right panel that pushes content** (no overlay); **client/portal** = floating bubble, untouched. One identity across surfaces. UI-only — zero voice/session lines changed (proven by diff). Witnessed: Financials non-overlap proven geometrically (panel x=1020–1440, ledger ends at x=1020, Marcus's $175 visible); portal bubble unchanged; token handshake `200`. | Live |
+| **WS2 — clinician sign-off + CIMOR packet** | Signed determination of record on `placement_determinations` (append-only, two-layer immutable: no update/delete GRANT + no policy; forward `supersedes_id`). Sign-off in AssessmentTab (clinician-only, gate ↔ `is_clinician` RLS): Confirm / Escalate-with-reason / below-floor BLOCKED (§3(E), DB-enforced via `pd_disposition_matches_levels`). CIMOR packet reuses the cert jsPDF zero-drift kit; deterministic facts from the signed row; one ephemeral AI prose paragraph, token-guarded + AI-down-safe (both null-paths render deterministic-only). Witnessed: full truth table (RLS denials, CHECK rejections incl. NULL-reason, supersede chain, zero-drift, AI-down, token-guard). | Live |
 
-**Recent commit trail (this week):** Record Payment `7757725`+`428c3dc` · widen-financial `8a91dc3`+`75417bf` · retire-mock-billing `96144c7` · receipt PDF `38c5025` · Director Reports `20260605_reports_1…` + merge `f991324` · docs un-hide `e7cb41d` · WS1 migration `a68dfbd` + feature `bb3f7cb` + merge `7d5c3e5` · Clara relocation merge `d5f8b5d` · Clara avatar+pulse merge `3bef251`. (Earlier WS0/WS6/WS7/WS-Billing history is in `ACS-Session-Handoff.md`.)
+**Recent commit trail (this week):** Record Payment `7757725`+`428c3dc` · widen-financial `8a91dc3`+`75417bf` · retire-mock-billing `96144c7` · receipt PDF `38c5025` · Director Reports `20260605_reports_1…` + merge `f991324` · docs un-hide `e7cb41d` · WS1 migration `a68dfbd` + feature `bb3f7cb` + merge `7d5c3e5` · Clara relocation merge `d5f8b5d` · Clara avatar+pulse merge `3bef251` · **WS2** Phase 1 `0ca04ef` (ws2_1 table+RLS · ws2_2 grant-lock) · Phase 2 sign-off `8c4fa06` · Phase 3 CIMOR packet `e394a91` · merge `7611811`. (Earlier WS0/WS6/WS7/WS-Billing history is in `ACS-Session-Handoff.md`.)
 
 > **§4 = this team's *recent build work* only.** The full live route inventory — including the large **inherited surface** (Treatment Plan Library, ClientWorkspace + tabs, the whole client portal, Calendar, Messages, Forms, Risk Monitor, ASAM assessment, and more) — is in **§4b**, trued-up against the repo 2026-06-06.
 
@@ -76,7 +77,7 @@ Recon'd read-only from router/nav/components. Tags: **REAL** = production writes
 | Route | Nav / access | What it does | State |
 |---|---|---|---|
 | `/dashboard` | all | Daily snapshot: real appts, compliance alerts, Director aggregates | REAL |
-| `/clients[/:id]` | all | **ClientWorkspace** — the core hub; tabs: Overview, Documents, Forms, Sessions, Assessment (WS1), Billing (D/A), Treatment Plan (D/T) | REAL |
+| `/clients[/:id]` | all | **ClientWorkspace** — the core hub; tabs: Overview, Documents, Forms, Sessions, Assessment (WS1 + **WS2** sign-off/CIMOR packet, clinician-only · Admin read-only), Billing (D/A), Treatment Plan (D/T) | REAL |
 | `/session-management` "Calendar" | all | Appt calendar; real appts + status writes; Google Calendar sync; launches ActiveSession | REAL |
 | `/communication-center` "Messages" | all | Staff↔client / staff↔admin messaging → `client_communications` | REAL |
 | `/forms` | all | Form library (11 templates) + real `form_submissions` | REAL |
@@ -97,6 +98,8 @@ Recon'd read-only from router/nav/components. Tags: **REAL** = production writes
 | `/compliance-assistant` | D/T · **orphaned (no nav)** | Clara co-pilot: image upload + Gemini journal/sentiment | REAL · unreachable |
 | `/video-sessions` (+ green-room) | D/T · **orphaned (no nav)** | Video session list + pre-call check; **real Zoom session rows** | REAL · unreachable |
 | `/fee-ledger/:id` | legacy | → redirects to `/clients/:id` (retired mock billing) | REDIRECT |
+
+**WS2 surface** (in the Assessment tab of `/clients/:id` — clinician-only; Admin read-only): **`placement_determinations`** — the signed determination of record. Append-only & **two-layer immutable** (no update/delete GRANT + no policy; supersede via forward `supersedes_id`). Sign-off UI gate ↔ `is_clinician` RLS exactly; below-floor is DB-blocked (`pd_disposition_matches_levels`); the CIMOR packet is built from the signed row (deterministic) + one ephemeral, token-guarded AI prose paragraph.
 
 **Client portal. Nav: Dashboard · My Forms · Appointments · Billing · My Progress.**
 
@@ -119,7 +122,7 @@ Recon'd read-only from router/nav/components. Tags: **REAL** = production writes
 
 ## 5. In flight
 
-- *Nothing active.* Next up is **WS2** (§6). Clara relocation shipped (→ §4).
+- *Nothing active.* **WS2 — clinician sign-off + CIMOR packet** shipped (→ §4). Next up is **WS2.5 — compliance deadline clock** (§6).
 
 ---
 
@@ -161,6 +164,7 @@ Recon'd read-only from router/nav/components. Tags: **REAL** = production writes
 - Legacy clients show negative derived balances (display-layer clamp).
 - The relapse-risk card stays killed/feature-flagged (narrate-only violation) unless rebuilt deterministic w/ Karen sign-off.
 - **`treatment_plans` table still has `Allow all` RLS** — a real exposure (clinical problems/goals/interventions, unscoped). **→ SECURITY_BACKLOG**; scope to `is_staff` / `my_client_ids` like the other 9 tables. (Surfaced in WS2 recon.)
+- **Project-wide default privileges** grant `anon`/`authenticated` full DML on every new public table — only RLS blocks it (confirmed: `assessment_inputs`, which issued no grants, carries the full grant set). WS2's `placement_determinations` is hardened **two-layer** (GRANT + policy); **consider a project-wide REVOKE** so every table matches. **→ SECURITY_BACKLOG.** Pairs with the `treatment_plans` Allow-all item above. (Surfaced in WS2 Phase 1 witness.)
 - **AsamAssessment (`/assessments/:id`) shows an AI-generated level** and persists nothing — display-only, so low-stakes, but same narrate-only class as the killed relapse-risk card. WS2 deliberately keys off `computePlacement`, not this. Rebuild deterministic or label clearly if it ever becomes load-bearing. (Surfaced in WS2 recon.)
 
 ---
