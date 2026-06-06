@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import GemyndFlowLogo from './GemyndFlowLogo';
-import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu, Sparkles } from 'lucide-react';
+import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
+
+// Clara's avatar — same image the portal floating bubble uses, for one identity across surfaces.
+const CLARA_AVATAR_URL = 'https://storage.googleapis.com/westerns1978-digital-assets/ACS%20TherapyHub/clara2.png';
 
 interface GlobalHeaderProps {
     onCommandPaletteToggle: () => void;
@@ -101,19 +104,24 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                     </div>
 
                     {/* Clara launcher — opens the docked clinical assistant panel (staff).
-                        Replaces the floating avatar so Clara no longer overlays the ledger.
-                        TODO(Dan): branding — this uses a generic Sparkles icon; decide whether
-                        to swap in a branded ACS "Clara" monogram/mark here. The client portal
-                        floating bubble still uses the clara2.png avatar. Your call. */}
+                        Clara's avatar (same image as the portal bubble) with a live "available"
+                        pulse: a maroon ring behind the avatar using Tailwind's core animate-ping
+                        (Play-CDN safe — no custom @keyframes, which can silently no-op under the
+                        CDN). The avatar itself stays static/crisp on top; only the ring pulses. */}
                     {onClaraToggle && (
                         <button
                             onClick={onClaraToggle}
                             aria-label="Open Clara clinical assistant"
                             aria-pressed={!!isClaraOpen}
                             title="Clara — clinical assistant"
-                            className={`p-2 rounded-full relative transition-colors ${isClaraOpen ? 'bg-primary/10 text-primary' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            className="relative w-[34px] h-[34px] shrink-0 rounded-full transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
                         >
-                            <Sparkles size={20} />
+                            <span className="absolute inset-0 rounded-full bg-primary/30 animate-ping pointer-events-none" aria-hidden="true"></span>
+                            <img
+                                src={CLARA_AVATAR_URL}
+                                alt="Clara"
+                                className={`relative w-full h-full rounded-full object-cover border border-white/50 dark:border-white/20 ${isClaraOpen ? 'ring-2 ring-primary' : 'ring-1 ring-primary/30'}`}
+                            />
                         </button>
                     )}
 
