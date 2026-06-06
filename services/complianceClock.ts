@@ -30,8 +30,9 @@ import { isBalanceSettled } from './complianceEngine';
 export const SCREENING_DUE_SOON_DAYS = 30;
 /** Certificate must issue within this many days of completion (9 CSR). */
 export const CERT_WINDOW_DAYS = 7;
-/** DOR must be notified within this many days of completion (tunable — confirm reg). */
-export const DOR_WINDOW_DAYS = 7;
+// DOR notification is AUTOMATIC via DMH's system on certificate issuance
+// (9 CSR 30-3.206(14)(A)) — not a manual ACS deadline. The dor_notification item is a
+// static informational note (never a window, never at-risk); there is no DOR constant.
 
 export type ClockItemKey = 'screening_window' | 'fees_paid' | 'certificate_7day' | 'dor_notification';
 
@@ -44,6 +45,7 @@ export type ClockStatus =
   | 'window_elapsed'  // advisory window passed — confirm closure (no record to verify)
   | 'expired'         // screening only — re-screen required (resolvable)
   | 'blocked'         // fees outstanding — blocks completion
+  | 'informational'   // static note — never at-risk (e.g. DOR auto-notified by DMH)
   | 'not_applicable'; // not yet relevant (e.g. cert/DOR before completion; no screening on file)
 
 export interface DeadlineItem {
@@ -166,13 +168,18 @@ export function computeComplianceClock(input: ClockInput, asOf: Date): Complianc
       (dueYMD, daysLeft) => `Certificate due within ${CERT_WINDOW_DAYS} days of completion — by ${dueYMD} (${daysLeft} day(s) left).`,
       (dueYMD) => `The ${CERT_WINDOW_DAYS}-day post-completion certificate window passed on ${dueYMD}. No in-app issuance record exists — confirm the certificate was issued.`,
     ),
-    postCompletionItem(
-      'dor_notification', `DOR notification (within ${DOR_WINDOW_DAYS} days)`, DOR_WINDOW_DAYS,
-      input.completionDate, asOf,
-      'Applies once the program is completed and the certificate issues.',
-      (dueYMD, daysLeft) => `DOR notification due within ${DOR_WINDOW_DAYS} days of completion — by ${dueYMD} (${daysLeft} day(s) left).`,
-      (dueYMD) => `The DOR-notification window passed on ${dueYMD}. No in-app DOR-sent record exists — confirm DOR was notified.`,
-    ),
+    // DOR notification — STATIC informational, never a deadline. Per 9 CSR
+    // 30-3.206(14)(A), DMH's system notifies DOR automatically on certificate
+    // issuance; there is no manual ACS window, so it never contributes to at-risk.
+    {
+      key: 'dor_notification',
+      label: 'DOR notification',
+      status: 'informational',
+      dueDate: null,
+      daysRemaining: null,
+      atRisk: false,
+      detail: "DOR is notified automatically by DMH's system on certificate issuance — no manual ACS deadline.",
+    },
   ];
   // Derive at-risk from status so the rule is defined once.
   for (const it of items) it.atRisk = atRiskStatuses.has(it.status);

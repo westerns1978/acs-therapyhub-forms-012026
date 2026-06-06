@@ -4,8 +4,8 @@
  * Asserts every status at the BOUNDARIES against an independent, hand-computed oracle:
  *   • screening at +6mo (valid/due_soon) vs +6mo+1d (expired), and the
  *     SCREENING_DUE_SOON_DAYS threshold ±1;
- *   • certificate/DOR at the window day (daysRemaining 0, due_soon) vs +1 (window_elapsed),
- *     and off-by-one before the deadline;
+ *   • certificate at the window day (daysRemaining 0, due_soon) vs +1 (window_elapsed),
+ *     and off-by-one before the deadline; DOR is static informational (never at-risk);
  *   • the fees-paid gate (null / settled / outstanding);
  *   • the at-risk roll-up count.
  *
@@ -17,7 +17,6 @@ import {
   computeComplianceClock,
   SCREENING_DUE_SOON_DAYS,
   CERT_WINDOW_DAYS,
-  DOR_WINDOW_DAYS,
   type ClockItemKey,
   type ClockStatus,
   type ClockInput,
@@ -77,13 +76,13 @@ const cases: Case[] = [
   { name: `cert: +${CERT_WINDOW_DAYS + 1}d → window_elapsed`, input: { completionDate: COMPLETION }, asOf: shift(COMPLETION, CERT_WINDOW_DAYS + 1),
     expect: { certificate_7day: { status: 'window_elapsed', atRisk: true, daysRemaining: -1 } } },
 
-  // ── DOR notification within DOR_WINDOW_DAYS of completion ──
-  { name: 'dor: not completed → not_applicable', input: { completionDate: null }, asOf: D(2026, 6, 1),
-    expect: { dor_notification: { status: 'not_applicable', atRisk: false } } },
-  { name: `dor: +${DOR_WINDOW_DAYS}d (deadline day) → due_soon, days 0`, input: { completionDate: COMPLETION }, asOf: shift(COMPLETION, DOR_WINDOW_DAYS),
-    expect: { dor_notification: { status: 'due_soon', atRisk: true, daysRemaining: 0 } } },
-  { name: `dor: +${DOR_WINDOW_DAYS + 1}d → window_elapsed`, input: { completionDate: COMPLETION }, asOf: shift(COMPLETION, DOR_WINDOW_DAYS + 1),
-    expect: { dor_notification: { status: 'window_elapsed', atRisk: true, daysRemaining: -1 } } },
+  // ── DOR notification — STATIC informational (auto-notified by DMH per 3.206(14)(A); never at-risk) ──
+  { name: 'dor: not completed → informational (never at-risk)', input: { completionDate: null }, asOf: D(2026, 6, 1),
+    expect: { dor_notification: { status: 'informational', atRisk: false } } },
+  { name: 'dor: just completed → still informational (never due_soon)', input: { completionDate: COMPLETION }, asOf: shift(COMPLETION, 0),
+    expect: { dor_notification: { status: 'informational', atRisk: false } } },
+  { name: 'dor: long after completion → still informational (never window_elapsed)', input: { completionDate: COMPLETION }, asOf: shift(COMPLETION, 60),
+    expect: { dor_notification: { status: 'informational', atRisk: false } } },
 ];
 
 export interface ClockTruthTableResult { total: number; passed: number; failed: number; failures: string[]; text: string; }
@@ -109,10 +108,11 @@ export function runClockTruthTable(): ClockTruthTableResult {
     }
   }
 
-  // At-risk roll-up: a fully exposed client (expired screening + outstanding fees + both windows elapsed) → 4.
+  // At-risk roll-up: a fully exposed client (expired screening + outstanding fees + cert window
+  // elapsed) → 3. DOR is informational (auto-notified by DMH per 3.206(14)(A)), never counted.
   total++;
   const allRisk = computeComplianceClock({ screeningDate: SCREEN, balance: 150, completionDate: COMPLETION }, shift(VALID_UNTIL, 1));
-  if (allRisk.atRiskCount === 4) passed++; else failures.push(`✗ at-risk roll-up (all exposed): got ${allRisk.atRiskCount} expected 4`);
+  if (allRisk.atRiskCount === 3) passed++; else failures.push(`✗ at-risk roll-up (all exposed): got ${allRisk.atRiskCount} expected 3 (DOR is informational, never at-risk)`);
 
   // A clean active client (screening ok, fees clear, not completed) → 0.
   total++;
@@ -121,7 +121,7 @@ export function runClockTruthTable(): ClockTruthTableResult {
 
   const text =
     `Compliance Clock truth table: ${passed}/${total} ${passed === total ? '✓ all green' : '✗ FAILURES'}` +
-    `\nConstants asserted: SCREENING_DUE_SOON_DAYS=${SCREENING_DUE_SOON_DAYS}, CERT_WINDOW_DAYS=${CERT_WINDOW_DAYS}, DOR_WINDOW_DAYS=${DOR_WINDOW_DAYS}` +
+    `\nConstants asserted: SCREENING_DUE_SOON_DAYS=${SCREENING_DUE_SOON_DAYS}, CERT_WINDOW_DAYS=${CERT_WINDOW_DAYS} (DOR = static informational, no window)` +
     (failures.length ? '\n' + failures.join('\n') : '');
 
   return { total, passed, failed: total - passed, failures, text };
