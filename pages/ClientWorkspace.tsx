@@ -12,7 +12,7 @@ import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
 import ClientSessionsTab from '../components/clients/ClientSessionsTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import Card from '../components/ui/Card';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive, CreditCard } from 'lucide-react';
+import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
@@ -21,6 +21,7 @@ import { assessClient, fetchCompletionSignoff } from '../services/complianceEngi
 import { downloadClientRecordPacket } from '../services/pdfDocuments';
 import DocumentPreviewModal, { PreviewKind } from '../components/clients/DocumentPreviewModal';
 import BillingLedger from '../components/billing/BillingLedger';
+import AssessmentTab from '../components/clients/AssessmentTab';
 
 const CLINICAL_ROLES: ReadonlyArray<string> = ['Director', 'Therapist'];
 
@@ -151,6 +152,9 @@ const ClientWorkspace: React.FC = () => {
     // payments/charges RLS (private.is_staff()). isStaffRole() is exactly is_staff()'s set,
     // so the UI gate and the RLS gate match; a Client never sees the Billing tab.
     const canRecordPayment = !!user && isStaffRole(user.role);
+    // Assessment (placement engine) is a staff surface — all three staff roles
+    // (is_staff), matching the assessment_inputs RLS. A Client never sees it.
+    const canAssess = !!user && isStaffRole(user.role);
     const [client, setClient] = useState<Client | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
@@ -238,6 +242,8 @@ const ClientWorkspace: React.FC = () => {
         { id: 'documents', label: 'Documents', icon: FileText },
         { id: 'forms', label: 'Forms', icon: ClipboardList },
         { id: 'sessions', label: 'Sessions', icon: Video },
+        // Assessment (placement engine) — all staff (is_staff), mirrors assessment_inputs RLS.
+        ...(canAssess ? [{ id: 'assessment', label: 'Assessment', icon: Gauge }] : []),
         // Billing is a financial surface - Director/Admin only (mirrors payments RLS).
         ...(canRecordPayment ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
         // Treatment Plan is clinical surface — hidden from Admin (Jess).
@@ -267,6 +273,10 @@ const ClientWorkspace: React.FC = () => {
                 return <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>;
             case 'sessions':
                 return <ClientSessionsTab client={client} />;
+            case 'assessment':
+                // Defensive: same gate as the tab strip (persisted activeTab could land here).
+                if (!canAssess) return null;
+                return <AssessmentTab client={client} />;
             case 'billing':
                 // Defensive: same gate as the tab strip (persisted activeTab could land here).
                 if (!canRecordPayment) return null;
