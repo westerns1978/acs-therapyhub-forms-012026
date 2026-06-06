@@ -5,6 +5,7 @@ import Card from '../../components/ui/Card';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import BillingLedger from '../../components/billing/BillingLedger';
 import { CreditCard, Download, ArrowUpRight, Loader2, AlertTriangle } from 'lucide-react';
 
 const PortalBilling: React.FC = () => {
@@ -19,9 +20,9 @@ const PortalBilling: React.FC = () => {
         const fetchBilling = async () => {
             setIsLoading(true);
             try {
-                // Real ledger read: derived balance + charges (debits) + payments (credits).
-                // (Previously selected clients.payment_method — which doesn't exist — so the
-                //  query errored silently and balance always read 0. WS-Billing fix.)
+                // Hero balance + Stripe "pay unpaid charges" still need the client's own
+                // charges here; the itemized charges/payments tables are rendered by the
+                // shared <BillingLedger> below (read-only in the portal). Same real ledger.
                 const { data: clientData } = await supabase
                     .from('clients')
                     .select('balance')
@@ -164,84 +165,8 @@ const PortalBilling: React.FC = () => {
                     </Card>
                 </div>
 
-                {billingData.charges && billingData.charges.length > 0 && (
-                    <Card title="Charges">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="border-b border-slate-100 dark:border-slate-800">
-                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                                        <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                    {billingData.charges.map((ch: any) => (
-                                        <tr key={ch.id}>
-                                            <td className="py-4">
-                                                <p className="text-sm font-black text-slate-800 dark:text-slate-100">{ch.description || ch.charge_type}</p>
-                                                {ch.is_pass_through && <p className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">State pass-through</p>}
-                                            </td>
-                                            <td className="py-4 text-sm font-black text-slate-700 dark:text-slate-200">${Number(ch.amount).toFixed(2)}</td>
-                                            <td className="py-4 text-right">
-                                                <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${ch.status === 'paid' ? 'bg-green-100 text-green-700' : ch.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                    {ch.status}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-                )}
-
-                <Card title="Transaction History">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="border-b border-slate-100 dark:border-slate-800">
-                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                                    <th className="pb-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                                {billingData.transactions.map((tx: any) => (
-                                    <tr key={tx.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="py-4 text-sm font-bold text-slate-500">
-                                            {new Date(tx.payment_date).toLocaleDateString()}
-                                        </td>
-                                        <td className="py-4">
-                                            <p className="text-sm font-black text-slate-800 dark:text-slate-100">{tx.description || tx.payment_type || 'Service Fee'}</p>
-                                            <p className="text-[10px] text-slate-400 font-medium">
-                                                {tx.payment_method ? `${tx.payment_method} · ` : ''}Ref: {tx.external_payment_id || tx.id.substring(0, 8)}
-                                            </p>
-                                        </td>
-                                        <td className="py-4">
-                                            <span className={`text-sm font-black ${tx.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>
-                                                {tx.amount < 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
-                                            </span>
-                                        </td>
-                                        <td className="py-4 text-right">
-                                            <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 bg-green-100 text-green-700 rounded-md">
-                                                {tx.status || 'Success'}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {billingData.transactions.length === 0 && (
-                                    <tr>
-                                        <td colSpan={4} className="py-12 text-center text-slate-500 font-medium italic">
-                                            No recent transactions found.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
+                {/* Itemized ledger (charges + payment history) — shared component, read-only here. */}
+                <BillingLedger clientId={portalClient.id} showSummary={false} />
             </div>
         </PortalLayout>
     );

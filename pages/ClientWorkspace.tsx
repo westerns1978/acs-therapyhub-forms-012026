@@ -12,7 +12,7 @@ import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
 import ClientSessionsTab from '../components/clients/ClientSessionsTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import Card from '../components/ui/Card';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive } from 'lucide-react';
+import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive, CreditCard } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { assessClient, fetchCompletionSignoff } from '../services/complianceEngine';
 import { downloadClientRecordPacket } from '../services/pdfDocuments';
 import DocumentPreviewModal, { PreviewKind } from '../components/clients/DocumentPreviewModal';
+import BillingLedger from '../components/billing/BillingLedger';
 
 const CLINICAL_ROLES: ReadonlyArray<string> = ['Director', 'Therapist'];
 
@@ -146,6 +147,9 @@ const ClientWorkspace: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const canSeeClinical = !!user && CLINICAL_ROLES.includes(user.role);
+    // Financial surface is Director/Admin-only (is_financial_staff), distinct from the
+    // clinical roles above (Therapist yes, Admin no). Gates the Billing tab + affordance.
+    const canRecordPayment = !!user && (user.role === 'Director' || user.role === 'Admin');
     const [client, setClient] = useState<Client | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
@@ -233,6 +237,8 @@ const ClientWorkspace: React.FC = () => {
         { id: 'documents', label: 'Documents', icon: FileText },
         { id: 'forms', label: 'Forms', icon: ClipboardList },
         { id: 'sessions', label: 'Sessions', icon: Video },
+        // Billing is a financial surface - Director/Admin only (mirrors payments RLS).
+        ...(canRecordPayment ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
         // Treatment Plan is clinical surface — hidden from Admin (Jess).
         ...(canSeeClinical ? [{ id: 'treatment-plan', label: 'Treatment Plan', icon: Target }] : []),
         ...(TRIAL_HIDE_CLIENT_SCHEDULING_TAB ? [] : [{ id: 'scheduling', label: 'Scheduling', icon: Zap }]),
@@ -260,6 +266,10 @@ const ClientWorkspace: React.FC = () => {
                 return <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>;
             case 'sessions':
                 return <ClientSessionsTab client={client} />;
+            case 'billing':
+                // Defensive: same gate as the tab strip (persisted activeTab could land here).
+                if (!canRecordPayment) return null;
+                return <BillingLedger clientId={client.id} canRecord showSummary />;
             case 'overview': 
             default: 
                 return SHOW_RELAPSE_RISK_CARD ? (
