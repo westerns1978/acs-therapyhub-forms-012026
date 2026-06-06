@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import GemyndFlowLogo from './GemyndFlowLogo';
-import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
+import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu, Sparkles } from 'lucide-react';
 
 interface GlobalHeaderProps {
     onCommandPaletteToggle: () => void;
@@ -10,12 +10,15 @@ interface GlobalHeaderProps {
     onOpenNote: () => void;
     onNewIntake: () => void;
     onMobileMenuToggle?: () => void;
+    /** Opens/closes the docked staff Clara panel. */
+    onClaraToggle?: () => void;
+    isClaraOpen?: boolean;
 }
 
 // CreateClientModal is rendered by MainLayout, not here — keeping the modal
 // out of this <header> avoids the backdrop-filter containing-block trap that
 // clipped the modal to the header's bounding box.
-const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onScheduleSession, onOpenNote, onNewIntake, onMobileMenuToggle }) => {
+const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onScheduleSession, onOpenNote, onNewIntake, onMobileMenuToggle, onClaraToggle, isClaraOpen }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [isProfileOpen, setProfileOpen] = useState(false);
@@ -96,6 +99,23 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                             </div>
                         )}
                     </div>
+
+                    {/* Clara launcher — opens the docked clinical assistant panel (staff).
+                        Replaces the floating avatar so Clara no longer overlays the ledger.
+                        TODO(Dan): branding — this uses a generic Sparkles icon; decide whether
+                        to swap in a branded ACS "Clara" monogram/mark here. The client portal
+                        floating bubble still uses the clara2.png avatar. Your call. */}
+                    {onClaraToggle && (
+                        <button
+                            onClick={onClaraToggle}
+                            aria-label="Open Clara clinical assistant"
+                            aria-pressed={!!isClaraOpen}
+                            title="Clara — clinical assistant"
+                            className={`p-2 rounded-full relative transition-colors ${isClaraOpen ? 'bg-primary/10 text-primary' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                        >
+                            <Sparkles size={20} />
+                        </button>
+                    )}
 
                     <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full relative transition-colors">
                         <Bell size={20} />

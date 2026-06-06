@@ -62,9 +62,15 @@ interface SynapseChatPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   mode?: 'staff' | 'client';
+  /**
+   * Presentation shell ONLY — does not change the agent/voice logic:
+   *   'floating' = client bubble that overlays content (portal, unchanged)
+   *   'panel'    = staff docked right-side drawer (header-launched; pushes content)
+   */
+  variant?: 'floating' | 'panel';
 }
 
-const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose, mode = 'staff' }) => {
+const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose, mode = 'staff', variant = 'floating' }) => {
     const navigate = useNavigate();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
@@ -389,8 +395,16 @@ You can navigate the staff UI and check client records via available tools.`
     
     const groundingLabel = mode === 'staff' ? 'Operational Grounding:' : 'Helpful Resources:';
 
+    // Presentation shell only. 'panel' docks to the right below the header (top-16)
+    // and is sized by the layout's content push — it never floats over the ledger.
+    // 'floating' is the unchanged client bubble. Warm tokens (#8B1E24/#F8F7F4/#D6CFC2)
+    // via border-border / bg-white / text-primary, consistent with the staff app.
+    const containerCls = variant === 'panel'
+        ? 'fixed top-16 right-0 bottom-0 w-full sm:w-[420px] flex flex-col bg-white dark:bg-slate-900 border-l border-border dark:border-slate-800 shadow-2xl z-30 animate-fade-in-up overflow-hidden'
+        : 'fixed bottom-28 right-8 w-full max-w-sm h-[70vh] flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/20 dark:border-slate-800 rounded-[2.5rem] shadow-2xl z-50 animate-fade-in-up overflow-hidden ring-1 ring-black/5';
+
     return (
-        <div className="fixed bottom-28 right-8 w-full max-w-sm h-[70vh] flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/20 dark:border-slate-800 rounded-[2.5rem] shadow-2xl z-50 animate-fade-in-up overflow-hidden ring-1 ring-black/5">
+        <div className={containerCls}>
             <header className={`flex items-center justify-between p-6 ${mode === 'staff' ? 'bg-gradient-to-br from-primary/10 to-transparent' : 'bg-gradient-to-br from-indigo-500/10 to-transparent'} border-b border-border dark:border-slate-800`}>
                 <div className="flex items-center gap-4">
                     <div className={`${headerIconBg} p-2.5 rounded-2xl`}>
