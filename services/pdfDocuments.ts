@@ -16,16 +16,19 @@ import JSZip from 'jszip';
 import type { CompletionAssessment, RuleVerdict } from './complianceEngine';
 import type { DocumentFile } from '../types';
 
-const MAROON: [number, number, number] = [139, 30, 36]; // #8B1E24 (ACS brand)
-const SLATE: [number, number, number] = [71, 85, 105];
-const GREY: [number, number, number] = [148, 163, 184];
+// Shared jsPDF "kit" — brand palette + letter geometry. Exported so a separate
+// renderer (e.g. services/paymentReceipt.ts) can reuse the SAME plumbing instead
+// of forking it; nothing here is cert-specific.
+export const MAROON: [number, number, number] = [139, 30, 36]; // #8B1E24 (ACS brand)
+export const SLATE: [number, number, number] = [71, 85, 105];
+export const GREY: [number, number, number] = [148, 163, 184];
 
-const MARGIN = 56;        // pt
-const PAGE_W = 612;       // letter width (pt)
-const PAGE_H = 792;       // letter height (pt)
-const CONTENT_W = PAGE_W - MARGIN * 2;
+export const MARGIN = 56;        // pt
+export const PAGE_W = 612;       // letter width (pt)
+export const PAGE_H = 792;       // letter height (pt)
+export const CONTENT_W = PAGE_W - MARGIN * 2;
 
-function fmtDate(d?: string | null): string {
+export function fmtDate(d?: string | null): string {
   if (!d) return '—';
   // Parse date-only strings (YYYY-MM-DD, e.g. DOB / program_end_date columns) as
   // LOCAL midnight. `new Date('YYYY-MM-DD')` parses as UTC midnight, which renders
@@ -45,7 +48,7 @@ function num(v: any): number | null {
 }
 
 /** Branded letterhead. Returns the y-cursor below it. */
-function letterhead(doc: jsPDF): number {
+export function letterhead(doc: jsPDF): number {
   doc.setFillColor(...MAROON);
   doc.rect(0, 0, PAGE_W, 6, 'F'); // top accent bar
   doc.setFont('helvetica', 'bold');
@@ -62,7 +65,7 @@ function letterhead(doc: jsPDF): number {
   return 104;
 }
 
-function footer(doc: jsPDF, note: string): void {
+export function footer(doc: jsPDF, note: string): void {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(...GREY);
@@ -77,7 +80,7 @@ function footer(doc: jsPDF, note: string): void {
  * presentation stamp; it never affects the completion gate. Drawn last so it
  * overlays all content; light opacity keeps the document readable underneath.
  */
-function sampleWatermark(doc: jsPDF): void {
+export function sampleWatermark(doc: jsPDF): void {
   doc.saveGraphicsState();
   const GS = (doc as any).GState;
   if (typeof GS === 'function') doc.setGState(new GS({ opacity: 0.12 }));

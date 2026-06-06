@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabase';
 import Card from '../ui/Card';
 import RecordPaymentModal from './RecordPaymentModal';
+import DocumentPreviewModal from '../clients/DocumentPreviewModal';
+import { buildPaymentReceiptDoc, receiptFileName } from '../../services/paymentReceipt';
 import { Loader2, AlertTriangle, Wallet, CheckCircle2, Receipt, Plus } from 'lucide-react';
 
 // Shared, real-ledger billing view. Reads charges (debits) + payments (credits) +
@@ -105,6 +107,11 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recordCharge, setRecordCharge] = useState<LedgerCharge | null>(null);
+  // Client identity for receipts — read here (one source) so both the staff and
+  // portal mounts get it without the parent threading extra props.
+  const [clientName, setClientName] = useState('');
+  const [clientIsDemo, setClientIsDemo] = useState(false);
+  const [receiptPayment, setReceiptPayment] = useState<LedgerPayment | null>(null);
 
   const load = useCallback(async () => {
     if (!clientId) return;
@@ -112,7 +119,7 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
     setError(null);
     try {
       const [clientRes, chargeRes, payRes] = await Promise.all([
-        supabase.from('clients').select('balance').eq('id', clientId).single(),
+        supabase.from('clients').select('balance, name, is_demo').eq('id', clientId).single(),
         supabase.from('charges').select('*').eq('client_id', clientId).order('created_at', { ascending: true }),
         supabase.from('payments').select('*').eq('client_id', clientId).order('payment_date', { ascending: false }),
       ]);
@@ -120,6 +127,8 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
       if (chargeRes.error) throw chargeRes.error;
       if (payRes.error) throw payRes.error;
       setBalance(Number(clientRes.data?.balance ?? 0));
+      setClientName(String(clientRes.data?.name ?? ''));
+      setClientIsDemo(clientRes.data?.is_demo === true);
       setCharges((chargeRes.data as LedgerCharge[]) || []);
       setPayments((payRes.data as LedgerPayment[]) || []);
     } catch (e: any) {
@@ -246,6 +255,9 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
                   Amount
                 </th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
+                  Receipt
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60 dark:divide-slate-800">
@@ -259,11 +271,24 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
                   <td className="px-4 py-3 text-right text-sm font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                     +{money(p.amount)}
                   </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    {/* Reprintable proof of THIS payment. Only successful payments get a
+                        receipt — a void/refunded row isn't a "payment received". */}
+                    {p.status === 'succeeded' && (
+                      <button
+                        onClick={() => setReceiptPayment(p)}
+                        title="Preview and download a receipt for this payment"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 transition"
+                      >
+                        <Receipt size={13} /> Receipt
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {payments.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-10 text-center text-sm text-slate-500 italic">
+                  <td colSpan={5} className="py-10 text-center text-sm text-slate-500 italic">
                     No payments recorded yet.
                   </td>
                 </tr>
@@ -278,12 +303,35 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
           isOpen={!!recordCharge}
           onClose={() => setRecordCharge(null)}
           clientId={clientId}
+          clientName={clientName}
+          clientIsDemo={clientIsDemo}
           charge={recordCharge}
           outstanding={Number(recordCharge.amount) - paidForCharge(recordCharge.id, payments)}
           onRecorded={() => {
             setRecordCharge(null);
             load(); // refetch the real ledger — never optimistically hand-set
           }}
+        />
+      )}
+
+      {/* Reprint a receipt for any past payment. Same preview-then-save modal as the
+          certificate — the previewed blob is the saved blob (zero drift). */}
+      {receiptPayment && (
+        <DocumentPreviewModal
+          kind="receipt"
+          isOpen={!!receiptPayment}
+          onClose={() => setReceiptPayment(null)}
+          title="Payment Receipt"
+          fileName={receiptFileName(clientName, receiptPayment)}
+          rebuildKey={receiptPayment.id}
+          build={() =>
+            buildPaymentReceiptDoc({
+              payment: receiptPayment,
+              charge: charges.find((c) => c.id === receiptPayment.charge_id) ?? null,
+              clientName,
+              isDemo: clientIsDemo,
+            })
+          }
         />
       )}
     </div>

@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../services/supabase';
-import { X, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import type { LedgerCharge } from './BillingLedger';
+import { X, Loader2, AlertTriangle, CheckCircle2, Receipt } from 'lucide-react';
+import type { LedgerCharge, LedgerPayment } from './BillingLedger';
+import DocumentPreviewModal from '../clients/DocumentPreviewModal';
+import { buildPaymentReceiptDoc, receiptFileName, receiptNumber } from '../../services/paymentReceipt';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   clientId: string;
+  /** Client name + demo flag — for the hand-to-client receipt on the success state. */
+  clientName?: string;
+  clientIsDemo?: boolean;
   charge: LedgerCharge;
   /** Remaining balance on this charge — the default + ceiling for the amount field. */
   outstanding: number;
@@ -46,6 +51,8 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   isOpen,
   onClose,
   clientId,
+  clientName,
+  clientIsDemo,
   charge,
   outstanding,
   onRecorded,
@@ -56,6 +63,10 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const [date, setDate] = useState(todayLocal());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // After a successful insert we hold the created row so the success state can
+  // offer a hand-to-client receipt before the parent refetches + closes.
+  const [recorded, setRecorded] = useState<LedgerPayment | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
 
   // Reset to fresh defaults each time the modal opens for a (possibly new) charge.
   useEffect(() => {
@@ -66,6 +77,8 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       setDate(todayLocal());
       setError(null);
       setSubmitting(false);
+      setRecorded(null);
+      setShowReceipt(false);
     }
   }, [isOpen, charge?.id, outstanding]);
 
@@ -86,18 +99,24 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       if (!uid) throw new Error('Your session expired — sign in again to record a payment.');
 
       const payment_date = new Date(date + 'T00:00:00').toISOString();
-      const { error: insErr } = await supabase.from('payments').insert({
-        client_id: clientId,
-        charge_id: charge.id,
-        amount: amt, // dollars (numeric), NOT cents
-        payment_method: method,
-        status: 'succeeded', // the value client_balance() counts
-        recorded_by: uid, // mandatory: with_check requires recorded_by = auth.uid()
-        payment_date,
-        external_payment_id: showRef && reference.trim() ? reference.trim() : null,
-        stripe_event_id: null, // manual entry — partial unique index allows many NULLs
-        description: `Manual ${method.replace(/_/g, ' ')} payment`,
-      });
+      // Return the inserted row so the success state can build a receipt from the
+      // real, server-assigned id (stable receipt number) without a refetch.
+      const { data: inserted, error: insErr } = await supabase
+        .from('payments')
+        .insert({
+          client_id: clientId,
+          charge_id: charge.id,
+          amount: amt, // dollars (numeric), NOT cents
+          payment_method: method,
+          status: 'succeeded', // the value client_balance() counts
+          recorded_by: uid, // mandatory: with_check requires recorded_by = auth.uid()
+          payment_date,
+          external_payment_id: showRef && reference.trim() ? reference.trim() : null,
+          stripe_event_id: null, // manual entry — partial unique index allows many NULLs
+          description: `Manual ${method.replace(/_/g, ' ')} payment`,
+        })
+        .select('*')
+        .single();
       if (insErr) throw insErr;
 
       // Mark the charge paid when this payment fully covers it. Cosmetic for the
@@ -108,17 +127,25 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         if (upErr) throw upErr;
       }
 
-      onRecorded(); // parent refetches the real ledger + closes
+      // Hold on the success state (offer a receipt). The parent refetch + close is
+      // deferred to "Done" / dismiss so the staffer can hand over a receipt first.
+      setRecorded(inserted as LedgerPayment);
+      setSubmitting(false);
     } catch (e: any) {
       setError(e?.message || 'Could not record the payment. Please try again.');
       setSubmitting(false);
     }
   };
 
+  // Once recorded, any dismissal (X / Done) must refetch the ledger so the new
+  // payment shows — route those to onRecorded instead of the plain onClose.
+  const dismiss = recorded ? onRecorded : onClose;
+
   const inputCls =
     'w-full px-3 py-2.5 rounded-xl border border-border dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary/40';
 
   return createPortal(
+    <>
     <div
       className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in-up"
       style={{ animationDuration: '0.3s' }}
@@ -130,10 +157,10 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
         {/* Header */}
         <header className="flex justify-between items-center p-4 border-b border-border dark:border-white/10 flex-shrink-0">
           <h2 id="record-payment-title" className="text-lg font-black text-slate-800 dark:text-slate-100">
-            Record Payment
+            {recorded ? 'Payment Recorded' : 'Record Payment'}
           </h2>
           <button
-            onClick={onClose}
+            onClick={dismiss}
             disabled={submitting}
             className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white disabled:opacity-50"
             aria-label="Close"
@@ -144,6 +171,26 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
         {/* Body */}
         <main className="p-4 space-y-4 overflow-y-auto">
+          {recorded ? (
+            <div className="py-6 text-center space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center">
+                <CheckCircle2 className="text-emerald-600 dark:text-emerald-400" size={26} />
+              </div>
+              <div>
+                <p className="text-lg font-black text-slate-800 dark:text-slate-100">
+                  {money(Number(recorded.amount))} recorded
+                </p>
+                <p className="text-sm font-bold text-slate-500 mt-0.5">
+                  {METHODS.find((m) => m.value === recorded.payment_method)?.label || recorded.payment_method} ·{' '}
+                  {receiptNumber(recorded.id)}
+                </p>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
+                Hand the client a receipt now, or reprint it anytime from the payment history.
+              </p>
+            </div>
+          ) : (
+          <>
           {/* Charge context */}
           <div className="rounded-2xl border border-border dark:border-slate-700 bg-background dark:bg-slate-800/50 p-3">
             <p className="text-sm font-black text-slate-800 dark:text-slate-100">
@@ -219,39 +266,79 @@ const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
               <span className="leading-snug">{error}</span>
             </div>
           )}
+          </>
+          )}
         </main>
 
         {/* Footer */}
         <footer className="p-4 border-t border-border dark:border-white/10 flex-shrink-0 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            disabled={submitting}
-            className="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            disabled={!canSubmit}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm transition ${
-              canSubmit
-                ? 'bg-primary text-white hover:bg-primary-focus'
-                : 'bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500 cursor-not-allowed'
-            }`}
-          >
-            {submitting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" /> Recording…
-              </>
-            ) : (
-              <>
-                <CheckCircle2 size={16} /> Confirm {amountValid ? money(amt) : 'Payment'}
-              </>
-            )}
-          </button>
+          {recorded ? (
+            <>
+              <button
+                onClick={onRecorded}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                Done
+              </button>
+              <button
+                onClick={() => setShowReceipt(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary text-white hover:bg-primary-focus transition"
+              >
+                <Receipt size={16} /> View receipt
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onClose}
+                disabled={submitting}
+                className="px-4 py-2 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submit}
+                disabled={!canSubmit}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm transition ${
+                  canSubmit
+                    ? 'bg-primary text-white hover:bg-primary-focus'
+                    : 'bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Recording…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} /> Confirm {amountValid ? money(amt) : 'Payment'}
+                  </>
+                )}
+              </button>
+            </>
+          )}
         </footer>
       </div>
-    </div>,
+    </div>
+    {recorded && showReceipt && (
+      <DocumentPreviewModal
+        kind="receipt"
+        isOpen
+        onClose={() => setShowReceipt(false)}
+        title="Payment Receipt"
+        fileName={receiptFileName(clientName || '', recorded)}
+        rebuildKey={recorded.id}
+        build={() =>
+          buildPaymentReceiptDoc({
+            payment: recorded,
+            charge,
+            clientName: clientName || '',
+            isDemo: clientIsDemo,
+          })
+        }
+      />
+    )}
+    </>,
     document.body,
   );
 };
