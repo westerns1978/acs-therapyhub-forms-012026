@@ -175,14 +175,14 @@
             {
               "id": "MO-SATOP-OEP-HOURS",
               "primitive": "HOURS",
-              "label": "OEP 10 education hours within 6 months",
+              "label": "OEP 10 education hours over at least 2 calendar days",
               "total_required_hours": 10,
               "category": "education",
-              "window_days": 180,
               "enforcement": "HARD_BLOCK",
               "blocks": ["completion_certificate"],
-              "condition": "education_hours_logged == 10 AND within_window",
-              "citation": "9 CSR 30-3.201"
+              "condition": "education_hours_logged == 10",
+              "note": "No completion window — 10 hours delivered over at least 2 calendar days. The 6-month clock is SCREENING validity per 9 CSR 30-3.206(2)(D) (handled by the compliance clock via screeningValidity), NOT an OEP-completion deadline. Prior window_days:180 was a misattribution and has been removed.",
+              "citation": "9 CSR 30-3.206(4)(B)"
             }
           ]
         },
@@ -199,7 +199,7 @@
               "enforcement": "HARD_BLOCK",
               "blocks": ["completion_certificate"],
               "validate": ["20_continuous_hours_documented", "funding_code_entered"],
-              "citation": "9 CSR 30-3.201"
+              "citation": "9 CSR 30-3.206(5)(C)"
             }
           ]
         },
@@ -209,22 +209,13 @@
             {
               "id": "MO-SATOP-CIP-HOURS-SPLIT",
               "primitive": "HOURS",
-              "label": "CIP exact 50-hour split (10/20/20)",
+              "label": "CIP 50 hours (combination of individual + group counseling + group rehabilitative support)",
               "total_required_hours": 50,
-              "components": [
-                { "category": "individual_counseling", "required_hours": 10 },
-                { "category": "group_counseling", "required_hours": 20 },
-                { "category": "group_education", "required_hours": 20 }
-              ],
-              "additional_constraint": {
-                "label": "At least 10 hours focused explicitly on drinking-and-driving issues",
-                "min_hours": 10,
-                "topic_tag": "impaired_driving"
-              },
               "enforcement": "HARD_BLOCK",
               "blocks": ["completion_certificate"],
-              "condition": "each_component_met AND impaired_driving_hours >= 10",
-              "citation": "9 CSR 30-3.201 (CIP)"
+              "condition": "counseling_and_support_hours_logged == 50",
+              "note": "9 CSR 30-3.206(6)(C) requires 50 total hours via a combination of individual and group counseling and group rehabilitative support (6-8 weeks per (6)(D)) — it does NOT mandate a fixed split. The prior split (10 individual / 20 group counseling / 20 group education, plus >=10 drinking-and-driving) was cited to 9 CSR 30-3.201, which does not require it; removed as unsourced/stale. Re-add a component split ONLY if a real CIP contract/curriculum requires it (and cite that source). Relaxing to total-50 also makes this gate enforceable (it was not_enforceable while it carried an untracked component split). The rule id is retained for consumer stability.",
+              "citation": "9 CSR 30-3.206(6)(C)"
             },
             {
               "id": "MO-SATOP-CIP-DELIVERY-CREDENTIAL",
@@ -244,12 +235,15 @@
             {
               "id": "MO-SATOP-SROP-HOURS",
               "primitive": "HOURS",
-              "label": "SROP minimum 75 hours",
+              "label": "SROP minimum 75 hours (including at least 35 counseling)",
               "total_required_hours": 75,
               "category": "clinical_treatment",
+              "counseling_min_hours": 35,
+              "counseling_enforcement": "RECORD_ONLY",
+              "counseling_note": "9 CSR 30-3.206(7)(C)(D)(E): 75 total hours INCLUDING at least 35 hours of individual and group counseling (by a QAP/SQP), completed in no less than 90 days (see MO-SATOP-SROP-DURATION). The 75-hour TOTAL is enforced by the completion gate. The 35-hour counseling minimum is RECORDED, NOT gated — the system tracks a single hours total, not counseling-vs-other (facts.hourComponents is null). Enforce the 35-hour floor only once session hours are categorized. Encoded as a stated requirement; the gate does NOT claim to verify it.",
               "enforcement": "HARD_BLOCK",
               "blocks": ["completion_certificate"],
-              "citation": "9 CSR 30-3.201 (SROP)"
+              "citation": "9 CSR 30-3.206(7)(C)(D)(E)"
             },
             {
               "id": "MO-SATOP-SROP-DURATION",
@@ -260,7 +254,7 @@
               "enforcement": "HARD_BLOCK",
               "blocks": ["completion_certificate"],
               "condition": "days_between(enrollment, completion) >= 90",
-              "citation": "9 CSR 30-3.201 (SROP)"
+              "citation": "9 CSR 30-3.206(7)"
             },
             {
               "id": "MO-SATOP-SROP-DELIVERY-CREDENTIAL",
@@ -275,21 +269,21 @@
         }
       },
       "comparable_out_of_state": {
-        "label": "Comparable Out-of-State Program (in lieu of SATOP)",
+        "label": "Missouri-resident Comparable Program (in lieu of SATOP)",
         "rules": [
           {
             "id": "MO-SATOP-COMP-HOURS",
             "primitive": "HOURS",
-            "label": "Comparable program 120 total hours",
+            "label": "Missouri-resident comparable program — 120 total hours (>=40 counseling, >=21 days)",
             "total_required_hours": 120,
             "components": [
               { "category": "group_or_individual_counseling", "min_hours": 40 },
               { "category": "drug_alcohol_education", "min_hours": 10 }
             ],
-            "note": "Remaining hours: driver-related education, group education, or family therapy.",
+            "note": "9 CSR 30-3.206(9)(B)1 — Missouri-RESIDENT comparable program: 120 total hours, >=40 individual+group counseling, completed in >=21 days. This is NOT the out-of-state path: 3.206(10)(A)1 out-of-state is a minimum of 10 education hours unless screening indicates more, and is NOT separately encoded yet (follow-on). The JSON key 'comparable_out_of_state' is a legacy misnomer (renaming it requires a complianceEngine.buildRuleIndex update) — deferred to the full-pack citation audit. Remaining hours: driver-related education, group education, or family therapy.",
             "enforcement": "HARD_BLOCK",
             "blocks": ["comparable_completion_acceptance"],
-            "citation": "Comparable Program Completion requirements"
+            "citation": "9 CSR 30-3.206(9)(B)1"
           },
           {
             "id": "MO-SATOP-COMP-WINDOW",

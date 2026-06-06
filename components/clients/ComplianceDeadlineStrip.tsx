@@ -2,7 +2,7 @@ import React from 'react';
 import type { ComplianceClock, ClockStatus } from '../../services/complianceClock';
 import type { SatopLevel } from '../../config/satopFees';
 import { SATOP_LEVEL_META } from '../../services/placementEngine';
-import { CalendarClock, CheckCircle2, Clock, AlertTriangle, Ban, Minus } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock, AlertTriangle, Ban, Minus, Info } from 'lucide-react';
 
 /**
  * WS2.5 — per-client compliance DEADLINE strip (advisory display only).
@@ -20,6 +20,7 @@ const STATUS_META: Record<ClockStatus, { label: string; pill: string; icon: Reac
   window_elapsed: { label: 'Verify',     pill: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',         icon: AlertTriangle },
   expired:        { label: 'Re-screen',  pill: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',             icon: AlertTriangle },
   blocked:        { label: 'Outstanding',pill: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',             icon: Ban },
+  informational:  { label: 'Automatic',  pill: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',                icon: Info },
   not_applicable: { label: 'N/A',        pill: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',           icon: Minus },
 };
 
