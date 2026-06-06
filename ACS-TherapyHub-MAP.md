@@ -61,8 +61,9 @@ ACS TherapyHub is a practice-management web app for **Assessment & Counseling So
 | **WS1 — Placement engine** | Deterministic `computePlacement` (single source, date-free) encoding 9 CSR 30-3.206: offense-base 1→OEP/2→WIP/3+→CIP, SROP hard floor (BAC≥0.15 AND 2+ DUI-arrests-w/-DOR-action AND SUD dx), upgrade factors surfaced (not auto-applied), screening 6-month validity at view-time. Typed `assessment_inputs` table (staff-only RLS, no client self-read). Live recommendation in the Assessment tab, labeled "not a determination." Witnessed: **120/120 truth table**, RLS denials, 3 eyes-on cases. | Live |
 | **Clara — surface-aware** | One shared brain (`SynapseChatPopover`, Gemini Live voice — `gemini-2.5-flash-native-audio-preview-12-2025`, ephemeral-token flow), two front doors: **staff** = header launcher (Clara's `clara2.png` avatar + `animate-ping` maroon pulse, by the bell) → **docked right panel that pushes content** (no overlay); **client/portal** = floating bubble, untouched. One identity across surfaces. UI-only — zero voice/session lines changed (proven by diff). Witnessed: Financials non-overlap proven geometrically (panel x=1020–1440, ledger ends at x=1020, Marcus's $175 visible); portal bubble unchanged; token handshake `200`. | Live |
 | **WS2 — clinician sign-off + CIMOR packet** | Signed determination of record on `placement_determinations` (append-only, two-layer immutable: no update/delete GRANT + no policy; forward `supersedes_id`). Sign-off in AssessmentTab (clinician-only, gate ↔ `is_clinician` RLS): Confirm / Escalate-with-reason / below-floor BLOCKED (§3(E), DB-enforced via `pd_disposition_matches_levels`). CIMOR packet reuses the cert jsPDF zero-drift kit; deterministic facts from the signed row; one ephemeral AI prose paragraph, token-guarded + AI-down-safe (both null-paths render deterministic-only). Witnessed: full truth table (RLS denials, CHECK rejections incl. NULL-reason, supersede chain, zero-drift, AI-down, token-guard). | Live |
+| **WS2.5 — compliance deadline clock** | Pure-derived `services/complianceClock.ts` (date-only, AI-free, injected `asOf`) — reuses WS1 `screeningValidity` + the extracted `isBalanceSettled` (no re-derive). Per-client **advisory deadline strip** in the Assessment tab: screening 6-mo window · fees-paid gate · 7-day post-completion certificate · DOR notification. Reads the **SIGNED** determination (never a live recompute); cert/DOR `not_applicable` until a completion exists — no fabricated dates. Advisory "confirm…" framing, never OVERDUE. **No table** (pure-derived). Witnessed: 20/20 boundary truth table + UI (signed-not-live, no-fabricated-dates, no RiskMonitor duplication). | Live |
 
-**Recent commit trail (this week):** Record Payment `7757725`+`428c3dc` · widen-financial `8a91dc3`+`75417bf` · retire-mock-billing `96144c7` · receipt PDF `38c5025` · Director Reports `20260605_reports_1…` + merge `f991324` · docs un-hide `e7cb41d` · WS1 migration `a68dfbd` + feature `bb3f7cb` + merge `7d5c3e5` · Clara relocation merge `d5f8b5d` · Clara avatar+pulse merge `3bef251` · **WS2** Phase 1 `0ca04ef` (ws2_1 table+RLS · ws2_2 grant-lock) · Phase 2 sign-off `8c4fa06` · Phase 3 CIMOR packet `e394a91` · merge `7611811`. (Earlier WS0/WS6/WS7/WS-Billing history is in `ACS-Session-Handoff.md`.)
+**Recent commit trail (this week):** Record Payment `7757725`+`428c3dc` · widen-financial `8a91dc3`+`75417bf` · retire-mock-billing `96144c7` · receipt PDF `38c5025` · Director Reports `20260605_reports_1…` + merge `f991324` · docs un-hide `e7cb41d` · WS1 migration `a68dfbd` + feature `bb3f7cb` + merge `7d5c3e5` · Clara relocation merge `d5f8b5d` · Clara avatar+pulse merge `3bef251` · **WS2** Phase 1 `0ca04ef` (ws2_1 table+RLS · ws2_2 grant-lock) · Phase 2 sign-off `8c4fa06` · Phase 3 CIMOR packet `e394a91` · merge `7611811` · **WS2.5** engine+truth-table `87e7a93` · strip `46b3877` · merge `5f052d7`. (Earlier WS0/WS6/WS7/WS-Billing history is in `ACS-Session-Handoff.md`.)
 
 > **§4 = this team's *recent build work* only.** The full live route inventory — including the large **inherited surface** (Treatment Plan Library, ClientWorkspace + tabs, the whole client portal, Calendar, Messages, Forms, Risk Monitor, ASAM assessment, and more) — is in **§4b**, trued-up against the repo 2026-06-06.
 
@@ -77,7 +78,7 @@ Recon'd read-only from router/nav/components. Tags: **REAL** = production writes
 | Route | Nav / access | What it does | State |
 |---|---|---|---|
 | `/dashboard` | all | Daily snapshot: real appts, compliance alerts, Director aggregates | REAL |
-| `/clients[/:id]` | all | **ClientWorkspace** — the core hub; tabs: Overview, Documents, Forms, Sessions, Assessment (WS1 + **WS2** sign-off/CIMOR packet, clinician-only · Admin read-only), Billing (D/A), Treatment Plan (D/T) | REAL |
+| `/clients[/:id]` | all | **ClientWorkspace** — the core hub; tabs: Overview, Documents, Forms, Sessions, Assessment (WS1 + **WS2** sign-off/CIMOR packet + **WS2.5** advisory deadline strip, clinician-only · Admin read-only), Billing (D/A), Treatment Plan (D/T) | REAL |
 | `/session-management` "Calendar" | all | Appt calendar; real appts + status writes; Google Calendar sync; launches ActiveSession | REAL |
 | `/communication-center` "Messages" | all | Staff↔client / staff↔admin messaging → `client_communications` | REAL |
 | `/forms` | all | Form library (11 templates) + real `form_submissions` | REAL |
@@ -101,6 +102,8 @@ Recon'd read-only from router/nav/components. Tags: **REAL** = production writes
 
 **WS2 surface** (in the Assessment tab of `/clients/:id` — clinician-only; Admin read-only): **`placement_determinations`** — the signed determination of record. Append-only & **two-layer immutable** (no update/delete GRANT + no policy; supersede via forward `supersedes_id`). Sign-off UI gate ↔ `is_clinician` RLS exactly; below-floor is DB-blocked (`pd_disposition_matches_levels`); the CIMOR packet is built from the signed row (deterministic) + one ephemeral, token-guarded AI prose paragraph.
 
+**WS2.5 surface** (same Assessment tab): an advisory **compliance deadline strip** — `services/complianceClock.ts` (pure, date-only, AI-free) renders the screening 6-mo window / fees-paid gate / 7-day post-completion certificate / DOR windows for the SIGNED determination. Reuses `screeningValidity` + the **extracted `isBalanceSettled` helper** (now shared by the cert completion gate and the clock — defined once, no drift). Display-only — NOT an alert feed (no RiskMonitor overlap); no table (pure-derived).
+
 **Client portal. Nav: Dashboard · My Forms · Appointments · Billing · My Progress.**
 
 | Route | What it does | State |
@@ -122,7 +125,7 @@ Recon'd read-only from router/nav/components. Tags: **REAL** = production writes
 
 ## 5. In flight
 
-- *Nothing active.* **WS2 — clinician sign-off + CIMOR packet** shipped (→ §4). Next up is **WS2.5 — compliance deadline clock** (§6).
+- *Nothing active.* **WS2.5 — compliance deadline clock** shipped (→ §4). Next major: the **online-session system of record** (§6, the largest remaining build — **recon `/video-sessions` first**). Smaller WS2.5 follow-ons parked in §7 (deadline-clock roll-up · `compliance_milestones`).
 
 ---
 
@@ -152,6 +155,8 @@ Recon'd read-only from router/nav/components. Tags: **REAL** = production writes
 - 42 CFR Part 2 granular consent module (needed once WS3 / any disclosure ships).
 - **Payment plans / installments at the program level** (from ops research) — structured installment objects in a cash-heavy, plan-heavy practice; each plan knows the ACS-revenue vs. state-remit split and warns if a state amount is unpaid near a reporting/cert event. Builds on the existing ledger.
 - **Proactive milestone messaging + per-audience report generation** (from ops research) — SMS/email keyed to milestones ("you're halfway through CIP," "we sent your completion to DOR"); "send to referrer" report actions tailored to court / PO / attorney / DMV, with logging (who/when/whom). Kills the "did you send my paperwork?" calls. (Outcomes-by-court lives in §6.)
+- **WS2.5 deadline-clock roll-up (deferred — needs its OWN recon).** Surface the clock's at-risk items in the existing RiskMonitor/Dashboard inbox (practice-wide). Must first recon vs the existing `DEADLINE_IMMINENT` (alertsService) + the `DEADLINE` primitive (complianceEngine) so reasons don't collide or double-count. The per-client Assessment-tab strip shipped in WS2.5; this is only the roll-up. (Surfaced in WS2.5.)
+- **`compliance_milestones` table.** Record cert-issued / DOR-sent events so the deadline clock can show a real **closed/"done"** state. Today the clock only shows advisory windows (pending / due-soon / window-elapsed) and never asserts closure — there is no such record to read. (WS2.5 follow-on; enables the clock to clear items.)
 
 **Future modules (the other ~20% — only if David wants them):**
 - REACT (note: separate **$60** pass-through to the DOC Correctional Substance Abuse Earnings Fund — *different fund* than SATOP's $249 Mental Health Earnings Fund; the ledger's pass-through logic must handle multiple funds before REACT enters).
