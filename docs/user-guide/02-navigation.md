@@ -28,6 +28,7 @@ for the trial; see the bottom of this page).
 | **Forms** | The library of forms — assign them and review what's sent back. | Everyone |
 | **Treatment Plan Library** | Ready-made treatment plan templates to apply to a client. | Director, Therapist |
 | **Compliance Risk** | A monitor of client alerts that may need attention. | Director, Therapist |
+| **Financials** | Read-only billing reports — daily payments, outstanding balances, and revenue. | Director, Admin |
 | **Settings** | Practice settings (under a **"Reports"** heading). | Director only |
 
 > Note: the menu item is named **"Calendar,"** and it opens the scheduling page.
@@ -75,10 +76,9 @@ clicking the button again.
 
 ## A few things are turned off for the trial — that's expected
 
-To keep the trial focused, three areas are intentionally hidden for now. **If you
+To keep the trial focused, two areas are intentionally hidden for now. **If you
 don't see these, nothing is wrong:**
 
-- **Financials**
 - **Analytics**
 - **AI Documents**
 

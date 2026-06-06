@@ -15,6 +15,8 @@ Therapist, so you won't see those menus — that's by design, not a missing piec
 - **Calendar** — the appointment schedule.
 - **Messages** — the communication center.
 - **Forms** — assign forms and review what clients send back.
+- **Financials** — read-only billing reports (daily payments, outstanding
+  balances, and revenue). New for the day-30 review; shared with the Director.
 
 You won't see **Treatment Plan Library**, **Compliance Risk**, or **Settings** —
 those are clinical/Director areas.
@@ -64,7 +66,7 @@ part of your menu.)*
 
 ## Turned off during the trial
 
-**Financials**, **Analytics**, and **AI Documents** are intentionally hidden for
+**Analytics** and **AI Documents** are intentionally hidden for
 now (see [Help & what's next](07-help-and-whats-next.md)).
 
 > 💬 **Tell us what you think:** You'll be in **Clients, Calendar,** and **Forms**

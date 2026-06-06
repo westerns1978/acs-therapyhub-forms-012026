@@ -18,6 +18,9 @@ see the end of this page.)
 - **Forms** — assign forms and review submissions.
 - **Treatment Plan Library** — ready-made plan templates to apply to clients.
 - **Compliance Risk** — a monitor of client alerts.
+- **Financials** — read-only billing reports (daily payments, outstanding
+  balances, and revenue). New for the day-30 review; shared with the Office (Admin)
+  role.
 - **Settings** — practice settings (shown under a **"Reports"** heading). This is
   yours alone; the others don't see it.
 
@@ -61,7 +64,7 @@ with **made-up information** and tell us what worked.
 ## Turned off during the trial
 
 These are intentionally hidden for now and will be part of a later setup
-conversation: **Financials**, **Analytics**, and **AI Documents**. There's a
+conversation: **Analytics** and **AI Documents**. There's a
 short, honest summary in [Help & what's next](07-help-and-whats-next.md).
 
 > 💬 **Tell us what you think:** As the person who sees the whole picture, your
