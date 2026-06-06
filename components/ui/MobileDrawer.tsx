@@ -8,7 +8,7 @@ import {
     HardDrive, ClipboardList, Zap, ShieldCheck, BookOpen, HelpCircle
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
-import type { UserRole } from '../../types';
+import { FINANCIAL_ROLES, type UserRole } from '../../types';
 
 type DrawerItemDef = {
     to: string;
@@ -60,7 +60,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
         { to: '/forms', icon: ClipboardList, label: 'Forms', roles: ALL_ROLES },
         { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library', roles: CLINICAL_ROLES },
         { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
-        { to: '/financials', icon: DollarSign, label: 'Financials', roles: DIRECTOR_ONLY },
+        { to: '/financials', icon: DollarSign, label: 'Financials', roles: FINANCIAL_ROLES },
         { to: '/compliance', icon: ShieldCheck, label: 'Compliance', roles: CLINICAL_ROLES },
         { to: '/help', icon: HelpCircle, label: 'Help & Training', roles: ALL_ROLES },
     ] satisfies DrawerItemDef[])

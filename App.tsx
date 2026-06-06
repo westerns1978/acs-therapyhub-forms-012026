@@ -13,6 +13,7 @@ import RequireRole from './components/RequireRole';
 import PageLoader from './components/ui/PageLoader';
 import PortalLayout from './layouts/PortalLayout';
 import { isTrialHidden } from './config/trialMode';
+import { FINANCIAL_ROLES } from './types';
 
 // Lazy-loaded Page imports
 const Login = lazy(() => import('./pages/Login'));
@@ -114,13 +115,11 @@ function App() {
                   <Route path="/treatment-plan-library" element={<RequireRole roles={['Director', 'Therapist']}><TreatmentPlanLibrary /></RequireRole>} />
                   <Route path="/risk-monitor" element={<RequireRole roles={['Director', 'Therapist']}><RiskMonitor /></RequireRole>} />
 
+                  {/* Director Reports — Financials, un-hidden for day-30 and gated to
+                      Director/Admin (isFinancialRole == DB private.is_financial_staff()). */}
+                  <Route path="/financials" element={<RequireRole roles={FINANCIAL_ROLES}><Financials /></RequireRole>} />
+
                   {/* TRIAL_MODE-hidden routes (redirect when on) — role gates kept for when flag flips */}
-                  <Route
-                    path="/financials"
-                    element={isTrialHidden('/financials')
-                      ? <Navigate to="/dashboard" replace />
-                      : <RequireRole roles={['Director']}><Financials /></RequireRole>}
-                  />
                   <Route
                     path="/document-intelligence"
                     element={isTrialHidden('/document-intelligence')

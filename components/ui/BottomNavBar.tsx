@@ -11,11 +11,14 @@ const VideoIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www
 const DollarSignIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
 const BarChart3Icon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>;
 
+// Financials is Director/Admin only (isFinancialRole). This bar splits Director vs
+// everyone-else (a stale two-role model — see note below), so the non-Director list
+// omits Financials; a Therapist/Client must never see it. Admin's financial access
+// is via the live sidebar/drawer (this component is currently unused).
 const clinicalItems = [
   { to: '/dashboard', icon: HomeIcon, label: 'Home' },
   { to: '/clients', icon: UsersIcon, label: 'Clients' },
   { to: '/session-management', icon: VideoIcon, label: 'Sessions' },
-  { to: '/financials', icon: DollarSignIcon, label: 'Billing' },
 ];
 
 const adminItems = [

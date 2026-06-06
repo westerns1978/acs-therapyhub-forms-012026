@@ -17,6 +17,13 @@ export const STAFF_ROLES: readonly StaffRole[] = ['Director', 'Therapist', 'Admi
 export const isStaffRole = (r: UserRole | null | undefined): r is StaffRole =>
   r === 'Director' || r === 'Therapist' || r === 'Admin';
 
+/** Financial-reporting access (Director Reports / Financials). Mirrors the DB's
+ *  private.is_financial_staff() exactly: role in ('Director','Admin') — Therapist
+ *  and Client excluded. */
+export const FINANCIAL_ROLES: readonly StaffRole[] = ['Director', 'Admin'];
+export const isFinancialRole = (r: UserRole | null | undefined): r is 'Director' | 'Admin' =>
+  r === 'Director' || r === 'Admin';
+
 export interface User {
   id: string;
   name: string;
