@@ -239,8 +239,8 @@
               "total_required_hours": 75,
               "category": "clinical_treatment",
               "counseling_min_hours": 35,
-              "counseling_enforcement": "RECORD_ONLY",
-              "counseling_note": "9 CSR 30-3.206(7)(C)(D)(E): 75 total hours INCLUDING at least 35 hours of individual and group counseling (by a QAP/SQP), completed in no less than 90 days (see MO-SATOP-SROP-DURATION). The 75-hour TOTAL is enforced by the completion gate. The 35-hour counseling minimum is RECORDED, NOT gated — the system tracks a single hours total, not counseling-vs-other (facts.hourComponents is null). Enforce the 35-hour floor only once session hours are categorized. Encoded as a stated requirement; the gate does NOT claim to verify it.",
+              "counseling_enforcement": "ENFORCED",
+              "counseling_note": "9 CSR 30-3.206(7)(C)(D)(E): 75 total hours INCLUDING at least 35 hours of individual and group counseling (by a QAP/SQP), completed in no less than 90 days (see MO-SATOP-SROP-DURATION). As of WS3 (categorized session-hours accrual) BOTH are ENFORCED by the completion gate: total >= 75 AND counseling >= 35, where counseling = the sum of Completed appointments with service_type='counseling' (client_accrued_hours.counseling_hours -> facts.hourComponents.counseling). Previously RECORD_ONLY (no per-category tracking); the hourComponents root blocker is now closed for SROP.",
               "enforcement": "HARD_BLOCK",
               "blocks": ["completion_certificate"],
               "citation": "9 CSR 30-3.206(7)(C)(D)(E)"

@@ -97,11 +97,23 @@ export function evaluateHours(rule: RuleDef, facts: ClientFacts): RuleVerdict {
     return mk(rule, 'not_enforceable', 'Needs logged clinical hours for this client.');
   }
   const required = Number(rule.total_required_hours);
-  if (facts.hoursCompleted >= required) {
-    return mk(rule, 'met', `${facts.hoursCompleted}/${required} hours complete.`);
+  const totalMet = facts.hoursCompleted >= required;
+  // WS3: per-category counseling floor — SROP ≥35 counseling per 9 CSR 30-3.206(7)(D),
+  // enforced from the categorized accrual (facts.hourComponents.counseling). Applies
+  // ONLY when the rule sets counseling_min_hours; OEP/WIP/CIP leave it 0 → total-only
+  // (the reg gives them no per-category floor and we don't invent one).
+  const counselingMin = Number(rule.counseling_min_hours) || 0;
+  const counselingHours = facts.hourComponents?.counseling ?? 0;
+  const counselingMet = counselingMin <= 0 || counselingHours >= counselingMin;
+  if (totalMet && counselingMet) {
+    return mk(rule, 'met', counselingMin > 0
+      ? `${facts.hoursCompleted}/${required} hours complete (incl. ${counselingHours}/${counselingMin} counseling).`
+      : `${facts.hoursCompleted}/${required} hours complete.`);
   }
-  const remaining = required - facts.hoursCompleted;
-  return mk(rule, 'warning', `${facts.hoursCompleted}/${required} clinical hours — ${remaining} remaining before the completion certificate can issue.`);
+  const short: string[] = [];
+  if (!totalMet) short.push(`${facts.hoursCompleted}/${required} total (${required - facts.hoursCompleted} remaining)`);
+  if (!counselingMet) short.push(`${counselingHours}/${counselingMin} counseling (${counselingMin - counselingHours} remaining)`);
+  return mk(rule, 'warning', `${short.join('; ')} before the completion certificate can issue.`);
 }
 
 /** DEADLINE — a clock relative to an anchor event (minimum-duration or recurring review). */
@@ -217,26 +229,70 @@ export interface GuardrailVerdict {
   citation: string;
 }
 
-function toFacts(row: any, completionSignedOff?: boolean): ClientFacts {
+/** WS3 — categorized accrued hours, derived from Completed appointments via the
+ *  `client_accrued_hours` view. THE gate's hours source — NOT the static
+ *  `clients.srop_hours_completed` (now legacy/display only). */
+export interface AccruedHours { total: number; counseling: number; education: number; rehabilitative_support: number; }
+const ZERO_ACCRUAL: AccruedHours = { total: 0, counseling: 0, education: 0, rehabilitative_support: 0 };
+
+function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?: boolean } = {}): ClientFacts {
+  // No fallback to srop_hours_completed: a client with no Completed sessions reads 0
+  // accrued hours and does NOT pass on seeded data.
+  const accrual = opts.accrual ?? ZERO_ACCRUAL;
   return {
     id: row.id,
     name: row.name,
     program: String(row.program_type || row.program || '').toUpperCase(),
     status: String(row.status || '').toLowerCase(),
-    hoursCompleted: row.srop_hours_completed == null ? null : Number(row.srop_hours_completed),
+    // WS3: completed hours + per-category come from the categorized accrual (Completed
+    // appointments), never the static srop_hours_completed column.
+    hoursCompleted: accrual.total,
     totalRequired: row.total_sessions_required == null ? null : Number(row.total_sessions_required),
     enrollmentDate: row.created_at ?? null,
     completionDate: row.program_end_date ?? null,
     planExecutionDate: null,   // treatment_plans empty / no plan_executed_at — see evaluateDeadline
-    hourComponents: null,      // no per-category hours in schema yet
+    hourComponents: { counseling: accrual.counseling, education: accrual.education, rehabilitative_support: accrual.rehabilitative_support },
     // Completion-gate inputs. Balance is on the client row (clients.balance);
     // sign-off is a separate clinical_notes lookup the caller injects (see
     // fetchCompletionSignoff / assessClient). When unknown we pass null and the
     // gate treats it as NOT satisfied — a certificate never issues on missing proof.
     outstandingBalance: row.balance == null ? null : Number(row.balance),
     completionSignedOff:
-      completionSignedOff ?? (typeof row.completionSignedOff === 'boolean' ? row.completionSignedOff : null),
+      opts.completionSignedOff ?? (typeof row.completionSignedOff === 'boolean' ? row.completionSignedOff : null),
   };
+}
+
+/** Read ONE client's categorized accrued hours from the derived view. */
+export async function fetchClientAccrual(clientId: string): Promise<AccruedHours> {
+  const { data, error } = await supabase
+    .from('client_accrued_hours').select('*').eq('client_id', clientId).maybeSingle();
+  if (error || !data) {
+    if (error) console.warn('[complianceEngine] accrual query failed:', error.message);
+    return { ...ZERO_ACCRUAL };
+  }
+  return {
+    total: Number(data.total_hours) || 0,
+    counseling: Number(data.counseling_hours) || 0,
+    education: Number(data.education_hours) || 0,
+    rehabilitative_support: Number(data.rehabilitative_support_hours) || 0,
+  };
+}
+
+/** Batch — all clients' accrued hours keyed by client_id (for the practice-wide fetchers). */
+async function fetchAllAccruals(): Promise<Map<string, AccruedHours>> {
+  const out = new Map<string, AccruedHours>();
+  const { data, error } = await supabase.from('client_accrued_hours').select('*');
+  if (error || !data) {
+    if (error) console.warn('[complianceEngine] batch accrual query failed:', error.message);
+    return out;
+  }
+  for (const r of data) out.set(r.client_id, {
+    total: Number(r.total_hours) || 0,
+    counseling: Number(r.counseling_hours) || 0,
+    education: Number(r.education_hours) || 0,
+    rehabilitative_support: Number(r.rehabilitative_support_hours) || 0,
+  });
+  return out;
 }
 
 /**
@@ -254,9 +310,10 @@ export async function fetchComplianceGuardrails(): Promise<GuardrailVerdict[]> {
     return [];
   }
   const nowMs = Date.now();
+  const accruals = await fetchAllAccruals();
   const out: GuardrailVerdict[] = [];
   for (const row of data) {
-    const facts = toFacts(row);
+    const facts = toFacts(row, { accrual: accruals.get(row.id) });
     if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
     for (const v of evaluateClientCompliance(facts, nowMs)) {
       if (v.status === 'warning' || v.status === 'violation') {
@@ -322,10 +379,11 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
   }
 
   const nowMs = Date.now();
+  const accruals = await fetchAllAccruals();
   const neMap = new Map<string, NotEnforceableItem>();
 
   for (const row of data) {
-    const facts = toFacts(row);
+    const facts = toFacts(row, { accrual: accruals.get(row.id) });
     if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
     base.clientsEvaluated++;
 
@@ -495,14 +553,14 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
  */
 export function assessClient(
   row: any,
-  opts: { nowMs?: number; completionSignedOff?: boolean } = {},
+  opts: { nowMs?: number; completionSignedOff?: boolean; accrual?: AccruedHours } = {},
 ): {
   facts: ClientFacts;
   verdicts: RuleVerdict[];
   completion: CompletionAssessment;
 } {
   const nowMs = opts.nowMs ?? Date.now();
-  const facts = toFacts(row, opts.completionSignedOff);
+  const facts = toFacts(row, { accrual: opts.accrual, completionSignedOff: opts.completionSignedOff });
   return {
     facts,
     verdicts: evaluateClientCompliance(facts, nowMs),

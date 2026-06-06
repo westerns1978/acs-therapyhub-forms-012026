@@ -17,7 +17,7 @@ import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
-import { assessClient, fetchCompletionSignoff } from '../services/complianceEngine';
+import { assessClient, fetchCompletionSignoff, fetchClientAccrual, type AccruedHours } from '../services/complianceEngine';
 import { downloadClientRecordPacket } from '../services/pdfDocuments';
 import DocumentPreviewModal, { PreviewKind } from '../components/clients/DocumentPreviewModal';
 import BillingLedger from '../components/billing/BillingLedger';
@@ -170,6 +170,8 @@ const ClientWorkspace: React.FC = () => {
     // Completion sign-off is a separate clinical_notes event (note_type=
     // 'completion_signoff'); it's one of the three real certificate gates.
     const [completionSignedOff, setCompletionSignedOff] = useState(false);
+    // WS3: categorized accrued hours (derived from Completed appointments) — the gate's hours source.
+    const [clientAccrual, setClientAccrual] = useState<AccruedHours | undefined>(undefined);
     const [preview, setPreview] = useState<PreviewKind | null>(null);
 
     const loadClientData = useCallback(async (id: string) => {
@@ -186,7 +188,8 @@ const ClientWorkspace: React.FC = () => {
                     getFormSubmissions({ clientId: id }),
                     getSROPData(id),
                     getClientActivityFeed(id),
-                    fetchCompletionSignoff(id)
+                    fetchCompletionSignoff(id),
+                    fetchClientAccrual(id),
                 ]);
 
                 if (results[0].status === 'fulfilled') setDocuments(results[0].value as DocumentFile[] || []);
@@ -198,6 +201,7 @@ const ClientWorkspace: React.FC = () => {
                 if (results[3].status === 'fulfilled') setActivityFeed(results[3].value as ClientActivity[] || []);
                 else setLoadErrors(prev => ({...prev, activity: true}));
                 setCompletionSignedOff(results[4].status === 'fulfilled' ? !!results[4].value : false);
+                setClientAccrual(results[5].status === 'fulfilled' ? (results[5].value as AccruedHours) : undefined);
             } else {
                 setClient(null);
                 navigate('/clients');
@@ -235,7 +239,7 @@ const ClientWorkspace: React.FC = () => {
     // Deterministic compliance assessment for this client. The engine — not the
     // UI — decides whether the completion certificate may be generated. Sign-off
     // (a separate clinical_notes event) is injected as one of the three gates.
-    const assessment = assessClient(client, { completionSignedOff });
+    const assessment = assessClient(client, { completionSignedOff, accrual: clientAccrual });
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },

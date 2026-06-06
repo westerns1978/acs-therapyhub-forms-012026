@@ -1,5 +1,5 @@
-import React from 'react';
-import { Appointment, AppointmentStatus } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Appointment, AppointmentStatus, ServiceType } from '../../types';
 import Modal from '../ui/Modal';
 import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play } from 'lucide-react';
 
@@ -21,7 +21,7 @@ interface AppointmentStatusModalProps {
     appointment: Appointment | null;
     isOpen: boolean;
     onClose: () => void;
-    onSetStatus: (status: AppointmentStatus) => void;
+    onSetStatus: (status: AppointmentStatus, serviceType?: ServiceType) => void;
     onDelete: () => void;
     /** Opens the live session for this appointment's client. Only offered when the
      *  appointment has a clientId (1:1 sessions, not unassigned group slots). */
@@ -34,6 +34,9 @@ interface AppointmentStatusModalProps {
 const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     appointment, isOpen, onClose, onSetStatus, onDelete, onStartSession, isSaving, canManage,
 }) => {
+    // WS3: a session category is REQUIRED before completion (drives categorized accrual).
+    const [serviceType, setServiceType] = useState<ServiceType | ''>('');
+    useEffect(() => { setServiceType((appointment?.serviceType as ServiceType) ?? ''); }, [appointment?.id]);
     if (!appointment) return null;
 
     const style = getAppointmentStatusStyle(appointment.status);
@@ -81,8 +84,31 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                 <Play size={16} /> Start Session
                             </button>
                         )}
+                        {/* WS3: session category — REQUIRED to mark complete; drives categorized hours accrual. */}
+                        <div>
+                            <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Session category <span className="text-rose-400">(required to complete)</span></label>
+                            <select
+                                value={serviceType}
+                                onChange={(e) => setServiceType(e.target.value as ServiceType | '')}
+                                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-100"
+                            >
+                                <option value="">Select category…</option>
+                                <option value="counseling">Counseling (individual + group)</option>
+                                <option value="education">Education</option>
+                                <option value="rehabilitative_support">Group rehabilitative support</option>
+                                <option value="other">Other (non-program — does not accrue)</option>
+                            </select>
+                        </div>
                         <div className="grid grid-cols-1 gap-2">
-                            <StatusAction status="Completed" label="Mark Completed" icon={CheckCircle2} className="bg-emerald-600 hover:bg-emerald-700 text-white" />
+                            <button
+                                type="button"
+                                onClick={() => serviceType && onSetStatus('Completed', serviceType as ServiceType)}
+                                disabled={isSaving || appointment.status === 'Completed' || !serviceType}
+                                title={!serviceType ? 'Choose a session category first' : undefined}
+                                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                                <CheckCircle2 size={16} /> {appointment.status === 'Completed' ? 'Completed (current)' : 'Mark Completed'}
+                            </button>
                             <StatusAction status="No Show" label="Mark No-Show" icon={UserX} className="bg-amber-500 hover:bg-amber-600 text-white" />
                             <StatusAction status="Canceled" label="Cancel Session" icon={Ban} className="bg-slate-600 hover:bg-slate-700 text-white" />
                             {appointment.status !== 'Scheduled' && (
