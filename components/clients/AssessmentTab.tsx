@@ -14,7 +14,9 @@ import {
   type PlacementInputs,
   type UpgradeFactor,
 } from '../../services/placementEngine';
-import { Loader2, AlertTriangle, CheckCircle2, XCircle, Save, Info, ShieldCheck, Lock, PenLine, ArrowUp, Ban, History } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle2, XCircle, Save, Info, ShieldCheck, Lock, PenLine, ArrowUp, Ban, History, FileCheck } from 'lucide-react';
+import DocumentPreviewModal from './DocumentPreviewModal';
+import { buildCimorPacketDoc, cimorPacketFileName, fetchCimorNarrative, type NarrativeContext } from '../../services/cimorPacket';
 
 /**
  * WS1 capture screen + WS2 clinician sign-off.
@@ -177,6 +179,14 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
   const [signedAt, setSignedAt] = useState<string | null>(null);
   const [escalateLevel, setEscalateLevel] = useState<SatopLevel | ''>('');
   const [escalateReason, setEscalateReason] = useState('');
+
+  // CIMOR packet (Phase 3) — built from the SIGNED determination only.
+  const [packetOpen, setPacketOpen] = useState(false);
+  const [packetBusy, setPacketBusy] = useState(false);
+  const [packetClient, setPacketClient] = useState<any>(null);
+  const [packetDet, setPacketDet] = useState<Determination | null>(null);
+  const [packetSummary, setPacketSummary] = useState<string | null>(null);
+  const [packetError, setPacketError] = useState<string | null>(null);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -388,6 +398,37 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
     }
   };
 
+  /** Prepare the CIMOR packet for the CURRENT signed determination (never an unsigned state). */
+  const openCimorPacket = async () => {
+    if (!current) return;
+    setPacketBusy(true);
+    setPacketError(null);
+    try {
+      // Client identifiers for the packet (is_staff can read clients).
+      const { data: cli } = await supabase.from('clients').select('*').eq('id', client.id).maybeSingle();
+      const inp = (current.basis_snapshot && current.basis_snapshot.inputs) || {};
+      const ctx: NarrativeContext = {
+        multipleOffenses: Number(inp.offense_count) > 1,
+        repeatDuiArrests: Number(inp.dui_arrest_count) >= 2,
+        elevatedBac: inp.bac != null && Number(inp.bac) >= 0.15,
+        sudDiagnosis: inp.sud_diagnosis === true,
+        priorTreatment: inp.prior_treatment === true,
+        lifeIssues: inp.life_issues === true,
+      };
+      // The ONE AI touch — guarded + ephemeral; null on AI-down or a guard trip, in
+      // which case the packet renders deterministic-only.
+      const summary = await fetchCimorNarrative(ctx);
+      setPacketClient(cli || { id: client.id, name: client.name });
+      setPacketDet(current);
+      setPacketSummary(summary);
+      setPacketOpen(true);
+    } catch (e: any) {
+      setPacketError(e?.message || 'Could not prepare the packet.');
+    } finally {
+      setPacketBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-slate-400">
@@ -596,6 +637,22 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
               <p className="text-[11px] text-slate-400 mt-2">
                 Signed by {current.basis_snapshot?.signed_by?.name ?? 'clinician'} · {fmtDateTime(current.determined_at)}
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={openCimorPacket}
+                  disabled={packetBusy}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm bg-primary text-white hover:bg-primary-focus transition disabled:opacity-60"
+                >
+                  {packetBusy ? <Loader2 size={15} className="animate-spin" /> : <FileCheck size={15} />} CIMOR packet
+                </button>
+                <span className="text-[11px] text-slate-400">Deterministic packet from this signed determination — preview before saving.</span>
+              </div>
+              {packetError && (
+                <div className="mt-2 flex items-start gap-2 text-[12px] bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-xl p-2.5 text-rose-700 dark:text-rose-300">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span className="leading-snug">{packetError}</span>
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-border dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4 text-[12px] text-slate-500 dark:text-slate-400 font-medium">
@@ -762,6 +819,18 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
           </div>
         </div>
       </Card>
+
+      {packetOpen && packetDet && packetClient && (
+        <DocumentPreviewModal
+          kind="cimor"
+          isOpen={packetOpen}
+          onClose={() => setPacketOpen(false)}
+          build={() => buildCimorPacketDoc({ client: packetClient, determination: packetDet!, aiSummary: packetSummary })}
+          fileName={cimorPacketFileName(packetClient, packetDet)}
+          title="CIMOR Submission Packet"
+          rebuildKey={packetDet.id + (packetSummary ? ':p' : ':n')}
+        />
+      )}
     </div>
   );
 };
