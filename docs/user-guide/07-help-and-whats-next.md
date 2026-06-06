@@ -6,8 +6,10 @@ A few areas are intentionally **switched off or kept early** during these 30 day
 so you can focus on the essentials. Here's the honest picture of what's parked for
 now and expected to come online during our setup work together:
 
-- **Financials** — a billing and revenue view for the Director (totals,
-  outstanding balances, recent transactions). *Turned off for the trial.*
+- **Financials** — read-only billing reports for the Director and Office (Admin):
+  daily payments by method, outstanding balances by client, and revenue (with the
+  state supplemental fee shown separately as a liability, not revenue). *Now
+  available — rebuilt on the real charges + payments ledger for the day-30 review.*
 - **Analytics** — reports and charts (for example, revenue by program and
   compliance trends). *Turned off for the trial.*
 - **AI Documents** — tools to scan and read handwritten forms and uploaded

@@ -68,7 +68,7 @@
 - **Session wrap-up "atomic" finalize** — billing (`addSessionRecord` `api.ts:556`) and tasks (`addClientAssignment` `api.ts:511`) are **empty no-ops**; the SOAP note is **never persisted** from this flow; "Apply Digital Signature" just flips local state; only the next appointment is actually saved.
 - **Live-session SOAP note** — generated (real) but not saved (Smart Note Studio's `saveClinicalNote` at `SmartNoteImporter.tsx:48` *does* persist; the `ActiveSession` path does not).
 - **Signatures** — `saveClientSignature` returns `{success:true}` and stores nothing (`api.ts:554`).
-- **Financial/practice dashboards** — `getPayments`, `getPracticeMetrics`, `getRevenueData`, `getComplianceTrendData`, `getDailyBriefingData` return **hardcoded** values (`api.ts:309-310,559,562-576`).
+- **Practice dashboards** — `getPayments`, `getPracticeMetrics`, `getRevenueData`, `getComplianceTrendData`, `getDailyBriefingData` return **hardcoded** values (`api.ts:309-310,559,562-576`). *(The Financials page no longer uses these — it reads the real ledger via `acs_report_*`; these mocks now back only the Dashboard's headline figures.)*
 - **Predictive risk** — `riskModelingService.getClientRiskProfile`/`getCohortSummary` return a hardcoded "John Doe" / fixed counts with no Gemini call (`riskModelingService.ts:29-55`). (Note: `generateRelapseRiskPrediction` used in `ClientWorkspace.tsx:59` *is* a real call — two parallel implementations, one real, one mock.)
 - **Driverless scheduling / Dispatcher** — `createDispatcher().handleRequest` returns "Appointment rescheduled." unconditionally; `processSchedulingRequest` returns canned slots (`schedulingService.ts:34-69`). Per-client Scheduling tab hidden in trial for this reason (`config/trialMode.ts:21`).
 - **Travel risk** — `analyzeTravelRisk` returns hardcoded `{risk:'Low'}` (`api.ts:831`).
@@ -76,7 +76,7 @@
 - **Document Intelligence** — real extraction code (`documentExtraction.ts`, `deepReasoningService.ts`) but the whole tab is **hidden** because it black-screens (`config/trialMode.ts:3-12`).
 - **Audit log UI** — reads mock data (`api.ts:552`); nothing is ever logged.
 - **Milestone video** — `generateMilestoneCelebration` requires `window.aistudio` (`api.ts:657-685`); breaks outside AI Studio.
-- **Financials & Reporting pages** — hidden via `TRIAL_HIDDEN_ROUTES` (`trialMode.ts:8-12`).
+- **Reporting (Analytics) page** — hidden via `TRIAL_HIDDEN_ROUTES` (`trialMode.ts`). **Financials is now live** — rebuilt on the real charges/payments ledger via the `acs_report_*` RPCs and un-hidden for Director/Admin (`pages/Financials.tsx`, `supabase/migrations/20260605_reports_1_director_report_functions.sql`).
 
 ---
 

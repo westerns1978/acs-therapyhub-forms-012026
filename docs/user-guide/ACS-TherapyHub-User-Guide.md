@@ -143,6 +143,7 @@ are turned off for the trial).
 | **Forms** | The library of forms — assign them and review what's sent back. | Everyone |
 | **Treatment Plan Library** | Ready-made treatment plan templates to apply to a client. | Director, Therapist |
 | **Compliance Risk** | A monitor of client alerts that may need attention. | Director, Therapist |
+| **Financials** | Read-only billing reports — daily payments, outstanding balances, and revenue. | Director, Admin |
 | **Settings** | Practice settings (under a **"Reports"** heading). | Director only |
 
 > Note: the menu item is named **"Calendar,"** and it opens the scheduling page.
@@ -182,8 +183,8 @@ clicking the button again.
 
 ### A few things are turned off for the trial — that's expected
 
-To keep the trial focused, three areas are intentionally hidden for now. **If you
-don't see these, nothing is wrong:** **Financials**, **Analytics**, and
+To keep the trial focused, two areas are intentionally hidden for now. **If you
+don't see these, nothing is wrong:** **Analytics** and
 **AI Documents**. See [Help and what's next](#help-and-whats-next) for details.
 
 ---
@@ -198,8 +199,8 @@ practice **Settings**. (A few areas are turned off for everyone during the trial
 > **"Continue with demo access"** as **Therapist** or **Admin**.
 
 **What's in your menu:** Dashboard, Clients, Calendar, Messages, Forms,
-**Treatment Plan Library**, **Compliance Risk**, and **Settings** (under a
-**"Reports"** heading — yours alone).
+**Treatment Plan Library**, **Compliance Risk**, **Financials**, and **Settings**
+(the last under a **"Reports"** heading — yours alone).
 
 **What you can do:** everything in [Common tasks](#common-tasks), including
 [adding a client](#add-a-client), [editing records](#open-a-clients-record),
@@ -221,7 +222,7 @@ which is normal.
 > ⚠️ **Sample data only** with the AI helpers — no real client information during
 > the trial.
 
-**Turned off during the trial:** Financials, Analytics, and AI Documents.
+**Turned off during the trial:** Analytics and AI Documents.
 
 > 💬 **Tell us what you think:** As the person who sees the whole picture, your
 > notes on what's missing or out of order are the most valuable feedback we can
@@ -273,8 +274,8 @@ Therapist, so you won't see those menus — by design, not a missing piece.
 > 📝 A quick note on the word **"Admin."** Here it means the **office role**, not
 > a super-user. It's the right fit for front-desk and intake work.
 
-**What's in your menu:** Dashboard, Clients, Calendar, Messages, and Forms. You
-won't see Treatment Plan Library, Compliance Risk, or Settings.
+**What's in your menu:** Dashboard, Clients, Calendar, Messages, Forms, and
+**Financials**. You won't see Treatment Plan Library, Compliance Risk, or Settings.
 
 **What you can do:** [add a client](#add-a-client),
 [open a record](#open-a-clients-record) and update contact/billing details,
@@ -300,7 +301,7 @@ your reaction to.
 > / Smart Note Studio assistant is a clinical tool, so it isn't part of your
 > menu.)*
 
-**Turned off during the trial:** Financials, Analytics, and AI Documents.
+**Turned off during the trial:** Analytics and AI Documents.
 
 > 💬 **Tell us what you think:** You'll be in Clients, Calendar, and Forms the
 > most. If adding a client or scheduling a session takes more clicks than it
@@ -474,8 +475,9 @@ Short, click-by-click walkthroughs for the things you'll do most.
 A few areas are intentionally **switched off or kept early** during these 30 days
 so you can focus on the essentials. Here's the honest picture:
 
-- **Financials** — a billing and revenue view for the Director. *Turned off for
-  the trial.*
+- **Financials** — read-only billing reports for the Director and Office (Admin):
+  daily payments by method, outstanding balances, and revenue (state supplemental
+  shown separately as a liability). *Now available — rebuilt on the real ledger.*
 - **Analytics** — reports and charts (e.g., revenue by program, compliance
   trends). *Turned off for the trial.*
 - **AI Documents** — tools to scan and read handwritten forms and uploaded
