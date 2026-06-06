@@ -6,7 +6,8 @@ export const TRIAL_MODE = true;
 // from this list and instead disable the Scan button entry in
 // pages/DocumentIntelligence.tsx.
 export const TRIAL_HIDDEN_ROUTES: readonly string[] = [
-  '/financials',
+  // '/financials' un-hidden for the day-30 review — Director Reports rebuilt on the
+  // real charges/payments ledger; route + nav gated to Director/Admin (isFinancialRole).
   '/reporting',
   '/document-intelligence',
 ];

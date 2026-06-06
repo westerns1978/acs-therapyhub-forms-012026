@@ -9,7 +9,7 @@ import {
     ClipboardList, Zap, Activity, BookOpen, HelpCircle, ShieldCheck
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
-import type { UserRole } from '../../types';
+import { FINANCIAL_ROLES, type UserRole } from '../../types';
 
 type NavItemDef = {
     to: string;
@@ -65,7 +65,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
     { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library', roles: CLINICAL_ROLES },
     { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
     { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', roles: CLINICAL_ROLES, notifications: 3 },
-    { to: '/financials', icon: DollarSign, label: 'Financials', roles: DIRECTOR_ONLY },
+    { to: '/financials', icon: DollarSign, label: 'Financials', roles: FINANCIAL_ROLES },
     { to: '/help', icon: HelpCircle, label: 'Help & Training', roles: ALL_ROLES },
   ] satisfies NavItemDef[])
     .filter(item => !isTrialHidden(item.to))
