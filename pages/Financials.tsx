@@ -74,6 +74,11 @@ const Financials: React.FC = () => {
 
     return (
         <div>
+            {/* TODO(Director Reports / Phase 1b): rebuild on real charges+payments ledger. */}
+            <div className="mb-6 rounded-2xl border-2 border-amber-400 bg-amber-50 dark:bg-amber-900/20 px-5 py-4 text-amber-900 dark:text-amber-200">
+                <p className="text-sm font-black uppercase tracking-widest">Mock data - not live - rebuild pending</p>
+                <p className="text-xs font-medium mt-1">These figures are placeholder sample data, not the real ledger. Live per-client balances are in each client's <span className="font-bold">Billing</span> tab; this Director Reports view will be rebuilt on the real charges + payments ledger (Phase 1b).</p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 <StatCard 
                     icon={DollarSignIcon} 

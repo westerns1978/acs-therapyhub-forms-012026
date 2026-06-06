@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 import { supabase } from './services/supabase';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -27,7 +27,13 @@ const AsamAssessment = lazy(() => import('./pages/AsamAssessment'));
 const SignaturePage = lazy(() => import('./pages/SignaturePage'));
 const Compliance = lazy(() => import('./pages/Compliance'));
 const ProgramPlan = lazy(() => import('./pages/TreatmentPlan'));
-const FeeLedger = lazy(() => import('./pages/Billing'));
+// Mock fee-ledger page (pages/Billing.tsx) retired in WS-RecordPayment 2b — it had a
+// state-only "Record Payment" that wrote nothing to the ledger. Real billing is the
+// ClientWorkspace "Billing" tab; redirect any stale /fee-ledger link there.
+const FeeLedgerRedirect = () => {
+  const { clientId } = useParams();
+  return <Navigate to={clientId ? `/clients/${clientId}` : '/clients'} replace />;
+};
 const Forms = lazy(() => import('./pages/Forms'));
 const TreatmentPlanLibrary = lazy(() => import('./pages/TreatmentPlanLibrary'));
 const Financials = lazy(() => import('./pages/Financials'));
@@ -95,7 +101,7 @@ function App() {
                   <Route path="/session/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ActiveSession /></RequireRole>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
                   <Route path="/sign/:documentType/:clientId" element={<ProtectedRoute><SignaturePage /></ProtectedRoute>} />
-                  <Route path="/fee-ledger/:clientId" element={<ProtectedRoute><FeeLedger /></ProtectedRoute>} />
+                  <Route path="/fee-ledger/:clientId" element={<FeeLedgerRedirect />} />
 
                   {/* Clinical-only routes — Director + Therapist */}
                   <Route path="/video-sessions" element={<RequireRole roles={['Director', 'Therapist']}><VideoSessions /></RequireRole>} />
