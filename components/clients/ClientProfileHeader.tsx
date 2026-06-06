@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client } from '../../types';
+import type { SatopLevel } from '../../config/satopFees';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play } from 'lucide-react';
@@ -9,6 +10,8 @@ import ClinicalMarkdown from '../ClinicalMarkdown';
 
 interface ClientProfileHeaderProps {
   client: Client;
+  /** WS4: current signed determination level (same source as the completion gate). null → none signed. */
+  determinedLevel?: SatopLevel | null;
 }
 
 const getStatusColor = (status: Client['status']) => {
@@ -21,19 +24,15 @@ const getStatusColor = (status: Client['status']) => {
     }
 };
 
-const getProgramBadge = (client: Client) => {
+const getProgramBadge = (client: Client, determinedLevel?: SatopLevel | null) => {
     const program = client.program;
-    const totalRequired = Number((client as any).total_sessions_required ?? 0);
     switch (program) {
         case 'SATOP': {
-            // Differentiate Level III (~50 hrs) vs Level IV (75 hrs) using the
-            // total_sessions_required on the row. Falls back to bare "SATOP" when
-            // hours haven't been set.
-            const level =
-                totalRequired >= 75 ? 'SATOP Level IV'
-                : totalRequired >= 40 ? 'SATOP Level III'
-                : 'SATOP';
-            return { label: level, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+            // WS4: the level badge reads the SIGNED determination (same source as the
+            // completion gate), NOT the static total_sessions_required. No signed
+            // determination → bare "SATOP" (never a level inferred from a number).
+            const label = determinedLevel ? `SATOP Level ${determinedLevel}` : 'SATOP';
+            return { label, color: 'bg-blue-100 text-blue-800 border-blue-200' };
         }
         case 'REACT':
             return { label: 'REACT', color: 'bg-purple-100 text-purple-800 border-purple-200' };
@@ -52,7 +51,7 @@ const getProgramBadge = (client: Client) => {
     }
 };
 
-const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => {
+const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel }) => {
   const [isSnapshotExpanded, setIsSnapshotExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [clinicalSnapshot, setClinicalSnapshot] = useState<string | null>(null);
@@ -98,8 +97,8 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client }) => 
         <div className="flex-1 text-center lg:text-left">
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-3">
               <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white">{client.name}</h1>
-              <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getProgramBadge(client).color}`}>
-                {getProgramBadge(client).label}
+              <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getProgramBadge(client, determinedLevel).color}`}>
+                {getProgramBadge(client, determinedLevel).label}
               </span>
               <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getStatusColor(client.status)}`}>
                 {client.status}

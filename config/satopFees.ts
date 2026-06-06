@@ -27,6 +27,13 @@ export function satopLevelForRequiredHours(hours: number | null | undefined): Sa
   }
 }
 
+/** Required program hours by SATOP level (9 CSR 30-3.206) — the inverse of
+ *  satopLevelForRequiredHours, the single place the per-level total is declared. Lets
+ *  the completion gate derive the required total FROM a signed level (WS4) instead of
+ *  inferring the level from a static number. (SROP also has a ≥35-hour counseling floor,
+ *  enforced via the pack rule's counseling_min_hours — not here.) */
+export const REQUIRED_HOURS_BY_LEVEL: Record<SatopLevel, number> = { I: 10, II: 20, III: 50, IV: 75 };
+
 /** Flat fee for a level, or null when unknown / means-tested. */
 export function satopFee(level: SatopLevel | null | undefined): number | null {
   return level ? SATOP_FEES[level] : null;
