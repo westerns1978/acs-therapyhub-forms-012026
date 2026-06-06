@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, Download, ShieldCheck, AlertTriangle, Award, FileText, Receipt } from 'lucide-react';
+import { X, Check, Download, ShieldCheck, AlertTriangle, Award, FileText, Receipt, FileCheck } from 'lucide-react';
 import type { jsPDF } from 'jspdf';
 import { buildCompletionCertificateDoc, buildStatusReportDoc } from '../../services/pdfDocuments';
 import type { CompletionAssessment, RuleVerdict } from '../../services/complianceEngine';
@@ -22,7 +22,9 @@ interface CertStatusProps extends CommonProps {
 }
 
 interface GenericDocProps extends CommonProps {
-  kind: 'receipt';
+  // Generic build()-closure mode — reused by the payment receipt ('receipt') and the
+  // CIMOR placement packet ('cimor'). Same same-instance preview→save plumbing.
+  kind: 'receipt' | 'cimor';
   /**
    * Builds the EXACT jsPDF shown in the preview AND saved on "Create PDF" — one
    * instance, one blob, zero drift. Throws on bad input (surfaced as an error).
@@ -37,6 +39,13 @@ interface GenericDocProps extends CommonProps {
 }
 
 type DocumentPreviewModalProps = CertStatusProps | GenericDocProps;
+
+// A user-defined type guard narrows BOTH branches reliably (true → GenericDocProps,
+// false → CertStatusProps). TS does not reliably narrow the negative branch of a
+// compound `kind === 'a' || kind === 'b'` over this 4-member discriminant, so we use
+// this guard everywhere we split generic (receipt/cimor) vs cert/status.
+const isGenericProps = (p: DocumentPreviewModalProps): p is GenericDocProps =>
+  p.kind === 'receipt' || p.kind === 'cimor';
 
 const safeFileName = (name: string) =>
   (name || 'client').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'client';
@@ -61,11 +70,11 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = (props) => {
   const isCert = props.kind === 'certificate';
   const isReceipt = props.kind === 'receipt';
   // The certificate can only be rendered once the gate is open — the builder
-  // throws otherwise, by design. Status and receipt render anytime.
-  const eligible = props.kind === 'receipt' ? true : props.completion.eligible;
+  // throws otherwise, by design. Status and generic (receipt/cimor) render anytime.
+  const eligible = isGenericProps(props) ? true : props.completion.eligible;
   const canRender = isCert ? eligible : true;
-  // Rebuild identity: payment id for the receipt, client id (+ gate) for cert/status.
-  const rebuildKey = props.kind === 'receipt' ? (props.rebuildKey ?? '') : props.client?.id;
+  // Rebuild identity: build-closure key for generic docs, client id (+ gate) for cert/status.
+  const rebuildKey = isGenericProps(props) ? (props.rebuildKey ?? '') : props.client?.id;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -74,12 +83,11 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = (props) => {
     let url: string | null = null;
     try {
       if (canRender) {
-        const doc =
-          props.kind === 'receipt'
-            ? props.build()
-            : props.kind === 'certificate'
-              ? buildCompletionCertificateDoc(props.client, props.completion)
-              : buildStatusReportDoc(props.client, props.verdicts, props.completion);
+        const doc = isGenericProps(props)
+          ? props.build()
+          : props.kind === 'certificate'
+            ? buildCompletionCertificateDoc(props.client, props.completion)
+            : buildStatusReportDoc(props.client, props.verdicts, props.completion);
         docRef.current = doc;
         url = URL.createObjectURL(doc.output('blob'));
         setBlobUrl(url);
@@ -99,25 +107,25 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = (props) => {
   if (!isOpen) return null;
 
   // Cert/status-only data (null in receipt mode) — guarded for the gate strip etc.
-  const completion = props.kind === 'receipt' ? null : props.completion;
+  const completion = isGenericProps(props) ? null : props.completion;
   const gates = completion?.gates ?? [];
   const unmetReasons = completion?.unmetReasons ?? [];
 
-  const title = isReceipt
+  const title = isGenericProps(props)
     ? props.title
-    : isCert
+    : props.kind === 'certificate'
       ? 'SATOP Completion Certificate'
       : 'Compliance Status Report';
-  const Icon = isCert ? Award : isReceipt ? Receipt : FileText;
+  const Icon = isCert ? Award : props.kind === 'cimor' ? FileCheck : isReceipt ? Receipt : FileText;
   const createDisabled = isCert && !eligible;
 
   const handleCreatePdf = () => {
     const doc = docRef.current;
     if (!doc) return;
     doc.save(
-      props.kind === 'receipt'
+      isGenericProps(props)
         ? props.fileName
-        : isCert
+        : props.kind === 'certificate'
           ? `SATOP_Completion_Certificate_${safeFileName(props.client?.name)}.pdf`
           : `Compliance_Status_${safeFileName(props.client?.name)}.pdf`,
     );

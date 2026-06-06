@@ -24,6 +24,14 @@ export const FINANCIAL_ROLES: readonly StaffRole[] = ['Director', 'Admin'];
 export const isFinancialRole = (r: UserRole | null | undefined): r is 'Director' | 'Admin' =>
   r === 'Director' || r === 'Admin';
 
+/** Clinical sign-off access (the WS2 placement determination). Mirrors the DB's
+ *  private.is_clinician() exactly: role in ('Director','Therapist') — Admin and
+ *  Client excluded. A UI gate using this MUST match the table's INSERT policy
+ *  (pd_insert_clinician) so we never render an affordance the DB would reject. */
+export const CLINICIAN_ROLES: readonly StaffRole[] = ['Director', 'Therapist'];
+export const isClinicianRole = (r: UserRole | null | undefined): r is 'Director' | 'Therapist' =>
+  r === 'Director' || r === 'Therapist';
+
 export interface User {
   id: string;
   name: string;
