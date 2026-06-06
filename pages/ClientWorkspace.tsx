@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getClient, getDocumentFilesForClient, getFormSubmissions, getSROPData, getClientActivityFeed, generateRelapseRiskPrediction } from '../services/api';
-import { Client, DocumentFile, FormSubmission, SROPProgress, ClientActivity } from '../types';
+import { Client, DocumentFile, FormSubmission, SROPProgress, ClientActivity, isStaffRole } from '../types';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ClientSelectionGrid from '../components/clients/ClientSelectionGrid';
 import ClientProfileHeader from '../components/clients/ClientProfileHeader';
@@ -147,9 +147,10 @@ const ClientWorkspace: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const canSeeClinical = !!user && CLINICAL_ROLES.includes(user.role);
-    // Financial surface is Director/Admin-only (is_financial_staff), distinct from the
-    // clinical roles above (Therapist yes, Admin no). Gates the Billing tab + affordance.
-    const canRecordPayment = !!user && (user.role === 'Director' || user.role === 'Admin');
+    // Billing is an operational surface: all staff (Director/Therapist/Admin), mirroring
+    // payments/charges RLS (private.is_staff()). isStaffRole() is exactly is_staff()'s set,
+    // so the UI gate and the RLS gate match; a Client never sees the Billing tab.
+    const canRecordPayment = !!user && isStaffRole(user.role);
     const [client, setClient] = useState<Client | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
