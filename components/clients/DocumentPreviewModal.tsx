@@ -1,20 +1,42 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, Download, ShieldCheck, AlertTriangle, Award, FileText } from 'lucide-react';
+import { X, Check, Download, ShieldCheck, AlertTriangle, Award, FileText, Receipt } from 'lucide-react';
 import type { jsPDF } from 'jspdf';
 import { buildCompletionCertificateDoc, buildStatusReportDoc } from '../../services/pdfDocuments';
 import type { CompletionAssessment, RuleVerdict } from '../../services/complianceEngine';
 
+// Cert/status callers keep this exact type — the receipt mode is a separate union
+// member below, so existing callers (ClientWorkspace) are unaffected.
 export type PreviewKind = 'certificate' | 'status';
 
-interface DocumentPreviewModalProps {
+interface CommonProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+interface CertStatusProps extends CommonProps {
   kind: PreviewKind;
   client: any;
   verdicts: RuleVerdict[];
   completion: CompletionAssessment;
 }
+
+interface GenericDocProps extends CommonProps {
+  kind: 'receipt';
+  /**
+   * Builds the EXACT jsPDF shown in the preview AND saved on "Create PDF" — one
+   * instance, one blob, zero drift. Throws on bad input (surfaced as an error).
+   */
+  build: () => jsPDF;
+  /** Download filename (no path). */
+  fileName: string;
+  /** Header title. */
+  title: string;
+  /** Rebuild identity — re-renders the doc when the subject changes (e.g. payment id). */
+  rebuildKey?: string;
+}
+
+type DocumentPreviewModalProps = CertStatusProps | GenericDocProps;
 
 const safeFileName = (name: string) =>
   (name || 'client').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'client';
@@ -25,19 +47,25 @@ const safeFileName = (name: string) =>
  * that exact same document. For the certificate it surfaces the completion gates
  * (hours · payment · sign-off, + duration for SROP) and only unlocks export when
  * every gate passes — the same engine verdict that guards the renderer itself.
+ *
+ * The same plumbing also powers the payment receipt via the `receipt` mode, which
+ * hands in a pre-bound `build()` closure instead of cert/status inputs — reused,
+ * not forked, so the zero-drift guarantee holds identically.
  */
-const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
-  isOpen, onClose, kind, client, verdicts, completion,
-}) => {
+const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = (props) => {
+  const { isOpen, onClose } = props;
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
   const docRef = useRef<jsPDF | null>(null);
 
-  const isCert = kind === 'certificate';
-  const eligible = completion.eligible;
+  const isCert = props.kind === 'certificate';
+  const isReceipt = props.kind === 'receipt';
   // The certificate can only be rendered once the gate is open — the builder
-  // throws otherwise, by design. The status report renders anytime.
+  // throws otherwise, by design. Status and receipt render anytime.
+  const eligible = props.kind === 'receipt' ? true : props.completion.eligible;
   const canRender = isCert ? eligible : true;
+  // Rebuild identity: payment id for the receipt, client id (+ gate) for cert/status.
+  const rebuildKey = props.kind === 'receipt' ? (props.rebuildKey ?? '') : props.client?.id;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -46,9 +74,12 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     let url: string | null = null;
     try {
       if (canRender) {
-        const doc = isCert
-          ? buildCompletionCertificateDoc(client, completion)
-          : buildStatusReportDoc(client, verdicts, completion);
+        const doc =
+          props.kind === 'receipt'
+            ? props.build()
+            : props.kind === 'certificate'
+              ? buildCompletionCertificateDoc(props.client, props.completion)
+              : buildStatusReportDoc(props.client, props.verdicts, props.completion);
         docRef.current = doc;
         url = URL.createObjectURL(doc.output('blob'));
         setBlobUrl(url);
@@ -61,23 +92,34 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
     }
     return () => { if (url) URL.revokeObjectURL(url); };
     // Rebuild only when the document identity or gate state changes — not on every
-    // parent re-render (client/completion are fresh objects each render).
+    // parent re-render (inputs are fresh objects each render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, kind, client?.id, eligible]);
+  }, [isOpen, props.kind, rebuildKey, eligible]);
 
   if (!isOpen) return null;
 
-  const title = isCert ? 'SATOP Completion Certificate' : 'Compliance Status Report';
-  const Icon = isCert ? Award : FileText;
+  // Cert/status-only data (null in receipt mode) — guarded for the gate strip etc.
+  const completion = props.kind === 'receipt' ? null : props.completion;
+  const gates = completion?.gates ?? [];
+  const unmetReasons = completion?.unmetReasons ?? [];
+
+  const title = isReceipt
+    ? props.title
+    : isCert
+      ? 'SATOP Completion Certificate'
+      : 'Compliance Status Report';
+  const Icon = isCert ? Award : isReceipt ? Receipt : FileText;
   const createDisabled = isCert && !eligible;
 
   const handleCreatePdf = () => {
     const doc = docRef.current;
     if (!doc) return;
     doc.save(
-      isCert
-        ? `SATOP_Completion_Certificate_${safeFileName(client?.name)}.pdf`
-        : `Compliance_Status_${safeFileName(client?.name)}.pdf`,
+      props.kind === 'receipt'
+        ? props.fileName
+        : isCert
+          ? `SATOP_Completion_Certificate_${safeFileName(props.client?.name)}.pdf`
+          : `Compliance_Status_${safeFileName(props.client?.name)}.pdf`,
     );
   };
 
@@ -109,7 +151,7 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
         </header>
 
         {/* Gate strip — certificate only (self-documents why a cert is/ isn't issuable) */}
-        {isCert && completion.gates.length > 0 && (
+        {isCert && gates.length > 0 && (
           <div className="px-4 py-3 border-b border-black/10 dark:border-white/10 flex-shrink-0 bg-slate-50 dark:bg-slate-800/50">
             <div className="flex items-center gap-2 flex-wrap">
               <span
@@ -122,7 +164,7 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 {eligible ? <ShieldCheck size={13} /> : <AlertTriangle size={13} />}
                 {eligible ? 'Eligible to issue' : 'Not yet eligible'}
               </span>
-              {completion.gates.map((g) => (
+              {gates.map((g) => (
                 <span
                   key={g.key}
                   title={g.detail}
@@ -154,7 +196,7 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                 Every completion gate must pass before the certificate can be generated:
               </p>
               <ul className="text-sm text-left space-y-1.5 max-w-md">
-                {completion.unmetReasons.map((r, i) => (
+                {unmetReasons.map((r, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <X size={15} className="text-rose-500 mt-0.5 flex-shrink-0" />
                     <span>{r}</span>
