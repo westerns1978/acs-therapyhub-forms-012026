@@ -23,8 +23,6 @@ const PortalFormPage: React.FC = () => {
   const portalClient = usePortalClient();
   const navigate = useNavigate();
 
-  if (!portalClient) return null;
-
   // Map formId to the real form definitions
   const formMap: Record<string, FormDefinition<any>> = {
     'consent-treatment': CONSENT_FORM_DEFINITION,
@@ -60,6 +58,12 @@ const PortalFormPage: React.FC = () => {
     }
     return { ...config, initialState: merged as typeof config.initialState };
   }, [config, portalClient]);
+
+  // Guards come ONLY after every hook above (Rules of Hooks). A null portalClient
+  // (session still resolving on first render) previously returned here BEFORE the
+  // useMemo — flipping the hook count between renders and crashing the whole tree
+  // (the portal-forms blank screen). Keep all early returns below this point.
+  if (!portalClient) return null;
 
   if (!config) {
     return (
