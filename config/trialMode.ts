@@ -15,6 +15,11 @@ export const TRIAL_HIDDEN_ROUTES: readonly string[] = [
   // session spine is `appointments` + the Zoom edge fns. Hidden for the team test
   // (it's orphaned — no nav link); rebuild on `appointments` before un-hiding.
   '/video-sessions',
+  // '/communication-center' (Messages) — the Send persists to client_communications but
+  // reaches NO client (this app has no portal inbox; delivery is a future scope decision),
+  // under fabricated "ONLINE" + ✓✓-read cues. Hidden for the team test to avoid a
+  // message-into-the-void trap. CommunicationCenter.tsx + the API fns stay intact (restorable).
+  '/communication-center',
 ];
 
 export const isTrialHidden = (path: string): boolean =>

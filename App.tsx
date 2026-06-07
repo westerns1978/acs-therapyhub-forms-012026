@@ -95,7 +95,12 @@ function App() {
                   <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/clients" element={<ProtectedRoute><ClientWorkspace /></ProtectedRoute>} />
                   <Route path="/clients/:clientId" element={<ProtectedRoute><ClientWorkspace /></ProtectedRoute>} />
-                  <Route path="/communication-center" element={<ProtectedRoute><CommunicationCenter /></ProtectedRoute>} />
+                  {/* Messages — hidden for the team test (Send reaches no client; fabricated
+                      ONLINE/read cues). Redirect when hidden, mirroring /video-sessions. Role
+                      gate + component kept intact for when delivery is scoped + re-enabled. */}
+                  <Route path="/communication-center" element={isTrialHidden('/communication-center')
+                    ? <Navigate to="/dashboard" replace />
+                    : <ProtectedRoute><CommunicationCenter /></ProtectedRoute>} />
                   <Route path="/session-management" element={<ProtectedRoute><SessionManagement /></ProtectedRoute>} />
                   <Route path="/session/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ActiveSession /></RequireRole>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />

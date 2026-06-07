@@ -257,8 +257,10 @@ const Dashboard: React.FC = () => {
                                 {recentComms.length > 0 ? recentComms.map(m => (
                                     <button
                                         key={m.id}
-                                        onClick={() => m.clientId ? navigate(`/clients/${m.clientId}`) : navigate('/communication-center')}
-                                        className="w-full text-left flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                                        onClick={() => { if (m.clientId) navigate(`/clients/${m.clientId}`); }}
+                                        disabled={!m.clientId}
+                                        title={m.clientId ? 'Open client' : undefined}
+                                        className="w-full text-left flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700 rounded-2xl enabled:hover:bg-slate-100 dark:enabled:hover:bg-slate-700/50 disabled:cursor-default transition-colors"
                                     >
                                         <MessageSquare className="text-primary shrink-0 mt-0.5" size={16} />
                                         <div className="min-w-0 flex-1">

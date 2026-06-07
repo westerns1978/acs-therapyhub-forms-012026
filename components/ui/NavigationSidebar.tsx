@@ -64,7 +64,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
     { to: '/forms', icon: ClipboardList, label: 'Forms', roles: ALL_ROLES },
     { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library', roles: CLINICAL_ROLES },
     { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
-    { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', roles: CLINICAL_ROLES, notifications: 3 },
+    { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', roles: CLINICAL_ROLES },
     { to: '/financials', icon: DollarSign, label: 'Financials', roles: FINANCIAL_ROLES },
     { to: '/help', icon: HelpCircle, label: 'Help & Training', roles: ALL_ROLES },
   ] satisfies NavItemDef[])
