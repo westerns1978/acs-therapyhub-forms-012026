@@ -137,11 +137,12 @@ const mapClientToApp = (c: any): Client => {
     const status = STATUS_MAP[statusRaw] || c.status || 'Compliant';
 
     const complianceScore = Number(c.complianceScore ?? c.compliance_score ?? 0);
-    const sropHours = Number(c.srop_hours_completed ?? c.sropHoursCompleted ?? 0);
-    const totalSessionsRequired = Number(c.total_sessions_required ?? c.totalSessionsRequired ?? 75);
-    const completionPercentage = c.completionPercentage != null
-        ? Number(c.completionPercentage)
-        : (totalSessionsRequired > 0 ? Math.min(100, Math.round((sropHours / totalSessionsRequired) * 100)) : 0);
+    // WS-DisplayTruth: completionPercentage is NOT derived from the static
+    // srop_hours_completed / total_sessions_required columns — those diverge from the
+    // authoritative completion gate. Program-progress surfaces fetch fetchClientProgress
+    // (services/displayProgress) — the same accrual + signed-determination sources the gate
+    // uses. Here we only pass through an explicit completionPercentage if the row carries one.
+    const completionPercentage = c.completionPercentage != null ? Number(c.completionPercentage) : 0;
 
     const program = c.program ?? c.program_type ?? 'SATOP';
     const name = c.name || [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unknown Client';

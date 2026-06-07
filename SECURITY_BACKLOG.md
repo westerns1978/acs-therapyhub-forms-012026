@@ -349,3 +349,31 @@ get registry entries. **Harmless to the SATOP completion gate** (non-SATOP clien
 
 Post-WS5: when the Opioid/Gambling programs get first-class form sets, add their intake registry
 ids and backfill (`update public.form_submissions set form_id='opioid-intake' where form_name='Opioid Recovery Intake'`, etc.).
+
+---
+
+## 10. Static progress columns are now UNREAD; client portal can't read the authoritative required (WS-DisplayTruth)
+
+Found/done during WS-DisplayTruth (2026-06-06). Two parts:
+
+**(a) `clients.srop_hours_completed` + `clients.total_sessions_required` are now legacy/unread.** Every
+display surface (PortalDashboard, PortalCompliance, ClientOverviewTab, the progress-% in
+`mapClientToApp`, `alertsService`) was repointed to `services/displayProgress.ts`, which composes the
+SAME authoritative sources the gate uses (`client_accrued_hours` + the signed determination via
+`REQUIRED_HOURS_BY_LEVEL`). Grep confirms **zero app readers** of the two static columns (only
+comments remain). They were **left in place, unread** — a future migration can drop the columns
+(and the seed writers) once nothing in any branch references them. Do NOT migrate them away until
+the WS6 branch (which doesn't read them either) is merged, to avoid a cross-branch surprise.
+
+**(b) The client PORTAL cannot show the authoritative required-total / level.** `placement_determinations`
+is **staff-only** (WS2 `pd_select_staff`; no client self-read, deliberately). So a portal client's
+`fetchClientProgress` can read their **completed** hours (accrual is client-readable) but
+`fetchClientDetermination` returns null → `established=false`. The portal therefore shows the
+authoritative **completed hours + "Required total set by your counselor"** (honest — never the static
+75, never a misleading "pending-implies-no-determination"). Staff surfaces show the full
+authoritative X/Y + level (they can read the determination). **Follow-on to give the client their own
+required/level without exposing the determination record:** a `SECURITY DEFINER` RPC
+`public.my_progress()` that returns only the derived `{level, requiredTotal, completedTotal,
+counselingRequired}` for `auth.uid()`'s client — readable by the client, but it never exposes the
+`placement_determinations` row itself (keeps WS2's staff-only boundary intact). That's a migration —
+deferred out of this display-only phase; flagged for review.

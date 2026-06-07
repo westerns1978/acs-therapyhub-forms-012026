@@ -6,6 +6,7 @@ import { supabase } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { BarChart, Award, CheckCircle2, Circle, Trophy, Target, Zap } from 'lucide-react';
+import { fetchClientProgress } from '../../services/displayProgress';
 
 const PortalCompliance: React.FC = () => {
     const portalClient = usePortalClient();
@@ -37,10 +38,13 @@ const PortalCompliance: React.FC = () => {
                     .select('*')
                     .eq('client_id', portalClient.id);
 
+                // WS-DisplayTruth: authoritative progress (accrual + signed determination).
+                const progress = await fetchClientProgress(portalClient.id);
                 setComplianceData({
                     client,
                     srop,
-                    tasks: tasks || []
+                    tasks: tasks || [],
+                    progress,
                 });
             } catch (err) {
                 console.warn('Failed to fetch compliance:', err);
@@ -52,7 +56,7 @@ const PortalCompliance: React.FC = () => {
 
     if (isLoading || !portalClient) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
 
-    const { client, srop, tasks } = complianceData;
+    const { client, srop, tasks, progress } = complianceData;
 
     return (
         <PortalLayout>
@@ -64,15 +68,18 @@ const PortalCompliance: React.FC = () => {
                         <Card title="Program Completion">
                             <div className="flex items-center justify-between mb-4">
                                 <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Overall Progress</p>
-                                <p className="text-4xl font-black text-primary">{client.compliance_score}%</p>
+                                <p className="text-4xl font-black text-primary">{progress?.established ? `${progress.progressPct ?? 0}%` : '—'}</p>
                             </div>
                             <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-6 overflow-hidden shadow-inner">
-                                <div className="bg-gradient-to-r from-primary via-accent to-indigo-500 h-full transition-all duration-1000" style={{ width: `${client.compliance_score}%` }}></div>
+                                <div className="bg-gradient-to-r from-primary via-accent to-indigo-500 h-full transition-all duration-1000" style={{ width: `${progress?.established ? (progress.progressPct ?? 0) : 0}%` }}></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4 mt-8">
                                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">SROP Hours</p>
-                                    <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{client.srop_hours_completed || 0} / 75</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{progress?.established ? `Hours (Level ${progress.determinedLevel})` : 'Hours Completed'}</p>
+                                    <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{progress?.established ? `${progress.completedTotal} / ${progress.requiredTotal}` : `${progress?.completedTotal ?? 0} hrs`}</p>
+                                    {progress?.established
+                                        ? (progress.isSrop && <p className="text-[11px] font-bold text-slate-400 mt-1">Counseling {progress.counselingCompleted}/{progress.counselingRequired}</p>)
+                                        : <p className="text-[11px] font-bold text-slate-400 mt-1">Required total set by your counselor</p>}
                                 </div>
                                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Days Clean</p>

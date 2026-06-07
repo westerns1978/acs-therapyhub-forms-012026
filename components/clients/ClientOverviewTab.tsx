@@ -4,6 +4,7 @@ import Card from '../ui/Card';
 import { FileText, CheckCircle, Award, Calendar, AlertTriangle, Clock, CreditCard, ClipboardList, FileSignature, Target } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { getComplianceEvents } from '../../services/api';
+import { fetchClientProgress, type ClientProgress } from '../../services/displayProgress';
 
 interface ClientOverviewTabProps {
   client: Client;
@@ -92,16 +93,17 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
     const missingDocsCount = client?.missingDocuments?.length || 0;
     const badgeCount = client?.gamification?.badges?.length || 0;
 
-    // SROP "X of Y hours" — prefer the explicit sropData totals; fall back to
-    // srop_hours_completed + total_sessions_required on the Supabase row.
-    const totalHours = sropData?.totalHours ?? (client as any).total_sessions_required ?? null;
-    const completedHours = sropData
-        ? sropData.phase1.completedHours + sropData.phase2.completedHours
-        : Number((client as any).srop_hours_completed ?? 0);
+    // (WS-DisplayTruth hours are derived below — after the `progress` state is declared.)
 
     const [payments, setPayments] = useState<PaymentRow[]>([]);
     const [notes, setNotes] = useState<NoteRow[]>([]);
     const [csrAlerts, setCsrAlerts] = useState<ComplianceEvent[]>([]);
+    // WS-DisplayTruth: authoritative program progress (accrual + signed determination).
+    const [progress, setProgress] = useState<ClientProgress | null>(null);
+    // Hours come from the AUTHORITATIVE progress — never sropData (mock) or the static
+    // columns. requiredTotal is null until a determination is established (no-phantom).
+    const totalHours = progress?.established ? progress.requiredTotal : null;
+    const completedHours = progress?.completedTotal ?? 0;
     // Treatment Plan card — pulled from any form_submission whose data.problems
     // array is populated (Individual Comprehensive Treatment Plan etc.). Renders
     // only when the client has one.
@@ -115,7 +117,7 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
         let mounted = true;
         (async () => {
             try {
-                const [paymentsRes, notesRes, plansRes, ceList] = await Promise.all([
+                const [paymentsRes, notesRes, plansRes, ceList, progRes] = await Promise.all([
                     supabase
                         .from('payments')
                         .select('id, amount, payment_date, payment_method, description, status, external_payment_id')
@@ -133,8 +135,10 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                         .ilike('form_name', '%treatment plan%')
                         .order('submitted_at', { ascending: false }),
                     getComplianceEvents(),
+                    fetchClientProgress(client.id),
                 ]);
                 if (!mounted) return;
+                setProgress((progRes as ClientProgress) ?? null);
                 setPayments((paymentsRes.data as PaymentRow[]) || []);
                 setNotes((notesRes.data as NoteRow[]) || []);
                 setCsrAlerts((ceList || []).filter(ce => ce.clientId === client.id));
@@ -189,15 +193,22 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                     <div className="space-y-4">
                         <div>
                             <div className="flex justify-between items-baseline mb-1">
-                                <h4 className="font-semibold">SROP Program Completion</h4>
+                                <h4 className="font-semibold">Program Completion</h4>
                                 <span className="font-bold text-lg">
-                                    {totalHours
-                                        ? `${completedHours} / ${totalHours} hrs`
-                                        : `${client.completionPercentage}%`}
+                                    {progress?.established ? `${completedHours} / ${totalHours} hrs` : 'Determination pending'}
                                 </span>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3"><div className="bg-primary h-3 rounded-full" style={{ width: `${client.completionPercentage}%` }}></div></div>
-                            <p className="text-xs text-slate-500 mt-1">{client.completionPercentage}% complete</p>
+                            {progress?.established ? (
+                                <>
+                                    <div className="w-full bg-gray-200 rounded-full h-3"><div className="bg-primary h-3 rounded-full" style={{ width: `${progress.progressPct ?? 0}%` }}></div></div>
+                                    <p className="text-xs text-slate-500 mt-1">{progress.progressPct ?? 0}% complete{progress.determinedLevel ? ` · SATOP Level ${progress.determinedLevel}` : ''}</p>
+                                    {progress.isSrop && (
+                                        <p className="text-xs text-slate-500 mt-0.5">Counseling: {progress.counselingCompleted} / {progress.counselingRequired} hrs</p>
+                                    )}
+                                </>
+                            ) : (
+                                <p className="text-xs text-slate-500 mt-1">No signed placement determination yet — required hours are set when a clinician signs the determination.</p>
+                            )}
                         </div>
                         <div>
                             <div className="flex justify-between items-baseline mb-1">
