@@ -339,8 +339,11 @@ export const getAppointments = async (date?: Date): Promise<Appointment[]> => {
         if (error) throw error;
         return (data || []).map(mapAppointmentRowToApp);
     } catch (e) {
-        console.warn('[api] getAppointments fell back to mock:', e);
-        return (mockAppointments || []).map((a: any) => ({ ...a, date: new Date(a.date) }));
+        // Honesty: NEVER fall back to mock appointments. A calendar showing fabricated
+        // sessions is worse than a visible failure — rethrow so the caller surfaces an
+        // error/empty state instead of silently rendering phantom data.
+        console.error('[api] getAppointments failed:', e);
+        throw e instanceof Error ? e : new Error('Failed to load appointments');
     }
 };
 export const getSyncedAppointments = async (date?: Date) => (await getAppointments(date));

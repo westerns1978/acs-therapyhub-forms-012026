@@ -4,7 +4,7 @@ import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check, AlertTriangle } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +23,9 @@ const SessionManagement: React.FC = () => {
     const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
     const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
     const [savingStatus, setSavingStatus] = useState(false);
+    // Calendar load must FAIL VISIBLY — never silently render phantom/mock appointments.
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [retryKey, setRetryKey] = useState(0);
 
     // Opens the live session (ActiveSession → wrap-up → saved note) for this
     // appointment's client. Only reachable when the appointment carries a clientId.
@@ -83,14 +86,24 @@ const SessionManagement: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
-            // Fetch all appointments; the week grid filters client-side per day.
-            const [apts, cls] = await Promise.all([getAppointments(), getClients()]);
-            setAppointments(apts);
-            setClients(cls);
-            setIsLoading(false);
+            setLoadError(null);
+            try {
+                // Fetch all appointments; the week grid filters client-side per day.
+                const [apts, cls] = await Promise.all([getAppointments(), getClients()]);
+                setAppointments(apts);
+                setClients(cls);
+            } catch (err) {
+                // getAppointments rethrows on a real DB error (no mock fallback). Surface a
+                // visible error + Retry rather than a hung spinner or fabricated rows.
+                console.error('[SessionManagement] failed to load schedule:', err);
+                setAppointments([]);
+                setLoadError('Could not load the schedule from the records system. Appointments are hidden rather than risk showing stale or placeholder sessions.');
+            } finally {
+                setIsLoading(false);
+            }
         };
         fetchData();
-    }, [currentDate]);
+    }, [currentDate, retryKey]);
 
     const startOfWeek = useMemo(() => {
         const d = new Date(currentDate);
@@ -140,6 +153,19 @@ const SessionManagement: React.FC = () => {
     };
 
     if (isLoading) return <LoadingSpinner />;
+
+    if (loadError) {
+        return (
+            <div className="h-full flex items-center justify-center p-8">
+                <div className="max-w-md text-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-amber-200 dark:border-amber-900/40 rounded-2xl shadow-xl p-8">
+                    <AlertTriangle className="mx-auto text-amber-500 mb-4" size={40} />
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Schedule unavailable</h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{loadError}</p>
+                    <button onClick={() => setRetryKey(k => k + 1)} className="px-5 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-primary-focus transition">Retry</button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-full flex flex-col space-y-6">
