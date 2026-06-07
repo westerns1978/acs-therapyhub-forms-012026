@@ -252,12 +252,15 @@ const PortalDashboard: React.FC = () => {
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <Card title="Program Progression">
+                        {/* WS-DisplayTruth: show the AUTHORITATIVE overall progress (accrual + signed
+                            level), not the static clients.compliance_score (legacy, no writer — #10a).
+                            No-phantom: "—" until a determination is signed. */}
                         <div className="flex items-center justify-between mb-2">
-                             <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Compliance Score</span>
-                             <span className="text-4xl font-black text-primary">{client.compliance_score}%</span>
+                             <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Overall Progress</span>
+                             <span className="text-4xl font-black text-primary">{progress?.established ? `${progress.progressPct ?? 0}%` : '—'}</span>
                         </div>
                         <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-4 overflow-hidden mb-6">
-                            <div className="bg-gradient-to-r from-primary to-accent h-full transition-all duration-1000" style={{ width: `${client.compliance_score}%` }}></div>
+                            <div className="bg-gradient-to-r from-primary to-accent h-full transition-all duration-1000" style={{ width: `${progress?.established ? (progress.progressPct ?? 0) : 0}%` }}></div>
                         </div>
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex justify-around">
                             <div className="text-center">

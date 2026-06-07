@@ -102,8 +102,15 @@ function App() {
                   <Route path="/fee-ledger/:clientId" element={<FeeLedgerRedirect />} />
 
                   {/* Clinical-only routes — Director + Therapist */}
-                  <Route path="/video-sessions" element={<RequireRole roles={['Director', 'Therapist']}><VideoSessions /></RequireRole>} />
-                  <Route path="/video-sessions/:sessionId/green-room" element={<RequireRole roles={['Director', 'Therapist']}><VideoGreenRoom /></RequireRole>} />
+                  {/* /video-sessions (+green-room) is a MOCK (getVideoSessions = hardcoded array;
+                      writers no-op). Hidden for the team test — redirect to dashboard; the real
+                      session spine is `appointments`. Role gate kept for when it's rebuilt. */}
+                  <Route path="/video-sessions" element={isTrialHidden('/video-sessions')
+                    ? <Navigate to="/dashboard" replace />
+                    : <RequireRole roles={['Director', 'Therapist']}><VideoSessions /></RequireRole>} />
+                  <Route path="/video-sessions/:sessionId/green-room" element={isTrialHidden('/video-sessions')
+                    ? <Navigate to="/dashboard" replace />
+                    : <RequireRole roles={['Director', 'Therapist']}><VideoGreenRoom /></RequireRole>} />
                   <Route path="/program-compliance/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ProgramCompliance /></RequireRole>} />
                   <Route path="/compliance-assistant" element={<RequireRole roles={['Director', 'Therapist']}><ComplianceAssistant /></RequireRole>} />
                   <Route path="/assessments/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><AsamAssessment /></RequireRole>} />

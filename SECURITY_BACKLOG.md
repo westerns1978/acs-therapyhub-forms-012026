@@ -414,6 +414,9 @@ with **mock** `getSROPData` (legacy `phase1/phase2` shape) / sessions / financia
 wrong-doc risk today). Deliberately NOT one-line-repointed: a lone authoritative % in an otherwise
 fabricated document implies a trust it doesn't earn. **Before it goes live it needs a real rebuild** on a
 real client id + WS3/WS4 sources (accrual + signed determination) + authoritative % via `displayProgress`.
+**UPDATE 2026-06-07:** the "Generate Court Report" button is now **HIDDEN** (`SHOW_COURT_REPORT=false` in
+`pages/Compliance.tsx`) for the team test so a tester can't trigger the stub; the handler stays inert (still
+hardcoded to mock id `'2'`, never wired to a real client). Un-hide only after the real rebuild. (See #11.)
 
 **(e) Clara legacy field (NEW, 2026-06-06).** `services/claraTools` whitelists `completionPercentage` /
 `completion_percentage` for `update_client_field` and selects it in `search_clients` — but nothing
@@ -424,3 +427,40 @@ select as part of the #10a static-column cleanup (post-WS6).
 RLS-gated determination (via `fetchAllClientProgress`). Evidence in the consumer-sweep witness pointed to a
 missing render-prop (fixed `22c65a1`), **not** a session race — but if a hard reload ever shows
 momentarily-empty progress that fills on navigation, add a refetch-on-auth-ready guard.
+
+---
+
+## 11. Test-readiness mock-hardening + durable demo baseline (2026-06-07)
+
+Shipped a test-readiness sweep (merge `72210d6`) so David's team can run a real SATOP client end-to-end
+without clicking a stub that looks real. All changes are display hides / redirects / a data seed —
+**no gate logic, no RLS, no PHI-access change.**
+
+- **Court-report button HIDDEN** (`SHOW_COURT_REPORT=false`, `pages/Compliance.tsx`). Still mock end-to-end
+  (see #10d); the handler stays **inert**. It must **not** be wired to a real client until rebuilt on real
+  sources (WS3/WS4 + a real client id + authoritative % via `displayProgress`). Un-hiding without that
+  rebuild is a "no wrong real document" violation.
+- **`/video-sessions` (+ green-room) redirected → `/dashboard`** (added to `TRIAL_HIDDEN_ROUTES`). Mock page
+  (`getVideoSessions` = hardcoded array; `addVideoSession`/`updateVideoSessionStatus` no-ops); the real
+  session spine is `appointments`. Was orphaned (no nav); now URL-safe too. Rebuild on `appointments`
+  before un-hiding.
+- **Portal cosmetics → authoritative.** Removed the hardcoded "Recovery Points (1,250)" + "Achievements"
+  cards (`PortalCompliance`); repointed the portal "Compliance Score" (static `clients.compliance_score`,
+  no writer) to the authoritative Overall Progress (`PortalDashboard`) — this also fixed a **phantom**: a
+  no-determination client (Pat) was showing her static `compliance_score = 100%`, now shows no-phantom `—`.
+- **Staff-side `clients.compliance_score` is still static** (client-list grid card "Compliance: X%" + the
+  profile-header "SCORE X%"). This is the **one remaining static number a tester sees**, staff-side only.
+  It is a *compliance-score* metric, **distinct from progress** (progress %, hours, level are all
+  authoritative), so it won't contradict the gate. **Folds into #10a** (static-column cleanup, deferred
+  post-WS6) — repoint/remove it then.
+- **Dead/orphaned mock code, left unreachable (optional cleanup):** `getPracticeMetrics`
+  (`services/api.ts`) has no callers; `getDailyBriefingData` feeds only `components/ai/AIBriefingModal`,
+  which is rendered nowhere. The staff Dashboard's headline metrics are **real** (live `clients` queries +
+  deterministic guardrails) — the older GAP_ANALYSIS note ("these back the Dashboard") is **stale**.
+  Remove the dead code in a future cleanup.
+
+**Durable demo baseline change:** Marcus Reyes is now a **committed, durable established client** (signed
+SROP Level IV + 16h counseling — `20260607_demo_data_marcus_established.sql`), so the demo baseline now
+*includes* a real established-path client. `determined_by` = Karen's real therapist auth uid (not the
+`44444444…` display placeholder). Pat stays no-determination (no-phantom). Mock demo data (not PHI); it
+supersedes the prior "synthesize→revert every established witness" recipe.

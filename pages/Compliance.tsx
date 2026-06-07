@@ -30,6 +30,13 @@ const StatCard: React.FC<{ icon: React.ElementType; title: string; value: string
     </div>
 );
 
+// Court Report is MOCK end-to-end (hardcoded to demo client id '2' + mock getSROPData/
+// getSessionRecords; SECURITY_BACKLOG #10d) — HIDDEN for the team test so a tester can't
+// mistake it for a working report. The handler stays inert (never wired to a real client)
+// until the report is rebuilt on real sources (WS3/WS4 + a real client id). Flip to true
+// only after that rebuild.
+const SHOW_COURT_REPORT = false;
+
 const Compliance: React.FC = () => {
     const [isReportModalOpen, setReportModalOpen] = useState(false);
     const [reportContent, setReportContent] = useState({ title: '', content: <></> });
@@ -142,10 +149,12 @@ const Compliance: React.FC = () => {
                     <ComplianceTimeline events={complianceEvents} />
                     <Card title="Report Generation">
                         <div className="space-y-3">
+                             {SHOW_COURT_REPORT && (
                              <button onClick={handleGenerateCourtReport} className="w-full flex items-center gap-3 p-3 bg-surface dark:bg-dark-surface-secondary rounded-lg hover:bg-surface-secondary dark:hover:bg-dark-surface-secondary/50 transition font-semibold text-primary dark:text-dark-primary">
                                 <FileTextIcon className="h-5 w-5" />
                                 <span>Generate Court Report</span>
                             </button>
+                             )}
                              <button onClick={handleBulkExport} className="w-full flex items-center gap-3 p-3 bg-surface dark:bg-dark-surface-secondary rounded-lg hover:bg-surface-secondary dark:hover:bg-dark-surface-secondary/50 transition font-semibold text-surface-secondary-content dark:text-dark-surface-secondary-content">
                                 <DownloadIcon className="h-5 w-5" />
                                 <span>Bulk Export (CSV)</span>

@@ -5,7 +5,7 @@ import Card from '../../components/ui/Card';
 import { supabase } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { BarChart, Award, CheckCircle2, Circle, Trophy, Target, Zap } from 'lucide-react';
+import { CheckCircle2, Circle } from 'lucide-react';
 import { fetchOwnProgress } from '../../services/displayProgress';
 
 const PortalCompliance: React.FC = () => {
@@ -64,7 +64,7 @@ const PortalCompliance: React.FC = () => {
                 <Header title="My Progress" subtitle="Track your program requirements and achievements." />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2 space-y-8">
+                    <div className="lg:col-span-3 space-y-8">
                         <Card title="Program Completion">
                             <div className="flex items-center justify-between mb-4">
                                 <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Overall Progress</p>
@@ -113,37 +113,6 @@ const PortalCompliance: React.FC = () => {
                                 {tasks.length === 0 && (
                                     <p className="text-center py-8 text-slate-500 italic">No pending tasks assigned.</p>
                                 )}
-                            </div>
-                        </Card>
-                    </div>
-
-                    <div className="space-y-8">
-                        <Card className="bg-gradient-to-br from-amber-400 to-orange-500 text-white border-none shadow-xl shadow-amber-500/20">
-                            <div className="flex items-center gap-4">
-                                <Trophy size={48} className="opacity-50" />
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Recovery Points</p>
-                                    <h3 className="text-4xl font-black">1,250</h3>
-                                </div>
-                            </div>
-                            <div className="mt-6 pt-6 border-t border-white/20">
-                                <p className="text-xs font-bold opacity-90">Next Reward: $10 Session Credit</p>
-                                <div className="w-full bg-white/20 rounded-full h-2 mt-2">
-                                    <div className="bg-white h-full rounded-full" style={{ width: '75%' }}></div>
-                                </div>
-                            </div>
-                        </Card>
-
-                        <Card title="Achievements">
-                            <div className="grid grid-cols-3 gap-4">
-                                {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center group cursor-help relative">
-                                        <Award className={`w-8 h-8 ${i <= 3 ? 'text-primary' : 'text-slate-300'}`} />
-                                        {i > 3 && <div className="absolute inset-0 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Zap size={16} className="text-slate-400" />
-                                        </div>}
-                                    </div>
-                                ))}
                             </div>
                         </Card>
                     </div>

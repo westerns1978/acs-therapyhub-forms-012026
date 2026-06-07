@@ -10,6 +10,11 @@ export const TRIAL_HIDDEN_ROUTES: readonly string[] = [
   // real charges/payments ledger; route + nav gated to Director/Admin (isFinancialRole).
   '/reporting',
   '/document-intelligence',
+  // '/video-sessions' (+ its green-room) is a MOCK page — getVideoSessions returns a
+  // hardcoded array; addVideoSession / updateVideoSessionStatus are no-ops. The real
+  // session spine is `appointments` + the Zoom edge fns. Hidden for the team test
+  // (it's orphaned — no nav link); rebuild on `appointments` before un-hiding.
+  '/video-sessions',
 ];
 
 export const isTrialHidden = (path: string): boolean =>
