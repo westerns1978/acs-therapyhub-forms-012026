@@ -14,6 +14,7 @@
 
 import { supabase } from './supabase';
 import type { Client } from '../types';
+import { fetchAllClientProgress, type ClientProgress } from './displayProgress';
 
 export type AlertTier = 'CRITICAL' | 'HIGH' | 'ELEVATED' | 'MODERATE';
 
@@ -79,7 +80,7 @@ function alertId(clientId: string, reason: AlertReason): string {
 }
 
 /** Compute all alerts for a set of clients. Pure function — safe to call from anywhere. */
-export function computeAlertsForClients(clients: Client[]): ClientAlert[] {
+export function computeAlertsForClients(clients: Client[], progressByClientId?: Map<string, ClientProgress>): ClientAlert[] {
   const alerts: ClientAlert[] = [];
   const now = new Date().toISOString();
 
@@ -91,7 +92,12 @@ export function computeAlertsForClients(clients: Client[]): ClientAlert[] {
 
     const missed = consecutiveAbsences(c.attendanceHistory);
     const deadlineDays = daysUntil(c.nextDeadline);
-    const incomplete = (c.completionPercentage ?? 0) < 100;
+    // WS-DisplayTruth: completeness from the AUTHORITATIVE progress (accrual + signed
+    // determination) the caller passes in — never the neutralized c.completionPercentage.
+    // Not established or below required ⇒ incomplete; only established-and-≥100% is complete.
+    const prog = progressByClientId?.get(c.id);
+    const completionPct = prog?.established ? (prog.progressPct ?? 0) : null;
+    const incomplete = completionPct === null || completionPct < 100;
 
     // Already in warrant status — highest priority
     if (c.status === 'Warrant Issued') {
@@ -137,7 +143,7 @@ export function computeAlertsForClients(clients: Client[]): ClientAlert[] {
         tier,
         reason: 'DEADLINE_IMMINENT',
         headline: `Deadline in ${deadlineDays} day${deadlineDays === 1 ? '' : 's'}`,
-        detail: `${c.name} is ${c.completionPercentage || 0}% complete with a court deadline in ${deadlineDays} day${deadlineDays === 1 ? '' : 's'}. ${tier === 'CRITICAL' ? 'Escalate immediately.' : 'Schedule catch-up sessions now.'}`,
+        detail: `${c.name} ${completionPct !== null ? `is ${completionPct}% complete` : 'is behind (no signed determination yet)'} with a court deadline in ${deadlineDays} day${deadlineDays === 1 ? '' : 's'}. ${tier === 'CRITICAL' ? 'Escalate immediately.' : 'Schedule catch-up sessions now.'}`,
         recommendedActions: ['SCHEDULE_URGENT', 'SEND_OUTREACH', 'NOTIFY_PROBATION'],
         computedAt: now,
       });
@@ -178,13 +184,12 @@ export function computeAlertsForClients(clients: Client[]): ClientAlert[] {
     // 9 CSR 30-3 — every SATOP/SROP client needs a 90-day treatment plan review.
     // Trigger when an active client is mid-program (≥40 of 75 hours, <75 total).
     // Visible on the client record AND counted on the staff dashboard.
-    // NOTE: fetchAlerts passes raw Supabase rows here (no mapClientToApp), so
-    // we have to read `program_type` (DB column) as well as `program` (TS field).
-    const sropHours = Number((c as any).srop_hours_completed ?? 0);
-    const totalRequired = Number((c as any).total_sessions_required ?? 0);
-    const programRaw = ((c as any).program_type || c.program || '').toString().toUpperCase();
-    const isSatopFamily = programRaw === 'SATOP' || programRaw === 'SROP' || programRaw === 'REACT';
-    if (isSatopFamily && totalRequired >= 50 && sropHours >= 40 && sropHours < totalRequired) {
+    // WS-DisplayTruth: fire off the AUTHORITATIVE accrual + signed determination (the same
+    // sources the completion gate uses), NEVER the static srop_hours_completed /
+    // total_sessions_required. Only fires when a determination is established — no-phantom,
+    // so a "behind on hours" alert can never contradict the gate.
+    if (prog?.established && prog.requiredTotal != null && prog.requiredTotal >= 50
+        && prog.completedTotal >= 40 && prog.completedTotal < prog.requiredTotal) {
       const programLabel = c.program || (c as any).program_type || 'program';
       alerts.push({
         id: alertId(c.id, 'CSR_PLAN_REVIEW_DUE'),
@@ -194,7 +199,7 @@ export function computeAlertsForClients(clients: Client[]): ClientAlert[] {
         tier: 'ELEVATED',
         reason: 'CSR_PLAN_REVIEW_DUE',
         headline: '90-Day Treatment Plan Update Due',
-        detail: `${c.name} is ${sropHours}/${totalRequired} hours into their ${programLabel} program. Per 9 CSR 30-3, the 90-day treatment plan review is due within 7 days. Schedule clinical staffing.`,
+        detail: `${c.name} is ${prog.completedTotal}/${prog.requiredTotal} hours into their ${programLabel} program. Per 9 CSR 30-3, the 90-day treatment plan review is due within 7 days. Schedule clinical staffing.`,
         recommendedActions: ['CREATE_TASK', 'FLAG_SUPERVISOR'],
         computedAt: now,
       });
@@ -245,7 +250,11 @@ export async function fetchAlerts(): Promise<ClientAlert[]> {
       console.warn('[alertsService] supabase query failed:', error.message);
       return [];
     }
-    return computeAlertsForClients((data || []) as Client[]);
+    const rows = (data || []) as Client[];
+    // WS-DisplayTruth: authoritative progress (accrual + signed determination) per client,
+    // so the "behind on hours" alert agrees with the gate — not the static columns.
+    const progress = await fetchAllClientProgress(rows.map((r: any) => r.id));
+    return computeAlertsForClients(rows, progress);
   } catch (e) {
     console.error('[alertsService] fetchAlerts failed:', e);
     return [];

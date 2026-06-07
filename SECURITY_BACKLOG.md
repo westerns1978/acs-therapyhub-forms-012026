@@ -349,3 +349,78 @@ get registry entries. **Harmless to the SATOP completion gate** (non-SATOP clien
 
 Post-WS5: when the Opioid/Gambling programs get first-class form sets, add their intake registry
 ids and backfill (`update public.form_submissions set form_id='opioid-intake' where form_name='Opioid Recovery Intake'`, etc.).
+
+---
+
+## 10. Static progress columns are now UNREAD; client portal can't read the authoritative required (WS-DisplayTruth)
+
+> **Status (2026-06-06): #10b RESOLVED** — the portal-determination RPC `public.my_progress()` shipped and is live (see (b)). **#10a still DEFERRED to post-WS6** — the static `srop_hours_completed` / `total_sessions_required` columns stay in place, unread, until WS6 merges (cross-branch safety); only then drop them + their seed writers.
+
+Found/done during WS-DisplayTruth (2026-06-06). Two parts:
+
+**(a) `clients.srop_hours_completed` + `clients.total_sessions_required` are now legacy/unread.** Every
+display surface (PortalDashboard, PortalCompliance, ClientOverviewTab, the progress-% in
+`mapClientToApp`, `alertsService`) was repointed to `services/displayProgress.ts`, which composes the
+SAME authoritative sources the gate uses (`client_accrued_hours` + the signed determination via
+`REQUIRED_HOURS_BY_LEVEL`). Grep confirms **zero app readers** of the two static columns (only
+comments remain). They were **left in place, unread** — a future migration can drop the columns
+(and the seed writers) once nothing in any branch references them. Do NOT migrate them away until
+the WS6 branch (which doesn't read them either) is merged, to avoid a cross-branch surprise.
+
+**(b) The client PORTAL cannot show the authoritative required-total / level.** `placement_determinations`
+is **staff-only** (WS2 `pd_select_staff`; no client self-read, deliberately). So a portal client's
+`fetchClientProgress` can read their **completed** hours (accrual is client-readable) but
+`fetchClientDetermination` returns null → `established=false`. The portal therefore shows the
+authoritative **completed hours + "Required total set by your counselor"** (honest — never the static
+75, never a misleading "pending-implies-no-determination"). Staff surfaces show the full
+authoritative X/Y + level (they can read the determination). **✅ SHIPPED (2026-06-06, migration
+`20260606_wsdisplaytruth_1_my_progress_rpc`):** a `SECURITY DEFINER` `public.my_progress()` returns
+**only `{established, level}`** for `auth.uid()`'s own client — self-scoped via `private.my_client_ids()`,
+fail-closed singleton (no client / no determination → `(false, null)`). The **app** applies
+`REQUIRED_HOURS_BY_LEVEL` + the SROP floor to that level for the client path, identical to the staff path
+(single source). The older `{level, requiredTotal, completedTotal, counselingRequired}` SQL sketch was
+**deliberately dropped** — computing the hours map in SQL would be a second source of truth, the exact
+divergence DisplayTruth exists to prevent. It exposes the level scalar only, never the
+`placement_determinations` row → WS2's staff-only boundary stays intact (witnessed: a portal Client's
+direct `SELECT placement_determinations` still returns 0 rows; the RPC returns the level). The portal
+path (`fetchOwnProgress`) routes the level through the RPC; the "Required total set by your counselor"
+placeholder was replaced with warm, no-phantom copy.
+
+**Multi-client nuance (pilot-acceptable; flagged WS-DisplayTruth Phase 2, 2026-06-06).** The shipped
+`my_progress()` scopes by the caller's JWT email via `private.my_client_ids()` (a `setof uuid`) and
+returns the latest signed level across **all** of the caller's `clients` rows
+(`order by determined_at desc limit 1`), while `fetchOwnProgress` resolves **completed** hours by the
+passed `clientId`. On the 1:1 demo accounts these coincide exactly. If one auth email ever maps to
+**multiple** `clients` rows, the displayed level could come from a different client row than the completed
+hours. Fix when a real `clients.auth_user_id` FK replaces email-matching (the same FK called for in
+BLOCKER 2's "client write flows" note): scope `my_progress()` to a single resolved client id. Harmless at
+pilot (mock data, 1:1). *(The `{established, level}` return shape is the as-built; reconciled above.)*
+
+**(c) Consumer sweep — the neutralized `completionPercentage` (WS-DisplayTruth Phase 2, 2026-06-06; RESOLVED).**
+`mapClientToApp` neutralizes `client.completionPercentage` to `0` (it can't await the authoritative source
+in a sync mapper). Three **live** surfaces still rendered that `0` for real clients and were repointed to
+the authoritative progress (no-phantom — no number when not established): the **staff header**
+(`ClientProfileHeader`, now fed the progress `ClientWorkspace` composes once → header + overview share one
+fetch), the **client-list grid bar** (`ClientSelectionGrid`, batched `fetchAllClientProgress`), and the
+**deadline alert** (`alertsService` — `incomplete` flag + detail % from `progressByClientId`; "is behind
+(no signed determination yet)" instead of "0%"). Witnessed both directions live (header 32% / grid 32% /
+alert "32% complete" for an established client; "—" / empty / "is behind…" for no-determination).
+
+**(d) Court report is MOCK end-to-end (NEW, 2026-06-06).** `components/compliance/CourtReportPreview`
+renders `Overall Progress: {client.completionPercentage}% Complete` — but its only caller
+(`pages/Compliance.tsx handleGenerateCourtReport`) is hardcoded to mock client id `'2'` ("Bob Williams")
+with **mock** `getSROPData` (legacy `phase1/phase2` shape) / sessions / financials, so for a real client
+`clients.find(c => c.id === '2')` is `undefined` → early return → **it renders nothing** (dead button → no
+wrong-doc risk today). Deliberately NOT one-line-repointed: a lone authoritative % in an otherwise
+fabricated document implies a trust it doesn't earn. **Before it goes live it needs a real rebuild** on a
+real client id + WS3/WS4 sources (accrual + signed determination) + authoritative % via `displayProgress`.
+
+**(e) Clara legacy field (NEW, 2026-06-06).** `services/claraTools` whitelists `completionPercentage` /
+`completion_percentage` for `update_client_field` and selects it in `search_clients` — but nothing
+authoritative reads the DB column anymore, so the read/write is **orphaned**. Drop it from the whitelist +
+select as part of the #10a static-column cleanup (post-WS6).
+
+**(f) Watch-note (NEW, 2026-06-06).** The grid + alerts compute progress from a **mount-time** fetch of the
+RLS-gated determination (via `fetchAllClientProgress`). Evidence in the consumer-sweep witness pointed to a
+missing render-prop (fixed `22c65a1`), **not** a session race — but if a hard reload ever shows
+momentarily-empty progress that fills on navigation, add a refetch-on-auth-ready guard.

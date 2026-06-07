@@ -10,6 +10,7 @@ import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { FileText, DollarSign, BarChart, Calendar, ArrowRight, Video, Award, ClipboardList, MapPin, Search, X, HeartHandshake, Brain, ExternalLink, MessageSquare } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
+import { fetchOwnProgress } from '../../services/displayProgress';
 
 interface ActionCardProps {
     icon: React.ElementType;
@@ -184,10 +185,13 @@ const PortalDashboard: React.FC = () => {
                     .eq('client_id', portalClient.id)
                     .in('status', ['pending', 'Pending', 'In Progress', 'Not Started']);
 
+                // WS-DisplayTruth: own authoritative progress (accrual + level via my_progress() RPC).
+                const progress = await fetchOwnProgress(portalClient.id);
                 setDashboardData({
                     client: clientData,
                     upcomingAppointments: upcomingAppts || [],
                     pendingForms: pendingForms || [],
+                    progress,
                 });
             } catch (err) {
                 console.warn('Portal dashboard error:', err);
@@ -200,7 +204,7 @@ const PortalDashboard: React.FC = () => {
     if (isLoading) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
     if (!dashboardData?.client) return <PortalLayout><div className="text-center p-12">Session Expired.</div></PortalLayout>;
 
-    const { client, upcomingAppointments, pendingForms } = dashboardData;
+    const { client, upcomingAppointments, pendingForms, progress } = dashboardData;
     const nextAppointment = upcomingAppointments[0];
 
     return (
@@ -258,11 +262,16 @@ const PortalDashboard: React.FC = () => {
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex justify-around">
                             <div className="text-center">
                                 <p className="text-xs font-bold text-slate-400 uppercase mb-1">
-                                    {client.program_type === 'GAMBLING_RECOVERY' ? 'Program Progress' : 'SATOP Progress'}
+                                    {progress?.established ? `SATOP Level ${progress.determinedLevel}` : 'SATOP Hours Completed'}
                                 </p>
                                 <p className="text-2xl font-black text-amber-500">
-                                    {client.srop_hours_completed || 0} / {client.total_sessions_required || 75} {client.program_type === 'GAMBLING_RECOVERY' ? 'sessions' : 'hrs'}
+                                    {progress?.established
+                                        ? `${progress.completedTotal} / ${progress.requiredTotal} hrs`
+                                        : `${progress?.completedTotal ?? 0} hrs`}
                                 </p>
+                                {progress?.established
+                                    ? (progress.isSrop && <p className="text-[11px] font-bold text-slate-400 mt-1">Counseling {progress.counselingCompleted}/{progress.counselingRequired}</p>)
+                                    : <p className="text-[11px] font-bold text-slate-400 mt-1">Your required hours will be set by your counselor after your screening.</p>}
                             </div>
                             <div className="w-px bg-slate-200 dark:bg-slate-700"></div>
                             <div className="text-center">
