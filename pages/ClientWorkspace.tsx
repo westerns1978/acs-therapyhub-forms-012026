@@ -17,7 +17,7 @@ import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
-import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, type AccruedHours } from '../services/complianceEngine';
+import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms, type AccruedHours } from '../services/complianceEngine';
 import type { SatopLevel } from '../config/satopFees';
 import { downloadClientRecordPacket } from '../services/pdfDocuments';
 import DocumentPreviewModal, { PreviewKind } from '../components/clients/DocumentPreviewModal';
@@ -175,6 +175,8 @@ const ClientWorkspace: React.FC = () => {
     const [clientAccrual, setClientAccrual] = useState<AccruedHours | undefined>(undefined);
     // WS4: the current signed determination level — the gate's level source (+ the header badge).
     const [clientDeterminedLevel, setClientDeterminedLevel] = useState<SatopLevel | null>(null);
+    // WS5: ids of the client's completed/reviewed forms — the required-forms gate input.
+    const [clientSignedForms, setClientSignedForms] = useState<Set<string> | null>(null);
     const [preview, setPreview] = useState<PreviewKind | null>(null);
 
     const loadClientData = useCallback(async (id: string) => {
@@ -194,6 +196,7 @@ const ClientWorkspace: React.FC = () => {
                     fetchCompletionSignoff(id),
                     fetchClientAccrual(id),
                     fetchClientDetermination(id),
+                    fetchClientSignedForms(id),
                 ]);
 
                 if (results[0].status === 'fulfilled') setDocuments(results[0].value as DocumentFile[] || []);
@@ -207,6 +210,7 @@ const ClientWorkspace: React.FC = () => {
                 setCompletionSignedOff(results[4].status === 'fulfilled' ? !!results[4].value : false);
                 setClientAccrual(results[5].status === 'fulfilled' ? (results[5].value as AccruedHours) : undefined);
                 setClientDeterminedLevel(results[6].status === 'fulfilled' ? (results[6].value as SatopLevel | null) : null);
+                setClientSignedForms(results[7].status === 'fulfilled' ? (results[7].value as Set<string>) : null);
             } else {
                 setClient(null);
                 navigate('/clients');
@@ -244,7 +248,7 @@ const ClientWorkspace: React.FC = () => {
     // Deterministic compliance assessment for this client. The engine — not the
     // UI — decides whether the completion certificate may be generated. Sign-off
     // (a separate clinical_notes event) is injected as one of the three gates.
-    const assessment = assessClient(client, { completionSignedOff, accrual: clientAccrual, determinedLevel: clientDeterminedLevel });
+    const assessment = assessClient(client, { completionSignedOff, accrual: clientAccrual, determinedLevel: clientDeterminedLevel, signedFormIds: clientSignedForms });
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },

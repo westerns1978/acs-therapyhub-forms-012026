@@ -11,24 +11,19 @@ import { FileText, CheckCircle2, Clock, ArrowRight, Upload, X, Loader2, FileUp, 
 import { submitPaperForm } from '../../services/api';
 import Modal from '../../components/ui/Modal';
 import MobileDocumentUpload from '../../components/portal/MobileDocumentUpload';
+import { CLIENT_REGISTRY_FORMS } from '../../config/formRegistry';
 
-// All client-facing forms — matches the real definitions in components/forms/
-const CLIENT_FORMS = [
-  { id: 'satop-intake', name: 'SATOP Client Intake', 
-    category: 'Intake', description: 'Primary intake document for your SATOP program enrollment', required: true },
-  { id: 'consent-treatment', name: 'Consent for Treatment', 
-    category: 'Legal', description: 'Authorization and acknowledgment for program participation', required: true },
-  { id: 'emergency-contact', name: 'Emergency Contact Form', 
-    category: 'Intake', description: 'Emergency contact and disclosure authorization', required: true },
-  { id: 'authorization-release', name: 'Authorization for Release', 
-    category: 'Legal', description: 'Permission to share records with designated parties', required: true },
-  { id: 'recovery-plan', name: 'Continuing Recovery Plan', 
-    category: 'Treatment', description: 'Your personal plan for maintaining long-term sobriety', required: true },
-  { id: 'satop-checklist', name: 'SATOP Program Checklist', 
-    category: 'Compliance', description: 'Track your program requirements and completion status', required: false },
-  { id: 'telehealth-feedback', name: 'Telehealth Session Feedback', 
-    category: 'Clinical', description: 'Help us improve your virtual session experience', required: false },
-];
+// WS5: client-facing catalog comes from the single FORM_REGISTRY (audience='client').
+// Required-core is INTRINSIC (requiredForCompletion) — a required form with no assignment
+// row still appears, so completion can't be dodged by never assigning. Completion is
+// matched on form_id (now `text`, backfilled) — never the free-text form_name.
+const CLIENT_FORMS = CLIENT_REGISTRY_FORMS.map((f) => ({
+  id: f.id,
+  name: f.title,
+  category: f.category,
+  description: f.description || '',
+  required: f.requiredForCompletion,
+}));
 
 const PaperUploadModal: React.FC<{ 
     isOpen: boolean, 

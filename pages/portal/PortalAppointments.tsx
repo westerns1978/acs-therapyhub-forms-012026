@@ -69,13 +69,14 @@ const PortalAppointments: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-3 w-full sm:w-auto">
-                                        {appt.location === 'Telehealth' ? (
-                                            <button className="flex-1 sm:flex-none px-6 py-2.5 bg-accent text-white rounded-xl font-black text-xs shadow-lg shadow-accent/20 hover:scale-105 transition-all flex items-center justify-center gap-2">
+                                        {appt.zoom_link ? (
+                                            <a href={appt.zoom_link} target="_blank" rel="noopener noreferrer"
+                                               className="flex-1 sm:flex-none px-6 py-2.5 bg-accent text-white rounded-xl font-black text-xs shadow-lg shadow-accent/20 hover:scale-105 transition-all flex items-center justify-center gap-2">
                                                 <Video size={16} /> JOIN VIRTUAL ROOM
-                                            </button>
+                                            </a>
                                         ) : (
                                             <div className="flex items-center gap-2 text-slate-500 text-sm font-bold">
-                                                <MapPin size={16} /> {appt.location || 'In-Person'}
+                                                <MapPin size={16} /> {appt.modality && appt.modality.includes('Zoom') ? 'Link pending' : (appt.modality || 'In-Person')}
                                             </div>
                                         )}
                                     </div>

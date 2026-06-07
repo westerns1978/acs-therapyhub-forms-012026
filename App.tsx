@@ -25,7 +25,6 @@ const ActiveSession = lazy(() => import('./pages/ActiveSession'));
 const ProgramCompliance = lazy(() => import('./pages/ProgressTracking'));
 const ComplianceAssistant = lazy(() => import('./pages/ComplianceAssistant'));
 const AsamAssessment = lazy(() => import('./pages/AsamAssessment'));
-const SignaturePage = lazy(() => import('./pages/SignaturePage'));
 const Compliance = lazy(() => import('./pages/Compliance'));
 const ProgramPlan = lazy(() => import('./pages/TreatmentPlan'));
 // Mock fee-ledger page (pages/Billing.tsx) retired in WS-RecordPayment 2b — it had a
@@ -55,7 +54,6 @@ const ClientLogin = lazy(() => import('./pages/portal/ClientLogin'));
 const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'));
 const PortalDocuments = lazy(() => import('./pages/portal/PortalDocuments'));
 const PortalBilling = lazy(() => import('./pages/portal/PortalBilling'));
-const PortalSignDocument = lazy(() => import('./pages/portal/PortalSignDocument'));
 const PortalCompliance = lazy(() => import('./pages/portal/PortalCompliance'));
 const PortalFormPage = lazy(() => import('./pages/portal/PortalFormPage'));
 const PortalAppointments = lazy(() => import('./pages/portal/PortalAppointments'));
@@ -101,7 +99,6 @@ function App() {
                   <Route path="/session-management" element={<ProtectedRoute><SessionManagement /></ProtectedRoute>} />
                   <Route path="/session/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ActiveSession /></RequireRole>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
-                  <Route path="/sign/:documentType/:clientId" element={<ProtectedRoute><SignaturePage /></ProtectedRoute>} />
                   <Route path="/fee-ledger/:clientId" element={<FeeLedgerRedirect />} />
 
                   {/* Clinical-only routes — Director + Therapist */}
@@ -142,7 +139,6 @@ function App() {
                   <Route path="/portal/dashboard" element={<PortalProtectedRoute><PortalDashboard /></PortalProtectedRoute>} />
                   <Route path="/portal/documents" element={<PortalProtectedRoute><PortalDocuments /></PortalProtectedRoute>} />
                   <Route path="/portal/billing" element={<PortalProtectedRoute><PortalBilling /></PortalProtectedRoute>} />
-                  <Route path="/portal/documents/sign/:docId" element={<PortalProtectedRoute><PortalSignDocument /></PortalProtectedRoute>} />
                   <Route path="/portal/compliance" element={<PortalProtectedRoute><PortalCompliance /></PortalProtectedRoute>} />
                   <Route path="/portal/appointments" element={<PortalProtectedRoute><PortalAppointments /></PortalProtectedRoute>} />
                   <Route path="/portal/forms/:formId" element={<PortalProtectedRoute><PortalFormPage /></PortalProtectedRoute>} />
