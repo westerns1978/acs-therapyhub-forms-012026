@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Client, Appointment, AppointmentType } from '../../types';
-import { addAppointment, updateAppointment, analyzeTravelRisk } from '../../services/api';
+import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor } from '../../services/api';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent, getGoogleFreeBusy } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,6 +13,8 @@ interface ScheduleSessionModalProps {
     clients: Client[];
     preselectedClient?: Client;
 }
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onClose, onSave, clients, preselectedClient }) => {
     const { user } = useAuth();
@@ -30,6 +32,12 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
 
     // Google Calendar conflict check
     const [calendarConflict, setCalendarConflict] = useState<string | null>(null);
+
+    // WS6: optional standing group. When selected, the appointment inherits the counselor's
+    // permanent Zoom room + the group's service_type and skips minting a throwaway meeting.
+    const [groups, setGroups] = useState<any[]>([]);
+    const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>(undefined);
+    useEffect(() => { if (isOpen) getGroupsWithCounselor().then(setGroups).catch(() => setGroups([])); }, [isOpen]);
 
     useEffect(() => {
         if (preselectedClient) {
@@ -90,17 +98,29 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     }, [date, startTime, endTime, user?.id]);
 
     const isGroup = sessionType.toLowerCase().includes('group');
+    const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
         const client = clients.find(p => p.id === selectedClientId);
+        const selectedGroup = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
 
-        // If Zoom is linked, auto-create a real meeting for telehealth sessions.
-        // Failure is non-fatal; appointment still saves without a zoom link.
         let zoomLink: string | undefined;
         let zoomMeetingId: string | undefined;
-        if (user?.id && isZoomLinked()) {
+        let serviceType: Appointment['serviceType'];
+        let groupId: string | undefined;
+
+        if (selectedGroup) {
+            // WS6 standing group: reuse the counselor's PERMANENT Zoom room + inherit the WS3
+            // reg category. Do NOT mint a throwaway per-session meeting.
+            zoomLink = selectedGroup.counselor_zoom_link || undefined;
+            zoomMeetingId = selectedGroup.counselor_zoom_meeting_id || undefined;
+            serviceType = (selectedGroup.service_type as Appointment['serviceType']) || undefined;
+            groupId = selectedGroup.id;
+        } else if (user?.id && isZoomLinked()) {
+            // Ad-hoc (no group): auto-create a per-session Zoom meeting — unchanged path.
+            // Failure is non-fatal; appointment still saves without a zoom link.
             try {
                 const startIso = new Date(`${date}T${startTime}:00`).toISOString();
                 const endIso = new Date(`${date}T${endTime}:00`).toISOString();
@@ -132,6 +152,8 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             therapist: 'Bill Sunderman, MEd, LPC',
             zoomLink,
             status: 'Scheduled',
+            serviceType,
+            groupId,
             ...(isGroup
                 ? { capacity, attendees: [] }
                 : { clientId: selectedClientId, clientName: client?.name }
@@ -212,7 +234,26 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 <option>Intake Assessment</option>
                             </select>
                         </div>
-                        
+
+                        {/* WS6: optional standing group — inherits the counselor's permanent
+                            Zoom room + auto-categorizes hours. "Ad-hoc" keeps the unchanged path. */}
+                        <div>
+                            <label htmlFor="group" className="block text-sm font-medium mb-1">Standing group <span className="text-slate-400 font-normal">(optional)</span></label>
+                            <select id="group" value={selectedGroupId ?? ''} onChange={e => setSelectedGroupId(e.target.value || undefined)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
+                                <option value="">— Ad-hoc session (no group) —</option>
+                                {groups.map(g => (
+                                    <option key={g.id} value={g.id}>
+                                        {g.program} · {g.counselor_name ?? 'TBD'} · {WEEKDAYS[g.weekday] ?? 'by appt'}{g.start_local ? ' ' + String(g.start_local).slice(0, 5) : ''} · {g.session_kind}
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedGroupObj && (
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Inherits <b>{selectedGroupObj.counselor_name ?? 'counselor'}</b>'s permanent Zoom room · category <b>{selectedGroupObj.service_type}</b>{selectedGroupObj.counselor_zoom_link ? '' : ' · (no link on counselor)'}
+                                </p>
+                            )}
+                        </div>
+
                         {!isGroup && (
                              <div>
                                 <label htmlFor="client" className="block text-sm font-medium mb-1">Client</label>

@@ -286,6 +286,7 @@ const mapAppointmentRowToApp = (row: any): Appointment => {
         zoomMeetingId: row.zoom_meeting_id || undefined,
         status: normalizeAppointmentStatus(row.status),
         serviceType: row.service_type || undefined,
+        groupId: row.group_id || undefined,
         capacity: row.capacity ?? undefined,
         // NOTE: appointments.client_id is TEXT in the DB, while every other
         // client_id column is uuid (SECURITY_BACKLOG.md #7). It maps fine to a
@@ -314,6 +315,8 @@ const mapAppToAppointmentRow = (appt: Partial<Appointment>) => {
         zoom_link: appt.zoomLink ?? null,
         zoom_meeting_id: appt.zoomMeetingId ?? null,
         status: appt.status ?? 'Scheduled',
+        service_type: appt.serviceType ?? null,   // WS3/WS6: born categorized (group inherits; ad-hoc → null, set at mark-complete)
+        group_id: appt.groupId ?? null,            // WS6: standing-group instance (null = ad-hoc)
         capacity: appt.capacity ?? null,
         client_id: appt.clientId ?? null,
         client_name: appt.clientName ?? null,
@@ -357,6 +360,33 @@ export const addAppointment = async (data: Partial<Appointment>): Promise<Appoin
         throw new Error(error.message || 'Failed to save appointment');
     }
     return mapAppointmentRowToApp(saved);
+};
+
+// WS6: standing groups joined to their counselor (for the schedule modal). Staff-only by
+// RLS (groups + counselors are staff_all). Flattens the counselor's permanent Zoom room so
+// a group-instance can inherit zoom_link/zoom_meeting_id + the WS3 service_type.
+export const getGroupsWithCounselor = async () => {
+    const { data, error } = await supabase
+        .from('groups')
+        .select('id, program, weekday, start_local, end_local, session_kind, service_type, active, counselors(name, zoom_link, zoom_meeting_id)')
+        .eq('active', true)
+        .order('weekday', { ascending: true });
+    if (error) {
+        console.warn('[api] getGroupsWithCounselor failed:', error.message);
+        return [];
+    }
+    return (data || []).map((g: any) => ({
+        id: g.id,
+        program: g.program,
+        weekday: g.weekday,
+        start_local: g.start_local,
+        end_local: g.end_local,
+        session_kind: g.session_kind,
+        service_type: g.service_type,
+        counselor_name: g.counselors?.name ?? null,
+        counselor_zoom_link: g.counselors?.zoom_link ?? null,
+        counselor_zoom_meeting_id: g.counselors?.zoom_meeting_id ?? null,
+    }));
 };
 
 export const updateAppointment = async (id: string, patch: Partial<Appointment>): Promise<Appointment> => {

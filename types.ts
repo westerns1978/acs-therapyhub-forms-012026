@@ -395,6 +395,7 @@ export interface Appointment {
   zoomMeetingId?: string;
   status: AppointmentStatus;
   serviceType?: ServiceType;
+  groupId?: string; // WS6: standing-group instance (null/undefined = ad-hoc session)
   capacity?: number;
   attendees?: Attendee[];
   clientId?: string;
