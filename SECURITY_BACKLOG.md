@@ -354,7 +354,7 @@ ids and backfill (`update public.form_submissions set form_id='opioid-intake' wh
 
 ## 10. Static progress columns are now UNREAD; client portal can't read the authoritative required (WS-DisplayTruth)
 
-> **Status (2026-06-06): #10b RESOLVED** — the portal-determination RPC `public.my_progress()` shipped and is live (see (b)). **#10a still DEFERRED to post-WS6** — the static `srop_hours_completed` / `total_sessions_required` columns stay in place, unread, until WS6 merges (cross-branch safety); only then drop them + their seed writers.
+> **Status (2026-06-07): #10b RESOLVED · #10a UNBLOCKED.** The portal-determination RPC `public.my_progress()` shipped and is live (see (b)). **#10a is now UNBLOCKED — WS6 (standing groups) merged to `main` 2026-06-07 (`9093d1b`)**, so the cross-branch hold is lifted. The static `srop_hours_completed` / `total_sessions_required` columns are unread in every branch and can now be dropped (with their seed writers) as a standalone cleanup — see (a) plus the §424 / §454 follow-ups that fold into it.
 
 Found/done during WS-DisplayTruth (2026-06-06). Two parts:
 
@@ -364,8 +364,7 @@ display surface (PortalDashboard, PortalCompliance, ClientOverviewTab, the progr
 SAME authoritative sources the gate uses (`client_accrued_hours` + the signed determination via
 `REQUIRED_HOURS_BY_LEVEL`). Grep confirms **zero app readers** of the two static columns (only
 comments remain). They were **left in place, unread** — a future migration can drop the columns
-(and the seed writers) once nothing in any branch references them. Do NOT migrate them away until
-the WS6 branch (which doesn't read them either) is merged, to avoid a cross-branch surprise.
+(and the seed writers) once nothing in any branch references them. ✅ **WS6 merged 2026-06-07 (`9093d1b`) — the cross-branch hold is lifted; this cleanup is now unblocked** (WS6 doesn't read them either).
 
 **(b) The client PORTAL cannot show the authoritative required-total / level.** `placement_determinations`
 is **staff-only** (WS2 `pd_select_staff`; no client self-read, deliberately). So a portal client's
