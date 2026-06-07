@@ -21,6 +21,7 @@
 import pack from '../compliance/missouri-compliance-pack.json';
 import { supabase } from './supabase';
 import { REQUIRED_HOURS_BY_LEVEL, type SatopLevel } from '../config/satopFees';
+import { REQUIRED_FORMS_BY_LEVEL } from '../config/formRegistry';
 
 export type Primitive =
   | 'HOURS' | 'DEADLINE' | 'DOCUMENT' | 'SIGNATURE' | 'CONSTRAINT' | 'SEQUENCE' | 'CREDENTIAL';
@@ -51,6 +52,7 @@ export interface ClientFacts {
   hourComponents: Record<string, number> | null; // per-category hours — absent today
   outstandingBalance: number | null;  // clients.balance — completion gate (must be 0)
   completionSignedOff: boolean | null; // signed completion_signoff note — completion gate
+  signedFormIds: Set<string> | null;   // WS5: ids of the client's completed/reviewed forms — required-forms gate
 }
 
 export const PACK_ID: string = (pack as any).pack_id;
@@ -238,7 +240,7 @@ export interface GuardrailVerdict {
 export interface AccruedHours { total: number; counseling: number; education: number; rehabilitative_support: number; }
 const ZERO_ACCRUAL: AccruedHours = { total: 0, counseling: 0, education: 0, rehabilitative_support: 0 };
 
-function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?: boolean; determinedLevel?: SatopLevel | null } = {}): ClientFacts {
+function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?: boolean; determinedLevel?: SatopLevel | null; signedFormIds?: Set<string> | null } = {}): ClientFacts {
   // No fallback to srop_hours_completed: a client with no Completed sessions reads 0
   // accrued hours and does NOT pass on seeded data.
   const accrual = opts.accrual ?? ZERO_ACCRUAL;
@@ -267,6 +269,7 @@ function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?:
     outstandingBalance: row.balance == null ? null : Number(row.balance),
     completionSignedOff:
       opts.completionSignedOff ?? (typeof row.completionSignedOff === 'boolean' ? row.completionSignedOff : null),
+    signedFormIds: opts.signedFormIds ?? null,
   };
 }
 
@@ -350,6 +353,40 @@ async function fetchAllCurrentDeterminations(): Promise<Map<string, SatopLevel>>
   return out;
 }
 
+/** WS5 — the set of form_ids the client has COMPLETED or REVIEWED (case-insensitive;
+ *  the data is mixed-case 'Completed'/'completed'). The required-forms gate's input. */
+export async function fetchClientSignedForms(clientId: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  const { data, error } = await supabase
+    .from('form_submissions').select('form_id, status').eq('client_id', clientId);
+  if (error || !data) {
+    if (error) console.warn('[complianceEngine] signed-forms query failed:', error.message);
+    return out;
+  }
+  for (const r of data) {
+    const s = String(r.status || '').toLowerCase();
+    if (r.form_id && (s === 'completed' || s === 'reviewed')) out.add(r.form_id);
+  }
+  return out;
+}
+
+/** Batch — completed/reviewed form_id sets keyed by client_id (practice-wide fetchers). */
+async function fetchAllSignedForms(): Promise<Map<string, Set<string>>> {
+  const out = new Map<string, Set<string>>();
+  const { data, error } = await supabase.from('form_submissions').select('client_id, form_id, status');
+  if (error || !data) {
+    if (error) console.warn('[complianceEngine] batch signed-forms query failed:', error.message);
+    return out;
+  }
+  for (const r of data) {
+    const s = String(r.status || '').toLowerCase();
+    if (!r.client_id || !r.form_id || (s !== 'completed' && s !== 'reviewed')) continue;
+    if (!out.has(r.client_id)) out.set(r.client_id, new Set<string>());
+    out.get(r.client_id)!.add(r.form_id);
+  }
+  return out;
+}
+
 /**
  * Fetch active clients and compute their guardrail verdicts. Only surfaced
  * statuses (warning/violation) are returned for the Clinical Guardrails card;
@@ -367,9 +404,10 @@ export async function fetchComplianceGuardrails(): Promise<GuardrailVerdict[]> {
   const nowMs = Date.now();
   const accruals = await fetchAllAccruals();
   const determinations = await fetchAllCurrentDeterminations();
+  const signedForms = await fetchAllSignedForms();
   const out: GuardrailVerdict[] = [];
   for (const row of data) {
-    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null });
+    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null, signedFormIds: signedForms.get(row.id) ?? null });
     if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
     for (const v of evaluateClientCompliance(facts, nowMs)) {
       if (v.status === 'warning' || v.status === 'violation') {
@@ -437,10 +475,11 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
   const nowMs = Date.now();
   const accruals = await fetchAllAccruals();
   const determinations = await fetchAllCurrentDeterminations();
+  const signedForms = await fetchAllSignedForms();
   const neMap = new Map<string, NotEnforceableItem>();
 
   for (const row of data) {
-    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null });
+    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null, signedFormIds: signedForms.get(row.id) ?? null });
     if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
     base.clientsEvaluated++;
 
@@ -501,7 +540,7 @@ export function isBalanceSettled(balance: number | null): boolean {
  * the completion-gate facts; none of these is a bypass flag.
  */
 export interface CompletionGate {
-  key: 'hours' | 'duration' | 'payment' | 'signoff';
+  key: 'hours' | 'duration' | 'payment' | 'signoff' | 'forms';
   label: string;
   passed: boolean;
   detail: string;
@@ -597,6 +636,24 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
         : 'Awaiting the clinician’s signed completion sign-off.',
   });
 
+  // WS5: required-forms-signed gate (3.206(13)(F) "completes and signs all required
+  // forms"). The required set derives from the determined LEVEL (REQUIRED_FORMS_BY_LEVEL),
+  // not a static list. No-phantom: null/empty signedFormIds => not met (never a default
+  // pass); the required-core is intrinsic — a never-assigned required form still blocks.
+  const requiredForms = facts.determinedLevel ? (REQUIRED_FORMS_BY_LEVEL[facts.determinedLevel] ?? []) : [];
+  if (requiredForms.length > 0) {
+    const signed = facts.signedFormIds ?? new Set<string>();
+    const missing = requiredForms.filter((id) => !signed.has(id));
+    gates.push({
+      key: 'forms',
+      label: 'Required forms signed',
+      passed: missing.length === 0,
+      detail: missing.length === 0
+        ? `All ${requiredForms.length} required forms completed/signed.`
+        : `${missing.length} of ${requiredForms.length} required form(s) unsigned (${missing.join(', ')}).`,
+    });
+  }
+
   const unmet = gates.filter((g) => !g.passed);
 
   return {
@@ -616,14 +673,14 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
  */
 export function assessClient(
   row: any,
-  opts: { nowMs?: number; completionSignedOff?: boolean; accrual?: AccruedHours; determinedLevel?: SatopLevel | null } = {},
+  opts: { nowMs?: number; completionSignedOff?: boolean; accrual?: AccruedHours; determinedLevel?: SatopLevel | null; signedFormIds?: Set<string> | null } = {},
 ): {
   facts: ClientFacts;
   verdicts: RuleVerdict[];
   completion: CompletionAssessment;
 } {
   const nowMs = opts.nowMs ?? Date.now();
-  const facts = toFacts(row, { accrual: opts.accrual, completionSignedOff: opts.completionSignedOff, determinedLevel: opts.determinedLevel });
+  const facts = toFacts(row, { accrual: opts.accrual, completionSignedOff: opts.completionSignedOff, determinedLevel: opts.determinedLevel, signedFormIds: opts.signedFormIds });
   return {
     facts,
     verdicts: evaluateClientCompliance(facts, nowMs),

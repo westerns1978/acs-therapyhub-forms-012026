@@ -329,3 +329,23 @@ Follow-ups:
   `$0.00` or `—` rather than a negative), so a raw `clients.balance` never reads as "overpaid".
 - **Optional data backfill:** if historical charges matter, seed `charges` reconstructing what
   each legacy payment was for; the trigger recomputes balances. Out of scope for WS-Billing.
+
+---
+
+## 9. Non-SATOP program intakes have NULL `form_submissions.form_id` (WS5 — permanent "pending" in their own portals)
+
+Found during WS5 (2026-06-06). The `form_id` uuid→text migration (`20260606_ws5_2_form_id_text`)
+backfilled existing rows from `form_name` via a reviewed CASE, fail-closed. Two rows did **not**
+map to a SATOP registry id and were deliberately left **NULL**:
+- `Opioid Recovery Intake` (OPIOID_RECOVERY program)
+- `Gambling Recovery Intake` (GAMBLING_RECOVERY program)
+
+WS5's `FORM_REGISTRY` is the **SATOP** set; there are no `opioid-intake` / `gambling-intake`
+entries (defining half-built registry entries for programs WS5 doesn't cover is scope creep).
+
+**Consequence:** because `PortalDocuments` keys completion off `form_id`, these two non-SATOP
+clients will see their intake as **permanent "pending"** in their own portals until those programs
+get registry entries. **Harmless to the SATOP completion gate** (non-SATOP clients never reach it).
+
+Post-WS5: when the Opioid/Gambling programs get first-class form sets, add their intake registry
+ids and backfill (`update public.form_submissions set form_id='opioid-intake' where form_name='Opioid Recovery Intake'`, etc.).

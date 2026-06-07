@@ -13,6 +13,10 @@ import { TELEHEALTH_FEEDBACK_DEFINITION } from '../../components/forms/Telehealt
 import { SATOP_INTAKE_DEFINITION } from '../../components/forms/SatopClientIntakeForm';
 import { SATOP_CHECKLIST_DEFINITION } from '../../components/forms/SatopChecklistForm';
 import { AUTHORIZATION_RELEASE_DEFINITION } from '../../components/forms/AuthorizationForReleaseForm';
+import { HIPAA_ACK_DEFINITION } from '../../components/forms/HipaaAckForm';
+import { TELEHEALTH_CONSENT_DEFINITION } from '../../components/forms/TelehealthConsentForm';
+import { LATE_CANCELLATION_DEFINITION } from '../../components/forms/LateCancellationForm';
+import { MEETING_REPORT_DEFINITION } from '../../components/forms/MeetingReportForm';
 
 const PortalFormPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();
@@ -30,6 +34,10 @@ const PortalFormPage: React.FC = () => {
     'satop-intake': SATOP_INTAKE_DEFINITION,
     'satop-checklist': SATOP_CHECKLIST_DEFINITION,
     'authorization-release': AUTHORIZATION_RELEASE_DEFINITION,
+    'hipaa-ack': HIPAA_ACK_DEFINITION,
+    'telehealth-consent': TELEHEALTH_CONSENT_DEFINITION,
+    'late-cancellation': LATE_CANCELLATION_DEFINITION,
+    'meeting-report': MEETING_REPORT_DEFINITION,
   };
 
   const config = formId ? formMap[formId] : null;

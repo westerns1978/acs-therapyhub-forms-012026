@@ -9,6 +9,7 @@ import {
   TreatmentPlan, TreatmentPlanContent, TreatmentPlanStatus
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { FORM_REGISTRY } from '../config/formRegistry';
 
 import {
     dbMessages, dbSropData, dbComplianceEvents, dbAuditLogs,
@@ -785,18 +786,17 @@ export const approveFormSubmission = async (submissionId: string, reviewerName: 
     return data;
 };
 
-export const getFormTemplates = async () => [
-    { id: 'satop-intake', name: 'SATOP Intake Form', title: 'SATOP Intake Form', category: 'Intake' as const, description: 'Initial assessment for SATOP program.', fieldCount: 42, lastModified: '2024-05-15' },
-    { id: 'auth-release', name: 'Authorization for Release', title: 'Authorization for Release', category: 'Compliance' as const, description: 'Consent to share information with courts/probation.', fieldCount: 12, lastModified: '2024-05-10' },
-    { id: 'satop-checklist', name: 'SATOP Checklist', title: 'SATOP Checklist', category: 'Compliance' as const, description: 'Required documentation verification.', fieldCount: 8, lastModified: '2024-05-12' },
-    { id: 'srop-progression', name: 'SROP Progression Requirements', title: 'SROP Progression Requirements', category: 'Assessment' as const, description: 'Tracking hours and compliance for SROP.', fieldCount: 15, lastModified: '2024-05-18' },
-    { id: 'react-intake', name: 'REACT Intake Form', title: 'REACT Intake Form', category: 'Intake' as const, description: 'Initial assessment for REACT program.', fieldCount: 35, lastModified: '2024-05-01' }
-];
+// WS5: the assignable template catalog is the single FORM_REGISTRY (replaces the old
+// 5-entry mock whose ids didn't match the components). NOT a hard allowlist — assignForm
+// still inserts whatever formId it's given, so non-SATOP program intakes keep persisting.
+export const getFormTemplates = async () =>
+    FORM_REGISTRY.map(f => ({ id: f.id, name: f.title, title: f.title, category: f.category, description: f.description || '', audience: f.audience, requiredForCompletion: f.requiredForCompletion }));
 export const getBillingSummary = async (id: string) => dbBillingSummaries[id];
 export const getClientDocuments = async (id: string) => (dbClientDocuments || []).filter(d => d.clientId === id);
 export const getClientAssignments = async (id: string) => (dbClientAssignments || []).filter(a => a.clientId === id);
 export const addClientAssignment = async (assignment: any) => {};
-export const addSignedDocument = async (doc: any) => {};
+// WS5: addSignedDocument/getDocumentForSigning/saveClientSignature retired (Option A) —
+// the /sign no-op path is gone; signatures persist in form_submissions.data via the forms.
 export const getForms = async () => dbForms || [];
 export const assignForm = async (formId: string, clientIds: string[], dueDate: Date) => {
     // Bulk-insert one form_submission row per client with status='Not Started'.
@@ -837,8 +837,6 @@ export const getAsamAssessment = async (id: string) => dbAsamAssessments[id] || 
 export const getProgramPlan = async (id: string) => dbProgramPlans[id] || {clientId: id, goals: []};
 export const getComplianceEvents = async () => dbComplianceEvents || [];
 export const getAuditLogs = async () => dbAuditLogs || [];
-export const getDocumentForSigning = async (id: string) => (dbClientDocuments || []).find(d => d.id === id);
-export const saveClientSignature = async (docId: string, signature: string) => ({success: true});
 export const updateDocumentComplianceStatus = async (ids: string[], status: string, user: any) => [];
 export const addSessionRecord = async (record: any) => {};
 export const getComplianceAnalysis = async (client: any, sropData: any) => "Analysis";

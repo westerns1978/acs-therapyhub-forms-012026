@@ -118,6 +118,33 @@ export type FormDefinition<T> = {
 export type FormCategory = 'Intake' | 'Assessment' | 'Treatment' | 'Legal' | 'Clinical' | 'Testing';
 export type FormField = FieldDefinition;
 
+// --- WS5 single-signature legal forms (fidelity to ACS Forms-090825 / New folder) ---
+export interface HipaaAckData {
+  clientName: string;
+  acknowledgesNotice: boolean;
+  clientSignature: string;
+  signatureDate: string;
+}
+export interface TelehealthConsentData {
+  clientName: string;
+  understandsWithdrawAnytime: boolean;
+  understandsRisks: boolean;
+  understandsNoRecording: boolean;
+  understandsPrivacyLimits: boolean;
+  understandsCrisisHigherCare: boolean;
+  understandsReconnectProtocol: boolean;
+  consentsToTelehealth: boolean;
+  clientSignature: string;
+  staffSignature: string;
+  signatureDate: string;
+}
+export interface LateCancellationData {
+  clientName: string;
+  acknowledgesPolicy: boolean;
+  clientSignature: string;
+  signatureDate: string;
+}
+
 export interface RecoveryPlanData {
   clientName: string;
   dateOfBirth: string;

@@ -232,9 +232,16 @@ const PortalDashboard: React.FC = () => {
                                     <Calendar size={14} /> {new Date(nextAppointment.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {new Date(nextAppointment.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                             </div>
-                            <button className="w-full sm:w-auto px-8 py-3 bg-white text-primary rounded-2xl font-black text-sm shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-2">
-                                <Video size={18}/> JOIN SESSION
-                            </button>
+                            {nextAppointment.zoom_link ? (
+                                <a href={nextAppointment.zoom_link} target="_blank" rel="noopener noreferrer"
+                                   className="w-full sm:w-auto px-8 py-3 bg-white text-primary rounded-2xl font-black text-sm shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-2">
+                                    <Video size={18}/> JOIN SESSION
+                                </a>
+                            ) : (
+                                <span className="w-full sm:w-auto px-8 py-3 bg-white/20 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2">
+                                    <Video size={18}/> Link pending
+                                </span>
+                            )}
                         </div>
                     </Card>
                 )}
