@@ -92,7 +92,12 @@ export function computeAlertsForClients(clients: Client[], progressByClientId?: 
 
     const missed = consecutiveAbsences(c.attendanceHistory);
     const deadlineDays = daysUntil(c.nextDeadline);
-    const incomplete = (c.completionPercentage ?? 0) < 100;
+    // WS-DisplayTruth: completeness from the AUTHORITATIVE progress (accrual + signed
+    // determination) the caller passes in — never the neutralized c.completionPercentage.
+    // Not established or below required ⇒ incomplete; only established-and-≥100% is complete.
+    const prog = progressByClientId?.get(c.id);
+    const completionPct = prog?.established ? (prog.progressPct ?? 0) : null;
+    const incomplete = completionPct === null || completionPct < 100;
 
     // Already in warrant status — highest priority
     if (c.status === 'Warrant Issued') {
@@ -138,7 +143,7 @@ export function computeAlertsForClients(clients: Client[], progressByClientId?: 
         tier,
         reason: 'DEADLINE_IMMINENT',
         headline: `Deadline in ${deadlineDays} day${deadlineDays === 1 ? '' : 's'}`,
-        detail: `${c.name} is ${c.completionPercentage || 0}% complete with a court deadline in ${deadlineDays} day${deadlineDays === 1 ? '' : 's'}. ${tier === 'CRITICAL' ? 'Escalate immediately.' : 'Schedule catch-up sessions now.'}`,
+        detail: `${c.name} ${completionPct !== null ? `is ${completionPct}% complete` : 'is behind (no signed determination yet)'} with a court deadline in ${deadlineDays} day${deadlineDays === 1 ? '' : 's'}. ${tier === 'CRITICAL' ? 'Escalate immediately.' : 'Schedule catch-up sessions now.'}`,
         recommendedActions: ['SCHEDULE_URGENT', 'SEND_OUTREACH', 'NOTIFY_PROBATION'],
         computedAt: now,
       });
@@ -183,7 +188,6 @@ export function computeAlertsForClients(clients: Client[], progressByClientId?: 
     // sources the completion gate uses), NEVER the static srop_hours_completed /
     // total_sessions_required. Only fires when a determination is established — no-phantom,
     // so a "behind on hours" alert can never contradict the gate.
-    const prog = progressByClientId?.get(c.id);
     if (prog?.established && prog.requiredTotal != null && prog.requiredTotal >= 50
         && prog.completedTotal >= 40 && prog.completedTotal < prog.requiredTotal) {
       const programLabel = c.program || (c as any).program_type || 'program';

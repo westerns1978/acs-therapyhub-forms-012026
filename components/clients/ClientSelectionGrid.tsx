@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getClients } from '../../services/api';
+import { fetchAllClientProgress, type ClientProgress } from '../../services/displayProgress';
 import { Client } from '../../types';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import ClientAvatar from './ClientAvatar';
@@ -13,8 +14,12 @@ const programDisplayLabel = (program: Client['program']) => {
     return program;
 };
 
-const ClientCard: React.FC<{ client: Client }> = ({ client }) => {
+const ClientCard: React.FC<{ client: Client; progress?: ClientProgress | null }> = ({ client, progress }) => {
     const navigate = useNavigate();
+    // WS-DisplayTruth: the bar reads AUTHORITATIVE progress (accrual + signed determination),
+    // never the neutralized client.completionPercentage. No determination → empty track, no
+    // fabricated number (no-phantom).
+    const pct = progress?.established ? (progress.progressPct ?? 0) : 0;
     return (
         <div
             onClick={() => navigate(`/clients/${client.id}`)}
@@ -24,7 +29,7 @@ const ClientCard: React.FC<{ client: Client }> = ({ client }) => {
             <h3 className="font-bold">{client.name}</h3>
             <p className="text-sm text-surface-secondary-content">{programDisplayLabel(client.program)}</p>
             <div className="w-full bg-gray-200 rounded-full h-2 my-3">
-                <div className="bg-primary h-2 rounded-full" style={{ width: `${client.completionPercentage}%` }}></div>
+                <div className="bg-primary h-2 rounded-full" style={{ width: `${pct}%` }}></div>
             </div>
             <p className="text-xs text-surface-secondary-content">Compliance: <span className="font-semibold">{client.complianceScore}%</span></p>
         </div>
@@ -33,6 +38,7 @@ const ClientCard: React.FC<{ client: Client }> = ({ client }) => {
 
 const ClientSelectionGrid: React.FC = () => {
     const [clients, setClients] = useState<Client[]>([]);
+    const [progressById, setProgressById] = useState<Map<string, ClientProgress>>(new Map());
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [programFilter, setProgramFilter] = useState('All');
@@ -42,8 +48,12 @@ const ClientSelectionGrid: React.FC = () => {
         const fetchClients = async () => {
             setIsLoading(true);
             const clientsData = await getClients();
-            setClients(clientsData.filter(c => c.status !== 'Archived'));
+            const visible = clientsData.filter(c => c.status !== 'Archived');
+            setClients(visible);
             setIsLoading(false);
+            // WS-DisplayTruth: authoritative progress per client (one batched call, the same
+            // surface alertsService uses) — the grid bar reads this, not the neutralized column.
+            setProgressById(await fetchAllClientProgress(visible.map(c => c.id)));
         };
         fetchClients();
     }, []);
@@ -129,7 +139,7 @@ const ClientSelectionGrid: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                 {filteredClients.map(client => (
-                    <ClientCard key={client.id} client={client} />
+                    <ClientCard key={client.id} client={client} progress={progressById.get(client.id) ?? null} />
                 ))}
             </div>
             {filteredClients.length === 0 && (

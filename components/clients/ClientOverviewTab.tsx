@@ -4,12 +4,15 @@ import Card from '../ui/Card';
 import { FileText, CheckCircle, Award, Calendar, AlertTriangle, Clock, CreditCard, ClipboardList, FileSignature, Target } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { getComplianceEvents } from '../../services/api';
-import { fetchClientProgress, type ClientProgress } from '../../services/displayProgress';
+import { type ClientProgress } from '../../services/displayProgress';
 
 interface ClientOverviewTabProps {
   client: Client;
   sropData: SROPProgress | null;
   activityFeed: ClientActivity[];
+  /** WS-DisplayTruth: authoritative progress composed ONCE in ClientWorkspace (gate's own
+   *  accrual + signed determination) — passed in, never re-fetched here. */
+  progress: ClientProgress | null;
 }
 
 // Therapist UUID -> display name for clinical_note signatures. Kept inline because
@@ -83,7 +86,7 @@ const computeDaysSince = (raw: any): number => {
     return Math.floor(diff / 86_400_000);
 };
 
-const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData, activityFeed }) => {
+const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData, activityFeed, progress }) => {
     const daysInProgram = computeDaysSince(
         client.enrollmentDate || (client as any).created_at || (client as any).enrollment_date
     );
@@ -93,15 +96,12 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
     const missingDocsCount = client?.missingDocuments?.length || 0;
     const badgeCount = client?.gamification?.badges?.length || 0;
 
-    // (WS-DisplayTruth hours are derived below — after the `progress` state is declared.)
-
     const [payments, setPayments] = useState<PaymentRow[]>([]);
     const [notes, setNotes] = useState<NoteRow[]>([]);
     const [csrAlerts, setCsrAlerts] = useState<ComplianceEvent[]>([]);
-    // WS-DisplayTruth: authoritative program progress (accrual + signed determination).
-    const [progress, setProgress] = useState<ClientProgress | null>(null);
-    // Hours come from the AUTHORITATIVE progress — never sropData (mock) or the static
-    // columns. requiredTotal is null until a determination is established (no-phantom).
+    // WS-DisplayTruth: program progress is composed ONCE in ClientWorkspace (the gate's own
+    // accrual + signed determination) and passed in — never re-fetched here, never sropData
+    // (mock) or the static columns. requiredTotal is null until established (no-phantom).
     const totalHours = progress?.established ? progress.requiredTotal : null;
     const completedHours = progress?.completedTotal ?? 0;
     // Treatment Plan card — pulled from any form_submission whose data.problems
@@ -117,7 +117,7 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
         let mounted = true;
         (async () => {
             try {
-                const [paymentsRes, notesRes, plansRes, ceList, progRes] = await Promise.all([
+                const [paymentsRes, notesRes, plansRes, ceList] = await Promise.all([
                     supabase
                         .from('payments')
                         .select('id, amount, payment_date, payment_method, description, status, external_payment_id')
@@ -135,10 +135,8 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                         .ilike('form_name', '%treatment plan%')
                         .order('submitted_at', { ascending: false }),
                     getComplianceEvents(),
-                    fetchClientProgress(client.id),
                 ]);
                 if (!mounted) return;
-                setProgress((progRes as ClientProgress) ?? null);
                 setPayments((paymentsRes.data as PaymentRow[]) || []);
                 setNotes((notesRes.data as NoteRow[]) || []);
                 setCsrAlerts((ceList || []).filter(ce => ce.clientId === client.id));

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
+import type { ClientProgress } from '../../services/displayProgress';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play } from 'lucide-react';
@@ -12,6 +13,9 @@ interface ClientProfileHeaderProps {
   client: Client;
   /** WS4: current signed determination level (same source as the completion gate). null → none signed. */
   determinedLevel?: SatopLevel | null;
+  /** WS-DisplayTruth: authoritative progress composed in ClientWorkspace (accrual + signed
+   *  determination) — the header % reads this, NOT the neutralized client.completionPercentage. */
+  progress?: ClientProgress | null;
 }
 
 const getStatusColor = (status: Client['status']) => {
@@ -51,7 +55,7 @@ const getProgramBadge = (client: Client, determinedLevel?: SatopLevel | null) =>
     }
 };
 
-const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel }) => {
+const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress }) => {
   const [isSnapshotExpanded, setIsSnapshotExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [clinicalSnapshot, setClinicalSnapshot] = useState<string | null>(null);
@@ -160,7 +164,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
              </div>
              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Progress</p>
-                <p className="text-2xl font-black text-slate-700 dark:text-white">{client.completionPercentage}%</p>
+                <p className="text-2xl font-black text-slate-700 dark:text-white">{progress?.established && progress.progressPct != null ? `${progress.progressPct}%` : '—'}</p>
              </div>
         </div>
       </div>

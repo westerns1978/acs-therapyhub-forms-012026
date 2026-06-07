@@ -19,6 +19,7 @@ import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
 import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms, type AccruedHours } from '../services/complianceEngine';
 import type { SatopLevel } from '../config/satopFees';
+import { composeProgress } from '../services/displayProgress';
 import { downloadClientRecordPacket } from '../services/pdfDocuments';
 import DocumentPreviewModal, { PreviewKind } from '../components/clients/DocumentPreviewModal';
 import BillingLedger from '../components/billing/BillingLedger';
@@ -250,6 +251,11 @@ const ClientWorkspace: React.FC = () => {
     // (a separate clinical_notes event) is injected as one of the three gates.
     const assessment = assessClient(client, { completionSignedOff, accrual: clientAccrual, determinedLevel: clientDeterminedLevel, signedFormIds: clientSignedForms });
 
+    // WS-DisplayTruth: compose program progress ONCE from the gate's own level + accrual
+    // (already fetched above) and feed BOTH the header and the overview — single source,
+    // no extra fetch, never the neutralized client.completionPercentage.
+    const clientProgress = composeProgress(clientDeterminedLevel, clientAccrual);
+
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },
         { id: 'documents', label: 'Documents', icon: FileText },
@@ -299,21 +305,21 @@ const ClientWorkspace: React.FC = () => {
                 return SHOW_RELAPSE_RISK_CARD ? (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2">
-                             <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} />
+                             <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} />
                         </div>
                         <div className="lg:col-span-1">
                              <RelapseRiskCard client={client} history={activityFeed || []} />
                         </div>
                     </div>
                 ) : (
-                    <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} />
+                    <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} />
                 );
         }
     };
 
     return (
         <div className="animate-fade-in-up space-y-6">
-            <ClientProfileHeader client={client} determinedLevel={clientDeterminedLevel} />
+            <ClientProfileHeader client={client} determinedLevel={clientDeterminedLevel} progress={clientProgress} />
 
             <div className="flex items-center justify-between border-b border-border dark:border-dark-border gap-3 flex-wrap">
                 <nav className="flex -mb-px space-x-8 overflow-x-auto">

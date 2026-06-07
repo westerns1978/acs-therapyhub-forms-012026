@@ -39,21 +39,27 @@ export interface ClientProgress {
 
 /**
  * The ONE place the level→hours map (REQUIRED_HOURS_BY_LEVEL) and the SROP counseling
- * floor are applied. Both read paths (staff direct-read, client RPC) funnel through here
- * so the displayed required/level can never diverge between surfaces — single source.
+ * floor are applied. Every path funnels through here so the displayed required/level can
+ * never diverge between surfaces — single source. Callers:
+ *   • staff direct-read (fetchClientProgress) and portal RPC (fetchOwnProgress) below;
+ *   • ClientWorkspace, which already holds the gate's level+accrual and composes once to
+ *     feed BOTH the header and the overview (no extra fetch).
+ * `accrual` is optional — a caller may not have it yet; missing ⇒ zero hours.
  */
-function composeProgress(level: SatopLevel | null, accrual: AccruedHours): ClientProgress {
+export function composeProgress(level: SatopLevel | null, accrual: AccruedHours | undefined): ClientProgress {
+  const total = accrual?.total ?? 0;
+  const counseling = accrual?.counseling ?? 0;
   const requiredTotal = level ? REQUIRED_HOURS_BY_LEVEL[level] : null;
   const isSrop = level === 'IV';
   return {
     established: !!level,
     determinedLevel: level,
     requiredTotal,
-    completedTotal: accrual.total,
+    completedTotal: total,
     isSrop,
     counselingRequired: isSrop ? 35 : null,
-    counselingCompleted: accrual.counseling,
-    progressPct: level && requiredTotal ? Math.min(100, Math.round((accrual.total / requiredTotal) * 100)) : null,
+    counselingCompleted: counseling,
+    progressPct: level && requiredTotal ? Math.min(100, Math.round((total / requiredTotal) * 100)) : null,
   };
 }
 
