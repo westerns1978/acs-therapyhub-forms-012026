@@ -6,7 +6,7 @@ import { supabase } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { BarChart, Award, CheckCircle2, Circle, Trophy, Target, Zap } from 'lucide-react';
-import { fetchClientProgress } from '../../services/displayProgress';
+import { fetchOwnProgress } from '../../services/displayProgress';
 
 const PortalCompliance: React.FC = () => {
     const portalClient = usePortalClient();
@@ -38,8 +38,8 @@ const PortalCompliance: React.FC = () => {
                     .select('*')
                     .eq('client_id', portalClient.id);
 
-                // WS-DisplayTruth: authoritative progress (accrual + signed determination).
-                const progress = await fetchClientProgress(portalClient.id);
+                // WS-DisplayTruth: own authoritative progress (accrual + level via my_progress() RPC).
+                const progress = await fetchOwnProgress(portalClient.id);
                 setComplianceData({
                     client,
                     srop,
@@ -79,7 +79,7 @@ const PortalCompliance: React.FC = () => {
                                     <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{progress?.established ? `${progress.completedTotal} / ${progress.requiredTotal}` : `${progress?.completedTotal ?? 0} hrs`}</p>
                                     {progress?.established
                                         ? (progress.isSrop && <p className="text-[11px] font-bold text-slate-400 mt-1">Counseling {progress.counselingCompleted}/{progress.counselingRequired}</p>)
-                                        : <p className="text-[11px] font-bold text-slate-400 mt-1">Required total set by your counselor</p>}
+                                        : <p className="text-[11px] font-bold text-slate-400 mt-1">Your required hours will be set by your counselor after your screening.</p>}
                                 </div>
                                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Days Clean</p>

@@ -10,7 +10,7 @@ import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { FileText, DollarSign, BarChart, Calendar, ArrowRight, Video, Award, ClipboardList, MapPin, Search, X, HeartHandshake, Brain, ExternalLink, MessageSquare } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
-import { fetchClientProgress } from '../../services/displayProgress';
+import { fetchOwnProgress } from '../../services/displayProgress';
 
 interface ActionCardProps {
     icon: React.ElementType;
@@ -185,8 +185,8 @@ const PortalDashboard: React.FC = () => {
                     .eq('client_id', portalClient.id)
                     .in('status', ['pending', 'Pending', 'In Progress', 'Not Started']);
 
-                // WS-DisplayTruth: authoritative progress (accrual + signed determination).
-                const progress = await fetchClientProgress(portalClient.id);
+                // WS-DisplayTruth: own authoritative progress (accrual + level via my_progress() RPC).
+                const progress = await fetchOwnProgress(portalClient.id);
                 setDashboardData({
                     client: clientData,
                     upcomingAppointments: upcomingAppts || [],
@@ -271,7 +271,7 @@ const PortalDashboard: React.FC = () => {
                                 </p>
                                 {progress?.established
                                     ? (progress.isSrop && <p className="text-[11px] font-bold text-slate-400 mt-1">Counseling {progress.counselingCompleted}/{progress.counselingRequired}</p>)
-                                    : <p className="text-[11px] font-bold text-slate-400 mt-1">Required total set by your counselor</p>}
+                                    : <p className="text-[11px] font-bold text-slate-400 mt-1">Your required hours will be set by your counselor after your screening.</p>}
                             </div>
                             <div className="w-px bg-slate-200 dark:bg-slate-700"></div>
                             <div className="text-center">

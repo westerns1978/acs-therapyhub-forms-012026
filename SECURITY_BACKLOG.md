@@ -377,3 +377,15 @@ required/level without exposing the determination record:** a `SECURITY DEFINER`
 counselingRequired}` for `auth.uid()`'s client — readable by the client, but it never exposes the
 `placement_determinations` row itself (keeps WS2's staff-only boundary intact). That's a migration —
 deferred out of this display-only phase; flagged for review.
+
+**Multi-client nuance (pilot-acceptable; flagged WS-DisplayTruth Phase 2, 2026-06-06).** The shipped
+`my_progress()` scopes by the caller's JWT email via `private.my_client_ids()` (a `setof uuid`) and
+returns the latest signed level across **all** of the caller's `clients` rows
+(`order by determined_at desc limit 1`), while `fetchOwnProgress` resolves **completed** hours by the
+passed `clientId`. On the 1:1 demo accounts these coincide exactly. If one auth email ever maps to
+**multiple** `clients` rows, the displayed level could come from a different client row than the completed
+hours. Fix when a real `clients.auth_user_id` FK replaces email-matching (the same FK called for in
+BLOCKER 2's "client write flows" note): scope `my_progress()` to a single resolved client id. Harmless at
+pilot (mock data, 1:1). *(The `{established, level}` return shape is the as-built; the older
+`{level, requiredTotal, …}` sketch above predates the single-source decision — reconcile this section's
+wording at close-out.)*
