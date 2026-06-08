@@ -27,8 +27,6 @@ update public.clients set
   compliance_score = 92,
   case_number = '2024-MUN-04812',
   assigned_therapist_id = '44444444-4444-4444-4444-444444444444',
-  srop_hours_completed = 42,
-  total_sessions_required = 75,
   created_at = now() - interval '45 days',  -- ~45/90 days: keeps the SROP minimum-duration gate PENDING for the demo (a fixed past date drifted to >90 days and the chip went green)
   employment_status = 'Full-time',
   support_system_strength = 'Moderate',
@@ -48,8 +46,6 @@ update public.clients set
   compliance_score = 100,
   case_number = 'SELF-PAY-2026-001',
   assigned_therapist_id = '22222222-2222-2222-2222-222222222222',
-  srop_hours_completed = 0,
-  total_sessions_required = 24,
   created_at = '2026-05-11 09:00:00+00',
   employment_status = 'Full-time',
   support_system_strength = 'Strong',

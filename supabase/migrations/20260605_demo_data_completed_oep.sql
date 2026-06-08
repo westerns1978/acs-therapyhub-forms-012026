@@ -29,7 +29,7 @@
 insert into public.clients (
   id, name, email, primary_phone, program_type, status,
   compliance_score, case_number, assigned_therapist_id,
-  srop_hours_completed, total_sessions_required, balance, is_demo,
+  balance, is_demo,
   created_at, program_end_date, dob, county, billing_type, avatar_url
 ) values (
   'd0000000-0000-4000-8000-000000000001',
@@ -41,8 +41,6 @@ insert into public.clients (
   100,
   'DEMO-OEP-0001',
   '44444444-4444-4444-4444-444444444444',
-  10,
-  10,
   0,
   true,
   '2026-04-20 14:00:00+00',
@@ -57,8 +55,6 @@ on conflict (id) do update set
   email = excluded.email,
   program_type = excluded.program_type,
   status = excluded.status,
-  srop_hours_completed = excluded.srop_hours_completed,
-  total_sessions_required = excluded.total_sessions_required,
   balance = excluded.balance,
   is_demo = excluded.is_demo,
   program_end_date = excluded.program_end_date,
