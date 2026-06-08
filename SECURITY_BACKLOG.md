@@ -453,8 +453,10 @@ without clicking a stub that looks real. All changes are display hides / redirec
   grid / profile-header / overview / ProgressTracking / Compliance CSV) and the **EditClientModal hand-edit +
   api write/map** were removed (`types.ts` field now optional/unread). The column now has **zero display
   readers + zero app writers** (seeds + DB default only). The `ALTER TABLE public.clients DROP COLUMN
-  compliance_score` migration + the 3 seed-writer edits are **HELD** for separate present-then-apply approval.
-  Merge `2484abf`, build `index-mHR8kTP_.js`, deploy 200 + bundle-match.
+  compliance_score` migration (`20260608_drop_compliance_score`) + the seed-writer edits are **✅ APPLIED
+  (2026-06-08, present-then-apply via MCP — column gone, Marcus baseline unchanged)**; `Client.complianceScore`
+  + the 8 `data/database.ts` mock fixtures also removed (zero references). Merges `2484abf`+`feb2672`, builds
+  `index-mHR8kTP_.js`+`index-CWGKJHXL.js`, deploy 200 + bundle-match.
 - **Dead/orphaned mock code, left unreachable (optional cleanup):** `getPracticeMetrics`
   (`services/api.ts`) has no callers; `getDailyBriefingData` feeds only `components/ai/AIBriefingModal`,
   which is rendered nowhere. The staff Dashboard's headline metrics are **real** (live `clients` queries +
