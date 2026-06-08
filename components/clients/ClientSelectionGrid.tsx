@@ -31,7 +31,7 @@ const ClientCard: React.FC<{ client: Client; progress?: ClientProgress | null }>
             <div className="w-full bg-gray-200 rounded-full h-2 my-3">
                 <div className="bg-primary h-2 rounded-full" style={{ width: `${pct}%` }}></div>
             </div>
-            <p className="text-xs text-surface-secondary-content">Compliance: <span className="font-semibold">{client.complianceScore}%</span></p>
+            <p className="text-xs text-surface-secondary-content">{progress?.established ? <>Progress: <span className="font-semibold">{progress.progressPct ?? 0}%</span></> : <span className="text-slate-400">Not yet established</span>}</p>
         </div>
     );
 };

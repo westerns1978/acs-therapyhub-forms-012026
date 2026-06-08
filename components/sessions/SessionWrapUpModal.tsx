@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { Client } from '../../types';
 // Fix: Correctly import addSessionRecord and addClientAssignment from the services API.
 import { addSessionRecord, addAppointment, addClientAssignment, saveClinicalNote } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Icons
 const CheckCircleIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
@@ -40,6 +41,10 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
     const [homework, setHomework] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
     const navigate = useNavigate();
+    // The clinician finishing the session is the counselor of record for the
+    // follow-up appointment — never a hardcoded name (the Green Room "Bill fix"
+    // class, applied here to the wrap-up's real addAppointment write).
+    const { user } = useAuth();
 
     const handleNext = async () => {
         if (currentStep === 0) { // After signing the note
@@ -82,7 +87,7 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                 endTime: '11:00 AM',
                 type: 'Individual Counseling',
                 modality: 'Virtual (Zoom)',
-                therapist: 'Bill Sunderman, MEd, LPC',
+                therapist: user?.name || 'Assigned Clinician',
                 status: 'Scheduled',
             });
         }
