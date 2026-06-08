@@ -24,7 +24,6 @@ update public.clients set
   primary_phone = '314-555-0142',
   program_type = 'SATOP',
   status = 'active',
-  compliance_score = 92,
   case_number = '2024-MUN-04812',
   assigned_therapist_id = '44444444-4444-4444-4444-444444444444',
   created_at = now() - interval '45 days',  -- ~45/90 days: keeps the SROP minimum-duration gate PENDING for the demo (a fixed past date drifted to >90 days and the chip went green)
@@ -43,7 +42,6 @@ update public.clients set
   primary_phone = '314-555-0188',
   program_type = 'GAMBLING_RECOVERY',
   status = 'active',
-  compliance_score = 100,
   case_number = 'SELF-PAY-2026-001',
   assigned_therapist_id = '22222222-2222-2222-2222-222222222222',
   created_at = '2026-05-11 09:00:00+00',

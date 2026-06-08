@@ -28,7 +28,7 @@
 
 insert into public.clients (
   id, name, email, primary_phone, program_type, status,
-  compliance_score, case_number, assigned_therapist_id,
+  case_number, assigned_therapist_id,
   balance, is_demo,
   created_at, program_end_date, dob, county, billing_type, avatar_url
 ) values (
@@ -38,7 +38,6 @@ insert into public.clients (
   '314-555-0170',
   'SATOP',
   'completed',
-  100,
   'DEMO-OEP-0001',
   '44444444-4444-4444-4444-444444444444',
   0,
