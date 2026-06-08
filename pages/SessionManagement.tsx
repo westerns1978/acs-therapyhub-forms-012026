@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { getAppointments, getClients, deleteAppointment, updateAppointmentStatus } from '../services/api';
+import { getAppointments, getClients, deleteAppointment, updateAppointmentStatus, assessLateCancellationFee } from '../services/api';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
+import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check, AlertTriangle } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
@@ -49,6 +50,46 @@ const SessionManagement: React.FC = () => {
         } catch (err) {
             console.error('[SessionManagement] status update failed:', err);
             alert('Could not update status: ' + (err as Error).message);
+        } finally {
+            setSavingStatus(false);
+        }
+    };
+
+    // Late-cancellation fee: when a cancel is inside the 24h window, the modal returns a fee
+    // decision (assess / waive). Cancel the appointment first, then post the fee as the current
+    // staff user (charges INSERT is is_staff — the same predicate that authorized this cancel,
+    // so no SECURITY DEFINER). A fee-insert failure is surfaced but never undoes the cancel.
+    const handleCancel = async (decision: CancelFeeDecision) => {
+        if (!selectedAppt) return;
+        const appt = selectedAppt;
+        setSavingStatus(true);
+        try {
+            const updated = await updateAppointmentStatus(appt.id, 'Canceled');
+            setAppointments(prev => prev.map(a => (a.id === updated.id ? updated : a)));
+            setSelectedAppt(updated);
+            if (decision.fee !== 'none') {
+                if (!appt.clientId) {
+                    alert('Appointment cancelled. No client is attached to this session, so no late-cancellation fee was assessed.');
+                } else {
+                    try {
+                        const outcome = await assessLateCancellationFee({
+                            appointmentId: appt.id,
+                            clientId: appt.clientId,
+                            startsAt: appt.date,
+                            waive: decision.fee === 'waive' ? { reason: decision.reason } : undefined,
+                        });
+                        if (outcome.alreadyAssessed) {
+                            alert('Appointment cancelled. A late-cancellation fee was already on file for it — not charged again.');
+                        }
+                    } catch (feeErr) {
+                        console.error('[SessionManagement] late-cancellation fee failed:', feeErr);
+                        alert('The appointment was cancelled, but the late-cancellation fee could not be recorded: ' + (feeErr as Error).message);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('[SessionManagement] cancel failed:', err);
+            alert('Could not cancel the appointment: ' + (err as Error).message);
         } finally {
             setSavingStatus(false);
         }
@@ -301,6 +342,7 @@ const SessionManagement: React.FC = () => {
                 isOpen={!!selectedAppt}
                 onClose={() => setSelectedAppt(null)}
                 onSetStatus={handleSetStatus}
+                onCancel={handleCancel}
                 onDelete={handleDeleteAppointment}
                 onStartSession={canStartSession ? handleStartSession : undefined}
                 isSaving={savingStatus}

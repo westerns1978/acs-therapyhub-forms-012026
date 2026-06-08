@@ -38,3 +38,12 @@ export const REQUIRED_HOURS_BY_LEVEL: Record<SatopLevel, number> = { I: 10, II: 
 export function satopFee(level: SatopLevel | null | undefined): number | null {
   return level ? SATOP_FEES[level] : null;
 }
+
+/**
+ * Flat late-cancellation fee (ACS Late Cancellation Policy): assessed when an
+ * appointment is cancelled less than 24 hours before its start. PLACEHOLDER, verify
+ * against the published ACS/DMH schedule (kickoff brief §5) — change it HERE only.
+ * Single source for the cancel-flow fee panel, the assess/waive charge path, and the
+ * Late Cancellation Policy acknowledgment-form label (one number, no drift).
+ */
+export const LATE_CANCELLATION_FEE = 40; // PLACEHOLDER, verify
