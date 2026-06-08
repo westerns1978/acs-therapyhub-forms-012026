@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../services/supabase';
+import { waiveCharge } from '../../services/api';
 import Card from '../ui/Card';
 import RecordPaymentModal from './RecordPaymentModal';
 import DocumentPreviewModal from '../clients/DocumentPreviewModal';
@@ -112,6 +113,11 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
   const [clientName, setClientName] = useState('');
   const [clientIsDemo, setClientIsDemo] = useState(false);
   const [receiptPayment, setReceiptPayment] = useState<LedgerPayment | null>(null);
+  // Inline waive (staff): which charge's reason input is open + its draft reason.
+  const [waivingId, setWaivingId] = useState<string | null>(null);
+  const [waiveReason, setWaiveReason] = useState('');
+  const [waiveBusy, setWaiveBusy] = useState(false);
+  const [waiveErr, setWaiveErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!clientId) return;
@@ -190,6 +196,7 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
             const outstanding = Number(charge.amount) - paid;
             const pill = chargePill(charge, paid);
             const recordable = canRecord && !['waived', 'void'].includes(charge.status) && outstanding > EPS;
+            const waivable = canRecord && charge.charge_type === 'late_cancellation_fee' && charge.status === 'pending';
             return (
               <div
                 key={charge.id}
@@ -228,15 +235,69 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
                   >
                     {pill.label}
                   </span>
-                  {recordable && (
-                    <button
-                      onClick={() => setRecordCharge(charge)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-focus text-white text-[11px] font-black uppercase tracking-widest rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
-                    >
-                      <Plus size={13} /> Record Payment
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {waivable && (
+                      <button
+                        onClick={() => { setWaivingId(charge.id); setWaiveReason(''); setWaiveErr(null); }}
+                        className="px-3 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                      >
+                        Waive
+                      </button>
+                    )}
+                    {recordable && (
+                      <button
+                        onClick={() => setRecordCharge(charge)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-focus text-white text-[11px] font-black uppercase tracking-widest rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
+                      >
+                        <Plus size={13} /> Record Payment
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {waivable && waivingId === charge.id && (
+                  <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 p-3 space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Reason for waiver <span className="text-rose-400">(required)</span>
+                    </label>
+                    <textarea
+                      value={waiveReason}
+                      onChange={(e) => setWaiveReason(e.target.value)}
+                      rows={2}
+                      placeholder="e.g. documented medical emergency"
+                      className="w-full px-3 py-2 rounded-xl border border-border dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100"
+                    />
+                    {waiveErr && <p className="text-[11px] font-bold text-rose-600">{waiveErr}</p>}
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        disabled={waiveBusy}
+                        onClick={() => { setWaivingId(null); setWaiveReason(''); setWaiveErr(null); }}
+                        className="px-3 py-1.5 text-[11px] font-bold rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        disabled={waiveBusy || !waiveReason.trim()}
+                        onClick={async () => {
+                          setWaiveBusy(true);
+                          setWaiveErr(null);
+                          try {
+                            await waiveCharge(charge.id, waiveReason.trim());
+                            setWaivingId(null);
+                            setWaiveReason('');
+                            await load();
+                          } catch (e: any) {
+                            setWaiveErr(e?.message || 'Could not waive the charge.');
+                          } finally {
+                            setWaiveBusy(false);
+                          }
+                        }}
+                        className="px-3 py-1.5 text-[11px] font-black uppercase tracking-widest rounded-xl bg-slate-700 hover:bg-slate-800 text-white transition disabled:opacity-50"
+                      >
+                        {waiveBusy ? 'Waiving…' : 'Confirm waive'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { FORM_REGISTRY } from '../config/formRegistry';
+import { LATE_CANCELLATION_FEE } from '../config/satopFees';
 
 import {
     dbMessages, dbSropData, dbComplianceEvents, dbAuditLogs,
@@ -456,6 +457,106 @@ export const deleteAppointment = async (id: string): Promise<void> => {
         throw new Error(error.message || 'Failed to delete appointment');
     }
 };
+
+// --- Late-cancellation fee (WS-LateCancel) ---------------------------------------------------
+// The FIRST app-level charge writer — every prior charge was a SQL seed. A flat
+// LATE_CANCELLATION_FEE (config) for an appointment cancelled inside 24h of its start, per
+// the ACS Late Cancellation Policy. Runs as the CURRENT STAFF USER: charges INSERT is
+// private.is_staff() since wsrp_2 — the SAME predicate that gates appointment-cancel — so no
+// SECURITY DEFINER is needed (whoever could cancel is already authorized to write the charge).
+// The charge raises clients.balance via the wsbilling_1 trigger and flows into the WS7
+// completion gate's balance==0 determinant. A 'waived' charge is excluded from the balance
+// formula but stays on the ledger with who/why/when for the audit trail.
+
+export interface LateCancellationOutcome {
+    created: boolean;          // a new charge row was inserted
+    alreadyAssessed: boolean;  // idempotent no-op — a fee already existed for this appointment
+    waived: boolean;           // the (new or pre-existing) fee is in 'waived' status
+    charge: any | null;        // the charge row (inserted or pre-existing)
+}
+
+/**
+ * Assess (or waive on the spot) the late-cancellation fee for ONE appointment.
+ * Idempotent by appointment: if a late_cancellation_fee charge already exists for this
+ * appointment_id (any status), no second row is created — a re-cancel, status flip, or
+ * double-click can't double-charge. Deterministic: the amount is the config constant, never
+ * AI/freeform. No phantom: only ever called after a real cancel inside the 24h window.
+ */
+export const assessLateCancellationFee = async (params: {
+    appointmentId: string;
+    clientId: string;
+    startsAt: Date | string;
+    waive?: { reason: string };
+}): Promise<LateCancellationOutcome> => {
+    const { appointmentId, clientId, startsAt, waive } = params;
+    if (!appointmentId) throw new Error('Cannot assess a late-cancellation fee without an appointment.');
+    if (!clientId) throw new Error('Cannot assess a late-cancellation fee without a client.');
+    if (waive && !waive.reason.trim()) throw new Error('A reason is required to waive the late-cancellation fee.');
+
+    // Idempotency guard — one late-cancellation fee per appointment, any status.
+    const { data: existing, error: exErr } = await supabase
+        .from('charges')
+        .select('*')
+        .eq('appointment_id', appointmentId)
+        .eq('charge_type', 'late_cancellation_fee')
+        .limit(1);
+    if (exErr) throw new Error(exErr.message || 'Could not check for an existing late-cancellation fee.');
+    if (existing && existing.length > 0) {
+        const row: any = existing[0];
+        return { created: false, alreadyAssessed: true, waived: row.status === 'waived', charge: row };
+    }
+
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth?.user?.id;
+    if (!uid) throw new Error('Your session expired — sign in again to assess the fee.');
+
+    const when = startsAt instanceof Date ? startsAt : new Date(startsAt);
+    const whenLabel = isNaN(when.getTime())
+        ? 'the scheduled appointment'
+        : when.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+    const row: Record<string, any> = {
+        client_id: clientId,
+        charge_type: 'late_cancellation_fee',
+        description: `Late cancellation fee — appointment ${whenLabel} cancelled less than 24 hours in advance.`,
+        amount: LATE_CANCELLATION_FEE,
+        appointment_id: appointmentId,
+        created_by: uid,
+        // status defaults to 'pending' (DB default) unless waived on the spot:
+        ...(waive
+            ? { status: 'waived', waived_by: uid, waived_reason: waive.reason.trim(), waived_at: new Date().toISOString() }
+            : {}),
+    };
+
+    const { data: inserted, error: insErr } = await supabase
+        .from('charges')
+        .insert(row)
+        .select('*')
+        .single();
+    if (insErr) throw new Error(insErr.message || 'Could not record the late-cancellation fee.');
+
+    return { created: true, alreadyAssessed: false, waived: !!waive, charge: inserted };
+};
+
+/**
+ * Waive an existing charge (the billing-surface action on a pending late-cancel fee).
+ * status → 'waived' + provenance (who/why/when). The wsbilling_1 balance formula excludes
+ * waived charges, so the client's balance drops on the next trigger pass and the completion
+ * gate's payment determinant clears. Any staff may waive for v1 (tighten to isDirector later).
+ */
+export const waiveCharge = async (chargeId: string, reason: string): Promise<void> => {
+    if (!chargeId) throw new Error('No charge to waive.');
+    if (!reason || !reason.trim()) throw new Error('A reason is required to waive a charge.');
+    const { data: auth } = await supabase.auth.getUser();
+    const uid = auth?.user?.id;
+    if (!uid) throw new Error('Your session expired — sign in again to waive this charge.');
+    const { error } = await supabase
+        .from('charges')
+        .update({ status: 'waived', waived_by: uid, waived_reason: reason.trim(), waived_at: new Date().toISOString() })
+        .eq('id', chargeId);
+    if (error) throw new Error(error.message || 'Could not waive the charge.');
+};
+
 export const getFormSubmissions = async (filters: any) => {
     // Real Supabase fetch — falls back to mock data only if Supabase is unreachable.
     try {
