@@ -263,7 +263,8 @@ const ClientWorkspace: React.FC = () => {
         { id: 'sessions', label: 'Sessions', icon: Video },
         // Assessment (placement engine) — all staff (is_staff), mirrors assessment_inputs RLS.
         ...(canAssess ? [{ id: 'assessment', label: 'Assessment', icon: Gauge }] : []),
-        // Billing is a financial surface - Director/Admin only (mirrors payments RLS).
+        // Billing is a staff surface — all staff (is_staff: Director/Therapist/Admin), mirrors the
+        // wsrp_2 payments/charges RLS. A Client never sees it.
         ...(canRecordPayment ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
         // Treatment Plan is clinical surface — hidden from Admin (Jess).
         ...(canSeeClinical ? [{ id: 'treatment-plan', label: 'Treatment Plan', icon: Target }] : []),
