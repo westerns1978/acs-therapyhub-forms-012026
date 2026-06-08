@@ -91,7 +91,7 @@ const Compliance: React.FC = () => {
     };
     
     const handleBulkExport = () => {
-        const headers = ["Client Name", "Case Number", "Program", "Status", "Compliance Score", "Total Sessions", "Unpaid Balance"];
+        const headers = ["Client Name", "Case Number", "Program", "Status", "Total Sessions", "Unpaid Balance"];
         const rows = clients.map(client => {
             const clientRecords = allSessionRecords.filter(r => r.clientId === client.id);
             const unpaid = clientRecords.filter(r => r.status === 'Unpaid').reduce((sum, r) => sum + r.rate, 0);
@@ -100,7 +100,6 @@ const Compliance: React.FC = () => {
                 client.caseNumber,
                 client.program,
                 client.status,
-                client.complianceScore.toString(),
                 clientRecords.length.toString(),
                 unpaid.toFixed(2)
             ].join(',');

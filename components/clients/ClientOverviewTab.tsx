@@ -208,13 +208,6 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                                 <p className="text-xs text-slate-500 mt-1">No signed placement determination yet — required hours are set when a clinician signs the determination.</p>
                             )}
                         </div>
-                        <div>
-                            <div className="flex justify-between items-baseline mb-1">
-                                <h4 className="font-semibold">Compliance Score</h4>
-                                <span className="font-bold text-lg">{client.complianceScore}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3"><div className={`h-3 rounded-full ${client.complianceScore > 85 ? 'bg-green-500' : 'bg-yellow-500'}`} style={{ width: `${client.complianceScore}%` }}></div></div>
-                        </div>
                     </div>
                 </Card>
 

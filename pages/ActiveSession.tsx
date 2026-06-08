@@ -6,6 +6,7 @@ import Card from '../components/ui/Card';
 import SessionWrapUpModal from '../components/sessions/SessionWrapUpModal';
 import { Client } from '../types';
 import { Mic, MicOff, Sparkles, StopCircle, Loader2, AlertTriangle, FileText } from 'lucide-react';
+import { TRIAL_MODE } from '../config/trialMode';
 
 const ActiveSession: React.FC = () => {
     const { clientId } = useParams<{clientId: string}>();
@@ -139,7 +140,9 @@ const ActiveSession: React.FC = () => {
                     <p className="text-surface-secondary-content dark:text-dark-surface-secondary-content">Capture clinical notes in real-time.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                     <button onClick={handleSimulateConversation} className="text-xs text-gray-500 hover:underline">Simulate Conversation (Demo)</button>
+                     {/* Dev-only convenience: injects canned transcript text. Hidden whenever
+                         TRIAL_MODE is on so a live tester can't fabricate a clinical note. */}
+                     {!TRIAL_MODE && <button onClick={handleSimulateConversation} className="text-xs text-gray-500 hover:underline">Simulate Conversation (Demo)</button>}
                 </div>
             </div>
 

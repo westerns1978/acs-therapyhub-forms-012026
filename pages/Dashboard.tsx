@@ -53,8 +53,7 @@ const Dashboard: React.FC = () => {
     // Director aggregate stats. null = query failed / not meaningful → render '—'.
     // Monthly Revenue is intentionally absent until subscription/billing is real
     // (payments is empty / not wired); it returns here once billing persists.
-    const [metrics, setMetrics] = useState<{ complianceRate: number | null; activeClients: number | null }>({
-        complianceRate: null,
+    const [metrics, setMetrics] = useState<{ activeClients: number | null }>({
         activeClients: null,
     });
     const [isLoading, setIsLoading] = useState(true);
@@ -97,9 +96,7 @@ const Dashboard: React.FC = () => {
                 if (isDirector) {
                     try {
                         const { count } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active');
-                        const { data: cs } = await supabase.from('clients').select('compliance_score').eq('status', 'active');
-                        const avg = cs && cs.length ? cs.reduce((s, r) => s + (r.compliance_score || 0), 0) / cs.length : null;
-                        if (!cancelled) setMetrics({ activeClients: count ?? 0, complianceRate: avg === null ? null : Math.round(avg * 10) / 10 });
+                        if (!cancelled) setMetrics({ activeClients: count ?? 0 });
                     } catch (e) { console.warn('[dashboard] metrics failed:', e); }
                 }
             } catch (e) {
@@ -230,7 +227,10 @@ const Dashboard: React.FC = () => {
             {/* Director-only aggregate stats. Monthly Revenue intentionally omitted. */}
             {isDirector && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <StatCard title="Compliance Rate" value={metrics.complianceRate === null ? '—' : `${metrics.complianceRate}%`} icon={ShieldCheck} color="bg-emerald-500" />
+                    {/* Computed, not typed: the count of open guardrail flags from the deterministic
+                        engine (fetchComplianceGuardrails) — summarizes the Clinical Guardrails panel
+                        below. NOT the old static avg(compliance_score). 0 when nothing is flagged. */}
+                    <StatCard title="Open Guardrail Flags" value={guardrails.length.toString()} icon={AlertTriangle} color="bg-amber-500" />
                     <StatCard title="Active Clients" value={metrics.activeClients === null ? '—' : metrics.activeClients.toString()} icon={Activity} color="bg-primary" />
                 </div>
             )}

@@ -202,19 +202,6 @@ const ProgramCompliance: React.FC = () => {
                 </div>
 
                 <div className="lg:col-span-2 space-y-6">
-                     <Card title="Compliance Score">
-                        <div className="text-center p-2">
-                            <p className={`text-6xl font-bold ${client.complianceScore > 85 ? 'text-green-500' : client.complianceScore > 70 ? 'text-yellow-500' : 'text-red-500'}`}>
-                                {client.complianceScore}%
-                            </p>
-                            <p className="text-sm text-on-surface-secondary mt-2">Reflects attendance, payments, and UA results.</p>
-                            <button onClick={handleAnalyzeScore} disabled={isAnalyzing} className="w-full mt-4 flex items-center justify-center gap-2 bg-primary/10 text-primary font-bold py-3 px-4 rounded-lg hover:bg-primary/20 transition disabled:opacity-50">
-                                <SparklesIcon className="h-5 w-5" />
-                                {isAnalyzing ? 'Analyzing...' : 'Analyze with Synapse AI'}
-                            </button>
-                        </div>
-                    </Card>
-
                     <Card title="Gamification & Achievements">
                         <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-lg">
                             <span className="font-bold text-amber-800 dark:text-amber-300">Total Points</span>

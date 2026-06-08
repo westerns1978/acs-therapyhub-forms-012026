@@ -113,7 +113,6 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
         primary_phone: c.phone ?? c.primary_phone ?? null,
         program_type: c.program ?? c.program_type ?? null,
         status: c.status ?? 'active',
-        compliance_score: c.complianceScore ?? c.compliance_score ?? 100,
         case_number: c.caseNumber ?? c.case_number ?? null,
         dob: c.dob || null,
         county: c.county ?? null,
@@ -124,7 +123,7 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
             ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Client')}&background=8B1E24&color=fff`,
     };
 
-    // Drop nulls so DB defaults (status='active', compliance_score=100, etc.)
+    // Drop nulls so DB defaults (status='active', etc.)
     // can fill in. Without this, passing null overrides the default with NULL.
     for (const k of Object.keys(row)) {
         if (row[k] === null || row[k] === undefined) delete row[k];
@@ -136,7 +135,6 @@ const mapClientToApp = (c: any): Client => {
     const statusRaw = (c.status || '').toString().toLowerCase();
     const status = STATUS_MAP[statusRaw] || c.status || 'Compliant';
 
-    const complianceScore = Number(c.complianceScore ?? c.compliance_score ?? 0);
     // WS-DisplayTruth: completionPercentage is NOT derived from the static
     // srop_hours_completed / total_sessions_required columns — those diverge from the
     // authoritative completion gate. Program-progress surfaces fetch fetchClientProgress
@@ -152,7 +150,6 @@ const mapClientToApp = (c: any): Client => {
         name,
         initials: name.split(' ').map((n: string) => n[0]).filter(Boolean).join('').toUpperCase() || '??',
         status,
-        complianceScore,
         completionPercentage,
         caseNumber: c.caseNumber ?? c.case_number ?? '',
         phone: c.phone ?? c.primary_phone ?? '',
@@ -1161,8 +1158,6 @@ const CLIENT_UPDATE_COLUMNS: Record<string, string> = {
     program: 'program_type',
     program_type: 'program_type',
     status: 'status',
-    complianceScore: 'compliance_score',
-    compliance_score: 'compliance_score',
     county: 'county',
     probationOfficer: 'probation_officer',
     probation_officer: 'probation_officer',

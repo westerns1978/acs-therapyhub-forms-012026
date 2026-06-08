@@ -34,7 +34,6 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
         billingType: 'Self-Pay',
         program: 'SROP',
         status: 'Compliant',
-        complianceScore: 100,
     });
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -53,7 +52,6 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
             billingType: (client.billingType as string) || 'Self-Pay',
             program: (client.program as string) || 'SROP',
             status: (client.status as string) || 'Compliant',
-            complianceScore: client.complianceScore ?? 100,
         });
         setError(null);
     }, [client, isOpen]);
@@ -99,7 +97,6 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
             if (canEditClinical) {
                 changes.program = formData.program;
                 changes.status = formData.status;
-                changes.complianceScore = formData.complianceScore;
             }
             const updated = await updateClient(client.id, changes);
             onSaved(updated);
@@ -206,19 +203,9 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
                         <FieldLabel label="Program">
                             <Select value={formData.program} onChange={v => setField('program', v)} disabled={!canEditClinical} options={['SROP', 'SATOP', 'SATOP Level IV', 'REACT', 'Anger Management', 'GAMBLING_RECOVERY', 'OPIOID_RECOVERY', 'DOT', 'Individual Counseling']} />
                         </FieldLabel>
-                        <div className="grid grid-cols-2 gap-6">
-                            <FieldLabel label="Status">
-                                <Select value={formData.status} onChange={v => setField('status', v)} disabled={!canEditClinical} options={['Compliant', 'Non-Compliant', 'Warrant Issued', 'Completed', 'Archived', 'active', 'archived']} />
-                            </FieldLabel>
-                            <FieldLabel label="Compliance Score">
-                                <Input
-                                    type="number"
-                                    value={String(formData.complianceScore)}
-                                    onChange={v => setField('complianceScore', Number(v) || 0)}
-                                    disabled={!canEditClinical}
-                                />
-                            </FieldLabel>
-                        </div>
+                        <FieldLabel label="Status">
+                            <Select value={formData.status} onChange={v => setField('status', v)} disabled={!canEditClinical} options={['Compliant', 'Non-Compliant', 'Warrant Issued', 'Completed', 'Archived', 'active', 'archived']} />
+                        </FieldLabel>
                     </section>
                 </div>
 

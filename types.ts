@@ -66,7 +66,7 @@ export interface Client {
     points: number;
     badges: string[];
   };
-  complianceScore: number;
+  complianceScore?: number; // legacy/unread — static column, no live reader/writer (slated for DB drop, #10a follow-up)
   attendanceHistory: ('present' | 'late' | 'absent')[];
   folder_link?: string;
 }

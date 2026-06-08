@@ -157,11 +157,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
           </div>
         </div>
 
-        <div className="lg:w-64 grid grid-cols-2 gap-3">
-             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Score</p>
-                <p className="text-2xl font-black text-primary">{client.complianceScore}%</p>
-             </div>
+        <div className="lg:w-64 grid grid-cols-1 gap-3">
              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Progress</p>
                 <p className="text-2xl font-black text-slate-700 dark:text-white">{progress?.established && progress.progressPct != null ? `${progress.progressPct}%` : '—'}</p>
