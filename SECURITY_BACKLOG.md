@@ -447,11 +447,14 @@ without clicking a stub that looks real. All changes are display hides / redirec
   cards (`PortalCompliance`); repointed the portal "Compliance Score" (static `clients.compliance_score`,
   no writer) to the authoritative Overall Progress (`PortalDashboard`) — this also fixed a **phantom**: a
   no-determination client (Pat) was showing her static `compliance_score = 100%`, now shows no-phantom `—`.
-- **Staff-side `clients.compliance_score` is still static** (client-list grid card "Compliance: X%" + the
-  profile-header "SCORE X%"). This is the **one remaining static number a tester sees**, staff-side only.
-  It is a *compliance-score* metric, **distinct from progress** (progress %, hours, level are all
-  authoritative), so it won't contradict the gate. **Folds into #10a** (static-column cleanup, deferred
-  post-WS6) — repoint/remove it then.
+- **Staff-side `clients.compliance_score` — ✅ RESOLVED (2026-06-08).** The Director dashboard's static
+  "Compliance Rate" (`avg(compliance_score)`) was replaced with a **computed** "Open Guardrail Flags" count
+  (deterministic engine verdicts); the static score chip was removed from all 5 staff surfaces (client-list
+  grid / profile-header / overview / ProgressTracking / Compliance CSV) and the **EditClientModal hand-edit +
+  api write/map** were removed (`types.ts` field now optional/unread). The column now has **zero display
+  readers + zero app writers** (seeds + DB default only). The `ALTER TABLE public.clients DROP COLUMN
+  compliance_score` migration + the 3 seed-writer edits are **HELD** for separate present-then-apply approval.
+  Merge `2484abf`, build `index-mHR8kTP_.js`, deploy 200 + bundle-match.
 - **Dead/orphaned mock code, left unreachable (optional cleanup):** `getPracticeMetrics`
   (`services/api.ts`) has no callers; `getDailyBriefingData` feeds only `components/ai/AIBriefingModal`,
   which is rendered nowhere. The staff Dashboard's headline metrics are **real** (live `clients` queries +
