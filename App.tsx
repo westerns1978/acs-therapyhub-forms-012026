@@ -116,7 +116,12 @@ function App() {
                   <Route path="/video-sessions" element={isTrialHidden('/video-sessions')
                     ? <Navigate to="/dashboard" replace />
                     : <RequireRole roles={['Director', 'Therapist']}><VideoSessions /></RequireRole>} />
-                  <Route path="/program-compliance/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ProgramCompliance /></RequireRole>} />
+                  {/* ProgressTracking is MOCK (getSROPData hours, e.g. 42/75, contradict the
+                      authoritative 16/75) — hidden for the team test like /video-sessions; redirect
+                      when on. Deep-link only (no nav). Rebuild on the accrual view post-demo. */}
+                  <Route path="/program-compliance/:clientId" element={isTrialHidden('/program-compliance')
+                    ? <Navigate to="/dashboard" replace />
+                    : <RequireRole roles={['Director', 'Therapist']}><ProgramCompliance /></RequireRole>} />
                   <Route path="/compliance-assistant" element={<RequireRole roles={['Director', 'Therapist']}><ComplianceAssistant /></RequireRole>} />
                   <Route path="/assessments/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><AsamAssessment /></RequireRole>} />
                   <Route path="/compliance" element={<RequireRole roles={['Director', 'Therapist']}><Compliance /></RequireRole>} />

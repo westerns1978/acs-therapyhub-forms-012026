@@ -20,6 +20,10 @@ export const TRIAL_HIDDEN_ROUTES: readonly string[] = [
   // under fabricated "ONLINE" + ✓✓-read cues. Hidden for the team test to avoid a
   // message-into-the-void trap. CommunicationCenter.tsx + the API fns stay intact (restorable).
   '/communication-center',
+  // '/program-compliance/:id' (ProgressTracking) is MOCK: getSROPData returns hardcoded
+  // phase1/phase2 hours (e.g. 42/75) that CONTRADICT the authoritative accrual (16/75).
+  // Deep-link only (no nav). Hidden for the team test; rebuild on the accrual view before un-hiding.
+  '/program-compliance',
 ];
 
 export const isTrialHidden = (path: string): boolean =>
