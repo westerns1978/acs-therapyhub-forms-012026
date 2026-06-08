@@ -24,7 +24,6 @@ import {
     dbAppointments as mockAppointments,
     dbPayments as mockPayments,
     dbClients,
-    dbFormSubmissions,
     dbAiSuggestions,
     initializeDatabase
 } from '../data/database';
@@ -558,7 +557,11 @@ export const waiveCharge = async (chargeId: string, reason: string): Promise<voi
 };
 
 export const getFormSubmissions = async (filters: any) => {
-    // Real Supabase fetch — falls back to mock data only if Supabase is unreachable.
+    // Real Supabase fetch. NEVER falls back to mock — phantom forms on a forms list or a
+    // completion surface are worse than a visible failure. Rethrows on a DB error so callers
+    // surface an error/empty state (ClientWorkspace's Forms tab renders <ErrorFallback>),
+    // mirroring the getAppointments fix. The cert gate reads forms separately
+    // (complianceEngine.fetchClientSignedForms) and already fails closed (empty set on error).
     try {
         let q = supabase.from('form_submissions').select('*').order('submitted_at', { ascending: false, nullsFirst: false });
         if (filters?.clientId) q = q.eq('client_id', filters.clientId);
@@ -578,8 +581,9 @@ export const getFormSubmissions = async (filters: any) => {
             data: row.data || {},
         }));
     } catch (e) {
-        console.warn('[api] getFormSubmissions fell back to mock:', e);
-        return (dbFormSubmissions || []).filter(s => !filters?.clientId || s.clientId === filters.clientId);
+        // NEVER fall back to mock — rethrow so the caller shows a visible error, never phantom forms.
+        console.error('[api] getFormSubmissions failed:', e);
+        throw e instanceof Error ? e : new Error('Failed to load form submissions');
     }
 };
 export const saveFormSubmission = async (sub: any) => {
