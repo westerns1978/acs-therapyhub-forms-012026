@@ -99,6 +99,9 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
 
     const isGroup = sessionType.toLowerCase().includes('group');
     const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
+    // Therapist = the selected standing group's counselor (David/Karen/...), else the acting
+    // counselor (the logged-in user). Replaces the old hardcoded 'Bill Sunderman'.
+    const therapistName = selectedGroupObj?.counselor_name || user?.name || 'Unassigned';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -149,7 +152,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             startTime: new Date(`1970-01-01T${startTime}`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
             endTime: new Date(`1970-01-01T${endTime}`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
             modality: 'Virtual (Zoom)',
-            therapist: 'Bill Sunderman, MEd, LPC',
+            therapist: selectedGroup?.counselor_name || user?.name || 'Unassigned',
             zoomLink,
             status: 'Scheduled',
             serviceType,
@@ -327,7 +330,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
 
                          <div>
                             <label className="block text-sm font-medium mb-1">Therapist</label>
-                            <input type="text" readOnly value="Bill Sunderman, MEd, LPC" className="w-full p-2 border border-border dark:border-slate-600 bg-gray-100 dark:bg-slate-800 rounded-md" />
+                            <input type="text" readOnly value={therapistName} className="w-full p-2 border border-border dark:border-slate-600 bg-gray-100 dark:bg-slate-800 rounded-md" />
                         </div>
                     </main>
 

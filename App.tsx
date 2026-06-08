@@ -38,7 +38,7 @@ const Forms = lazy(() => import('./pages/Forms'));
 const TreatmentPlanLibrary = lazy(() => import('./pages/TreatmentPlanLibrary'));
 const Financials = lazy(() => import('./pages/Financials'));
 const VideoSessions = lazy(() => import('./pages/VideoSessions'));
-const VideoGreenRoom = lazy(() => import('./pages/VideoGreenRoom'));
+const GreenRoom = lazy(() => import('./pages/GreenRoom'));
 const Resources = lazy(() => import('./pages/Resources')); 
 const DocumentIntelligence = lazy(() => import('./pages/DocumentIntelligence'));
 const RiskMonitor = lazy(() => import('./pages/RiskMonitor'));
@@ -103,19 +103,19 @@ function App() {
                     : <ProtectedRoute><CommunicationCenter /></ProtectedRoute>} />
                   <Route path="/session-management" element={<ProtectedRoute><SessionManagement /></ProtectedRoute>} />
                   <Route path="/session/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ActiveSession /></RequireRole>} />
+                  {/* Green Room — real pre-session prep surface (read-only), keyed off the appointment id. */}
+                  <Route path="/session/:appointmentId/green-room" element={<RequireRole roles={['Director', 'Therapist']}><GreenRoom /></RequireRole>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
                   <Route path="/fee-ledger/:clientId" element={<FeeLedgerRedirect />} />
 
                   {/* Clinical-only routes — Director + Therapist */}
-                  {/* /video-sessions (+green-room) is a MOCK (getVideoSessions = hardcoded array;
-                      writers no-op). Hidden for the team test — redirect to dashboard; the real
-                      session spine is `appointments`. Role gate kept for when it's rebuilt. */}
+                  {/* /video-sessions is a MOCK (getVideoSessions = hardcoded array; writers no-op),
+                      hidden for the team test — redirect to dashboard; the real session spine is
+                      `appointments`. Its old green-room mock is RETIRED — the real Green Room is the
+                      role-gated /session/:appointmentId/green-room route above (real reads only). */}
                   <Route path="/video-sessions" element={isTrialHidden('/video-sessions')
                     ? <Navigate to="/dashboard" replace />
                     : <RequireRole roles={['Director', 'Therapist']}><VideoSessions /></RequireRole>} />
-                  <Route path="/video-sessions/:sessionId/green-room" element={isTrialHidden('/video-sessions')
-                    ? <Navigate to="/dashboard" replace />
-                    : <RequireRole roles={['Director', 'Therapist']}><VideoGreenRoom /></RequireRole>} />
                   <Route path="/program-compliance/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ProgramCompliance /></RequireRole>} />
                   <Route path="/compliance-assistant" element={<RequireRole roles={['Director', 'Therapist']}><ComplianceAssistant /></RequireRole>} />
                   <Route path="/assessments/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><AsamAssessment /></RequireRole>} />

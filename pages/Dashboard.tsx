@@ -147,7 +147,9 @@ const Dashboard: React.FC = () => {
                 {appointments.length > 0 ? appointments.map(apt => (
                     <button
                         key={apt.id}
-                        onClick={() => apt.clientId ? navigate(`/clients/${apt.clientId}`) : navigate('/session-management')}
+                        onClick={() => isClinical
+                            ? navigate(`/session/${apt.id}/green-room`)
+                            : apt.clientId ? navigate(`/clients/${apt.clientId}`) : navigate('/session-management')}
                         className="w-full py-6 flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 px-4 rounded-2xl transition-all text-left"
                     >
                         <div className="flex items-center gap-8">
