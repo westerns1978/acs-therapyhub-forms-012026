@@ -9,7 +9,7 @@ enters this database. The remaining items are smaller follow-ups.
 
 ---
 
-## PHI STORAGE — ACS client documents moved to the private bucket (2026-06-08) — anon exposure CLOSED; 3 residuals OPEN
+## PHI STORAGE — ACS client documents moved to the private bucket (2026-06-08/09) — ✅ RESOLVED for ACS (anon + authed-cross-client both closed; non-PHI cleanup pending Dan)
 
 ACS client documents (incl. a court order, compliance PDFs) were in **public** buckets (`client-documents`,
 `gemynd-files`, `documents`) served by no-auth `/object/public/` URLs. Moved the **10 DB-tracked** ACS objects
@@ -23,24 +23,47 @@ URLs** (`storageService.getSignedUrl` + `components/ui/SignedFile`); the packet 
 → 400; staff + client resolve via `/object/sign/` 200; cross-app `gemynd-files` object 200 (shared bucket +
 other apps untouched).
 
-> **RESIDUAL 1 — leaked history (accepted).** The public URLs were live before deletion and can't be
-> un-leaked; the move stops future fetches (404).
+> **Follow-up pass (2026-06-09).** The DB-records inventory missed objects with **no `uploaded_files` row**.
+> A broadened sweep (all 3 public buckets, matched to real `clients.id`) found more ACS-pathed orphans.
+> Migrated the **PHI** set + created tracked `uploaded_files` rows: the **driver's license** (Grace), client
+> **scans** (Marcus/Pat/Emma), Carol's **`Client Demographic.pdf`** + one image, and the **3 `hub_unassigned`
+> scans** → `clients/hub_unassigned/` (staff-only). Marcus's duplicate `download_(2).jfif` was
+> **SHA-256-identical** to the already-migrated court order → public original deleted, no second copy. All 9
+> resolve from private (signed 200); old public URLs (incl. the driver's license) → **400**. The **9 non-PHI
+> "a2" objects** (Dan's strategy/personal/test files mis-filed under client folders — incl. a 16 MB
+> First-Principles PDF) are **LEFT for Dan to eyeball** before any delete (still public; not PHI). Legacy
+> `client-documents` `1/`,`2/` objects (don't match a real `clients.id`) left untouched.
 >
-> **RESIDUAL 2 — authed cross-client read (shared policy).** A pre-existing storage policy
-> **`allow_all_authenticated`** (`ALL`, role `authenticated`, `USING true`) grants any authenticated user
-> access to every object in every bucket → it overrides `tpf_client_read_own`. **Witnessed: portal client Pat
-> can mint a signed URL for Marcus's file.** Anon exposure is closed; client↔client isolation among
-> authenticated users is NOT enforced until that shared policy is scoped/removed (cross-app, like BLOCKER 2).
-> **ACS-only fix (HELD, not applied):** a `RESTRICTIVE` policy on `storage.objects` scoped to
-> `bucket_id='therapyhub-patient-files'` AND-requiring staff-or-own-client — restricts only the ACS bucket,
-> leaves the shared policy + other buckets untouched.
+> **RESIDUAL 1 — leaked history (accepted).** Public URLs were live before deletion; the move stops future
+> fetches (404). Can't be un-leaked.
 >
-> **RESIDUAL 3 — orphaned public objects (PHI still exposed).** **13** objects sit under `clients/<…>/` in
-> **public** `gemynd-files` with **no `uploaded_files` row** (the DB-records inventory couldn't see them; the
-> apply guardrail forbade scanning the shared bucket to find them). 10 are under real ACS client folders —
-> incl. **`dw-license.jpg`** (driver's license) + scans for Marcus/Pat/Emma — 3 under `hub_unassigned`.
-> **Still publicly fetchable.** Needs an approved second pass to migrate + delete (relaxing "DB-records-only"
-> for these specific ACS-client-pathed objects).
+> **RESIDUAL 2 — authed cross-client read — ✅ RESOLVED (ACS).** Applied the `RESTRICTIVE` policy
+> `tpf_restrict_to_acs_scope` (`20260609_storage_rls_tpf_restrict_to_acs_scope.sql`): ANDs with the permissive
+> set, tightening only `therapyhub-patient-files` to staff-or-own-client (no-op off the ACS bucket).
+> **Witnessed: staff resolve all; portal client Pat resolves her own but is DENIED on Marcus's file ("Object
+> not found"); anon 0.** The `pat_reads_MARCUS=true` from the prior run is now denied. *(Root cause is the
+> project-wide `allow_all_authenticated` policy — its own blocker below.)*
+>
+> **RESIDUAL 3 — orphaned ACS PHI — ✅ RESOLVED** by the follow-up pass above (driver's license + scans +
+> demographic now private + tracked).
+
+---
+
+## BLOCKER — Project-wide storage RLS: `allow_all_authenticated` (portfolio-wide; out of ACS scope to fix)
+
+A single permissive policy on `storage.objects` — **`allow_all_authenticated`** (`cmd=ALL`, role
+`authenticated`, `USING (true)` / `WITH CHECK (true)`) — grants **every authenticated user full
+read/write/delete on every object in every bucket across the whole project** (Story Scribe, AIVA, Katie,
+FlowView, FlowHub, …), not just ACS. **Witnessed (pre-ACS-fix):** a portal client (Pat) minted a signed URL
+for another client's (Marcus's) file purely because both are `authenticated`. The ACS
+`tpf_restrict_to_acs_scope` RESTRICTIVE policy patches the **symptom for the one ACS PHI bucket only**; the
+**root cause** is this shared default-allow that every app inherits — any logged-in user of any Gemynd app can
+reach any other app's stored objects.
+
+**Portfolio-wide storage-RLS blocker**, adjacent to BLOCKER 2's table-RLS (same "permissive default, no
+per-tenant scoping" shape, on the storage layer). **Out of scope for the ACS sprint** — needs a deliberate
+cross-app pass: scope or drop `allow_all_authenticated` and author per-bucket/per-owner storage policies, app
+by app, so it doesn't crater apps that currently rely on the blanket grant.
 
 ---
 
