@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { FormSubmission, RecoveryPlanData } from '../../types';
 import { approveFormSubmission } from '../../services/api';
 import { X, CheckCircle, AlertCircle, FileText, ExternalLink, Loader2 } from 'lucide-react';
+import { SignedFileLink } from '../ui/SignedFile';
 import { dbForms } from '../../data/database';
 
 interface FormReviewModalProps {
@@ -79,16 +80,9 @@ const FormReviewModal: React.FC<FormReviewModalProps> = ({ submission, clientNam
                                 </span>
                             </div>
 
-                            {submission.data?.file_url && (
-                                <a 
-                                    href={submission.data.file_url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-center gap-2 w-full py-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-500 hover:text-primary hover:border-primary transition-all font-bold"
-                                >
-                                    <ExternalLink size={18} /> View Original Upload
-                                </a>
-                            )}
+                            <SignedFileLink filePath={submission.data?.file_path} className="flex items-center justify-center gap-2 w-full py-4 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-500 hover:text-primary hover:border-primary transition-all font-bold">
+                                <ExternalLink size={18} /> View Original Upload
+                            </SignedFileLink>
                         </div>
                     ) : (
                         <div className="prose prose-sm dark:prose-invert max-w-none">

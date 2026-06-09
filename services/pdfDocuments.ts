@@ -14,6 +14,8 @@
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import type { CompletionAssessment, RuleVerdict } from './complianceEngine';
+import { supabase } from './supabase';
+import { STORAGE_BUCKET } from './storageService';
 import type { DocumentFile } from '../types';
 
 // Shared jsPDF "kit" — brand palette + letter geometry. Exported so a separate
@@ -383,19 +385,19 @@ export async function downloadClientRecordPacket(
       const sizeKb = Math.max(1, Math.round((d.fileSize || 0) / 1024));
       const dateStr = fmtDate(d.uploadDate instanceof Date ? d.uploadDate.toISOString() : (d.uploadDate as any));
       let status = 'listed (not embedded)';
-      if (d.url) {
+      if (d.gcs_file_path) {
         try {
-          const res = await fetch(d.url);
-          if (res.ok) {
-            catFolder?.file(sanitizeSeg(d.filename), await res.blob());
+          const { data: blob, error } = await supabase.storage.from(STORAGE_BUCKET).download(d.gcs_file_path);
+          if (!error && blob) {
+            catFolder?.file(sanitizeSeg(d.filename), blob);
             embedded++;
             status = 'embedded';
           }
         } catch {
-          // CORS / network — leave listed-only; the URL is recorded below.
+          // RLS / network — leave listed-only.
         }
       }
-      docLines.push(`  - ${d.filename} [${friendlyMime(d)}, ${dateStr}, ~${sizeKb} KB] — ${status}${status !== 'embedded' && d.url ? ` (${d.url})` : ''}`);
+      docLines.push(`  - ${d.filename} [${friendlyMime(d)}, ${dateStr}, ~${sizeKb} KB] — ${status}`);
     }
   }
 

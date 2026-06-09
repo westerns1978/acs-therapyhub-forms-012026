@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Client, FormSubmission, Form, RecoveryPlanData } from '../../types';
 import Card from '../ui/Card';
 import AssignFormModal from '../forms/AssignFormModal';
+import { SignedFileLink, SignedFileFrame } from '../ui/SignedFile';
 import { PlusCircle, Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, Bell } from 'lucide-react';
 import { dbForms } from '../../data/database'; // Using mock forms for now
 import { approveFormSubmission } from '../../services/api';
@@ -100,12 +101,12 @@ const ReviewSubmissionModal: React.FC<{
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
                             <h4 className="font-black text-slate-800 dark:text-white uppercase text-xs tracking-widest">Original Document</h4>
-                            <a href={data.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-bold text-primary hover:underline">
+                            <SignedFileLink filePath={data.file_path} className="flex items-center gap-2 text-xs font-bold text-primary hover:underline">
                                 View Full Size <ExternalLink size={14} />
-                            </a>
+                            </SignedFileLink>
                         </div>
                         <div className="aspect-[3/4] bg-slate-100 dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden relative group">
-                            <iframe src={data.file_url} className="w-full h-full" title="Document Preview" />
+                            <SignedFileFrame filePath={data.file_path} className="w-full h-full" title="Document Preview" />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-all pointer-events-none" />
                         </div>
                     </div>
