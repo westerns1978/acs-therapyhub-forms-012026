@@ -17,7 +17,7 @@ import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
-import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms, type AccruedHours } from '../services/complianceEngine';
+import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms, fetchClientProgramCardState, type AccruedHours, type ProgramCardState } from '../services/complianceEngine';
 import type { SatopLevel } from '../config/satopFees';
 import { composeProgress } from '../services/displayProgress';
 import { downloadClientRecordPacket } from '../services/pdfDocuments';
@@ -178,6 +178,9 @@ const ClientWorkspace: React.FC = () => {
     const [clientDeterminedLevel, setClientDeterminedLevel] = useState<SatopLevel | null>(null);
     // WS5: ids of the client's completed/reviewed forms — the required-forms gate input.
     const [clientSignedForms, setClientSignedForms] = useState<Set<string> | null>(null);
+    // Program-aware: timeline-program (non-SATOP) compliance state — null for SATOP (which keeps
+    // its hours-% path). Fetched ONCE here and fed to BOTH the header and the overview tab.
+    const [clientTimelineState, setClientTimelineState] = useState<ProgramCardState | null>(null);
     const [preview, setPreview] = useState<PreviewKind | null>(null);
 
     const loadClientData = useCallback(async (id: string) => {
@@ -198,6 +201,7 @@ const ClientWorkspace: React.FC = () => {
                     fetchClientAccrual(id),
                     fetchClientDetermination(id),
                     fetchClientSignedForms(id),
+                    fetchClientProgramCardState(id),
                 ]);
 
                 if (results[0].status === 'fulfilled') setDocuments(results[0].value as DocumentFile[] || []);
@@ -212,6 +216,7 @@ const ClientWorkspace: React.FC = () => {
                 setClientAccrual(results[5].status === 'fulfilled' ? (results[5].value as AccruedHours) : undefined);
                 setClientDeterminedLevel(results[6].status === 'fulfilled' ? (results[6].value as SatopLevel | null) : null);
                 setClientSignedForms(results[7].status === 'fulfilled' ? (results[7].value as Set<string>) : null);
+                setClientTimelineState(results[8].status === 'fulfilled' ? (results[8].value as ProgramCardState | null) : null);
             } else {
                 setClient(null);
                 navigate('/clients');
@@ -306,21 +311,21 @@ const ClientWorkspace: React.FC = () => {
                 return SHOW_RELAPSE_RISK_CARD ? (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2">
-                             <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} />
+                             <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} timelineState={clientTimelineState} />
                         </div>
                         <div className="lg:col-span-1">
                              <RelapseRiskCard client={client} history={activityFeed || []} />
                         </div>
                     </div>
                 ) : (
-                    <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} />
+                    <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} timelineState={clientTimelineState} />
                 );
         }
     };
 
     return (
         <div className="animate-fade-in-up space-y-6">
-            <ClientProfileHeader client={client} determinedLevel={clientDeterminedLevel} progress={clientProgress} />
+            <ClientProfileHeader client={client} determinedLevel={clientDeterminedLevel} progress={clientProgress} timelineState={clientTimelineState} />
 
             <div className="flex items-center justify-between border-b border-border dark:border-dark-border gap-3 flex-wrap">
                 <nav className="flex -mb-px space-x-8 overflow-x-auto">

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Client } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
 import type { ClientProgress } from '../../services/displayProgress';
+import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play } from 'lucide-react';
@@ -16,6 +17,9 @@ interface ClientProfileHeaderProps {
   /** WS-DisplayTruth: authoritative progress composed in ClientWorkspace (accrual + signed
    *  determination) — the header % reads this, NOT the neutralized client.completionPercentage. */
   progress?: ClientProgress | null;
+  /** Program-aware: non-SATOP timeline compliance state (null for SATOP). When present, the
+   *  small "Progress" box shows the review state instead of a meaningless hours %. */
+  timelineState?: ProgramCardState | null;
 }
 
 const getStatusColor = (status: Client['status']) => {
@@ -55,7 +59,7 @@ const getProgramBadge = (client: Client, determinedLevel?: SatopLevel | null) =>
     }
 };
 
-const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress }) => {
+const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress, timelineState }) => {
   const [isSnapshotExpanded, setIsSnapshotExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [clinicalSnapshot, setClinicalSnapshot] = useState<string | null>(null);
@@ -63,6 +67,23 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
   const { user } = useAuth();
   // A live session writes a CLINICAL note — Director/Therapist only (not Admin/Jessica).
   const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist');
+
+  // Program-aware: for a non-SATOP timeline program, the small "Progress" box shows the engine's
+  // review STATE instead of a meaningless hours %. SATOP (timelineState null) keeps the % path.
+  const timelineBox = timelineState ? (() => {
+    const tone = timelineState.status === 'violation' ? 'text-rose-600 dark:text-rose-400'
+      : timelineState.status === 'warning' ? 'text-amber-600 dark:text-amber-400'
+      : timelineState.status === 'met' ? 'text-emerald-600 dark:text-emerald-400'
+      : 'text-slate-500 dark:text-slate-300';
+    if (timelineState.kind === 'no_gate') return { head: 'Compliance', value: 'No gate', sub: 'Court-determined', tone };
+    if (timelineState.status === 'violation') return { head: 'Plan Review', value: 'Overdue', sub: null, tone };
+    if (timelineState.status === 'warning') return { head: 'Plan Review', value: 'Due soon', sub: null, tone };
+    if (timelineState.status === 'met') {
+      const m = timelineState.label.match(/in (\d+) days/);
+      return { head: 'Plan Review', value: m ? `${m[1]}d` : 'On track', sub: m ? 'until review' : null, tone };
+    }
+    return { head: 'Plan Review', value: 'No plan', sub: null, tone };
+  })() : null;
 
   const handleGenerateSnapshot = async () => {
     if (clinicalSnapshot) {
@@ -158,9 +179,16 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
         </div>
 
         <div className="lg:w-64 grid grid-cols-1 gap-3">
-             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 text-center">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Progress</p>
-                <p className="text-2xl font-black text-slate-700 dark:text-white">{progress?.established && progress.progressPct != null ? `${progress.progressPct}%` : '—'}</p>
+             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 text-center" title={timelineState?.detail || undefined}>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{timelineBox ? timelineBox.head : 'Progress'}</p>
+                {timelineBox ? (
+                    <>
+                        <p className={`text-2xl font-black ${timelineBox.tone}`}>{timelineBox.value}</p>
+                        {timelineBox.sub && <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{timelineBox.sub}</p>}
+                    </>
+                ) : (
+                    <p className="text-2xl font-black text-slate-700 dark:text-white">{progress?.established && progress.progressPct != null ? `${progress.progressPct}%` : '—'}</p>
+                )}
              </div>
         </div>
       </div>

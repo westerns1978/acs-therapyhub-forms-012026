@@ -5,6 +5,7 @@ import { FileText, CheckCircle, Award, Calendar, AlertTriangle, Clock, CreditCar
 import { supabase } from '../../services/supabase';
 import { getComplianceEvents } from '../../services/api';
 import { type ClientProgress } from '../../services/displayProgress';
+import { type ProgramCardState } from '../../services/complianceEngine';
 
 interface ClientOverviewTabProps {
   client: Client;
@@ -13,6 +14,9 @@ interface ClientOverviewTabProps {
   /** WS-DisplayTruth: authoritative progress composed ONCE in ClientWorkspace (gate's own
    *  accrual + signed determination) — passed in, never re-fetched here. */
   progress: ClientProgress | null;
+  /** Program-aware: non-SATOP timeline compliance state (null for SATOP). When present, the
+   *  Compliance Scorecard shows the review state instead of the hours-% / "Determination pending". */
+  timelineState?: ProgramCardState | null;
 }
 
 // Therapist UUID -> display name for clinical_note signatures. Kept inline because
@@ -86,7 +90,7 @@ const computeDaysSince = (raw: any): number => {
     return Math.floor(diff / 86_400_000);
 };
 
-const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData, activityFeed, progress }) => {
+const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData, activityFeed, progress, timelineState }) => {
     const daysInProgram = computeDaysSince(
         client.enrollmentDate || (client as any).created_at || (client as any).enrollment_date
     );
@@ -104,6 +108,13 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
     // (mock) or the static columns. requiredTotal is null until established (no-phantom).
     const totalHours = progress?.established ? progress.requiredTotal : null;
     const completedHours = progress?.completedTotal ?? 0;
+    // Program-aware: tone for the non-SATOP timeline review state.
+    const timelineTone = timelineState
+        ? (timelineState.status === 'violation' ? 'text-rose-600 dark:text-rose-400'
+            : timelineState.status === 'warning' ? 'text-amber-600 dark:text-amber-400'
+            : timelineState.status === 'met' ? 'text-emerald-600 dark:text-emerald-400'
+            : 'text-slate-500 dark:text-slate-300')
+        : '';
     // Treatment Plan card — pulled from any form_submission whose data.problems
     // array is populated (Individual Comprehensive Treatment Plan etc.). Renders
     // only when the client has one.
@@ -191,12 +202,19 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                     <div className="space-y-4">
                         <div>
                             <div className="flex justify-between items-baseline mb-1">
-                                <h4 className="font-semibold">Program Completion</h4>
-                                <span className="font-bold text-lg">
-                                    {progress?.established ? `${completedHours} / ${totalHours} hrs` : 'Determination pending'}
+                                <h4 className="font-semibold">{timelineState ? (timelineState.kind === 'no_gate' ? 'Regulatory Status' : 'Treatment Plan Review') : 'Program Completion'}</h4>
+                                <span className={`font-bold text-lg ${timelineTone}`}>
+                                    {timelineState
+                                        ? timelineState.label
+                                        : (progress?.established ? `${completedHours} / ${totalHours} hrs` : 'Determination pending')}
                                 </span>
                             </div>
-                            {progress?.established ? (
+                            {timelineState ? (
+                                <div className="text-xs text-slate-500 mt-1">
+                                    <p>{timelineState.detail}</p>
+                                    {timelineState.citation && <p className="mt-0.5 text-slate-400">{timelineState.citation}</p>}
+                                </div>
+                            ) : progress?.established ? (
                                 <>
                                     <div className="w-full bg-gray-200 rounded-full h-3"><div className="bg-primary h-3 rounded-full" style={{ width: `${progress.progressPct ?? 0}%` }}></div></div>
                                     <p className="text-xs text-slate-500 mt-1">{progress.progressPct ?? 0}% complete{progress.determinedLevel ? ` · SATOP Level ${progress.determinedLevel}` : ''}</p>
