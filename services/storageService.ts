@@ -123,7 +123,7 @@ export const storageService = {
         file_path: filePath,
         file_type: file.type,
         file_size: file.size,
-        public_url: null,
+        public_url: '', // private bucket: no public URL (file_path + signed URLs are canonical; column is NOT NULL)
         org_id: DEFAULT_ORG_ID,
         uploaded_by: 'dan-executive',
         extracted_summary: dna.summary || null,
@@ -194,7 +194,7 @@ export const storageService = {
       file_path: filePath,
       file_type: file.type || 'application/octet-stream',
       file_size: file.size,
-      public_url: null,
+      public_url: '', // private bucket: no public URL (file_path + signed URLs are canonical; column is NOT NULL)
       bucket_id: STORAGE_BUCKET,
       org_id: DEFAULT_ORG_ID,
       hire_id: clientId,
