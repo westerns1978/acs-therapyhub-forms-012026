@@ -79,6 +79,24 @@ function buildRuleIndex(): Record<string, RuleDef> {
 export const RULES: Record<string, RuleDef> = buildRuleIndex();
 export const getRule = (id: string): RuleDef | undefined => RULES[id];
 
+/**
+ * Program-aware routing. Maps a client's normalized program (UPPER program_type) to a
+ * pack `programs.*` node key. SATOP routes through the level logic in evaluateClientCompliance,
+ * NOT here. Non-SATOP programs run their node's flat `rules` (the evaluators are generic).
+ */
+const PROGRAM_TO_PACK: Record<string, string> = {
+  OPIOID_RECOVERY: 'OUTPATIENT_SUD',         // opioid has no distinct node — generic outpatient SUD covers it
+  'INDIVIDUAL COUNSELING': 'OUTPATIENT_SUD',
+  GAMBLING_RECOVERY: 'GAMBLING',
+  'ANGER MANAGEMENT': 'ANGER',
+};
+export const packKeyForProgram = (program: string): string | null => PROGRAM_TO_PACK[program] ?? null;
+/** The flat `rules` array for a pack program node (empty if none/SATOP-leveled). */
+function packNodeRules(packKey: string): RuleDef[] {
+  const node = (pack as any).programs?.[packKey];
+  return Array.isArray(node?.rules) ? node.rules : [];
+}
+
 const mk = (rule: RuleDef, status: VerdictStatus, detail: string): RuleVerdict => ({
   ruleId: rule.id,
   label: rule.label,
@@ -131,16 +149,18 @@ export function evaluateDeadline(rule: RuleDef, facts: ClientFacts, nowMs: numbe
     if (days >= min) return mk(rule, 'met', `${days}/${min} calendar days — minimum program duration satisfied.`);
     return mk(rule, 'warning', `${days}/${min} calendar days — minimum 90-day program length not yet met; completion certificate stays locked until satisfied.`);
   }
-  // Recurring plan review (90-day) — anchored on plan EXECUTION date, which is a
-  // distinct field from enrollment and is not captured yet (treatment_plans empty).
-  if (rule.id === 'MO-OP-TXPLAN-REVIEW-90D') {
+  // Recurring plan review — anchored on plan EXECUTION date (treatment_plans.created_at,
+  // wired via fetchClientPlan). The cadence is PROGRAM-SPECIFIC and read from the rule:
+  // SUD = 90 days (MO-OP-TXPLAN-REVIEW-90D, default), Gambling = 180 days
+  // (MO-GAM-TXPLAN-REVIEW-180D, the 9 CSR 10-7.030 floor). Each program keeps its own clock.
+  if (rule.id === 'MO-OP-TXPLAN-REVIEW-90D' || rule.subtype === 'plan_review') {
+    const period = Number(rule.review_period_days ?? 90);
     if (!facts.planExecutionDate) {
-      return mk(rule, 'not_enforceable', 'Needs treatment-plan execution date (treatment_plans has 0 rows; no plan_executed_at field on clients). Enrollment date is NOT a substitute for this anchor.');
+      return mk(rule, 'not_enforceable', `Needs a treatment-plan execution date (no plan on file). Review cadence is ${period} days.`);
     }
-    const period = 90;
     const warnBefore = Number(rule.warn_before_days ?? 7);
     const days = daysElapsed(facts.planExecutionDate, nowMs);
-    if (days >= period) return mk(rule, 'violation', `Plan review overdue — ${days} days since last review (≥${period}). Real-data era: charting locks until a documented review.`);
+    if (days >= period) return mk(rule, 'violation', `Plan review overdue — ${days} days since plan execution (≥ the ${period}-day cadence).`);
     if (days >= period - warnBefore) return mk(rule, 'warning', `Plan review due in ${period - days} day(s) — ${days}/${period} days since plan execution.`);
     return mk(rule, 'met', `${days}/${period} days since plan execution — review not yet due.`);
   }
@@ -162,6 +182,11 @@ export function evaluateSignature(rule: RuleDef, _facts: ClientFacts): RuleVerdi
 
 /** CONSTRAINT — a limit/restriction on a value or combination. */
 export function evaluateConstraint(rule: RuleDef, _facts: ClientFacts): RuleVerdict {
+  if (rule.subtype === 'no_gate') {
+    // Honest no-gate program (e.g. standalone anger management): not state-regulated,
+    // completion is court-determined. Surfaced as not_enforceable (nothing to enforce).
+    return mk(rule, 'not_enforceable', rule.note || 'No state compliance gate — completion is court-determined, not Missouri-regulated.');
+  }
   if (rule.id === 'MO-GROUP-SIZE-CAP') {
     return mk(rule, 'not_enforceable', 'Needs per-session group attendance (attendees per facilitator per calendar month). Appointments are one row per session without attendee counts.');
   }
@@ -214,8 +239,18 @@ export function evaluateClientCompliance(facts: ClientFacts, nowMs: number = Dat
   if (isSatop && facts.determinedLevel === 'III') {
     const c = getRule('MO-SATOP-CIP-HOURS-SPLIT'); if (c) verdicts.push(evaluateRule(c, facts, nowMs));
   }
-  // Backbone outpatient review applies to every active client (currently not_enforceable).
-  const r = getRule('MO-OP-TXPLAN-REVIEW-90D'); if (r) verdicts.push(evaluateRule(r, facts, nowMs));
+  if (isSatop) {
+    // SATOP keeps the backbone outpatient review (not_enforceable unless a plan exists) — unchanged.
+    const r = getRule('MO-OP-TXPLAN-REVIEW-90D'); if (r) verdicts.push(evaluateRule(r, facts, nowMs));
+  } else {
+    // NON-SATOP (program-aware): route the client's program to its own pack node and run its
+    // rules. buildRuleIndex + the primitive evaluators are program-agnostic; only this
+    // SELECTION is by-program. Unmapped programs return no verdicts (honest "no pack").
+    const packKey = packKeyForProgram(facts.program);
+    if (packKey) {
+      for (const rule of packNodeRules(packKey)) verdicts.push(evaluateRule(rule, facts, nowMs));
+    }
+  }
 
   return verdicts;
 }
@@ -240,7 +275,7 @@ export interface GuardrailVerdict {
 export interface AccruedHours { total: number; counseling: number; education: number; rehabilitative_support: number; }
 const ZERO_ACCRUAL: AccruedHours = { total: 0, counseling: 0, education: 0, rehabilitative_support: 0 };
 
-function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?: boolean; determinedLevel?: SatopLevel | null; signedFormIds?: Set<string> | null } = {}): ClientFacts {
+function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?: boolean; determinedLevel?: SatopLevel | null; signedFormIds?: Set<string> | null; planExecutionDate?: string | null } = {}): ClientFacts {
   // No fallback to srop_hours_completed: a client with no Completed sessions reads 0
   // accrued hours and does NOT pass on seeded data.
   const accrual = opts.accrual ?? ZERO_ACCRUAL;
@@ -260,7 +295,7 @@ function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?:
     totalRequired: determinedLevel ? REQUIRED_HOURS_BY_LEVEL[determinedLevel] : null,
     enrollmentDate: row.created_at ?? null,
     completionDate: row.program_end_date ?? null,
-    planExecutionDate: null,   // treatment_plans empty / no plan_executed_at — see evaluateDeadline
+    planExecutionDate: opts.planExecutionDate ?? null,   // treatment_plans.created_at via fetchClientPlan — see evaluateDeadline
     hourComponents: { counseling: accrual.counseling, education: accrual.education, rehabilitative_support: accrual.rehabilitative_support },
     // Completion-gate inputs. Balance is on the client row (clients.balance);
     // sign-off is a separate clinical_notes lookup the caller injects (see
@@ -287,6 +322,32 @@ export async function fetchClientAccrual(clientId: string): Promise<AccruedHours
     education: Number(data.education_hours) || 0,
     rehabilitative_support: Number(data.rehabilitative_support_hours) || 0,
   };
+}
+
+/** WS-program-aware — ONE client's treatment-plan execution anchor (latest plan's created_at).
+ *  Null when the client has no treatment plan (⇒ plan-review rule stays not_enforceable). */
+export async function fetchClientPlan(clientId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('treatment_plans').select('created_at').eq('client_id', clientId)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error || !data) {
+    if (error) console.warn('[complianceEngine] plan query failed:', error.message);
+    return null;
+  }
+  return data.created_at ?? null;
+}
+
+/** Batch — latest plan execution date keyed by client_id (for the practice-wide fetchers). */
+async function fetchAllPlans(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const { data, error } = await supabase
+    .from('treatment_plans').select('client_id, created_at').order('created_at', { ascending: false });
+  if (error || !data) {
+    if (error) console.warn('[complianceEngine] batch plan query failed:', error.message);
+    return out;
+  }
+  for (const r of data) if (r.client_id && r.created_at && !out.has(r.client_id)) out.set(r.client_id, r.created_at); // first = latest (desc)
+  return out;
 }
 
 /** Batch — all clients' accrued hours keyed by client_id (for the practice-wide fetchers). */
@@ -405,9 +466,10 @@ export async function fetchComplianceGuardrails(): Promise<GuardrailVerdict[]> {
   const accruals = await fetchAllAccruals();
   const determinations = await fetchAllCurrentDeterminations();
   const signedForms = await fetchAllSignedForms();
+  const plans = await fetchAllPlans();
   const out: GuardrailVerdict[] = [];
   for (const row of data) {
-    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null, signedFormIds: signedForms.get(row.id) ?? null });
+    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null, signedFormIds: signedForms.get(row.id) ?? null, planExecutionDate: plans.get(row.id) ?? null });
     if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
     for (const v of evaluateClientCompliance(facts, nowMs)) {
       if (v.status === 'warning' || v.status === 'violation') {
@@ -476,10 +538,11 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
   const accruals = await fetchAllAccruals();
   const determinations = await fetchAllCurrentDeterminations();
   const signedForms = await fetchAllSignedForms();
+  const plans = await fetchAllPlans();
   const neMap = new Map<string, NotEnforceableItem>();
 
   for (const row of data) {
-    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null, signedFormIds: signedForms.get(row.id) ?? null });
+    const facts = toFacts(row, { accrual: accruals.get(row.id), determinedLevel: determinations.get(row.id) ?? null, signedFormIds: signedForms.get(row.id) ?? null, planExecutionDate: plans.get(row.id) ?? null });
     if (['completed', 'archived', 'inactive'].includes(facts.status)) continue;
     base.clientsEvaluated++;
 
@@ -673,14 +736,14 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
  */
 export function assessClient(
   row: any,
-  opts: { nowMs?: number; completionSignedOff?: boolean; accrual?: AccruedHours; determinedLevel?: SatopLevel | null; signedFormIds?: Set<string> | null } = {},
+  opts: { nowMs?: number; completionSignedOff?: boolean; accrual?: AccruedHours; determinedLevel?: SatopLevel | null; signedFormIds?: Set<string> | null; planExecutionDate?: string | null } = {},
 ): {
   facts: ClientFacts;
   verdicts: RuleVerdict[];
   completion: CompletionAssessment;
 } {
   const nowMs = opts.nowMs ?? Date.now();
-  const facts = toFacts(row, { accrual: opts.accrual, completionSignedOff: opts.completionSignedOff, determinedLevel: opts.determinedLevel, signedFormIds: opts.signedFormIds });
+  const facts = toFacts(row, { accrual: opts.accrual, completionSignedOff: opts.completionSignedOff, determinedLevel: opts.determinedLevel, signedFormIds: opts.signedFormIds, planExecutionDate: opts.planExecutionDate });
   return {
     facts,
     verdicts: evaluateClientCompliance(facts, nowMs),
@@ -707,4 +770,49 @@ export async function fetchCompletionSignoff(clientId: string): Promise<boolean>
     return false;
   }
   return !!(data && data.length > 0);
+}
+
+/** Card state for a NON-SATOP (documentation-timeline) program. */
+export interface ProgramCardState {
+  kind: 'timeline' | 'no_gate';
+  status: 'met' | 'warning' | 'violation' | 'not_enforceable';
+  label: string;     // e.g. "Plan review overdue", "Plan review due in 30 day(s)", "No regulatory gate (court-determined)"
+  detail: string;
+  ruleId: string;
+  citation: string;
+}
+
+/**
+ * Program-aware CARD STATE for a NON-SATOP program — for the Clients board / workspace.
+ * Returns null for SATOP (the board shows the hours Progress% there, unchanged) or an
+ * unmapped program. Reads only; runs the same deterministic engine, no AI.
+ */
+export async function fetchClientProgramCardState(clientId: string): Promise<ProgramCardState | null> {
+  const { data: row, error } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
+  if (error || !row) return null;
+  const program = String(row.program_type || row.program || '').toUpperCase();
+  if (program === 'SATOP') return null;            // SATOP keeps the % progress path
+  const packKey = packKeyForProgram(program);
+  if (!packKey) return null;                        // unmapped program — nothing to show
+  const [accrual, plan] = await Promise.all([fetchClientAccrual(clientId), fetchClientPlan(clientId)]);
+  const facts = toFacts(row, { accrual, planExecutionDate: plan });
+  const verdicts = evaluateClientCompliance(facts, Date.now());
+
+  const noGate = verdicts.find(v => v.ruleId === 'MO-ANGER-NO-STATE-GATE');
+  if (noGate) {
+    return { kind: 'no_gate', status: noGate.status, label: 'No regulatory gate (court-determined)', detail: noGate.detail, ruleId: noGate.ruleId, citation: noGate.citation };
+  }
+  const review = verdicts.find(v => v.ruleId === 'MO-OP-TXPLAN-REVIEW-90D' || v.ruleId === 'MO-GAM-TXPLAN-REVIEW-180D');
+  if (review) {
+    let label: string;
+    if (review.status === 'violation') label = 'Plan review overdue';
+    else if (review.status === 'warning') label = review.detail.split('—')[0].trim(); // "Plan review due in N day(s)"
+    else if (review.status === 'met') {
+      const m = review.detail.match(/(\d+)\/(\d+)\s*days/);                            // "X/Y days since plan execution"
+      label = m ? `Plan review due in ${Number(m[2]) - Number(m[1])} days` : 'Plan review current';
+    } else label = 'Plan review — no plan on file';
+    return { kind: 'timeline', status: review.status, label, detail: review.detail, ruleId: review.ruleId, citation: review.citation };
+  }
+  const surfaced = verdicts.find(v => v.status === 'violation' || v.status === 'warning');
+  return surfaced ? { kind: 'timeline', status: surfaced.status, label: surfaced.label, detail: surfaced.detail, ruleId: surfaced.ruleId, citation: surfaced.citation } : null;
 }

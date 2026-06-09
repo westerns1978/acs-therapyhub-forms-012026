@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getClients } from '../../services/api';
 import { fetchAllClientProgress, type ClientProgress } from '../../services/displayProgress';
+import { fetchClientProgramCardState, type ProgramCardState } from '../../services/complianceEngine';
 import { Client } from '../../types';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import ClientAvatar from './ClientAvatar';
@@ -14,11 +15,31 @@ const programDisplayLabel = (program: Client['program']) => {
     return program;
 };
 
+// Tone for a NON-SATOP timeline-program card state (program-aware engine output).
+const timelineTone = (status: ProgramCardState['status']) =>
+    status === 'violation' ? 'text-rose-600 dark:text-rose-400'
+    : status === 'warning' ? 'text-amber-600 dark:text-amber-400'
+    : status === 'met' ? 'text-emerald-600 dark:text-emerald-400'
+    : 'text-slate-400';
+
 const ClientCard: React.FC<{ client: Client; progress?: ClientProgress | null }> = ({ client, progress }) => {
     const navigate = useNavigate();
-    // WS-DisplayTruth: the bar reads AUTHORITATIVE progress (accrual + signed determination),
-    // never the neutralized client.completionPercentage. No determination → empty track, no
-    // fabricated number (no-phantom).
+    // SATOP renders the AUTHORITATIVE hours Progress% (accrual + signed determination) — unchanged.
+    // NON-SATOP programs are documentation-timeline: the % is meaningless, so we show the
+    // program-aware engine's compliance STATE (review due/overdue, or court-determined no-gate).
+    const isSatop = String(client.program || '').toUpperCase() === 'SATOP';
+    const [timeline, setTimeline] = useState<ProgramCardState | null>(null);
+    const [timelineLoading, setTimelineLoading] = useState(!isSatop);
+    useEffect(() => {
+        if (isSatop) return;
+        let cancelled = false;
+        setTimelineLoading(true);
+        fetchClientProgramCardState(client.id)
+            .then(s => { if (!cancelled) { setTimeline(s); setTimelineLoading(false); } })
+            .catch(() => { if (!cancelled) setTimelineLoading(false); });
+        return () => { cancelled = true; };
+    }, [client.id, isSatop]);
+
     const pct = progress?.established ? (progress.progressPct ?? 0) : 0;
     return (
         <div
@@ -28,10 +49,27 @@ const ClientCard: React.FC<{ client: Client; progress?: ClientProgress | null }>
             <ClientAvatar client={client} className="w-20 h-20 text-3xl mb-3" />
             <h3 className="font-bold">{client.name}</h3>
             <p className="text-sm text-surface-secondary-content">{programDisplayLabel(client.program)}</p>
-            <div className="w-full bg-gray-200 rounded-full h-2 my-3">
-                <div className="bg-primary h-2 rounded-full" style={{ width: `${pct}%` }}></div>
-            </div>
-            <p className="text-xs text-surface-secondary-content">{progress?.established ? <>Progress: <span className="font-semibold">{progress.progressPct ?? 0}%</span></> : <span className="text-slate-400">Not yet established</span>}</p>
+            {isSatop ? (
+                <>
+                    <div className="w-full bg-gray-200 rounded-full h-2 my-3">
+                        <div className="bg-primary h-2 rounded-full" style={{ width: `${pct}%` }}></div>
+                    </div>
+                    <p className="text-xs text-surface-secondary-content">{progress?.established ? <>Progress: <span className="font-semibold">{progress.progressPct ?? 0}%</span></> : <span className="text-slate-400">Not yet established</span>}</p>
+                </>
+            ) : (
+                <div className="my-3 w-full min-h-[2.75rem] flex items-center justify-center">
+                    {timelineLoading ? (
+                        <p className="text-xs text-slate-400">Checking compliance…</p>
+                    ) : timeline ? (
+                        <p className={`text-xs font-semibold ${timelineTone(timeline.status)}`} title={timeline.detail}>
+                            <span className="mr-1">{timeline.kind === 'no_gate' ? '⚖' : timeline.status === 'violation' ? '⚠' : timeline.status === 'warning' ? '◴' : '✓'}</span>
+                            {timeline.label}
+                        </p>
+                    ) : (
+                        <p className="text-xs text-slate-400">No compliance gate wired</p>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

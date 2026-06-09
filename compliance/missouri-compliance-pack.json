@@ -443,6 +443,93 @@
       ]
     },
 
+    "GAMBLING": {
+      "label": "Compulsive Gambling Disorder Treatment",
+      "citation": "9 CSR 30-3.134 (gambling-specific); core clinical-record standards 9 CSR 10-7.030",
+      "confidentiality_note": "42 CFR Part 2 does NOT apply to standalone gambling treatment (not a federally-assisted SUD program); HIPAA + RSMo 630.140 govern. Distinct from SUD/Opioid.",
+      "rules": [
+        {
+          "id": "MO-GAM-TXPLAN-REVIEW-180D",
+          "primitive": "DEADLINE",
+          "subtype": "plan_review",
+          "label": "Treatment plan review every 180 days",
+          "requirement": "Individualized treatment plan reviewed and updated at least every 180 calendar days.",
+          "review_period_days": 180,
+          "warn_before_days": 14,
+          "trigger": "day_180_post_plan_execution",
+          "enforcement": "WARN_THEN_FLAG",
+          "note": "180-day regulatory FLOOR per 9 CSR 10-7.030(6)(A) — program-distinct from the SUD 90-day cadence. A DBH contract MAY tighten to 90, but 180 is the floor. Anchor = treatment_plans execution (created) date.",
+          "citation": "9 CSR 10-7.030(6)(A)"
+        },
+        {
+          "id": "MO-GAM-TXPLAN-BY-3VISITS",
+          "primitive": "DEADLINE",
+          "label": "Treatment plan within first 3 visits",
+          "requirement": "Individualized treatment plan finalized within the first three visits.",
+          "enforcement_steps": [{ "at": "visit_2", "action": "WARN" }, { "at": "visit_4_scheduling", "action": "HARD_BLOCK", "unless": "treatment_plan_executed" }],
+          "note": "Needs per-client visit sequence; not wired -> not_enforceable today.",
+          "citation": "9 CSR 10-7.030"
+        },
+        {
+          "id": "MO-GAM-CONSENT-ANNUAL",
+          "primitive": "DOCUMENT",
+          "subtype": "consent",
+          "label": "Informed consent updated annually",
+          "requirement": "Written informed consent executed at intake and renewed at least every 365 days.",
+          "condition": "consent_age_days <= 365",
+          "citation": "9 CSR 10-7.030"
+        },
+        {
+          "id": "MO-GAM-NOTES-5DAY",
+          "primitive": "DEADLINE",
+          "subtype": "contemporaneous_note",
+          "label": "Progress notes within 5 business days",
+          "requirement": "Each service progress note authored within 5 business days of the service.",
+          "note_within_business_days": 5,
+          "enforcement": "WARN_THEN_FLAG",
+          "note": "Needs per-note service-date vs authored-date; not wired -> not_enforceable today.",
+          "citation": "9 CSR 10-7.030"
+        },
+        {
+          "id": "MO-GAM-DISCHARGE-SUMMARY",
+          "primitive": "DOCUMENT",
+          "label": "Discharge summary at conclusion",
+          "requirement": "Discharge/closure summary completed at conclusion of treatment.",
+          "citation": "9 CSR 10-7.030"
+        },
+        {
+          "id": "MO-GAM-CREDENTIAL-CGDC",
+          "primitive": "CREDENTIAL",
+          "label": "Gambling services delivered by a CGDC",
+          "requirement": "Compulsive gambling treatment delivered by a Certified Gambling Disorder Counselor (CGDC) or equivalently qualified professional.",
+          "enforcement": "CREDENTIAL_GATE",
+          "allowed": ["CGDC"],
+          "note": "No credential store wired -> not_enforceable today.",
+          "citation": "9 CSR 30-3.134"
+        }
+      ]
+    },
+
+    "ANGER": {
+      "label": "Anger Management (standalone, court-referred)",
+      "citation": "No Missouri state regulatory framework for standalone anger management (unregulated); completion defined by the referring judicial circuit / court order.",
+      "no_state_gate": true,
+      "completion_note": "No state compliance gate. Completion is court-determined — typically 8-52 hours over 4-12 weeks, set by the referring court/probation. Hours and cadence are NOT Missouri-regulated for standalone anger management.",
+      "future_subtype_note": "A clinically-integrated subtype (co-occurring SUD) behaves like OUTPATIENT_SUD (3-visit plan, 90-day review, 5-day notes) per 9 CSR 30-4.190 — wire ONLY when a subtype field exists; do NOT apply clinical timelines to standalone anger management.",
+      "rules": [
+        {
+          "id": "MO-ANGER-NO-STATE-GATE",
+          "primitive": "CONSTRAINT",
+          "subtype": "no_gate",
+          "label": "No state compliance gate (court-determined)",
+          "requirement": "Standalone anger management is not state-regulated; completion is defined by the referring court order, not a Missouri rule.",
+          "enforcement": "INFORMATIONAL",
+          "note": "Honest no-gate state. Completion is court-determined (typically 8-52 hrs / 4-12 wks).",
+          "citation": "Unregulated (standalone); 9 CSR 30-4.190 applies only to clinically-integrated SUD treatment"
+        }
+      ]
+    },
+
     "WAITLIST": {
       "label": "Waitlist & Priority Populations",
       "citation": "9 CSR 30-3.100",
