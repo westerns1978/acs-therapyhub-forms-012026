@@ -9,6 +9,41 @@ enters this database. The remaining items are smaller follow-ups.
 
 ---
 
+## PHI STORAGE — ACS client documents moved to the private bucket (2026-06-08) — anon exposure CLOSED; 3 residuals OPEN
+
+ACS client documents (incl. a court order, compliance PDFs) were in **public** buckets (`client-documents`,
+`gemynd-files`, `documents`) served by no-auth `/object/public/` URLs. Moved the **10 DB-tracked** ACS objects
+(identified via `uploaded_files` records) into the **private `therapyhub-patient-files`** bucket under
+`clients/<id>/`, repointed the rows, deleted the public originals. App reads now mint short-lived **signed
+URLs** (`storageService.getSignedUrl` + `components/ui/SignedFile`); the packet embeds via RLS-gated
+`storage.download`. Storage RLS added (`20260608_storage_rls_therapyhub_patient_files.sql`: `tpf_staff_all` /
+`tpf_client_read_own` / `tpf_client_insert_own`; anon 0). Widened the ACS bucket's `allowed_mime_types`
+(was pdf/docx-only) to accept scans/photos. Merges `6ff17c3` + `8dd7e9a` (`public_url` NOT-NULL → `''` fix).
+**Witnessed:** deleted public URLs → 400; private object via `/object/public/` + unauth `/object/authenticated/`
+→ 400; staff + client resolve via `/object/sign/` 200; cross-app `gemynd-files` object 200 (shared bucket +
+other apps untouched).
+
+> **RESIDUAL 1 — leaked history (accepted).** The public URLs were live before deletion and can't be
+> un-leaked; the move stops future fetches (404).
+>
+> **RESIDUAL 2 — authed cross-client read (shared policy).** A pre-existing storage policy
+> **`allow_all_authenticated`** (`ALL`, role `authenticated`, `USING true`) grants any authenticated user
+> access to every object in every bucket → it overrides `tpf_client_read_own`. **Witnessed: portal client Pat
+> can mint a signed URL for Marcus's file.** Anon exposure is closed; client↔client isolation among
+> authenticated users is NOT enforced until that shared policy is scoped/removed (cross-app, like BLOCKER 2).
+> **ACS-only fix (HELD, not applied):** a `RESTRICTIVE` policy on `storage.objects` scoped to
+> `bucket_id='therapyhub-patient-files'` AND-requiring staff-or-own-client — restricts only the ACS bucket,
+> leaves the shared policy + other buckets untouched.
+>
+> **RESIDUAL 3 — orphaned public objects (PHI still exposed).** **13** objects sit under `clients/<…>/` in
+> **public** `gemynd-files` with **no `uploaded_files` row** (the DB-records inventory couldn't see them; the
+> apply guardrail forbade scanning the shared bucket to find them). 10 are under real ACS client folders —
+> incl. **`dw-license.jpg`** (driver's license) + scans for Marcus/Pat/Emma — 3 under `hub_unassigned`.
+> **Still publicly fetchable.** Needs an approved second pass to migrate + delete (relaxing "DB-records-only"
+> for these specific ACS-client-pathed objects).
+
+---
+
 ## BLOCKER 1 — Rotate the leaked Gemini API key (cross-app scheduled task)
 
 **Key:** `AIzaSyBLU362ndX18qYQO7OiW3mGniyn2Lsk93M`
