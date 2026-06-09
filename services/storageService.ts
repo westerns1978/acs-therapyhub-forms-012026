@@ -4,8 +4,18 @@ import { geminiGenerate } from './gemini';
 // DYNAMICALLY inside ingestDocument (below) so those parsers stay OUT of the main
 // bundle and load only when a document is actually ingested — not on app startup.
 
-const STORAGE_BUCKET = 'gemynd-files';
+// ACS PHI lives in a PRIVATE bucket; objects are read via short-lived signed URLs (never public).
+export const STORAGE_BUCKET = 'therapyhub-patient-files';
+export const SIGNED_URL_TTL = 3600; // seconds (1h)
 const DEFAULT_ORG_ID = '71077b47-66e8-4fd9-90e7-709773ea6582';
+
+/** Mint a short-lived signed URL for a private-bucket object. Null on failure (no phantom URL). */
+export async function getSignedUrl(filePath?: string | null, ttl = SIGNED_URL_TTL): Promise<string | null> {
+  if (!filePath) return null;
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(filePath, ttl);
+  if (error) { console.warn('[storage] signed url failed:', error.message); return null; }
+  return data?.signedUrl ?? null;
+}
 
 // Map the OCR pipeline's freeform form-type label onto the document_type
 // taxonomy used for categorization. Returns undefined for unknown/blank labels
@@ -100,7 +110,6 @@ export const storageService = {
     if (uploadError) throw uploadError;
     onProgress?.('BINARY_SYNC_COMPLETE');
 
-    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
     const dna = await dnaPromise;
     onProgress?.('NEURAL_ANALYSIS_SYNCED');
 
@@ -114,7 +123,7 @@ export const storageService = {
         file_path: filePath,
         file_type: file.type,
         file_size: file.size,
-        public_url: urlData.publicUrl,
+        public_url: null,
         org_id: DEFAULT_ORG_ID,
         uploaded_by: 'dan-executive',
         extracted_summary: dna.summary || null,
@@ -173,7 +182,6 @@ export const storageService = {
     onProgress?.('UPLOADING');
     const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file);
     if (uploadError) throw uploadError;
-    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
 
     // 3. needs_review — carry from analysis (scan/upload), else derive from
     //    classification certainty.
@@ -186,7 +194,7 @@ export const storageService = {
       file_path: filePath,
       file_type: file.type || 'application/octet-stream',
       file_size: file.size,
-      public_url: urlData.publicUrl,
+      public_url: null,
       bucket_id: STORAGE_BUCKET,
       org_id: DEFAULT_ORG_ID,
       hire_id: clientId,

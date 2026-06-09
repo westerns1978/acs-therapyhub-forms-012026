@@ -1,5 +1,5 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
-import { storageService } from './storageService';
+import { storageService, getSignedUrl } from './storageService';
 import { geminiText, geminiJSON, geminiGenerate } from './gemini';
 import {
   Client, Appointment, Payment, DocumentFile, FormSubmission,
@@ -65,7 +65,7 @@ const mapVaultDocToApp = (vDoc: any): DocumentFile => ({
     uploadDate: new Date(vDoc.uploaded_at),
     fileSize: vDoc.file_size,
     mimeType: vDoc.file_type,
-    url: vDoc.public_url,
+    url: '', // minted as a short-lived signed URL by the async fetchers (private bucket; no public_url)
     extractedData: {
         summary: vDoc.metadata?.summary || vDoc.extracted_summary || '',
         fields: vDoc.metadata?.fields || [],
@@ -215,7 +215,9 @@ export const getDocumentFilesForClient = async (clientId: string): Promise<Docum
         if (!vaultDocs || (vaultDocs || []).length === 0) {
             return (dbDocumentFiles || []).filter(d => d.clientId === clientId);
         }
-        return (vaultDocs || []).map(mapVaultDocToApp);
+        const docs = (vaultDocs || []).map(mapVaultDocToApp);
+        // Mint a signed URL per doc from its private-bucket file_path (gcs_file_path).
+        return Promise.all(docs.map(async d => ({ ...d, url: (await getSignedUrl(d.gcs_file_path)) || '' })));
     } catch (e) {
         return (dbDocumentFiles || []).filter(d => d.clientId === clientId);
     }
@@ -225,7 +227,8 @@ export const saveDocumentFile = async (doc: DocumentFile, file?: File, uploadedB
     if (!file) throw new Error("Binary required for Vault ingestion.");
     // Dropzone path → unified ingest core (one bucket + always-classified + real uploader).
     const vDoc = await storageService.ingestDocument(file, { clientId: doc.clientId, source: 'dropzone', uploadedBy });
-    return mapVaultDocToApp(vDoc);
+    const mapped = mapVaultDocToApp(vDoc);
+    return { ...mapped, url: (await getSignedUrl(mapped.gcs_file_path)) || '' };
 };
 
 export const checkSupabaseConnection = () => storageService.checkConnection();
@@ -887,7 +890,7 @@ export const submitPaperForm = async (
             data: {
                 is_paper_upload: true,
                 file_id: uploadedFile.id,
-                file_url: uploadedFile.public_url,
+                file_path: uploadedFile.file_path,
                 ai_summary: dna.summary,
                 ai_tags: dna.tags,
                 is_signed: dna.isSigned,

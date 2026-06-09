@@ -12,6 +12,7 @@ import { submitPaperForm } from '../../services/api';
 import Modal from '../../components/ui/Modal';
 import MobileDocumentUpload from '../../components/portal/MobileDocumentUpload';
 import { CLIENT_REGISTRY_FORMS } from '../../config/formRegistry';
+import { SignedFileLink } from '../../components/ui/SignedFile';
 
 // WS5: client-facing catalog comes from the single FORM_REGISTRY (audience='client').
 // Required-core is INTRINSIC (requiredForCompletion) — a required form with no assignment
@@ -336,11 +337,9 @@ const PortalDocuments: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        {sub.data?.file_url && (
-                                            <a href={sub.data.file_url} target="_blank" rel="noopener noreferrer" className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-all" title="View Uploaded File">
-                                                <ExternalLink size={16} />
-                                            </a>
-                                        )}
+                                        <SignedFileLink filePath={sub.data?.file_path} className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-all" title="View Uploaded File">
+                                            <ExternalLink size={16} />
+                                        </SignedFileLink>
                                         <span className="text-[10px] font-black uppercase tracking-widest text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-800/30 px-3 py-1.5 rounded-lg">
                                             {sub.status === 'reviewed' ? '✓ Reviewed' : '✓ Submitted'}
                                         </span>
