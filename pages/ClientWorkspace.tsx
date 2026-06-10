@@ -359,7 +359,7 @@ const ClientWorkspace: React.FC = () => {
                             if (isCompiling) return;
                             setIsCompiling(true);
                             try {
-                                await downloadClientRecordPacket(client, assessment.verdicts, assessment.completion, documents);
+                                await downloadClientRecordPacket(client, assessment.verdicts, assessment.completion, documents, clientProgress);
                             } catch (e) {
                                 alert('Could not compile the record packet: ' + (e as Error).message);
                             } finally {
@@ -390,6 +390,7 @@ const ClientWorkspace: React.FC = () => {
                     client={client}
                     verdicts={assessment.verdicts}
                     completion={assessment.completion}
+                    progress={clientProgress}
                 />
             )}
 
