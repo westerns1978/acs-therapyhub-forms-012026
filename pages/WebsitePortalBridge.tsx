@@ -121,11 +121,11 @@ const WebsitePortalBridge: React.FC = () => {
                 <div>
                     <Eyebrow>Client portal — St. Louis &amp; Jefferson County</Eyebrow>
                     <h1 style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 'clamp(2.45rem, 3.95vw, 3.85rem)', lineHeight: 1.08, color: INK, maxWidth: 'min(13.8ch, 100%)', textWrap: 'balance' as any, margin: '1rem 0 0' }}>
-                        Finish what you started.
+                        The hardest step is behind you.
                     </h1>
                     <p style={{ color: MUTED, fontSize: '1.06rem', maxWidth: '48ch', marginTop: '1.25rem' }}>
-                        You've already taken the hardest step. The ACS client portal helps you complete
-                        your program requirements, track your hours, and earn your completion
+                        You've already taken it. The ACS client portal helps you take the rest —
+                        track your hours, complete your forms, and earn your completion
                         certificate — accepted by courts, employers, and probation officers. We
                         understand most people come to us during stressful times; the portal is built
                         to make finishing simpler.
