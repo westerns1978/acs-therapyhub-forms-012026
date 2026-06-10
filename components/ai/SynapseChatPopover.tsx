@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChatMessage } from '../../types';
-import { callMcpOrchestrator } from '../../services/api';
 import { Send, Mic, MicOff, Zap, Globe, ShieldCheck, Lock, Camera, ExternalLink, Heart } from 'lucide-react';
 import VisualAuditPanel from './VisualAuditPanel';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../services/supabase';
@@ -109,10 +108,13 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
 
     // Role-aware tool set. Gemini rejects built-in tools (google_search) and
     // function calling in the SAME request, so each role gets EXACTLY ONE set:
-    //   - CLIENT (portal): google_search grounding only. NO function_declarations,
-    //     and therefore NO path to callMcpOrchestrator — a portal client must never
-    //     reach staff data, app navigation, or MCP tools (security boundary).
-    //   - STAFF: function_declarations (navigation + MCP lookups) only; no search.
+    //   - CLIENT (portal): google_search grounding only. NO function_declarations —
+    //     a portal client must never reach staff data or app navigation (security
+    //     boundary).
+    //   - STAFF: function_declarations (navigation) only; no search.
+    // Patch 0 retired the dead MCP lookups (patient_session_summary /
+    // billing_status): the mcp-orchestrator edge function has NO handler for
+    // either — calling them dumped raw error JSON into chat.
     const getTools = () => {
         if (mode === 'client') {
             return [{ google_search: {} }];
@@ -120,9 +122,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ isOpen, onClose
         return [
             {
                 function_declarations: [
-                    { name: "navigate_to_page", description: "Navigate to a specific system page (e.g. /dashboard, /clients).", parameters: { type: "OBJECT", properties: { path: { type: "STRING" } }, required: ["path"] } },
-                    { name: "patient_session_summary", description: "Get session status and compliance tracking for a client.", parameters: { type: "OBJECT", properties: { patient_id: { type: "STRING" } }, required: ["patient_id"] } },
-                    { name: "billing_status", description: "Check billing and insurance claims for the practice.", parameters: { type: "OBJECT", properties: { practice_id: { type: "STRING" } } } }
+                    { name: "navigate_to_page", description: "Navigate to a specific system page (e.g. /dashboard, /clients).", parameters: { type: "OBJECT", properties: { path: { type: "STRING" } }, required: ["path"] } }
                 ]
             }
         ];
@@ -192,17 +192,14 @@ You can navigate the staff UI and check client records via available tools.`
             const parts = candidate?.content?.parts || [];
             const functionCalls = parts.filter((p: any) => p.functionCall);
             // Tool calls are a STAFF-only path (client getTools() declares no
-            // function tools). Gating on mode here is defense-in-depth: a client
-            // session can never reach callMcpOrchestrator even if a tool call appeared.
+            // function tools). Gating on mode here is defense-in-depth. The only
+            // declared tool is navigate_to_page (Patch 0 retired the dead MCP
+            // lookups); anything else is silently ignored rather than dispatched.
             if (mode === 'staff' && functionCalls.length > 0) {
                  for (const part of functionCalls) {
                      const fc = part.functionCall;
                      setToolUseState(`Looking that up...`);
                      if (fc.name === 'navigate_to_page') navigate(fc.args?.path);
-                     else {
-                        const mcpResult = await callMcpOrchestrator(fc.name, fc.args);
-                        setMessages(prev => [...prev, { role: 'model', parts: [{ text: `Here's what I found: ${JSON.stringify(mcpResult)}`}] }]);
-                     }
                  }
                  setToolUseState(null);
             } else {
@@ -287,11 +284,13 @@ You can navigate the staff UI and check client records via available tools.`
                         }
 
                         if (msg.toolCall) {
+                            // Note: the Live config above declares NO tools, so this
+                            // branch is currently unreachable — kept as the safe shape
+                            // for when v2 adds voice tools. Only navigate_to_page is
+                            // handled (Patch 0 retired the dead MCP lookups).
                             for (const fc of msg.toolCall.functionCalls) {
-                                let result: any = { status: "OK" };
                                 if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
-                                else result = await callMcpOrchestrator(fc.name, fc.args);
-                                sessionRef.current?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: result }] });
+                                sessionRef.current?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { status: 'OK' } }] });
                             }
                         }
 
@@ -373,6 +372,20 @@ You can navigate the staff UI and check client records via available tools.`
         else handleStopLiveMode();
         return () => handleStopLiveMode();
     }, [isVoiceMode, isVisionMode, handleStartLiveMode, handleStopLiveMode]);
+
+    // CLOSE MEANS STOP (Patch 0 — hidden-hot-mic fix). `isOpen=false` renders null
+    // below but the component STAYS MOUNTED (hooks keep running), so without this
+    // the mic stream + Live WebSocket kept streaming invisibly after the panel was
+    // closed (X, Escape, portal bubble) until a route change happened to unmount it.
+    // Flipping the mode flags routes through the ONE voice effect above into
+    // handleStopLiveMode — the same single teardown used by MicOff and unmount, so
+    // there is exactly one way voice stops and no close path can miss it.
+    useEffect(() => {
+        if (!isOpen && (isVoiceMode || isVisionMode)) {
+            setIsVoiceMode(false);
+            setIsVisionMode(false);
+        }
+    }, [isOpen, isVoiceMode, isVisionMode]);
 
     if (!isOpen) return null;
     
