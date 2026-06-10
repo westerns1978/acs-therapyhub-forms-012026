@@ -14,6 +14,7 @@
 import { jsPDF } from 'jspdf';
 import JSZip from 'jszip';
 import type { CompletionAssessment, RuleVerdict } from './complianceEngine';
+import type { ClientProgress } from './displayProgress';
 import { supabase } from './supabase';
 import { STORAGE_BUCKET } from './storageService';
 import type { DocumentFile } from '../types';
@@ -44,9 +45,6 @@ function clientIdOf(c: any): string {
 }
 function safeName(c: any): string {
   return String(c.name || 'client').replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'client';
-}
-function num(v: any): number | null {
-  return v == null || v === '' || isNaN(Number(v)) ? null : Number(v);
 }
 
 /** Branded letterhead. Returns the y-cursor below it. */
@@ -236,7 +234,7 @@ export function downloadCompletionCertificate(client: any, completion: Completio
 }
 
 // ── 2. Status / Progress Report ──────────────────────────────────────────────
-export function buildStatusReportDoc(client: any, verdicts: RuleVerdict[], completion: CompletionAssessment): jsPDF {
+export function buildStatusReportDoc(client: any, verdicts: RuleVerdict[], completion: CompletionAssessment, progress?: ClientProgress | null): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const isDemo = isDemoClient(client);
   let y = letterhead(doc);
@@ -247,8 +245,17 @@ export function buildStatusReportDoc(client: any, verdicts: RuleVerdict[], compl
   doc.text('Compliance Status Report', MARGIN, y);
   y += 26;
 
-  const hours = num(client.srop_hours_completed ?? client.sropHoursCompleted);
-  const required = num(client.total_sessions_required ?? client.totalSessionsRequired);
+  // WS-DisplayTruth: hours come from the SAME sources the completion gate reads —
+  // composeProgress (signed determination level + client_accrued_hours accrual),
+  // threaded in by the caller. The static clients.srop_hours_completed /
+  // total_sessions_required columns were DROPPED (#10a, 2026-06-08) — no fallback.
+  // No signed determination ⇒ accrued hours only, never a number against a
+  // required total that doesn't exist.
+  const hoursLine = progress == null
+    ? '—'
+    : progress.established
+      ? `${progress.completedTotal} / ${progress.requiredTotal} required${progress.isSrop ? ` (incl. ${progress.counselingCompleted} / ${progress.counselingRequired} counseling)` : ''}`
+      : `${progress.completedTotal} logged (no required total established)`;
   const enrolled = client.created_at ?? client.createdAt ?? null;
   const daysIn = enrolled ? Math.max(0, Math.floor((Date.now() - new Date(enrolled).getTime()) / 86400000)) : null;
 
@@ -256,7 +263,7 @@ export function buildStatusReportDoc(client: any, verdicts: RuleVerdict[], compl
   y = kv(doc, 'Client ID', clientIdOf(client), y);
   y = kv(doc, 'Program', completion.programLabel, y);
   y = kv(doc, 'Enrolled', fmtDate(enrolled), y);
-  y = kv(doc, 'Clinical hours', hours == null ? '—' : `${hours}${required != null ? ` / ${required} required` : ''}`, y);
+  y = kv(doc, 'Clinical hours', hoursLine, y);
   y = kv(doc, 'Days in program', daysIn == null ? '—' : String(daysIn), y);
   y = kv(doc, 'Completion status', completion.eligible
     ? 'All completion criteria MET — eligible for completion certificate.'
@@ -317,8 +324,8 @@ export function buildStatusReportDoc(client: any, verdicts: RuleVerdict[], compl
   return doc;
 }
 
-export function downloadStatusReport(client: any, verdicts: RuleVerdict[], completion: CompletionAssessment): void {
-  buildStatusReportDoc(client, verdicts, completion).save(`Compliance_Status_${safeName(client)}.pdf`);
+export function downloadStatusReport(client: any, verdicts: RuleVerdict[], completion: CompletionAssessment, progress?: ClientProgress | null): void {
+  buildStatusReportDoc(client, verdicts, completion, progress).save(`Compliance_Status_${safeName(client)}.pdf`);
 }
 
 // ── 3. End-of-program Client Record Packet (ZIP) ─────────────────────────────
@@ -357,12 +364,13 @@ export async function downloadClientRecordPacket(
   verdicts: RuleVerdict[],
   completion: CompletionAssessment,
   documents: DocumentFile[] = [],
+  progress?: ClientProgress | null,
 ): Promise<{ embedded: number; listed: number; complete: boolean }> {
   const zip = new JSZip();
   const complete = completion.eligible;
 
   // 1. Record Summary PDF (the cover/summary — status-report content).
-  zip.file('Record_Summary.pdf', buildStatusReportDoc(client, verdicts, completion).output('blob'));
+  zip.file('Record_Summary.pdf', buildStatusReportDoc(client, verdicts, completion, progress).output('blob'));
 
   // 2. Completion Certificate — ONLY when the engine confirms eligibility.
   if (complete) {

@@ -4,6 +4,7 @@ import { X, Check, Download, ShieldCheck, AlertTriangle, Award, FileText, Receip
 import type { jsPDF } from 'jspdf';
 import { buildCompletionCertificateDoc, buildStatusReportDoc } from '../../services/pdfDocuments';
 import type { CompletionAssessment, RuleVerdict } from '../../services/complianceEngine';
+import type { ClientProgress } from '../../services/displayProgress';
 
 // Cert/status callers keep this exact type — the receipt mode is a separate union
 // member below, so existing callers (ClientWorkspace) are unaffected.
@@ -19,6 +20,9 @@ interface CertStatusProps extends CommonProps {
   client: any;
   verdicts: RuleVerdict[];
   completion: CompletionAssessment;
+  /** WS-DisplayTruth: the gate-sourced hours (composeProgress) for the status report's
+   *  "Clinical hours" line — the static columns it used to read were dropped (#10a). */
+  progress?: ClientProgress | null;
 }
 
 interface GenericDocProps extends CommonProps {
@@ -87,7 +91,7 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = (props) => {
           ? props.build()
           : props.kind === 'certificate'
             ? buildCompletionCertificateDoc(props.client, props.completion)
-            : buildStatusReportDoc(props.client, props.verdicts, props.completion);
+            : buildStatusReportDoc(props.client, props.verdicts, props.completion, props.progress);
         docRef.current = doc;
         url = URL.createObjectURL(doc.output('blob'));
         setBlobUrl(url);
