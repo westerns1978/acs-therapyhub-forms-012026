@@ -91,6 +91,10 @@ const PROGRAM_TO_PACK: Record<string, string> = {
   'ANGER MANAGEMENT': 'ANGER',
 };
 export const packKeyForProgram = (program: string): string | null => PROGRAM_TO_PACK[program] ?? null;
+/** Human label of a pack program node (e.g. GAMBLING → "Compulsive Gambling Disorder
+ *  Treatment"); null for unknown keys. Display-only — never part of a verdict. */
+export const packNodeLabel = (packKey: string): string | null =>
+  (pack as any).programs?.[packKey]?.label ?? null;
 /** The flat `rules` array for a pack program node (empty if none/SATOP-leveled). */
 function packNodeRules(packKey: string): RuleDef[] {
   const node = (pack as any).programs?.[packKey];
@@ -607,6 +611,13 @@ export interface CompletionGate {
   label: string;
   passed: boolean;
   detail: string;
+  /** Build 1 (additive): the 9 CSR anchor for this gate — hours/duration carry their
+   *  rule verdict's citation; payment/signoff cite the 3.206(13) completion umbrella;
+   *  forms cites 3.206(13)(F) ("completes and signs all required forms"). */
+  citation?: string;
+  /** Build 1 (additive): forms gate only — the unsigned required form ids (the array
+   *  previously computed here but surfaced only string-joined into `detail`). */
+  missingFormIds?: string[];
 }
 
 export interface CompletionAssessment {
@@ -670,6 +681,7 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
     label: v.primitive === 'DEADLINE' ? 'Minimum duration' : 'Hours',
     passed: v.status === 'met',
     detail: v.detail,
+    citation: v.citation,
   }));
 
   // Payment gate — clients.balance must be a KNOWN zero. Unknown (null) never
@@ -685,6 +697,7 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
         : bal <= 0
           ? 'No outstanding balance.'
           : `Outstanding balance of $${bal.toFixed(2)} must be cleared.`,
+    citation: '9 CSR 30-3.206(13)',
   });
 
   // Sign-off gate — a signed completion_signoff clinical note must exist. This is
@@ -697,6 +710,7 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
       facts.completionSignedOff === true
         ? 'Completion sign-off signed by the qualified professional.'
         : 'Awaiting the clinician’s signed completion sign-off.',
+    citation: '9 CSR 30-3.206(13)',
   });
 
   // WS5: required-forms-signed gate (3.206(13)(F) "completes and signs all required
@@ -714,6 +728,8 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
       detail: missing.length === 0
         ? `All ${requiredForms.length} required forms completed/signed.`
         : `${missing.length} of ${requiredForms.length} required form(s) unsigned (${missing.join(', ')}).`,
+      citation: '9 CSR 30-3.206(13)(F)',
+      missingFormIds: missing,
     });
   }
 

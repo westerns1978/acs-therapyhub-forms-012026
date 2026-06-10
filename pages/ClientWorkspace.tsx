@@ -17,9 +17,10 @@ import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
-import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms, fetchClientProgramCardState, type AccruedHours, type ProgramCardState } from '../services/complianceEngine';
+import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms, fetchClientProgramCardState, fetchClientPlan, type AccruedHours, type ProgramCardState } from '../services/complianceEngine';
 import type { SatopLevel } from '../config/satopFees';
 import { composeProgress } from '../services/displayProgress';
+import { composePacketReadiness } from '../services/packetReadiness';
 import { downloadClientRecordPacket } from '../services/pdfDocuments';
 import DocumentPreviewModal, { PreviewKind } from '../components/clients/DocumentPreviewModal';
 import BillingLedger from '../components/billing/BillingLedger';
@@ -179,8 +180,13 @@ const ClientWorkspace: React.FC = () => {
     // WS5: ids of the client's completed/reviewed forms — the required-forms gate input.
     const [clientSignedForms, setClientSignedForms] = useState<Set<string> | null>(null);
     // Program-aware: timeline-program (non-SATOP) compliance state — null for SATOP (which keeps
-    // its hours-% path). Fetched ONCE here and fed to BOTH the header and the overview tab.
+    // its hours-% path). Fetched ONCE here and fed to the header (the overview now renders the
+    // full Packet Readiness checklist instead of this collapsed card state).
     const [clientTimelineState, setClientTimelineState] = useState<ProgramCardState | null>(null);
+    // Treatment-plan execution anchor (latest plan's created_at) — the facts input the
+    // timeline rules (plan-review cadence) evaluate against. Without it, assessClient
+    // reads "no plan on file" even when a plan exists.
+    const [clientPlanDate, setClientPlanDate] = useState<string | null>(null);
     const [preview, setPreview] = useState<PreviewKind | null>(null);
 
     const loadClientData = useCallback(async (id: string) => {
@@ -202,6 +208,7 @@ const ClientWorkspace: React.FC = () => {
                     fetchClientDetermination(id),
                     fetchClientSignedForms(id),
                     fetchClientProgramCardState(id),
+                    fetchClientPlan(id),
                 ]);
 
                 if (results[0].status === 'fulfilled') setDocuments(results[0].value as DocumentFile[] || []);
@@ -217,6 +224,7 @@ const ClientWorkspace: React.FC = () => {
                 setClientDeterminedLevel(results[6].status === 'fulfilled' ? (results[6].value as SatopLevel | null) : null);
                 setClientSignedForms(results[7].status === 'fulfilled' ? (results[7].value as Set<string>) : null);
                 setClientTimelineState(results[8].status === 'fulfilled' ? (results[8].value as ProgramCardState | null) : null);
+                setClientPlanDate(results[9].status === 'fulfilled' ? (results[9].value as string | null) : null);
             } else {
                 setClient(null);
                 navigate('/clients');
@@ -254,12 +262,23 @@ const ClientWorkspace: React.FC = () => {
     // Deterministic compliance assessment for this client. The engine — not the
     // UI — decides whether the completion certificate may be generated. Sign-off
     // (a separate clinical_notes event) is injected as one of the three gates.
-    const assessment = assessClient(client, { completionSignedOff, accrual: clientAccrual, determinedLevel: clientDeterminedLevel, signedFormIds: clientSignedForms });
+    const assessment = assessClient(client, { completionSignedOff, accrual: clientAccrual, determinedLevel: clientDeterminedLevel, signedFormIds: clientSignedForms, planExecutionDate: clientPlanDate });
 
     // WS-DisplayTruth: compose program progress ONCE from the gate's own level + accrual
     // (already fetched above) and feed BOTH the header and the overview — single source,
     // no extra fetch, never the neutralized client.completionPercentage.
     const clientProgress = composeProgress(clientDeterminedLevel, clientAccrual);
+
+    // Build 1 — Packet Readiness: the per-client checklist model, composed from the SAME
+    // assessment/gate inputs above (pure adapter, no extra fetch). Fed to the overview tab.
+    const packetReadiness = composePacketReadiness({
+        program: assessment.facts.program,
+        completion: assessment.completion,
+        verdicts: assessment.verdicts,
+        determinedLevel: clientDeterminedLevel,
+        signedFormIds: clientSignedForms,
+        planExecutionDate: clientPlanDate,
+    });
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },
@@ -311,14 +330,14 @@ const ClientWorkspace: React.FC = () => {
                 return SHOW_RELAPSE_RISK_CARD ? (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2">
-                             <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} timelineState={clientTimelineState} />
+                             <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} readiness={packetReadiness} />
                         </div>
                         <div className="lg:col-span-1">
                              <RelapseRiskCard client={client} history={activityFeed || []} />
                         </div>
                     </div>
                 ) : (
-                    <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} timelineState={clientTimelineState} />
+                    <ClientOverviewTab client={client} sropData={sropData} activityFeed={activityFeed || []} progress={clientProgress} readiness={packetReadiness} />
                 );
         }
     };
