@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Client, SROPProgress, ClientActivity, ComplianceEvent } from '../../types';
 import Card from '../ui/Card';
-import { FileText, CheckCircle, Award, Calendar, AlertTriangle, Clock, CreditCard, ClipboardList, FileSignature, Target } from 'lucide-react';
+import { FileText, CheckCircle, CheckCircle2, Award, Calendar, AlertTriangle, Clock, CreditCard, FileSignature, Target, HelpCircle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { getComplianceEvents } from '../../services/api';
 import { type ClientProgress } from '../../services/displayProgress';
-import { type ProgramCardState } from '../../services/complianceEngine';
+import { type PacketReadiness, type ReadinessRow, type ReadinessState } from '../../services/packetReadiness';
 
 interface ClientOverviewTabProps {
   client: Client;
@@ -14,9 +14,9 @@ interface ClientOverviewTabProps {
   /** WS-DisplayTruth: authoritative progress composed ONCE in ClientWorkspace (gate's own
    *  accrual + signed determination) — passed in, never re-fetched here. */
   progress: ClientProgress | null;
-  /** Program-aware: non-SATOP timeline compliance state (null for SATOP). When present, the
-   *  Compliance Scorecard shows the review state instead of the hours-% / "Determination pending". */
-  timelineState?: ProgramCardState | null;
+  /** Build 1 — Packet Readiness: the per-client checklist model, composed ONCE in
+   *  ClientWorkspace from the same engine assessment the certificate gate uses. */
+  readiness: PacketReadiness;
 }
 
 // Therapist UUID -> display name for clinical_note signatures. Kept inline because
@@ -61,6 +61,74 @@ const StatCard: React.FC<{ label: string; value: string | number; icon: React.El
     </div>
 );
 
+// ── Build 1: Packet Readiness checklist (the Compliance Scorecard, upgraded) ──
+// Three honest visual states — met / action-needed / can't-verify — NEVER merged:
+// a `cannot_verify` row means "the system lacks the data to evaluate this yet";
+// it must not read as a pass or a failure.
+const STATE_META: Record<ReadinessState, { icon: React.ElementType; tone: string; chip: string; chipClass: string }> = {
+    met: {
+        icon: CheckCircle2,
+        tone: 'text-emerald-600 dark:text-emerald-400',
+        chip: 'Met',
+        chipClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800',
+    },
+    action: {
+        icon: AlertTriangle,
+        tone: 'text-rose-600 dark:text-rose-400',
+        chip: 'Action needed',
+        chipClass: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800',
+    },
+    cannot_verify: {
+        icon: HelpCircle,
+        tone: 'text-slate-400 dark:text-slate-500',
+        chip: "Can't verify yet",
+        chipClass: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700',
+    },
+};
+
+const ReadinessRowItem: React.FC<{ row: ReadinessRow; progress: ClientProgress | null }> = ({ row, progress }) => {
+    const meta = STATE_META[row.state];
+    const Icon = meta.icon;
+    return (
+        <li className="p-3 rounded-xl border border-black/5 dark:border-white/5 bg-slate-50/70 dark:bg-slate-800/40">
+            <div className="flex items-start gap-3">
+                <Icon size={18} className={`shrink-0 mt-0.5 ${meta.tone}`} />
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{row.label}</p>
+                        <span className={`px-2 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-widest ${meta.chipClass}`}>{meta.chip}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{row.detail}</p>
+                    {/* The hours gate keeps the progress bar (the old scorecard's survivor) —
+                        progressPct is the ONLY percentage on this card (hours-denominated). */}
+                    {row.id === 'hours' && progress?.established && (
+                        <div className="mt-2">
+                            <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2"><div className="bg-primary h-2 rounded-full" style={{ width: `${progress.progressPct ?? 0}%` }}></div></div>
+                            <p className="text-[10px] text-slate-400 mt-1">{progress.progressPct ?? 0}% of required hours{progress.isSrop ? ` · counseling ${progress.counselingCompleted} / ${progress.counselingRequired} hrs` : ''}</p>
+                        </div>
+                    )}
+                    {row.citation && <p className="text-[10px] font-mono text-slate-400 mt-1">{row.citation}</p>}
+                    {row.subRows && row.subRows.length > 0 && (
+                        <ul className="mt-2 space-y-1.5 border-l-2 border-slate-200 dark:border-slate-700 pl-3">
+                            {row.subRows.map((sub) => {
+                                const sMeta = STATE_META[sub.state];
+                                const SIcon = sMeta.icon;
+                                return (
+                                    <li key={sub.id} className="flex items-center gap-2 flex-wrap">
+                                        <SIcon size={13} className={`shrink-0 ${sMeta.tone}`} />
+                                        <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{sub.label}</span>
+                                        <span className="text-[10px] text-slate-400">{sub.detail}</span>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </div>
+            </div>
+        </li>
+    );
+};
+
 const ActivityIcon: React.FC<{ type: ClientActivity['type'] }> = ({ type }) => {
     const icons = {
         Session: Calendar, Document: FileText, Form: CheckCircle,
@@ -90,31 +158,18 @@ const computeDaysSince = (raw: any): number => {
     return Math.floor(diff / 86_400_000);
 };
 
-const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData, activityFeed, progress, timelineState }) => {
+const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData, activityFeed, progress, readiness }) => {
     const daysInProgram = computeDaysSince(
         client.enrollmentDate || (client as any).created_at || (client as any).enrollment_date
     );
 
     const timeToDeadline = client.nextDeadline ? Math.max(0, Math.ceil((new Date(client.nextDeadline).getTime() - new Date().getTime()) / (1000 * 3600 * 24))) : null;
 
-    const missingDocsCount = client?.missingDocuments?.length || 0;
     const badgeCount = client?.gamification?.badges?.length || 0;
 
     const [payments, setPayments] = useState<PaymentRow[]>([]);
     const [notes, setNotes] = useState<NoteRow[]>([]);
     const [csrAlerts, setCsrAlerts] = useState<ComplianceEvent[]>([]);
-    // WS-DisplayTruth: program progress is composed ONCE in ClientWorkspace (the gate's own
-    // accrual + signed determination) and passed in — never re-fetched here, never sropData
-    // (mock) or the static columns. requiredTotal is null until established (no-phantom).
-    const totalHours = progress?.established ? progress.requiredTotal : null;
-    const completedHours = progress?.completedTotal ?? 0;
-    // Program-aware: tone for the non-SATOP timeline review state.
-    const timelineTone = timelineState
-        ? (timelineState.status === 'violation' ? 'text-rose-600 dark:text-rose-400'
-            : timelineState.status === 'warning' ? 'text-amber-600 dark:text-amber-400'
-            : timelineState.status === 'met' ? 'text-emerald-600 dark:text-emerald-400'
-            : 'text-slate-500 dark:text-slate-300')
-        : '';
     // Treatment Plan card — pulled from any form_submission whose data.problems
     // array is populated (Individual Comprehensive Treatment Plan etc.). Renders
     // only when the client has one.
@@ -198,34 +253,59 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                     </Card>
                 )}
 
-                <Card title="Compliance Scorecard">
+                <Card title="Packet Readiness">
                     <div className="space-y-4">
-                        <div>
-                            <div className="flex justify-between items-baseline mb-1">
-                                <h4 className="font-semibold">{timelineState ? (timelineState.kind === 'no_gate' ? 'Regulatory Status' : 'Treatment Plan Review') : 'Program Completion'}</h4>
-                                <span className={`font-bold text-lg ${timelineTone}`}>
-                                    {timelineState
-                                        ? timelineState.label
-                                        : (progress?.established ? `${completedHours} / ${totalHours} hrs` : 'Determination pending')}
+                        {/* Program + honest count header. "X of N gates met" is a derivable
+                            count — never a "% ready" (gates are heterogeneous; a percentage
+                            would fabricate linearity the data doesn't have). */}
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-1">{readiness.programLabel}</p>
+                            {readiness.kind === 'gates' && (
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-widest ${readiness.eligible
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'}`}>
+                                    {readiness.eligible ? <ShieldCheck size={13} /> : <AlertTriangle size={13} />}
+                                    {readiness.metCount} of {readiness.totalCount} gates met{readiness.eligible ? ' — eligible' : ''}
                                 </span>
-                            </div>
-                            {timelineState ? (
-                                <div className="text-xs text-slate-500 mt-1">
-                                    <p>{timelineState.detail}</p>
-                                    {timelineState.citation && <p className="mt-0.5 text-slate-400">{timelineState.citation}</p>}
-                                </div>
-                            ) : progress?.established ? (
-                                <>
-                                    <div className="w-full bg-gray-200 rounded-full h-3"><div className="bg-primary h-3 rounded-full" style={{ width: `${progress.progressPct ?? 0}%` }}></div></div>
-                                    <p className="text-xs text-slate-500 mt-1">{progress.progressPct ?? 0}% complete{progress.determinedLevel ? ` · SATOP Level ${progress.determinedLevel}` : ''}</p>
-                                    {progress.isSrop && (
-                                        <p className="text-xs text-slate-500 mt-0.5">Counseling: {progress.counselingCompleted} / {progress.counselingRequired} hrs</p>
-                                    )}
-                                </>
-                            ) : (
-                                <p className="text-xs text-slate-500 mt-1">No signed placement determination yet — required hours are set when a clinician signs the determination.</p>
                             )}
                         </div>
+
+                        {/* Designed single-state / lead note (not-established · no-gate ·
+                            no-pack · timeline-without-plan). Never an empty checklist. */}
+                        {readiness.statusNote && (() => {
+                            const neutral = readiness.kind === 'no_gate' || readiness.kind === 'no_pack';
+                            const headline = readiness.kind === 'not_established' ? 'Completion not established'
+                                : readiness.kind === 'no_gate' ? 'No state compliance gate (court-determined)'
+                                : readiness.kind === 'no_pack' ? 'No Missouri rule pack mapped'
+                                : 'No treatment plan on file';
+                            return (
+                                <div className={`p-4 rounded-xl border ${neutral
+                                    ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
+                                    : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'}`}>
+                                    <div className="flex items-start gap-3">
+                                        {neutral
+                                            ? <HelpCircle className="text-slate-400 shrink-0 mt-0.5" size={18} />
+                                            : <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />}
+                                        <div>
+                                            <p className={`text-sm font-bold ${neutral ? 'text-slate-700 dark:text-slate-200' : 'text-amber-800 dark:text-amber-200'}`}>{headline}</p>
+                                            <p className={`text-xs mt-0.5 leading-relaxed ${neutral ? 'text-slate-500 dark:text-slate-400' : 'text-amber-700 dark:text-amber-300'}`}>{readiness.statusNote}</p>
+                                            {readiness.citation && <p className="text-[10px] font-mono text-slate-400 mt-1">{readiness.citation}</p>}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* The checklist: certificate gates (SATOP, per-form sub-rows under
+                            the forms gate) or the FULL documentation-rule verdicts (timeline
+                            programs) — every row individually addressable, cited. */}
+                        {readiness.rows.length > 0 && (
+                            <ul className="space-y-2">
+                                {readiness.rows.map((row) => (
+                                    <ReadinessRowItem key={row.id} row={row} progress={progress} />
+                                ))}
+                            </ul>
+                        )}
                     </div>
                 </Card>
 
@@ -358,7 +438,10 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                     )}
                     <div className="space-y-3">
                         <StatCard label="Days in Program" value={daysInProgram} icon={Calendar} />
-                        <StatCard label="Missing Documents" value={missingDocsCount} icon={AlertTriangle} />
+                        {/* "Missing Documents" StatCard retired (Build 1): it read
+                            client.missingDocuments, which no DB column feeds — permanently 0,
+                            phantom-shaped reassurance. The Packet Readiness checklist's
+                            per-form rows are the real replacement. */}
                         <StatCard label="Achievements" value={badgeCount} icon={Award} />
                     </div>
                 </Card>
