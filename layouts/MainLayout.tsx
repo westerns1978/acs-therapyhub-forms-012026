@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import NavigationSidebar from '../components/ui/NavigationSidebar';
 import CommandPalette from '../components/ui/CommandPalette';
 import { useAuth } from '../contexts/AuthContext';
+import { useClara } from '../contexts/ClaraContext';
 import MobileDrawer from '../components/ui/MobileDrawer';
 import SynapseChatPopover from '../components/ai/SynapseChatPopover';
 import Breadcrumbs from '../components/ui/Breadcrumbs';
@@ -25,7 +26,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [isSidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [isMobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [isClaraOpen, setClaraOpen] = useState(false);
+  // Clara v2: open-state + session live in the app-level ClaraProvider, so the
+  // panel (and any active voice session) survives navigation — this layout is
+  // re-instantiated per route wrapper and must not own Clara state.
+  const clara = useClara();
   const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [isNoteModalOpen, setNoteModalOpen] = useState(false); 
   const [isCreateClientModalOpen, setCreateClientModalOpen] = useState(false);
@@ -109,7 +113,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       }
       if (event.key === 'Escape') {
         setCommandPaletteOpen(false);
-        setClaraOpen(false);
+        clara.close(); // provider-owned: also stops voice (close-means-stop)
         setScheduleModalOpen(false);
         // Note: the Note Studio dock is intentionally NOT closed on Escape — it is a
         // persistent, non-blocking panel and closing it mid-session would discard an
@@ -145,8 +149,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         onOpenNote={() => { setPreselectedClientId(undefined); setNoteModalOpen(true); }}
         onNewIntake={() => setCreateClientModalOpen(true)}
         onMobileMenuToggle={() => setMobileDrawerOpen(prev => !prev)}
-        onClaraToggle={() => setClaraOpen(prev => !prev)}
-        isClaraOpen={isClaraOpen}
+        onClaraToggle={clara.toggle}
+        isClaraOpen={clara.isOpen}
       />
       
       <NotificationContainer />
@@ -160,7 +164,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             isCollapsed={isSidebarCollapsed} 
             setIsCollapsed={setSidebarCollapsed} 
         />
-        <div className={`flex flex-col flex-1 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} ${isClaraOpen ? 'lg:mr-[420px]' : ''}`}>
+        <div className={`flex flex-col flex-1 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} ${clara.isOpen ? 'lg:mr-[420px]' : ''}`}>
             <main className="flex-1 p-4 sm:p-6 pt-20 pb-8 lg:pt-20 lg:p-8 motion-safe:animate-fade-in-up">
                 <Breadcrumbs />
                 {children}
@@ -174,7 +178,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           and opens as a docked right-side panel that PUSHES the content (lg:mr above),
           so she never floats over the ledger. The portal keeps the floating bubble
           (PortalLayout, unchanged). Same shared brain — only the shell differs. */}
-      <SynapseChatPopover isOpen={isClaraOpen} onClose={() => setClaraOpen(false)} mode="staff" variant="panel" />
+      <SynapseChatPopover variant="panel" />
       
       {isScheduleModalOpen && (
           <ScheduleSessionModal
