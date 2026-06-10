@@ -1199,7 +1199,11 @@ const mapTreatmentPlanRowToApp = (row: any): TreatmentPlan => ({
     title: row.title,
     category: row.category,
     estimatedDuration: row.estimated_duration ?? undefined,
-    content: row.content || { problems: [] },
+    // Normalize content at the SOURCE: fixture/anchor plans store content '{}' and a
+    // malformed row could lack the problems array — `row.content || {...}` missed both
+    // ({} is truthy → .problems undefined → render crash). Honest normalization only:
+    // empty stays empty (renders the unauthored state), nothing is fabricated.
+    content: { ...(row.content ?? {}), problems: Array.isArray(row.content?.problems) ? row.content.problems : [] },
     status: (row.status || 'Active') as TreatmentPlanStatus,
     createdBy: row.created_by ?? undefined,
     notes: row.notes ?? undefined,

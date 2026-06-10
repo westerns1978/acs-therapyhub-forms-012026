@@ -112,7 +112,13 @@ const ActivePlanCard: React.FC<{
     onEdit: () => void;
     onArchive: () => void;
     onNewPlan: () => void;
-}> = ({ plan, onEdit, onArchive, onNewPlan }) => (
+}> = ({ plan, onEdit, onArchive, onNewPlan }) => {
+    // Defensive on EVERY array read: fixture/anchor plans carry content '{}' and a
+    // malformed real plan could lack any of these — `.length` on undefined was a
+    // live error-boundary crash (Brandon Hale). Empty is rendered honestly below,
+    // never papered over with fabricated placeholder goals.
+    const problems = plan.content?.problems ?? [];
+    return (
     <Card>
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6">
             <div>
@@ -149,19 +155,34 @@ const ActivePlanCard: React.FC<{
         </div>
 
         <div className="space-y-4">
-            {plan.content.problems.length === 0 && (
-                <p className="text-sm text-slate-400 italic">This plan has no problems on it.</p>
+            {problems.length === 0 && (
+                /* Honest unauthored state: the plan ROW is real (title/category/dates
+                   above), but no clinical content has been written — say exactly that
+                   and hand the clinician the existing author/edit affordance. */
+                <div className="flex flex-col items-center text-center py-10 px-6 bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-3">
+                        <ClipboardList size={22} className="text-primary" />
+                    </div>
+                    <p className="font-black text-sm text-slate-900 dark:text-white">Plan content not yet authored</p>
+                    <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                        This plan is on file, but its problems, goals, and interventions haven't been
+                        written yet. Open the editor to complete it.
+                    </p>
+                    <button onClick={onEdit} className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary-focus shadow-sm transition-all">
+                        <Pencil size={12} /> Author plan content
+                    </button>
+                </div>
             )}
-            {plan.content.problems.map((problem, idx) => (
+            {problems.map((problem, idx) => (
                 <div key={idx} className="p-5 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-2xl">
                     <h3 className="font-black text-sm text-slate-900 dark:text-white flex items-center gap-2 mb-3">
                         <Target size={14} className="text-primary" /> #{idx + 1} · {problem.title}
                     </h3>
-                    {problem.goals.length > 0 && (
+                    {(problem.goals ?? []).length > 0 && (
                         <div className="mb-3">
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Goals</p>
                             <ul className="space-y-1">
-                                {problem.goals.map((g, gi) => (
+                                {(problem.goals ?? []).map((g, gi) => (
                                     <li key={gi} className="text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
                                         <span className="text-primary mt-0.5">›</span>
                                         <span>{g}</span>
@@ -170,11 +191,11 @@ const ActivePlanCard: React.FC<{
                             </ul>
                         </div>
                     )}
-                    {problem.interventions.length > 0 && (
+                    {(problem.interventions ?? []).length > 0 && (
                         <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Interventions</p>
                             <ul className="space-y-1">
-                                {problem.interventions.map((it, ii) => (
+                                {(problem.interventions ?? []).map((it, ii) => (
                                     <li key={ii} className="text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2">
                                         <span className="text-emerald-600 mt-0.5">•</span>
                                         <span>{it.description}{it.frequency ? <span className="text-slate-400"> · {it.frequency}</span> : null}</span>
@@ -196,7 +217,8 @@ const ActivePlanCard: React.FC<{
             </div>
         )}
     </Card>
-);
+    );
+};
 
 const EmptyState: React.FC<{ onStart: () => void }> = ({ onStart }) => (
     <Card>
@@ -237,12 +259,15 @@ const HistoryRow: React.FC<{
         </button>
         {expanded && (
             <div className="px-4 pb-4 space-y-2">
-                {plan.content.problems.map((p, i) => (
+                {(plan.content?.problems ?? []).length === 0 && (
+                    <p className="text-xs text-slate-400 italic">No authored content on this plan.</p>
+                )}
+                {(plan.content?.problems ?? []).map((p, i) => (
                     <div key={i} className="text-xs text-slate-700 dark:text-slate-300">
                         <p className="font-bold">#{i + 1} {p.title}</p>
-                        {p.goals.length > 0 && <p className="ml-3 text-slate-500">Goals: {p.goals.join('; ')}</p>}
-                        {p.interventions.length > 0 && (
-                            <p className="ml-3 text-slate-500">Interventions: {p.interventions.map(it => it.description).join('; ')}</p>
+                        {(p.goals ?? []).length > 0 && <p className="ml-3 text-slate-500">Goals: {(p.goals ?? []).join('; ')}</p>}
+                        {(p.interventions ?? []).length > 0 && (
+                            <p className="ml-3 text-slate-500">Interventions: {(p.interventions ?? []).map(it => it.description).join('; ')}</p>
                         )}
                     </div>
                 ))}
