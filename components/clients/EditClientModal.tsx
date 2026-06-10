@@ -11,7 +11,7 @@ interface EditClientModalProps {
     onSaved: (updated: Client) => void;
 }
 
-// Mirrors the role split from claraTools.ts ALLOWED_CLIENT_FIELDS:
+// Role split for edit permissions:
 //   Admin (Jess)   — contact + billing only
 //   Therapist/Dir  — everything below + clinical
 // The modal still renders the clinical fields for Admin (so they can see the
