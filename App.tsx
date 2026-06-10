@@ -7,6 +7,7 @@ import ScrollToTop from './components/ScrollToTop';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { ClaraProvider } from './contexts/ClaraContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import PortalProtectedRoute from './components/PortalProtectedRoute';
 import RequireRole from './components/RequireRole';
@@ -72,6 +73,11 @@ function App() {
         <ThemeProvider>
           <AuthProvider>
             <NotificationProvider>
+              {/* Clara v2: ONE provider above the route switch — Clara's session,
+                  transcript, and voice survive every navigation; layouts render
+                  only shells. Inside AuthProvider (identity) + HashRouter (the
+                  navigate_to_page tool needs router context). */}
+              <ClaraProvider>
               <ScrollToTop />
               <Suspense fallback={<PageLoader />}>
                 <Routes>
@@ -163,6 +169,7 @@ function App() {
                   <Route path="/portal" element={<Navigate to="/portal/dashboard" replace />} />
                 </Routes>
               </Suspense>
+              </ClaraProvider>
             </NotificationProvider>
           </AuthProvider>
         </ThemeProvider>

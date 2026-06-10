@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import SynapseChatPopover from '../components/ai/SynapseChatPopover';
+import { useClara } from '../contexts/ClaraContext';
 import { supabase } from '../services/supabase';
 import { Menu, X, Home, FileText, Calendar, CreditCard, BarChart, LogOut } from 'lucide-react';
 
@@ -134,7 +135,9 @@ const PortalHeader: React.FC = () => {
 };
 
 const PortalLayout: React.FC<PortalLayoutProps> = ({ children }) => {
-  const [isClaraOpen, setClaraOpen] = useState(false);
+  // Clara v2: state lives in the app-level ClaraProvider — portal pages each
+  // instantiate their own PortalLayout, so local state died on every navigation.
+  const clara = useClara();
 
   return (
     <div className="flex flex-col min-h-screen bg-surface dark:bg-slate-950">
@@ -149,15 +152,15 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({ children }) => {
       </footer>
 
       {/* Floating Clara Button for Clients */}
-      <button 
-        onClick={() => setClaraOpen(prev => !prev)}
+      <button
+        onClick={clara.toggle}
         className="fixed bottom-8 right-8 z-40 w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ease-in-out hover:scale-110 hover:shadow-indigo-500/50 focus:outline-none focus:ring-4 focus:ring-indigo-300" 
         aria-label="Open Clara AI Assistant"
       >
           <img src="https://storage.googleapis.com/westerns1978-digital-assets/ACS%20TherapyHub/clara2.png" alt="Clara AI" className="w-full h-full object-cover rounded-full border-2 border-white/20" />
       </button>
 
-      <SynapseChatPopover isOpen={isClaraOpen} onClose={() => setClaraOpen(false)} mode="client" />
+      <SynapseChatPopover variant="floating" />
     </div>
   );
 };
