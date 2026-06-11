@@ -665,3 +665,16 @@ wizard rebuild: David/Karen must decide (a) whether clients should author such c
 under what consent, and (d) whether AI may assist — and if so, narrate-only (prompts/reflection
 questions), never authoring clinical substance. Until then: the registry form at
 `/portal/forms/recovery-plan` is the only client-facing recovery-plan surface.
+
+---
+
+## 18. GUARD: client avatar photos — public folder is for DEMO/SYNTHETIC faces ONLY (2026-06-11)
+
+The demo client avatars live in the PUBLIC `public/images/clients/` folder (served unauthenticated
+at `/images/clients/<file>`, referenced by `clients.avatar_url`). That is acceptable ONLY because
+every face there is demo/synthetic (the 13 wired demo clients + marcus/pat + the female1/female2
+archived-demo images). **A REAL client's photo is PII/PHI and must NEVER land in this folder or any
+public bucket** — real photos go through the private `therapyhub-patient-files` bucket + signed
+URLs (the patient-files pattern, see PHI STORAGE above), with `avatar_url` either left null
+(ui-avatars fallback) or pointed at a signed-URL-resolving path. Enforce at intake-build time:
+whatever flow someday captures a real client photo must write to the private bucket, not here.
