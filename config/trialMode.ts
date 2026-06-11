@@ -24,6 +24,14 @@ export const TRIAL_HIDDEN_ROUTES: readonly string[] = [
   // phase1/phase2 hours (e.g. 42/75) that CONTRADICT the authoritative accrual (16/75).
   // Deep-link only (no nav). Hidden for the team test; rebuild on the accrual view before un-hiding.
   '/program-compliance',
+  // '/portal/recovery-plan' (Continuing Recovery Plan WIZARD) — a PHANTOM twin: hardcoded
+  // "Alice Johnson" PII (never reads usePortalClient), AI-Suggest buttons backed by a stub
+  // that returns the literal string "Suggestion" (services/api.ts), and a submit hardcoded
+  // to clientId '1' that cannot pass the WS5 client-write RLS. The HONEST registry form at
+  // /portal/forms/recovery-plan (real prefill, real scoped write) stays live and is NOT
+  // affected. Hidden = dashboard ActionCard gated + route redirected. Whether clients
+  // should author a recovery plan at all is a parked scope decision (SECURITY_BACKLOG #17).
+  '/portal/recovery-plan',
 ];
 
 export const isTrialHidden = (path: string): boolean =>

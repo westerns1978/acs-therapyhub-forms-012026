@@ -13,6 +13,7 @@ import Modal from '../../components/ui/Modal';
 import MobileDocumentUpload from '../../components/portal/MobileDocumentUpload';
 import { CLIENT_REGISTRY_FORMS } from '../../config/formRegistry';
 import { SignedFileLink } from '../../components/ui/SignedFile';
+import PortalErrorCard from '../../components/ui/PortalErrorCard';
 
 // WS5: client-facing catalog comes from the single FORM_REGISTRY (audience='client').
 // Required-core is INTRINSIC (requiredForCompletion) — a required form with no assignment
@@ -155,6 +156,7 @@ const PortalDocuments: React.FC = () => {
     const portalClient = usePortalClient();
     const [submissions, setSubmissions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
     const [uploadingForm, setUploadingForm] = useState<any | null>(null);
     const [showMobileScan, setShowMobileScan] = useState(false);
     const navigate = useNavigate();
@@ -162,15 +164,20 @@ const PortalDocuments: React.FC = () => {
     const fetchData = async () => {
         if (!portalClient) return;
         setIsLoading(true);
+        setLoadError(false);
         try {
-            const { data } = await supabase
+            // supabase-js does NOT throw on query errors — check `error` explicitly, or a
+            // failed load silently renders every form as "pending" (honesty pass 2026-06-11).
+            const { data, error } = await supabase
                 .from('form_submissions')
                 .select('*')
                 .eq('client_id', portalClient.id)
                 .order('created_at', { ascending: false });
+            if (error) throw error;
             setSubmissions(data || []);
         } catch (err) {
             console.warn('Failed to load documents:', err);
+            setLoadError(true);
         }
         setIsLoading(false);
     };
@@ -181,6 +188,19 @@ const PortalDocuments: React.FC = () => {
 
     if (isLoading || !portalClient) {
         return <PortalLayout><div className="text-center p-12">Loading your forms...</div></PortalLayout>;
+    }
+
+    // A failed load must NEVER render as "everything is pending" — that's a
+    // phantom state that tells a client their completed forms don't exist.
+    if (loadError) {
+        return (
+            <PortalLayout>
+                <div className="max-w-4xl mx-auto space-y-8">
+                    <Header title="My Forms" subtitle="Complete your required forms online — no paper needed." />
+                    <PortalErrorCard message="Your forms could not be loaded." onRetry={fetchData} />
+                </div>
+            </PortalLayout>
+        );
     }
 
     // Match assignments/completions by form_id (stable) rather than form_name (label).
