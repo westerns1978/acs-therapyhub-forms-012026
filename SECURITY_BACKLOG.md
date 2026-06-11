@@ -526,3 +526,51 @@ SROP Level IV + 16h counseling — `20260607_demo_data_marcus_established.sql`),
 *includes* a real established-path client. `determined_by` = Karen's real therapist auth uid (not the
 `44444444…` display placeholder). Pat stays no-determination (no-phantom). Mock demo data (not PHI); it
 supersedes the prior "synthesize→revert every established witness" recipe.
+
+---
+
+## 12. Financial gating is UI-only — `private.is_financial_staff()` is deployed but referenced by ZERO policies (2026-06-11)
+
+Found during the staff-provisioning recon (2026-06-11, read-only DB inspection). The Director/Admin-only
+financial boundary the UI presents does **not exist at the database layer**:
+
+- `private.is_financial_staff()` (`role in ('Director','Admin')`, fail-closed) is deployed — but a
+  `pg_policies` sweep finds **no policy that references it**. The `charges` table's staff policy is
+  plain `staff_all_charges` = `private.is_staff()`, so a **Therapist can read (and write) the money
+  ledger** via direct PostgREST, even though `/financials` is hidden from them client-side.
+- All three Director-Reports RPCs — `acs_report_money`, `acs_report_outstanding_by_client`,
+  `acs_report_payments_by_method` — have **no role gate** in their bodies and are **not**
+  `SECURITY DEFINER` (invoker rights → underlying `is_staff()` RLS is the only floor). Any staff
+  role can call them directly.
+- The comment at `App.tsx` above the `/financials` route ("isFinancialRole == DB
+  `private.is_financial_staff()`") **overstates parity** — the route gate (`FINANCIAL_ROLES`,
+  `types.ts`) is client-side only.
+
+**Exposure:** staff-tier only (Clients can't reach any of it; `client_self_read_charges` stays
+self-scoped). It's an intra-staff boundary gap, not a PHI/public leak.
+
+**Fix sketch (post-pilot):** repoint the staff financial policies (`charges`, and decide for
+`payments`) from `is_staff()` to `is_financial_staff()`, and add an explicit
+`where private.is_financial_staff()` guard (or a raise) inside the three `acs_report_*` RPCs so the
+UI claim and the DB enforcement actually match. Witness both directions: Director sees numbers,
+Therapist's direct RPC call / `charges` select returns denied/empty.
+
+---
+
+## 13. Shared-project conditions: 67 non-ACS tables with RLS disabled + open signup (2026-06-11)
+
+Recorded from the 2026-06-11 recon so it's on paper, not tribal knowledge. Both are properties of the
+**shared multi-app Supabase project** (`ldzzlndsspkyohvzfiiu`), not of ACS code:
+
+- **67 `public.*` tables have RLS disabled** (Supabase advisor, 2026-06-11) — all belong to the other
+  apps (Story Scribe, AIVA, FlowHub, FieldDispatcher, …). **None are ACS tables** — every ACS
+  clinical/billing table is RLS-enabled with scoped policies (WS0). But anyone holding the shared anon
+  key can read/write those 67 tables, and ACS ships that anon key in its bundle like every other app
+  in the project. No ACS action here beyond the existing **Step 5 "isolate ACS onto its own Supabase
+  project"** plan; do NOT blanket-enable RLS on other apps' tables from this repo.
+- **Signup is open project-wide** (`auth.signUp` with the anon key succeeds — the demo self-provision
+  path depends on it). Anyone with the anon key can therefore create a **role-less** auth user.
+  Fail-closed on our side: `resolveRole()` treats no-role as 'Client' and `private.is_staff()`
+  coalesces to `false`, so such an account reaches nothing — but the account exists (clutter/abuse
+  surface, and a row in the shared `auth.users`). Do **not** toggle the global signup/confirm-email
+  settings during the pilot (shared with the other apps' login flows); revisit at project isolation.

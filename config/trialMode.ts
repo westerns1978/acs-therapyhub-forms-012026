@@ -34,3 +34,9 @@ export const isTrialHidden = (path: string): boolean =>
 // fronts a DispatcherChat → schedulingService.createDispatcher stub that
 // doesn't actually reschedule anything — hide for the trial.
 export const TRIAL_HIDE_CLIENT_SCHEDULING_TAB = TRIAL_MODE;
+
+// Settings "Manual Configuration (MVP)" block: it saves `zoom_pmi` to
+// localStorage, but nothing in the app reads that key — the Save button is a
+// no-op ritual and its helper text ("Used for Start Session buttons") is false.
+// Hidden for the trial; flip back once a real consumer of the PMI exists.
+export const TRIAL_HIDE_SETTINGS_MANUAL_CONFIG = TRIAL_MODE;

@@ -58,13 +58,20 @@ const Login: React.FC = () => {
     // ─────────────────────────────────────────────────────────────────────
     // iVALT SECONDARY FACTOR ATTACHES HERE.
     // The primary Supabase session was just created by loginWithPassword()
-    // above; iVALT runs on top of it as a second factor before we land in the
-    // app. If the account carries a registered phone we run the real handshake;
-    // otherwise the modal runs its demo handshake so the MFA step is still
-    // present. (Hard MFA-gating + phone enrollment is a later hardening step.)
+    // above. If the account carries a registered phone, iVALT runs on top of
+    // it as a real second factor before we land in the app. Accounts WITHOUT
+    // a registered phone get NO MFA ceremony at all — the old fallback ran the
+    // modal's demo handshake, a spinner that verified nothing and always
+    // granted access (pre-provisioning honesty pass, 2026-06-11). (Hard
+    // MFA-gating + phone enrollment is a later hardening step.)
     // ─────────────────────────────────────────────────────────────────────
-    setMfaPhone(res.phone || '');
-    setIsMfaOpen(true);
+    if (res.phone) {
+      setMfaPhone(res.phone);
+      setIsMfaOpen(true);
+    } else {
+      setIsLoading(false);
+      navigate('/dashboard');
+    }
   };
 
   const handleMfaSuccess = () => {
@@ -143,12 +150,14 @@ const Login: React.FC = () => {
         </div>
       </div>
 
+      {/* Only opens when the account has a registered phone, so this is always
+          the REAL handshake — demoMode is no longer passed (no-phone logins
+          skip MFA entirely; see handleSignIn). */}
       <IValtMfaModal
         isOpen={isMfaOpen}
         onClose={handleMfaClose}
         onSuccess={handleMfaSuccess}
         mobileNumber={mfaPhone.replace(/\D/g, '')}
-        demoMode={!mfaPhone}
       />
     </div>
   );
@@ -202,7 +211,7 @@ const RealSignInForm: React.FC<RealSignInFormProps> = ({
           className="block w-full pl-12 pr-4 py-3 border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-base"
         />
       </div>
-      <p className="text-xs text-slate-500 mt-2">After your password, approve the sign-in on your phone via iVALT.</p>
+      <p className="text-xs text-slate-500 mt-2">If your account has iVALT enrolled, you'll approve the sign-in on your phone.</p>
     </div>
 
     <button

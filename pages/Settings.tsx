@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import Card from '../components/ui/Card';
-import { getSyncedAppointments, resetDemoData, checkSupabaseConnection } from '../services/api';
-import { Integration, SyncedAppointment } from '../types';
+import { checkSupabaseConnection } from '../services/api';
+import { TRIAL_HIDE_SETTINGS_MANUAL_CONFIG } from '../config/trialMode';
 import {
     beginGoogleOAuth,
     isGoogleOAuthConfigured,
@@ -18,74 +17,14 @@ import {
     clearZoomLink,
     getConnectedZoomAccountEmail,
 } from '../services/zoom';
-import { CheckCircleIcon, XCircleIcon, AlertTriangleIcon, HardDriveIcon, Loader2, RefreshCw, X, Check, Database, Wifi, WifiOff, Code, Terminal, Video, Calendar } from 'lucide-react';
-import Modal from '../components/ui/Modal';
+import { Loader2, Check, Wifi, WifiOff, Terminal, Video } from 'lucide-react';
 
-const IntegrationCard: React.FC<{ integration: Integration, onToggle: () => void }> = ({ integration, onToggle }) => {
-    const [isConnecting, setIsConnecting] = useState(false);
-    const [showAuthWindow, setShowAuthWindow] = useState(false);
-    const [authStep, setAuthStep] = useState(0);
-    
-    const handleConnectClick = () => {
-        if (integration.status === 'Connected') {
-            onToggle(); // Disconnect immediately
-        } else {
-            setShowAuthWindow(true);
-            setAuthStep(0);
-            // Start simulation
-            setTimeout(() => setAuthStep(1), 1000); // Authenticating...
-            setTimeout(() => setAuthStep(2), 2500); // Requesting Permissions...
-            setTimeout(() => {
-                setShowAuthWindow(false);
-                onToggle();
-            }, 3500);
-        }
-    };
-
-    return (
-        <div className="flex items-center justify-between p-4 bg-surface dark:bg-slate-800/50 rounded-lg border border-border dark:border-slate-700 transition-all hover:border-primary/50">
-            <div>
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                    {integration.name}
-                    {integration.status === 'Connected' && <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center gap-1"><Check size={10}/> Active</span>}
-                </h3>
-                <p className="text-sm text-on-surface-secondary">{integration.description}</p>
-            </div>
-            <div className="flex items-center gap-4">
-                <button 
-                    onClick={handleConnectClick}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold text-white transition-all min-w-[120px] flex justify-center items-center shadow-sm ${integration.status === 'Connected' ? 'bg-white text-red-600 border border-red-200 hover:bg-red-50' : 'bg-primary hover:bg-primary-focus'}`}
-                >
-                    {integration.status === 'Connected' ? 'Disconnect' : 'Connect'}
-                </button>
-            </div>
-
-            {showAuthWindow && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-                    <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center animate-fade-in-up border border-gray-200">
-                        <div className="mb-6 flex justify-center">
-                            {authStep < 2 ? (
-                                <div className="relative">
-                                    <div className="w-16 h-16 border-4 border-gray-200 border-t-primary rounded-full animate-spin"></div>
-                                </div>
-                            ) : (
-                                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center animate-bounce">
-                                    <Check size={32} />
-                                </div>
-                            )}
-                        </div>
-                        <h4 className="text-xl font-bold mb-2 text-gray-900">
-                            {authStep === 0 && `Connecting to ${integration.name}...`}
-                            {authStep === 1 && "Verifying Credentials..."}
-                            {authStep === 2 && "Connection Successful!"}
-                        </h4>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
+// NOTE (pre-provisioning honesty pass, 2026-06-11): a dead `IntegrationCard`
+// component used to live here — a setTimeout-driven fake OAuth ("Verifying
+// Credentials… → Connection Successful!") that earned nothing. It was never
+// rendered anywhere; deleted rather than flag-hidden. The two cards below are
+// the real integrations: PKCE OAuth + edge-function token exchange, and their
+// "Active" chips are set only after a successful exchange.
 const GoogleCalendarCard: React.FC = () => {
     const configured = isGoogleOAuthConfigured();
     const [linked, setLinked] = useState<boolean>(isGoogleCalendarLinked());
@@ -249,20 +188,10 @@ const DatabaseHealthCard = () => {
 
 const Settings: React.FC = () => {
     const [zoomPMI, setZoomPMI] = useState(localStorage.getItem('zoom_pmi') || '');
-    const [isResetting, setIsResetting] = useState(false);
 
     const saveSettings = () => {
         localStorage.setItem('zoom_pmi', zoomPMI);
         alert("Configuration saved!");
-    };
-
-    const handleResetData = async () => {
-        if (window.confirm("Are you sure? This will revert the app to its initial state.")) {
-            setIsResetting(true);
-            await resetDemoData();
-            setIsResetting(false);
-            window.location.reload();
-        }
     };
 
     return (
@@ -275,7 +204,11 @@ const Settings: React.FC = () => {
                             <ZoomCard />
                         </div>
 
-                        {/* MVP: Manual Configuration */}
+                        {/* Manual Configuration (Zoom PMI) — TRIAL-HIDDEN: `zoom_pmi`
+                            has zero readers in the app, so "Save Configurations" stored
+                            a value nothing consumes. Restorable via
+                            TRIAL_HIDE_SETTINGS_MANUAL_CONFIG once a real consumer exists. */}
+                        {!TRIAL_HIDE_SETTINGS_MANUAL_CONFIG && (
                         <div className="mt-6 p-6 border rounded-xl bg-gray-50 dark:bg-slate-800/50">
                             <h4 className="font-bold text-sm mb-4 flex items-center gap-2 uppercase tracking-wide text-gray-500">
                                 <Terminal size={14}/> Manual Configuration (MVP)
@@ -301,20 +234,18 @@ const Settings: React.FC = () => {
                                 </button>
                             </div>
                         </div>
+                        )}
                     </Card>
                 </div>
                  <div className="space-y-6">
                     <DatabaseHealthCard />
-                    <Card title="System Administration">
-                         <button 
-                            onClick={handleResetData}
-                            disabled={isResetting}
-                            className="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-md"
-                        >
-                            {isResetting ? <Loader2 className="animate-spin"/> : null}
-                            {isResetting ? 'Restoring...' : 'Reset Application Data'}
-                        </button>
-                    </Card>
+                    {/* "System Administration / Reset Application Data" card REMOVED
+                        (pre-provisioning honesty pass, 2026-06-11): the button only
+                        re-cloned the legacy in-memory mock arrays (services/api.ts
+                        resetDemoData → data/database.ts initializeDatabase) — it never
+                        touched Supabase, and the reload it triggered rebuilt that state
+                        anyway. A destructive-looking placebo must not sit in front of a
+                        real Director. resetDemoData stays exported for internal use. */}
                 </div>
             </div>
         </div>
