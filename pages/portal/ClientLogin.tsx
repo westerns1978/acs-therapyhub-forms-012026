@@ -4,9 +4,9 @@ import { signInWithPassword, DEMO_PASSWORD } from '../../services/authService';
 
 // Demo personas map to EXISTING client rows (by email). Clicking one performs a
 // REAL Supabase sign-in — it no longer fakes a session via sessionStorage.
-// These demo *portal* accounts are not provisioned yet (provisioning is a
-// shared-DB write, pending maintainer approval — see the task report), so the
-// buttons surface a clear message until then.
+// The demo portal auth accounts WERE provisioned 2026-06-02 (real auth.users
+// rows, role 'Client' in app_metadata), so these buttons sign into real test
+// accounts. (Stale "not provisioned yet" copy corrected 2026-06-11.)
 const demoClients = [
   {
     name: 'Marcus Reyes',
@@ -54,10 +54,8 @@ const ClientLogin: React.FC = () => {
     setIsLoading(true);
     const res = await signInWithPassword(clientEmail, DEMO_PASSWORD);
     if (res.error) {
-      setError(
-        'Demo client sign-in is unavailable: the demo portal accounts have not been provisioned yet. ' +
-        '(Provisioning a portal login is a shared-database change that is pending approval.)'
-      );
+      // Surface the real failure — don't explain it away with a stale story.
+      setError(`Demo client sign-in failed: ${res.error}`);
       setIsLoading(false);
       return;
     }
@@ -129,7 +127,7 @@ const ClientLogin: React.FC = () => {
             Demo Access
           </p>
           <p className="text-[11px] text-gray-400 text-center mb-3 leading-relaxed">
-            Demo client sign-in uses real accounts that are not provisioned yet (pending approval).
+            Signs into a real, provisioned demo account scoped to that client.
           </p>
           {demoClients.map(client => (
             <button
