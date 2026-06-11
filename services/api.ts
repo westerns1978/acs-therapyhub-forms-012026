@@ -186,22 +186,47 @@ export const callWestFlowOrchestrator = callMcpOrchestrator;
 /**
  * Clients list — the single choke-point (status normalization, 2026-06-11).
  * Archived clients are EXCLUDED by default, query-side, so every picker and
- * list inherits active-only behavior without per-surface filters. Full-record
- * surfaces (Compliance CSV; later the grid's Archived/All chips) opt in with
- * { includeArchived: true }.
+ * list inherits active-only behavior without per-surface filters.
+ * Opt-outs:
+ *   - { status: 'active'|'completed'|'archived' } — exactly one lifecycle set
+ *     (the grid's filter chips); { status: 'all' } — no filter.
+ *   - { includeArchived: true } — legacy full-set toggle (Compliance CSV).
+ *   `status` takes precedence when both are passed.
  * Fails VISIBLY: the silent fallback to the mock dbClients array is GONE
  * (it fired on error AND on empty — phantom clients either way). Matches the
  * getAppointments / getFormSubmissions precedent.
  */
-export const getClients = async (opts?: { includeArchived?: boolean }): Promise<Client[]> => {
+export const getClients = async (
+    opts?: { includeArchived?: boolean; status?: ClientStatus | 'all' },
+): Promise<Client[]> => {
     let query = supabase.from('clients').select('*');
-    if (!opts?.includeArchived) query = query.neq('status', 'archived');
+    if (opts?.status) {
+        if (opts.status !== 'all') query = query.eq('status', opts.status);
+    } else if (!opts?.includeArchived) {
+        query = query.neq('status', 'archived');
+    }
     const { data, error } = await query;
     if (error) {
         console.error('[api] getClients failed:', error);
         throw new Error(error.message || 'Failed to load clients');
     }
     return (data || []).map(mapClientToApp);
+};
+
+/** Per-lifecycle counts for the grid's filter chips. One cheap select; counted
+ *  client-side (single-clinic scale). Fails visibly like getClients. */
+export const getClientStatusCounts = async (): Promise<Record<ClientStatus, number>> => {
+    const { data, error } = await supabase.from('clients').select('status');
+    if (error) {
+        console.error('[api] getClientStatusCounts failed:', error);
+        throw new Error(error.message || 'Failed to load client counts');
+    }
+    const counts: Record<ClientStatus, number> = { active: 0, completed: 0, archived: 0 };
+    for (const r of data || []) {
+        const s = (r as any).status as ClientStatus;
+        if (counts[s] !== undefined) counts[s]++;
+    }
+    return counts;
 };
 
 export const getClient = async (id: string): Promise<Client | undefined> => {
