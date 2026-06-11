@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { updateClient } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Client } from '../../types';
+import type { Client, ClientStatus } from '../../types';
+import { CLIENT_STATUS_LABELS } from '../../types';
 import { X, User, Shield, CreditCard, CheckCircle, Loader2, AlertTriangle, Lock } from 'lucide-react';
 
 interface EditClientModalProps {
@@ -33,7 +34,7 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
         probationOfficer: '',
         billingType: 'Self-Pay',
         program: 'SROP',
-        status: 'Compliant',
+        status: 'active',
     });
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -51,7 +52,7 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
             probationOfficer: client.probationOfficer || '',
             billingType: (client.billingType as string) || 'Self-Pay',
             program: (client.program as string) || 'SROP',
-            status: (client.status as string) || 'Compliant',
+            status: (client.status as string) || 'active',
         });
         setError(null);
     }, [client, isOpen]);
@@ -96,7 +97,10 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
             // whether the inputs were disabled in the DOM.
             if (canEditClinical) {
                 changes.program = formData.program;
-                changes.status = formData.status;
+                // Status only when it actually changed — updateClient stamps
+                // archived_at / completed_at on transitions, and a re-save of
+                // an already-archived client must not re-bump the timestamp.
+                if (formData.status !== client.status) changes.status = formData.status;
             }
             const updated = await updateClient(client.id, changes);
             onSaved(updated);
@@ -204,7 +208,10 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
                             <Select value={formData.program} onChange={v => setField('program', v)} disabled={!canEditClinical} options={['SROP', 'SATOP', 'SATOP Level IV', 'REACT', 'Anger Management', 'GAMBLING_RECOVERY', 'OPIOID_RECOVERY', 'DOT', 'Individual Counseling']} />
                         </FieldLabel>
                         <FieldLabel label="Status">
-                            <Select value={formData.status} onChange={v => setField('status', v)} disabled={!canEditClinical} options={['Compliant', 'Non-Compliant', 'Warrant Issued', 'Completed', 'Archived', 'active', 'archived']} />
+                            {/* Lifecycle ONLY (DB CHECK-enforced): active | completed | archived.
+                                Compliance standing (compliant/warrant/…) is engine-computed at
+                                render and is deliberately NOT a settable value here. */}
+                            <Select value={CLIENT_STATUS_LABELS[formData.status as ClientStatus] ?? 'Active'} onChange={v => setField('status', v.toLowerCase())} disabled={!canEditClinical} options={['Active', 'Completed', 'Archived']} />
                         </FieldLabel>
                     </section>
                 </div>

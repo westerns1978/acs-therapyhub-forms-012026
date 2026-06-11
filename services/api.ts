@@ -2,7 +2,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { storageService, getSignedUrl } from './storageService';
 import { geminiText, geminiJSON, geminiGenerate } from './gemini';
 import {
-  Client, Appointment, Payment, DocumentFile, FormSubmission,
+  Client, ClientStatus, CLIENT_STATUSES, Appointment, Payment, DocumentFile, FormSubmission,
   SessionRecord, SROPProgress, ClientActivity,
   VideoSession, PracticeMetrics, User, AsamAnalysisResult, DailyBriefingData, ComplianceStatus,
   RevenueDataPoint, ComplianceDataPoint,
@@ -85,16 +85,15 @@ const mapVaultDocToApp = (vDoc: any): DocumentFile => ({
 // Translate Supabase snake_case rows into the camelCase Client shape the UI
 // expects. Tolerates rows that are already camelCase (e.g. local mock data) so
 // callers can pass either through this function.
-const STATUS_MAP: Record<string, Client['status']> = {
-    active: 'Compliant',
-    compliant: 'Compliant',
-    'non-compliant': 'Non-Compliant',
-    'non_compliant': 'Non-Compliant',
-    warrant: 'Warrant Issued',
-    'warrant_issued': 'Warrant Issued',
-    'warrant issued': 'Warrant Issued',
-    completed: 'Completed',
-    archived: 'Archived',
+//
+// STATUS_MAP is GONE (status normalization, 2026-06-11): it used to rename the
+// lifecycle value 'active' to the STANDING word 'Compliant', which painted a
+// fabricated green "Compliant" badge on every active client. clients.status is
+// now lifecycle-only ('active'|'completed'|'archived', DB CHECK-enforced) and
+// passes through canonically; standing is the engine's to compute at render.
+const normalizeClientStatus = (raw: any): ClientStatus => {
+    const key = (raw || '').toString().trim().toLowerCase();
+    return (CLIENT_STATUSES as readonly string[]).includes(key) ? (key as ClientStatus) : 'active';
 };
 
 // Inverse of mapClientToApp — translates the camelCase shape the UI hands us
@@ -132,8 +131,7 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
 };
 
 const mapClientToApp = (c: any): Client => {
-    const statusRaw = (c.status || '').toString().toLowerCase();
-    const status = STATUS_MAP[statusRaw] || c.status || 'Compliant';
+    const status = normalizeClientStatus(c.status);
 
     // WS-DisplayTruth: completionPercentage is NOT derived from the static
     // srop_hours_completed / total_sessions_required columns — those diverge from the
@@ -185,28 +183,37 @@ export const callMcpOrchestrator = async (tool: string, params: any) => {
 
 export const callWestFlowOrchestrator = callMcpOrchestrator;
 
-export const getClients = async (): Promise<Client[]> => {
-    try {
-        const { data, error } = await supabase.from('clients').select('*');
-        if (error || !data || data.length === 0) return (dbClients || []).map(mapClientToApp); 
-        return data.map(mapClientToApp);
-    } catch (e) {
-        return (dbClients || []).map(mapClientToApp);
+/**
+ * Clients list — the single choke-point (status normalization, 2026-06-11).
+ * Archived clients are EXCLUDED by default, query-side, so every picker and
+ * list inherits active-only behavior without per-surface filters. Full-record
+ * surfaces (Compliance CSV; later the grid's Archived/All chips) opt in with
+ * { includeArchived: true }.
+ * Fails VISIBLY: the silent fallback to the mock dbClients array is GONE
+ * (it fired on error AND on empty — phantom clients either way). Matches the
+ * getAppointments / getFormSubmissions precedent.
+ */
+export const getClients = async (opts?: { includeArchived?: boolean }): Promise<Client[]> => {
+    let query = supabase.from('clients').select('*');
+    if (!opts?.includeArchived) query = query.neq('status', 'archived');
+    const { data, error } = await query;
+    if (error) {
+        console.error('[api] getClients failed:', error);
+        throw new Error(error.message || 'Failed to load clients');
     }
+    return (data || []).map(mapClientToApp);
 };
 
 export const getClient = async (id: string): Promise<Client | undefined> => {
-    try {
-        const { data, error } = await supabase.from('clients').select('*').eq('id', id).single();
-        if (error || !data) {
-            const mock = (dbClients || []).find(c => c.id === id);
-            return mock ? mapClientToApp(mock) : undefined;
-        }
-        return mapClientToApp(data);
-    } catch (e) {
-        const mock = (dbClients || []).find(c => c.id === id);
-        return mock ? mapClientToApp(mock) : undefined;
+    // No mock fallback (2026-06-11) — a missing client is honestly undefined,
+    // a failed query throws. Status-blind by design (archived stays loadable
+    // by id: records are retained, not hidden from direct access).
+    const { data, error } = await supabase.from('clients').select('*').eq('id', id).maybeSingle();
+    if (error) {
+        console.error('[api] getClient failed:', error);
+        throw new Error(error.message || 'Failed to load client');
     }
+    return data ? mapClientToApp(data) : undefined;
 };
 
 export const getDocumentFilesForClient = async (clientId: string): Promise<DocumentFile[]> => {
@@ -1178,6 +1185,31 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
     }
     if (Object.keys(row).length === 0) {
         throw new Error('No editable fields provided.');
+    }
+
+    // '' is not a valid Postgres `date` — an empty dob field means "no value".
+    // (Pre-existing: every EditClientModal save for a dob-less client 400'd.)
+    if (row.dob === '') row.dob = null;
+
+    // Lifecycle transition stamps (migration 20260611). Callers send `status`
+    // only when it actually changed (EditClientModal diffs), so a stamp here
+    // means a real transition. Completing a program is a HISTORICAL FACT:
+    // completed_at survives archive/unarchive — only archived_at clears on
+    // reactivation, and unarchiving a client who had completed restores them
+    // to 'completed', not 'active'.
+    if (row.status !== undefined) {
+        if (row.status === 'archived') {
+            row.archived_at = new Date().toISOString();
+        } else if (row.status === 'completed') {
+            row.completed_at = new Date().toISOString();
+            row.archived_at = null;
+        } else if (row.status === 'active') {
+            const { data: cur, error: curErr } = await supabase
+                .from('clients').select('completed_at').eq('id', id).maybeSingle();
+            if (curErr) throw new Error(curErr.message || 'Failed to read client state for unarchive');
+            if (cur?.completed_at) row.status = 'completed';
+            row.archived_at = null;
+        }
     }
     const { data, error } = await supabase
         .from('clients')

@@ -39,6 +39,20 @@ export interface User {
   role: UserRole;
 }
 
+// Client lifecycle — the ONLY thing clients.status stores (DB CHECK-enforced,
+// migration 20260611_status_lifecycle_normalization). Compliance standing
+// (compliant / non-compliant / warrant) is NOT a status value: the
+// deterministic engine computes standing at render; storing it here would be
+// a second source of truth that could contradict the engine.
+export type ClientStatus = 'active' | 'completed' | 'archived';
+export const CLIENT_STATUSES: readonly ClientStatus[] = ['active', 'completed', 'archived'];
+// Display labels — presentation only; identity is the lowercase value.
+export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
+  active: 'Active',
+  completed: 'Completed',
+  archived: 'Archived',
+};
+
 export interface Client {
   id: string;
   name: string;
@@ -49,7 +63,7 @@ export interface Client {
   lastSession: string;
   program: 'SATOP' | 'REACT' | 'Anger Management' | 'Compulsive Gambling' | 'GAMBLING_RECOVERY' | 'OPIOID_RECOVERY' | 'DOT' | 'Individual Counseling' | 'SROP';
   programType: 'SATOP_Level_IV' | 'Individual_Counseling' | 'Substance_Use_Assessment';
-  status: 'Compliant' | 'Non-Compliant' | 'Warrant Issued' | 'Completed' | 'Archived';
+  status: ClientStatus;
   enrollmentDate: string;
   completionPercentage: number;
   nextDeadline?: string;

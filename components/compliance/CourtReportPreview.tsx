@@ -32,8 +32,11 @@ const CourtReportPreview: React.FC<CourtReportPreviewProps> = ({ client, sropDat
                     <p><strong>Probation Officer:</strong> {client.probationOfficer}</p>
                 </div>
                  <div className="text-right">
-                    <h2 className="text-lg font-bold text-gray-600 mb-2">COMPLIANCE STATUS</h2>
-                    <p className={`text-xl font-bold ${client.status === 'Compliant' ? 'text-green-600' : 'text-red-600'}`}>
+                    {/* Lifecycle label only (status normalization 2026-06-11): `status` no longer
+                        holds a standing word, and this MOCK report (hidden, #10d) must not paint
+                        a verdict color the engine didn't compute. */}
+                    <h2 className="text-lg font-bold text-gray-600 mb-2">PROGRAM STATUS</h2>
+                    <p className="text-xl font-bold text-slate-800">
                         {client.status.toUpperCase()}
                     </p>
                 </div>
