@@ -5,31 +5,39 @@ import Card from '../../components/ui/Card';
 import { supabase } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { Calendar, Clock, MapPin, Video, ChevronRight, Plus } from 'lucide-react';
+import PortalErrorCard from '../../components/ui/PortalErrorCard';
+import { Calendar, Clock, MapPin, Video } from 'lucide-react';
 
 const PortalAppointments: React.FC = () => {
     const portalClient = usePortalClient();
     const [appointments, setAppointments] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
+    const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
         if (!portalClient) return;
         const fetchAppointments = async () => {
             setIsLoading(true);
+            setLoadError(false);
             try {
-                const { data } = await supabase
+                // supabase-js does NOT throw on query errors — check `error` explicitly,
+                // or a failed load silently renders as "no sessions" (honesty pass 2026-06-11).
+                const { data, error } = await supabase
                     .from('appointments')
                     .select('*')
                     .eq('client_id', portalClient.id)
                     .order('start_time', { ascending: true });
+                if (error) throw error;
                 setAppointments(data || []);
             } catch (err) {
                 console.warn('Failed to fetch appointments:', err);
+                setLoadError(true);
             }
             setIsLoading(false);
         };
         fetchAppointments();
-    }, [portalClient]);
+    }, [portalClient, reloadKey]);
 
     if (isLoading || !portalClient) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
 
@@ -39,13 +47,18 @@ const PortalAppointments: React.FC = () => {
     return (
         <PortalLayout>
             <div className="max-w-4xl mx-auto space-y-8 animate-fade-in-up">
-                <div className="flex justify-between items-center">
-                    <Header title="Appointments" subtitle="Manage your upcoming sessions and view history." />
-                    <button className="bg-primary text-white px-5 py-2.5 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all flex items-center gap-2">
-                        <Plus size={18} /> Request New Session
-                    </button>
-                </div>
+                {/* "Request New Session" button REMOVED (honesty pass 2026-06-11): it had
+                    no handler — a fabricated affordance. Rebuild only with a real request flow. */}
+                <Header title="Appointments" subtitle="Your upcoming sessions and history." />
 
+                {loadError && (
+                    <PortalErrorCard
+                        message="Your appointments could not be loaded."
+                        onRetry={() => setReloadKey(k => k + 1)}
+                    />
+                )}
+
+                {!loadError && (<>
                 <div className="space-y-6">
                     <h3 className="text-xl font-black tracking-tight flex items-center gap-2">
                         <Clock className="text-primary" /> Upcoming Sessions
@@ -112,6 +125,7 @@ const PortalAppointments: React.FC = () => {
                         ))}
                     </div>
                 </div>
+                </>)}
             </div>
         </PortalLayout>
     );

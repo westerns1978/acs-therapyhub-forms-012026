@@ -5,6 +5,7 @@ import Card from '../../components/ui/Card';
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import PortalErrorCard from '../../components/ui/PortalErrorCard';
 import BillingLedger from '../../components/billing/BillingLedger';
 import { CreditCard, Download, ArrowUpRight, Loader2, AlertTriangle } from 'lucide-react';
 
@@ -12,6 +13,8 @@ const PortalBilling: React.FC = () => {
     const portalClient = usePortalClient();
     const [billingData, setBillingData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
+    const [reloadKey, setReloadKey] = useState(0);
     const [isPaying, setIsPaying] = useState(false);
     const [payError, setPayError] = useState<string | null>(null);
 
@@ -19,27 +22,33 @@ const PortalBilling: React.FC = () => {
         if (!portalClient) return;
         const fetchBilling = async () => {
             setIsLoading(true);
+            setLoadError(false);
             try {
                 // Hero balance + Stripe "pay unpaid charges" still need the client's own
                 // charges here; the itemized charges/payments tables are rendered by the
                 // shared <BillingLedger> below (read-only in the portal). Same real ledger.
-                const { data: clientData } = await supabase
+                // supabase-js does NOT throw on query errors — check `error` explicitly,
+                // or a failed load renders a $0 phantom / crashes on null (honesty pass 2026-06-11).
+                const { data: clientData, error: clientErr } = await supabase
                     .from('clients')
                     .select('balance')
                     .eq('id', portalClient.id)
                     .single();
 
-                const { data: charges } = await supabase
+                const { data: charges, error: chargesErr } = await supabase
                     .from('charges')
                     .select('*')
                     .eq('client_id', portalClient.id)
                     .order('created_at', { ascending: false });
 
-                const { data: payments } = await supabase
+                const { data: payments, error: paymentsErr } = await supabase
                     .from('payments')
                     .select('*')
                     .eq('client_id', portalClient.id)
                     .order('payment_date', { ascending: false });
+
+                const firstErr = clientErr || chargesErr || paymentsErr;
+                if (firstErr) throw firstErr;
 
                 setBillingData({
                     balance: Number(clientData?.balance ?? 0),
@@ -49,11 +58,12 @@ const PortalBilling: React.FC = () => {
                 });
             } catch (err) {
                 console.warn('Failed to fetch billing:', err);
+                setLoadError(true);
             }
             setIsLoading(false);
         };
         fetchBilling();
-    }, [portalClient]);
+    }, [portalClient, reloadKey]);
 
     const handlePayNow = async () => {
         if (isPaying) return;
@@ -95,6 +105,20 @@ const PortalBilling: React.FC = () => {
     };
 
     if (isLoading || !portalClient) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
+
+    if (loadError || !billingData) {
+        return (
+            <PortalLayout>
+                <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
+                    <Header title="Billing & Payments" subtitle="Manage your balance, payment methods, and view history." />
+                    <PortalErrorCard
+                        message="Your billing information could not be loaded."
+                        onRetry={() => setReloadKey(k => k + 1)}
+                    />
+                </div>
+            </PortalLayout>
+        );
+    }
 
     const paymentStatus = new URLSearchParams(window.location.search).get('payment');
 

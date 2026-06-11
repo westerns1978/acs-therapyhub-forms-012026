@@ -165,7 +165,11 @@ function App() {
                   <Route path="/portal/compliance" element={<PortalProtectedRoute><PortalCompliance /></PortalProtectedRoute>} />
                   <Route path="/portal/appointments" element={<PortalProtectedRoute><PortalAppointments /></PortalProtectedRoute>} />
                   <Route path="/portal/forms/:formId" element={<PortalProtectedRoute><PortalFormPage /></PortalProtectedRoute>} />
-                  <Route path="/portal/recovery-plan" element={<PortalProtectedRoute><RecoveryPlanForm /></PortalProtectedRoute>} />
+                  {/* Recovery Plan WIZARD — trial-hidden (phantom twin; see config/trialMode.ts).
+                      The honest registry form at /portal/forms/recovery-plan stays live above. */}
+                  <Route path="/portal/recovery-plan" element={isTrialHidden('/portal/recovery-plan')
+                    ? <Navigate to="/portal/dashboard" replace />
+                    : <PortalProtectedRoute><RecoveryPlanForm /></PortalProtectedRoute>} />
                   <Route path="/portal" element={<Navigate to="/portal/dashboard" replace />} />
                 </Routes>
               </Suspense>

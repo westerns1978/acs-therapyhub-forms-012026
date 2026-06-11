@@ -574,3 +574,59 @@ Recorded from the 2026-06-11 recon so it's on paper, not tribal knowledge. Both 
   coalesces to `false`, so such an account reaches nothing — but the account exists (clutter/abuse
   surface, and a row in the shared `auth.users`). Do **not** toggle the global signup/confirm-email
   settings during the pilot (shared with the other apps' login flows); revisit at project isolation.
+
+---
+
+## 14. Client-portal honesty pass — silent-fail inventory + phantom removals (2026-06-11, ✅ REMEDIATED; kept as the record)
+
+Found in the portal recon (2026-06-11): the portal never got the staff-side honesty scrub. Root
+mechanic for the silent-fails: every portal fetch destructured `{ data }` and **ignored `error`** —
+supabase-js does **not** throw on query errors, so the `catch` blocks were dead code and a failed
+load rendered as a phantom-empty state. Remediated in the portal-honesty-pass branch:
+
+- **PortalDocuments** — query error fell back to "everything pending" (told a client their completed
+  forms don't exist). Now: visible `PortalErrorCard` + Retry.
+- **PortalBilling** — three queries, all errors ignored; a failed load left `billingData` null →
+  render crash (boundary card) or $0 phantom. Now: explicit error checks → visible card + Retry.
+- **PortalAppointments** — error → "No upcoming sessions scheduled." phantom. Now: visible card +
+  Retry. The handler-less **"Request New Session" button was REMOVED** (fabricated affordance —
+  rebuild only with a real request flow).
+- **PortalCompliance (MY PROGRESS)** — two **permanently-phantom cards removed**: "Days Clean" read
+  `clients.days_clean` (column does not exist → rendered 0 forever, in front of a person in
+  recovery) and "Required Tasks" read `client_assignments` (table does not exist → always empty,
+  with a no-op "Complete" button); an unused `srop_data` query (table also nonexistent) removed
+  with them. The honest WS-DisplayTruth progress card stays.
+- **PortalDashboard resource finder** — Gemini search errors went to console only (silent "no
+  resources near you"). Now: visible inline error in the modal.
+- **Recovery Plan WIZARD** (`/portal/recovery-plan`) — trial-hidden (route redirect + dashboard
+  card gated): hardcoded "Alice Johnson" PII, AI-Suggest stub (`generateFormSuggestions` returns
+  the literal string `"Suggestion"`, `services/api.ts`), submit hardcoded to `clientId: '1'` which
+  cannot pass the WS5 client-write RLS. The **honest registry twin at `/portal/forms/recovery-plan`
+  (real `usePortalClient` prefill, real scoped write) stays live** and was not touched.
+
+**Future candidates removed here that are LEGIT features needing real sources (do not rebuild
+without them):** a **days-clean / sobriety counter** (needs a real abstinence-date source — a
+client-attested or clinician-recorded date, not a phantom column) and a **client task/assignment
+list** (needs a real assignments table + write path). Removed because they rendered fabricated
+permanence, not because the ideas are wrong.
+
+---
+
+## 15. (parked → see #17 numbering note) —
+
+Reserved: #15/#16 from the client-list recon (status-vocabulary normalization; `getClients` mock
+fallback) land with the staff-side archive build, which has its own prompt. Recorded here so the
+numbering in that build's commit matches the recon report.
+
+---
+
+## 17. ARCHITECTURE QUESTION (do NOT design yet): should clients author reflections at all?
+
+Surfaced by the Recovery Plan wizard removal (#14). The wizard implied a product idea nobody has
+actually decided on: a **client-authored reflection / recovery-planning surface**, distinct from
+clinician-owned treatment plans (`treatment_plans`, clinician-authored, WS2 boundary). Before ANY
+wizard rebuild: David/Karen must decide (a) whether clients should author such content at all,
+(b) where it lives (it is NOT a treatment plan and must never read as one), (c) who reads it and
+under what consent, and (d) whether AI may assist — and if so, narrate-only (prompts/reflection
+questions), never authoring clinical substance. Until then: the registry form at
+`/portal/forms/recovery-plan` is the only client-facing recovery-plan surface.

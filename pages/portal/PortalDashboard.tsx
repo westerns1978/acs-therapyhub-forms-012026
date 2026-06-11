@@ -11,6 +11,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { FileText, DollarSign, BarChart, Calendar, ArrowRight, Video, Award, ClipboardList, MapPin, Search, X, HeartHandshake, Brain, ExternalLink, MessageSquare } from 'lucide-react';
 import Modal from '../../components/ui/Modal';
 import { fetchOwnProgress } from '../../services/displayProgress';
+import { isTrialHidden } from '../../config/trialMode';
 
 interface ActionCardProps {
     icon: React.ElementType;
@@ -39,11 +40,13 @@ const ResourceFinderModal: React.FC<{ isOpen: boolean, onClose: () => void }> = 
     const [results, setResults] = useState<{text: string, chunks: any[]} | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isLocating, setIsLocating] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         if(!query.trim()) return;
         setIsLoading(true);
+        setSearchError(null);
         try {
             let coords: { latitude: number, longitude: number } | undefined;
             
@@ -63,7 +66,11 @@ const ResourceFinderModal: React.FC<{ isOpen: boolean, onClose: () => void }> = 
             const data = await searchCommunityResources(query, coords);
             setResults(data);
         } catch (error) {
+            // Visible failure — a silent empty result reads as "no resources near you",
+            // which is a phantom answer (honesty pass 2026-06-11).
             console.error(error);
+            setResults(null);
+            setSearchError('The resource search failed. Please try again in a moment.');
         } finally {
             setIsLoading(false);
         }
@@ -93,6 +100,12 @@ const ResourceFinderModal: React.FC<{ isOpen: boolean, onClose: () => void }> = 
                         <p className="text-[10px] font-black uppercase text-slate-400 mt-4 tracking-[0.2em]">
                             {isLocating ? 'Determining Geolocation...' : 'Grounding with Google Maps...'}
                         </p>
+                    </div>
+                )}
+
+                {searchError && !isLoading && (
+                    <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-2xl text-center">
+                        <p className="text-sm font-bold text-red-700 dark:text-red-300">{searchError}</p>
                     </div>
                 )}
 
@@ -302,7 +315,11 @@ const PortalDashboard: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     {/* Recovery Plan WIZARD card — trial-hidden (phantom twin; see config/trialMode.ts).
+                         The honest registry form stays reachable via Document Vault → My Forms. */}
+                     {!isTrialHidden('/portal/recovery-plan') && (
                      <ActionCard icon={ClipboardList} title="Recovery Plan" description="Refine your goals and action steps." onClick={() => navigate('/portal/recovery-plan')} />
+                     )}
                      <ActionCard icon={BarChart} title="Program Compliance" description="Check your SATOP progression requirements." onClick={() => navigate('/portal/compliance')} />
                      <ActionCard icon={Calendar} title="Session Schedule" description="Manage your virtual and in-person sessions." onClick={() => navigate('/portal/appointments')} />
                      <ActionCard icon={FileText} title="Document Vault" description="E-sign pending forms and review records." onClick={() => navigate('/portal/documents')} />
