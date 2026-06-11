@@ -125,6 +125,8 @@ const Financials: React.FC = () => {
     let cancelled = false;
     (async () => {
       setLoadingOut(true); setErrOut(null);
+      // The RPC iterates ALL clients (no status filter) BY DESIGN: debt survives
+      // archive — an archived client with a balance must keep appearing here.
       const { data, error } = await supabase.rpc('acs_report_outstanding_by_client');
       if (cancelled) return;
       if (error) { setErrOut(error.message); setOutstanding([]); }

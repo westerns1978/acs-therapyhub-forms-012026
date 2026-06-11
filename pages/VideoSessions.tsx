@@ -66,7 +66,8 @@ const VideoSessions: React.FC = () => {
         setIsLoading(true);
         const [sessionsData, clientsData] = await Promise.all([getVideoSessions(), getClients()]);
         setSessions(sessionsData);
-        setClients(clientsData.filter(c => c.status !== 'Archived' && c.status !== 'Completed'));
+        // getClients already excludes archived (choke-point); keep only active here.
+        setClients(clientsData.filter(c => c.status === 'active'));
         setIsLoading(false);
     };
 

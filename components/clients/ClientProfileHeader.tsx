@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Client } from '../../types';
+import { Client, CLIENT_STATUS_LABELS } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
 import type { ClientProgress } from '../../services/displayProgress';
 import type { ProgramCardState } from '../../services/complianceEngine';
@@ -22,12 +22,16 @@ interface ClientProfileHeaderProps {
   timelineState?: ProgramCardState | null;
 }
 
+// Lifecycle badge (status normalization, 2026-06-11). The old version painted
+// a green "Compliant" on every active client purely because STATUS_MAP renamed
+// 'active' → 'Compliant' — a fabricated standing signal. Standing is the
+// engine's (the program-aware timeline state beside this badge); this badge
+// only says where the client is in the lifecycle.
 const getStatusColor = (status: Client['status']) => {
     switch (status) {
-        case 'Compliant': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        case 'Non-Compliant': return 'bg-amber-100 text-amber-800 border-amber-200';
-        case 'Warrant Issued': return 'bg-red-100 text-red-800 border-red-200';
-        case 'Completed': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'active': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        case 'completed': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'archived': return 'bg-slate-100 text-slate-600 border-slate-200';
         default: return 'bg-slate-100 text-slate-800 border-slate-200';
     }
 };
@@ -126,7 +130,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                 {getProgramBadge(client, determinedLevel).label}
               </span>
               <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getStatusColor(client.status)}`}>
-                {client.status}
+                {CLIENT_STATUS_LABELS[client.status] ?? client.status}
               </span>
           </div>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm font-bold text-slate-500 uppercase tracking-widest">

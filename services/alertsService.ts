@@ -99,22 +99,12 @@ export function computeAlertsForClients(clients: Client[], progressByClientId?: 
     const completionPct = prog?.established ? (prog.progressPct ?? 0) : null;
     const incomplete = completionPct === null || completionPct < 100;
 
-    // Already in warrant status — highest priority
-    if (c.status === 'Warrant Issued') {
-      alerts.push({
-        id: alertId(c.id, 'WARRANT_RISK'),
-        clientId: c.id,
-        clientName: c.name,
-        program: c.program,
-        tier: 'CRITICAL',
-        reason: 'WARRANT_RISK',
-        headline: 'Warrant issued',
-        detail: `${c.name} has an active warrant. Probation officer ${c.probationOfficer || 'on file'} should be notified if not already.`,
-        recommendedActions: ['NOTIFY_PROBATION', 'FLAG_SUPERVISOR', 'CREATE_TASK'],
-        computedAt: now,
-      });
-      continue; // don't stack more alerts on a warrant client
-    }
+    // REMOVED (status normalization, 2026-06-11): the WARRANT_RISK,
+    // NON_COMPLIANT_STATUS and LICENSE_SUSPENDED rules that lived here read
+    // compliance words off `status` (and a `licenseStatus` field that doesn't
+    // exist on raw rows) — they had NEVER fired against live data. Standing is
+    // the engine's to compute; properly engine-driven versions of these alerts
+    // are logged as future candidates in SECURITY_BACKLOG #15.
 
     // 2+ consecutive missed sessions → warrant risk
     if (missed >= 2) {
@@ -149,37 +139,8 @@ export function computeAlertsForClients(clients: Client[], progressByClientId?: 
       });
     }
 
-    // Non-compliant status, no other urgent signal — still worth surfacing
-    if (c.status === 'Non-Compliant' && missed < 2) {
-      alerts.push({
-        id: alertId(c.id, 'NON_COMPLIANT_STATUS'),
-        clientId: c.id,
-        clientName: c.name,
-        program: c.program,
-        tier: 'ELEVATED',
-        reason: 'NON_COMPLIANT_STATUS',
-        headline: 'Flagged non-compliant',
-        detail: `${c.name} is currently flagged non-compliant. Review recent activity and determine next action.`,
-        recommendedActions: ['SEND_OUTREACH', 'CREATE_TASK'],
-        computedAt: now,
-      });
-    }
-
-    // Suspended license during program enrollment
-    if (c.licenseStatus === 'Suspended' && c.status !== 'Non-Compliant') {
-      alerts.push({
-        id: alertId(c.id, 'LICENSE_SUSPENDED'),
-        clientId: c.id,
-        clientName: c.name,
-        program: c.program,
-        tier: 'MODERATE',
-        reason: 'LICENSE_SUSPENDED',
-        headline: 'License suspended',
-        detail: `${c.name}'s license is suspended. Confirm SATOP completion is tracked toward reinstatement (RSMo 302.540).`,
-        recommendedActions: ['CREATE_TASK'],
-        computedAt: now,
-      });
-    }
+    // (NON_COMPLIANT_STATUS and LICENSE_SUSPENDED rules removed here — see the
+    // note above the missed-sessions rule and SECURITY_BACKLOG #15.)
 
     // 9 CSR 30-3 — every SATOP/SROP client needs a 90-day treatment plan review.
     // Trigger when an active client is mid-program (≥40 of 75 hours, <75 total).
@@ -242,10 +203,15 @@ export function summarizeAlerts(alerts: ClientAlert[]): AlertsSummary {
 /** Fetch all active clients and compute alerts. Falls back to empty array on error. */
 export async function fetchAlerts(): Promise<ClientAlert[]> {
   try {
+    // Canonical lowercase lifecycle values (status normalization, 2026-06-11).
+    // The old capitalized '(Completed,Archived)' exclusion matched NOTHING in
+    // the live DB (values were always lowercase), so archived + completed
+    // clients were silently alert-evaluated. Fixed; CHECK constraint now
+    // guarantees this vocabulary.
     const { data, error } = await supabase
       .from('clients')
       .select('*')
-      .not('status', 'in', '(Completed,Archived)');
+      .not('status', 'in', '(completed,archived)');
     if (error) {
       console.warn('[alertsService] supabase query failed:', error.message);
       return [];

@@ -612,11 +612,46 @@ permanence, not because the ideas are wrong.
 
 ---
 
-## 15. (parked → see #17 numbering note) —
+## 15. `clients.status` vocabulary chaos — ✅ RESOLVED (2026-06-11, status normalization)
 
-Reserved: #15/#16 from the client-list recon (status-vocabulary normalization; `getClients` mock
-fallback) land with the staff-side archive build, which has its own prompt. Recorded here so the
-numbering in that build's commit matches the recon report.
+Found in the 2026-06-11 client-list recon; fixed in the `feat/status-normalization` build.
+`status` conflated two axes — **lifecycle** (lowercase `active`/`completed`/`archived`, what the
+DB actually held) and **compliance standing** (`Compliant`/`Non-Compliant`/`Warrant Issued`, the
+app's capitalized enum that NO row ever held). Consequences, all fixed:
+
+- **Live bug:** `alertsService`'s `.not('status','in','(Completed,Archived)')` matched nothing →
+  all 6 archived + 2 completed clients were silently alert-evaluated. → lowercase exclusion.
+- `STATUS_MAP` renamed `active` → `'Compliant'`, painting a **fabricated green "Compliant" badge**
+  on every active client's profile header. → STATUS_MAP deleted; lifecycle labels only; standing
+  renders from the engine timeline beside it.
+- EditClientModal offered a **mixed-casing dropdown** (`'Compliant', …, 'Archived', 'active',
+  'archived'`) — each archive via UI could have minted a new casing variant. → lifecycle-only.
+- **Resolution:** migration `20260611_status_lifecycle_normalization` — canonicalize + `NOT NULL`
+  + `CHECK (status in ('active','completed','archived'))` + `completed_at`/`archived_at`
+  (nullable, no backfill); ownership micro-gate run pre-ALTER (all FKs/policies/rows ACS).
+  Transition stamps live in `updateClient`; **`completed_at` survives archive/unarchive**
+  (completion is a historical fact; unarchive restores to `completed` when set).
+
+**Engine-driven alert candidates (ideas preserved from the removal):** the three alert rules
+removed from `alertsService` — **WARRANT_RISK**, **NON_COMPLIANT_STATUS**, **LICENSE_SUSPENDED** —
+had never fired (they read standing words off `status` + a `licenseStatus` field that doesn't
+exist on rows). They are LEGIT alerts if rebuilt **reading the engine** (complianceEngine
+guardrail/timeline verdicts) and, for license status, a real data source. The OutreachModal
+message templates for them were deliberately kept. Same treatment as #14's days-clean counter:
+the ideas survive; the fabrication doesn't.
+
+---
+
+## 16. `getClients`/`getClient` silent mock fallback — ✅ RESOLVED (2026-06-11)
+
+The last phantom-data fallback in the API layer: `getClients()` returned the legacy in-memory
+`dbClients` mock array on **error AND on empty result**, `getClient(id)` per-row — staff could
+see phantom clients with no signal anything failed. → Both now fail VISIBLY (throw; the
+Select-a-Client grid renders an error card + Retry), matching the `getAppointments` /
+`getFormSubmissions` precedent. `getClients` is now the **single choke-point**:
+`{ includeArchived = false }` excludes archived **query-side** for every picker/list; the
+deliberate opt-ins are the Compliance CSV (`includeArchived: true` — court records cover
+archived) and the Financials outstanding RPC (DB-side all-clients: **debt survives archive**).
 
 ---
 

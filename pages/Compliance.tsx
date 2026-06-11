@@ -53,7 +53,10 @@ const Compliance: React.FC = () => {
             const [events, logs, clientsData, sessionRecordsData] = await Promise.all([
                 getComplianceEvents(),
                 getAuditLogs(),
-                getClients(),
+                // includeArchived: the CSV export here is a COMPLIANCE RECORD —
+                // court/audit history must cover archived clients (7-yr retention),
+                // so this surface deliberately bypasses the active-only default.
+                getClients({ includeArchived: true }),
                 getSessionRecords('')
             ]);
             setComplianceEvents(events.map(e => ({...e, dueDate: new Date(e.dueDate)})));

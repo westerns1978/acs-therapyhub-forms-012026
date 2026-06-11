@@ -11,12 +11,14 @@ const MoreVerticalIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="htt
 const FileTextIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>;
 
 
+// ORPHAN PAGE (not routed) — re-valued to the lifecycle vocabulary (status
+// normalization, 2026-06-11) so it can serve as the scaffold for the planned
+// list/table view. Standing words are gone: status is lifecycle-only.
 const getStatusColor = (status: Client['status']) => {
     switch (status) {
-        case 'Compliant': return 'bg-green-100 text-green-800';
-        case 'Non-Compliant': return 'bg-yellow-100 text-yellow-800';
-        case 'Warrant Issued': return 'bg-red-100 text-red-800';
-        case 'Completed': return 'bg-blue-100 text-blue-800';
+        case 'active': return 'bg-green-100 text-green-800';
+        case 'completed': return 'bg-blue-100 text-blue-800';
+        case 'archived': return 'bg-slate-100 text-slate-600';
     }
 };
 
@@ -59,7 +61,7 @@ const ClientList: React.FC = () => {
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('Active');
+    const [statusFilter, setStatusFilter] = useState('active');
     const [programFilter, setProgramFilter] = useState('All');
     
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -111,7 +113,6 @@ const ClientList: React.FC = () => {
         };
         const statusMatches = (client: Client) => {
             if (statusFilter === 'All') return true;
-            if (statusFilter === 'Active') return client.status !== 'Archived' && client.status !== 'Completed';
             return client.status === statusFilter;
         };
         const programMatches = (client: Client) => {
@@ -272,13 +273,10 @@ const ClientList: React.FC = () => {
                                 onChange={e => setStatusFilter(e.target.value)}
                                 className="border border-border rounded-lg py-2 px-3 focus:ring-2 focus:ring-primary focus:border-primary"
                             >
-                                <option value="Active">Active</option>
+                                <option value="active">Active</option>
                                 <option value="All">All</option>
-                                <option value="Compliant">Compliant</option>
-                                <option value="Non-Compliant">Non-Compliant</option>
-                                <option value="Warrant Issued">Warrant Issued</option>
-                                <option value="Completed">Completed</option>
-                                <option value="Archived">Archived</option>
+                                <option value="completed">Completed</option>
+                                <option value="archived">Archived</option>
                             </select>
                         </div>
                     </div>

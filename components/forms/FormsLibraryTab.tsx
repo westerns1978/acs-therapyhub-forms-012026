@@ -24,7 +24,8 @@ const FormsLibraryTab: React.FC<FormsLibraryTabProps> = ({ onFormAssigned }) => 
             setIsLoading(true);
             const [formsData, clientsData] = await Promise.all([getForms(), getClients()]);
             setForms(formsData);
-            setClients(clientsData.filter(c => c.status !== 'Archived'));
+            // Archived exclusion now lives in the getClients choke-point.
+            setClients(clientsData);
             setIsLoading(false);
         };
         fetchData();

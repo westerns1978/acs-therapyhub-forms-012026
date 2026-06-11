@@ -35,22 +35,25 @@ const TrendIndicator: React.FC<{ value: number }> = ({ value }) => {
 const CaseloadChart: React.FC<CaseloadChartProps> = ({ clients }) => {
     const [hoveredSegment, setHoveredSegment] = useState<string | null>(null);
     
+    // ORPHAN COMPONENT (no importer) — re-valued to the lifecycle vocabulary
+    // (status normalization, 2026-06-11). The old buckets read standing words
+    // off `status`, which no longer holds them; standing is engine-computed.
     const data = useMemo(() => {
         const counts = clients.reduce((acc, client) => {
-            if (client.status === 'Compliant' || client.status === 'Non-Compliant') {
+            if (client.status === 'active') {
                 acc['Active'] = (acc['Active'] || 0) + 1;
-            } else if (client.status === 'Warrant Issued') {
-                acc['On Hold'] = (acc['On Hold'] || 0) + 1;
-            } else if (client.status === 'Completed' || client.status === 'Archived') {
-                acc['Inactive'] = (acc['Inactive'] || 0) + 1;
+            } else if (client.status === 'completed') {
+                acc['Completed'] = (acc['Completed'] || 0) + 1;
+            } else if (client.status === 'archived') {
+                acc['Archived'] = (acc['Archived'] || 0) + 1;
             }
             return acc;
         }, {} as Record<string, number>);
-        
+
         return [
             { name: 'Active', value: counts['Active'] || 0, color: 'text-primary dark:text-dark-primary', trend: 0 },
-            { name: 'On Hold', value: counts['On Hold'] || 0, color: 'text-yellow-500 dark:text-yellow-400', trend: 0 },
-            { name: 'Inactive', value: counts['Inactive'] || 0, color: 'text-surface-secondary dark:text-dark-surface-secondary', trend: -2 },
+            { name: 'Completed', value: counts['Completed'] || 0, color: 'text-blue-500 dark:text-blue-400', trend: 0 },
+            { name: 'Archived', value: counts['Archived'] || 0, color: 'text-surface-secondary dark:text-dark-surface-secondary', trend: 0 },
         ];
     }, [clients]);
 

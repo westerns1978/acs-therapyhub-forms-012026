@@ -461,7 +461,8 @@ export async function fetchComplianceGuardrails(): Promise<GuardrailVerdict[]> {
   const { data, error } = await supabase
     .from('clients')
     .select('*')
-    .not('status', 'in', '(Completed,Archived,completed,archived)');
+    // Lowercase-only since the 20260611 CHECK constraint guarantees the vocabulary.
+    .not('status', 'in', '(completed,archived)');
   if (error || !data) {
     if (error) console.warn('[complianceEngine] clients query failed:', error.message);
     return [];
@@ -532,7 +533,8 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
   const { data, error } = await supabase
     .from('clients')
     .select('*')
-    .not('status', 'in', '(Completed,Archived,completed,archived)');
+    // Lowercase-only since the 20260611 CHECK constraint guarantees the vocabulary.
+    .not('status', 'in', '(completed,archived)');
   if (error || !data) {
     if (error) console.warn('[complianceEngine] readiness query failed:', error.message);
     return base;

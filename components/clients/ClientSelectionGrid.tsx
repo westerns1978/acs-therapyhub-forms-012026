@@ -78,6 +78,8 @@ const ClientSelectionGrid: React.FC = () => {
     const [clients, setClients] = useState<Client[]>([]);
     const [progressById, setProgressById] = useState<Map<string, ClientProgress>>(new Map());
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
+    const [reloadKey, setReloadKey] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [programFilter, setProgramFilter] = useState('All');
     const location = useLocation();
@@ -85,16 +87,29 @@ const ClientSelectionGrid: React.FC = () => {
     useEffect(() => {
         const fetchClients = async () => {
             setIsLoading(true);
-            const clientsData = await getClients();
-            const visible = clientsData.filter(c => c.status !== 'Archived');
-            setClients(visible);
-            setIsLoading(false);
-            // WS-DisplayTruth: authoritative progress per client (one batched call, the same
-            // surface alertsService uses) — the grid bar reads this, not the neutralized column.
-            setProgressById(await fetchAllClientProgress(visible.map(c => c.id)));
+            setLoadError(false);
+            try {
+                // Archived clients are excluded query-side by the getClients
+                // choke-point (status normalization, 2026-06-11) — the old
+                // client-side !== 'Archived' filter is gone. The archive-build
+                // follow-up will pass { includeArchived: true } + filter chips
+                // to surface them deliberately.
+                const clientsData = await getClients();
+                setClients(clientsData);
+                setIsLoading(false);
+                // WS-DisplayTruth: authoritative progress per client (one batched call, the same
+                // surface alertsService uses) — the grid bar reads this, not the neutralized column.
+                setProgressById(await fetchAllClientProgress(clientsData.map(c => c.id)));
+            } catch (e) {
+                // getClients now fails VISIBLY (no mock fallback) — show the
+                // error, never a phantom-empty grid.
+                console.error('[ClientSelectionGrid] load failed:', e);
+                setLoadError(true);
+                setIsLoading(false);
+            }
         };
         fetchClients();
-    }, []);
+    }, [reloadKey]);
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -131,6 +146,21 @@ const ClientSelectionGrid: React.FC = () => {
 
     if (isLoading) {
         return <LoadingSpinner />;
+    }
+
+    if (loadError) {
+        return (
+            <div className="text-center py-16 px-6 bg-red-50 dark:bg-red-950/30 rounded-2xl border border-red-200 dark:border-red-900">
+                <p className="text-sm font-bold text-red-800 dark:text-red-300">The client list could not be loaded.</p>
+                <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">Nothing has been lost — please retry.</p>
+                <button
+                    onClick={() => setReloadKey(k => k + 1)}
+                    className="mt-5 px-5 py-2.5 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-800 rounded-xl text-xs font-black uppercase tracking-widest text-red-700 dark:text-red-300 hover:bg-red-100 transition"
+                >
+                    Retry
+                </button>
+            </div>
+        );
     }
 
     return (
