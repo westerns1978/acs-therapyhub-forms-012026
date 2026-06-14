@@ -3,8 +3,8 @@
 Short, click-by-click walkthroughs for the things you'll do most. Each one starts
 from wherever you are after signing in.
 
-> ⚠️ **Trial reminder:** use **made-up, sample information** for every task below
-> — no real client names or details yet.
+> **Trial reminder:** use **made-up, sample information** for every task below — no
+> real client names or details yet.
 
 Jump to a task:
 
@@ -12,7 +12,7 @@ Jump to a task:
 - [Open a client's record](#open-a-clients-record)
 - [View the schedule](#view-the-schedule)
 - [Schedule a session](#schedule-a-session)
-- [Cancel a session](#cancel-a-session)
+- [Update a session: complete, no-show, or cancel](#update-a-session-complete-no-show-or-cancel)
 - [Apply a treatment plan](#apply-a-treatment-plan) *(Director / Therapist)*
 - [Assign a form](#assign-a-form)
 - [Review form submissions](#review-form-submissions)
@@ -31,8 +31,8 @@ Jump to a task:
    Demographics."** Fill in **First Name, Last Name, Phone Number, Email
    Address,** and **Date of Birth.** (Name and phone are required.)
 4. Click **"Next"** to reach **"Program & Legal."** Choose a **"Program Track"**
-   (for example, *"SROP (SATOP Recidivism Reduction)," "SATOP Level IV,"
-   "REACT,"* or *"Anger Management"*), then enter **Case Number, County,** and
+   (*SROP (SATOP Recidivism Reduction), SATOP Level IV, REACT,* or *Anger
+   Management*), then enter a **Case Number,** pick a **County,** and enter a
    **Probation Officer.**
 5. Click **"Next"** to reach **"Billing Setup."** Pick a **"Payment Source"**
    (Self-Pay, Insurance, or Court Mandate) and review the **"Ready for Intake"**
@@ -40,9 +40,9 @@ Jump to a task:
 6. Click **"Create Client File."** The button briefly reads **"Creating..."**,
    then the new client's record opens automatically.
 
-> Use **"Back"** to revisit an earlier step. If a required field is missing,
-> you'll see a short message (like *"First and last name are required."*) and be
-> returned to Step 1.
+> Use **"Back"** to revisit an earlier step. If a required field is missing, you'll
+> see a short message (like *"First and last name are required."*) and be returned
+> to the first step.
 
 ---
 
@@ -53,18 +53,20 @@ Jump to a task:
 1. In the left menu, click **"Clients."**
 2. Find your client: pick a program from the **"Program"** dropdown (All, SATOP,
    REACT, Gambling Recovery, Opioid Recovery) and/or type in the **"Search by
-   name or case #"** box.
-3. Click the client's **card.** Their record opens on the **"Overview"** tab.
-4. Move between tabs along the top: **Overview, Documents, Forms, Sessions** (and
-   **Treatment Plan** if you're a Director or Therapist).
+   name or case #"** box. You can switch between **Cards** and **List** views.
+3. Click the client's **card** (or row). Their record opens on the **"Overview"**
+   tab.
+4. Move between the tabs along the top: **Overview, Documents, Forms, Sessions,
+   Assessment,** and **Billing.** (A **Treatment Plan** tab also appears for the
+   Director and Therapist.)
 
 **To update a client's details:**
 
 1. In the client's header, click **"Edit"** (the pencil).
 2. In the **"Edit Client"** window, update the **Contact** fields and the
    **"Billing & Legal"** fields. *(The **"Clinical"** section is editable only for
-   Director/Therapist; the office role sees a **"Therapist / Director only"**
-   label there.)*
+   Director/Therapist; the office role sees a **"Therapist / Director only"** label
+   there.)*
 3. Click **"Save Changes."**
 
 ---
@@ -77,8 +79,8 @@ Jump to a task:
 2. You'll see a **weekly grid.** Use the **"Today"** button to jump to this week,
    or the **left/right arrows** to move between weeks.
 3. Each appointment shows as a **card** with the client or session name and the
-   time. A card may show a **"Virtual"** badge (for video sessions) or a
-   **"Synced to Google"** link.
+   time, color-coded by status (Scheduled, Completed, No-Show, or Canceled). Click
+   a card to open its **"Appointment Status"** window, where you can update it.
 
 ---
 
@@ -92,7 +94,8 @@ Jump to a task:
    example *SATOP Group, REACT Group, Anger Management Group, Gambling Group,
    Individual Counseling, DOT Assessment,* or *Intake Assessment.*
 3. For an individual type, choose the **"Client."** For a group type, set the
-   **"Capacity."**
+   **"Capacity."** *(If your practice has standing groups set up, you can pick one
+   and it will fill in the counselor and meeting room for you.)*
 4. Set the **"Date," "Start Time,"** and **"End Time."** The **"Therapist"** is
    already filled in for you. *(You may see helpful notes about travel time or a
    calendar conflict — these are just advisories and won't stop you.)*
@@ -100,23 +103,43 @@ Jump to a task:
 
 ---
 
-## Cancel a session
+## Update a session: complete, no-show, or cancel
 
 *Available to everyone.*
 
-1. On the **Calendar**, **hover your mouse over the appointment** card.
-2. A small **"X"** appears in the card's corner (it's labeled **"Cancel
-   session"**). Click it.
-3. A confirmation asks something like *"Cancel '…'? This will also remove the
-   Google Calendar event and notify attendees."* Click **OK** to confirm.
-4. The appointment is removed from the schedule.
+Clicking any appointment card on the **Calendar** opens the **"Appointment
+Status"** window. From there you can record what happened:
 
-> 💡 To **reschedule,** cancel the old appointment and
-> [create a new one](#schedule-a-session) at the new time.
->
-> ℹ️ **Heads-up:** marking an appointment as **Completed** or **No-Show** isn't
-> part of this version yet — for now, scheduling and canceling are the two
-> actions. Fuller status tracking is on the list for after the trial.
+**Mark a session complete (this is how program hours add up):**
+
+1. Click the appointment card.
+2. Choose a **"Session category"** — *Counseling, Education,* or *Group
+   rehabilitative support.* (A category is required before you can complete a
+   session; it's how the hours are counted toward the client's program.)
+3. Click **"Mark Completed."** The card turns green.
+
+**Mark a no-show:**
+
+1. Click the appointment card.
+2. Click **"Mark No-Show."** The card is marked accordingly.
+
+**Cancel a session:**
+
+1. Click the appointment card, then **"Cancel Session."**
+2. If the start time is **more than 24 hours away,** the session is simply
+   canceled.
+3. If it's **less than 24 hours away,** a panel appears explaining that, per the
+   ACS Late Cancellation Policy, a late-cancellation fee applies. You can:
+   - **"Assess … fee & cancel"** — the fee posts to the client's billing ledger, or
+   - **"Waive (emergency)…"** — enter a short reason (for example, a documented
+     medical emergency), then confirm.
+4. Canceling **keeps** the appointment on the record (it's just marked Canceled).
+
+> To **reschedule,** cancel the old appointment and
+> [create a new one](#schedule-a-session) at the new time. If you set a status by
+> mistake, reopen the card and click **"Reset to Scheduled."** **"Delete
+> permanently"** removes the appointment entirely (and its Google Calendar event) —
+> use it only when an appointment shouldn't exist at all.
 
 ---
 
@@ -162,9 +185,9 @@ Jump to a task:
 6. Click **"Assign Form to … Client(s)."** The assignment now appears under the
    **"Client Submissions"** tab.
 
-> 👀 **Just want to look at a form first?** Click the small **info icon** on a
-> form's card to preview it, then **"Acknowledge"** to close. Clients fill out
-> the forms you assign; staff mainly **assign** and **review** them.
+> **Just want to look at a form first?** Click the small **info icon** on a form's
+> card to preview it, then **"Acknowledge"** to close. Clients fill out the forms
+> you assign; staff mainly **assign** and **review** them.
 
 ---
 

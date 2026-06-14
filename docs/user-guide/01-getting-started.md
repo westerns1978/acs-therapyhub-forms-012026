@@ -22,7 +22,7 @@ Use this to look around right away.
 3. Click the card that matches you. You'll go straight to your **Dashboard** —
    no phone needed.
 
-> 💡 Want to see what a teammate sees? Sign out and come back in as a different
+> Want to see what a teammate sees? Sign out and come back in as a different
 > role. It's a great way to understand who can do what. To return to the phone
 > sign-in, click **"Back to sign in"**.
 
@@ -65,7 +65,7 @@ You can sign out two ways:
   **"Logout"**, or
 - Click **"Sign Out"** at the bottom of the left-hand menu.
 
-> 🔒 The **"Are you a client? Log in here"** link at the bottom of the screen is
+> The **"Are you a client? Log in here"** link at the bottom of the screen is
 > for *clients*, not staff. You can ignore it.
 
 Next: [Finding your way around](02-navigation.md)
