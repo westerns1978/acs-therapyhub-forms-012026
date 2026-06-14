@@ -529,7 +529,7 @@ supersedes the prior "synthesize→revert every established witness" recipe.
 
 ---
 
-## 12. Financial gating is UI-only — `private.is_financial_staff()` is deployed but referenced by ZERO policies (2026-06-11)
+## 12. Financial gating is UI-only — `private.is_financial_staff()` is deployed but referenced by ZERO policies — ✅ CLOSED at the reporting layer (2026-06-14, `secrpc_1`)
 
 Found during the staff-provisioning recon (2026-06-11, read-only DB inspection). The Director/Admin-only
 financial boundary the UI presents does **not exist at the database layer**:
@@ -554,6 +554,34 @@ self-scoped). It's an intra-staff boundary gap, not a PHI/public leak.
 `where private.is_financial_staff()` guard (or a raise) inside the three `acs_report_*` RPCs so the
 UI claim and the DB enforcement actually match. Witness both directions: Director sees numbers,
 Therapist's direct RPC call / `charges` select returns denied/empty.
+
+**✅ RESOLUTION (2026-06-14, migration `20260614_secrpc_1_financial_report_rpc_gate`).** Recon
+(read-only) corrected the fix sketch: the gate reads `clients.balance` (denormalized via the
+`refresh_client_balance` SECURITY DEFINER trigger), **never the ledger** — so the gate is unaffected
+by any financial lockdown. But the sketch's "repoint `charges`/`payments` table RLS to
+`is_financial_staff()`" would **break operations**: per-client billing is intentionally all-staff
+(`wsrp_2`) — the Billing tab, RecordPayment, and `assessLateCancellationFee`/`waiveCharge` all run
+under `is_staff()` (incl. their `.insert().select()` RETURNING reads). So we closed the **genuinely
+Director/Admin-only surface** — the three `acs_report_*` RPCs (the only cross-client aggregation, and
+`Financials.tsx`'s sole consumers) — and left the tables alone:
+- The three RPCs are now `plpgsql`, SECURITY INVOKER preserved, with a fail-closed
+  `if not private.is_financial_staff() then raise … using errcode='42501'` guard (→ HTTP **403**, a
+  legible denial). SELECT bodies verbatim; signatures unchanged.
+- Comment at `App.tsx:139` corrected (parity now holds for the **reporting surface only**; per-client
+  billing tables remain all-staff by design).
+- **Witnessed** (preview-login, all four directions + the honest-denial check): Therapist → all three
+  RPCs **403 / 42501** with the legible message (network-confirmed, not 500); Therapist compliance gate
+  **intact** — reads `clients.balance`, determinant flips 0→settled / 250→not (synthesize→revert on
+  Marcus, balance restored to 175); Director → all three return numbers, `/financials` renders and
+  self-audit reconciles ($250+$74+$0=$324); Client → portal self-read intact (own 2 charges / 6
+  payments, 1 distinct `client_id`), RPC also 403. 0 console errors beyond the deliberate denial.
+
+**Residual (accepted, NOT closed):** a Therapist can still **direct-`SELECT` `charges`/`payments`**
+via PostgREST and re-derive cross-client totals — the table RLS stays `is_staff()` because per-client
+billing is all-staff (`wsrp_2`). Intra-staff boundary only; no PHI/public leak; Clients stay
+self-scoped. **Option B deferred** — per-client `client_ledger` SECURITY DEFINER fn + split
+SELECT/write policies + refactor of `BillingLedger`/`ClientOverviewTab`/the write-RETURNING paths.
+Trigger Option B only if per-client billing stops being all-staff, or a client demands least-privilege.
 
 ---
 
@@ -678,3 +706,20 @@ public bucket** — real photos go through the private `therapyhub-patient-files
 URLs (the patient-files pattern, see PHI STORAGE above), with `avatar_url` either left null
 (ui-avatars fallback) or pointed at a signed-URL-resolving path. Enforce at intake-build time:
 whatever flow someday captures a real client photo must write to the private bucket, not here.
+
+---
+
+## 19. NOT-ACS / flag to owning app: `public.invoices` has RLS disabled + full `anon` grants (2026-06-14)
+
+Surfaced while reconning #12. `public.invoices` (cols `org_id, service_ticket_id, invoice_number,
+customer_name, amount, tax, total, status, …` — a **service-ticket app's** schema, **not ACS**: ACS
+billing is `charges`/`payments` keyed to `clients`) has **RLS disabled** and **full grants
+(SELECT/INSERT/UPDATE/DELETE) to `anon` + `authenticated`** on its 9 rows. Anyone holding the shared
+anon key (which every app in `ldzzlndsspkyohvzfiiu` ships in its bundle) can read/write all invoices.
+
+**Out of ACS scope — do NOT fix here** (touching another app's table from ACS risks breaking it; the
+avatar-prompt ownership rule applies). Recorded so it isn't lost: **flag to the owning Gemynd app/repo**
+(the service-ticket/dispatch app) to enable RLS + scope policies. This is a specific instance of the
+class already noted in #13 (67 non-ACS RLS-disabled tables); called out separately because `invoices`
+additionally carries explicit `anon` write grants, i.e. unauthenticated read/write, not just
+shared-authenticated.
