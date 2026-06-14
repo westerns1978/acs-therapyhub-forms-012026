@@ -164,8 +164,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             isCollapsed={isSidebarCollapsed} 
             setIsCollapsed={setSidebarCollapsed} 
         />
-        <div className={`flex flex-col flex-1 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} ${clara.isOpen ? 'lg:mr-[420px]' : ''}`}>
-            <main className="flex-1 p-4 sm:p-6 pt-20 pb-8 lg:pt-20 lg:p-8 motion-safe:animate-fade-in-up">
+        {/* min-w-0: let the flex-1 content column shrink below its widest child
+            (the flexbox min-width:auto trap). Without it, a wide child — the list
+            table, BillingLedger, workspace tab content — forces the column past the
+            viewport and the overflow-hidden ancestor clips it off-screen at phone
+            width. No-op on desktop (content already fits the wide column). */}
+        <div className={`flex flex-col flex-1 min-w-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} ${clara.isOpen ? 'lg:mr-[420px]' : ''}`}>
+            <main className="flex-1 min-w-0 p-4 sm:p-6 pt-20 pb-8 lg:pt-20 lg:p-8 motion-safe:animate-fade-in-up">
                 <Breadcrumbs />
                 {children}
             </main>
