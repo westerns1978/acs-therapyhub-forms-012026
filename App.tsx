@@ -135,8 +135,10 @@ function App() {
                   <Route path="/treatment-plan-library" element={<RequireRole roles={['Director', 'Therapist']}><TreatmentPlanLibrary /></RequireRole>} />
                   <Route path="/risk-monitor" element={<RequireRole roles={['Director', 'Therapist']}><RiskMonitor /></RequireRole>} />
 
-                  {/* Director Reports — Financials, un-hidden for day-30 and gated to
-                      Director/Admin (isFinancialRole == DB private.is_financial_staff()). */}
+                  {/* Director Reports — Financials, un-hidden for day-30 and gated to Director/Admin.
+                      UI gate (isFinancialRole) is now matched at the DB by the acs_report_* RPCs'
+                      private.is_financial_staff() guard (secrpc_1). Per-client billing TABLES remain
+                      all-staff by design (wsrp_2) — this parity is for the reporting surface only. */}
                   <Route path="/financials" element={<RequireRole roles={FINANCIAL_ROLES}><Financials /></RequireRole>} />
 
                   {/* TRIAL_MODE-hidden routes (redirect when on) — role gates kept for when flag flips */}
