@@ -6,27 +6,22 @@ A few areas are intentionally **switched off or kept early** during these 30 day
 so you can focus on the essentials. Here's the honest picture of what's parked for
 now and expected to come online during our setup work together:
 
-- **Financials** — read-only billing reports for the Director and Office (Admin):
-  daily payments by method, outstanding balances by client, and revenue (with the
-  state supplemental fee shown separately as a liability, not revenue). *Now
-  available — rebuilt on the real charges + payments ledger for the day-30 review.*
+- **Messages** — a communication center for client and team messages. *Turned off
+  for the trial while we finalize how messages reach clients.*
 - **Analytics** — reports and charts (for example, revenue by program and
   compliance trends). *Turned off for the trial.*
 - **AI Documents** — tools to scan and read handwritten forms and uploaded
   paperwork. *Turned off for the trial.*
-- **Fuller appointment tracking** — marking sessions **Completed** or **No-Show**
-  and doing attendance check-in. *Not in this version yet; scheduling and
-  canceling work today.*
 - **Real sign-in for everyone** — adding your phone numbers to iVALT so each
   person can use the secure phone login, and moving from sample data to real
   client records. *We'll do this together.*
-- **More polished AI helpers** — **Clara** and the **Clinical Smart Note Studio**
-  are early experiments now; your trial feedback will guide where they go next.
+- **More polished AI helpers** — **Clara** and the **Smart Note Studio** are early
+  experiments now; your trial feedback will guide where they go next.
 
 > Nothing above is broken — it's simply not part of the trial. If you spot one of
 > these and wonder where it went, this is why.
 
-## How to give feedback (this is the whole point!)
+## How to give feedback (this is the whole point)
 
 Your reactions during the trial are what make the real setup go smoothly. You
 don't need to write a report — quick notes are perfect. When something stands
@@ -35,12 +30,12 @@ out, jot down:
 1. **What you were trying to do** (e.g., "add a new client").
 2. **What you expected to happen.**
 3. **What actually happened** (and a screenshot if it's easy).
-4. **How it felt** — confusing, slow, just right, delightful, anything.
+4. **How it felt** — confusing, slow, just right, anything.
 
 Little things count: a button you couldn't find, a label that didn't make sense,
 a step that felt like one too many. Send your notes to your contact below.
 
-> 💬 Especially welcome: anything that made you stop and think "wait, how do I…?"
+> Especially welcome: anything that made you stop and think "wait, how do I…?"
 > Those moments are gold for improving the setup.
 
 ## A quick safety reminder

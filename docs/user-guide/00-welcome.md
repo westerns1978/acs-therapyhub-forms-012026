@@ -25,7 +25,7 @@ gentle nudges to jot down a reaction and pass it along (see
 
 ## One important rule for the trial: use make-believe information
 
-> ⚠️ **Please don't type real client names or real personal details into the app
+> **Please don't type real client names or real personal details into the app
 > during the trial.** Use made-up, sample information instead (for example,
 > "Sam Sample," case number "TEST-001"). This is especially important for the
 > AI helpers. We'll switch to real records together later, once setup is
