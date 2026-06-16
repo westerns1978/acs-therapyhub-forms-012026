@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client, CLIENT_STATUS_LABELS } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
+import { normalizeProgram } from '../../config/programVocab';
 import type { ClientProgress } from '../../services/displayProgress';
 import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
@@ -37,29 +38,26 @@ const getStatusColor = (status: Client['status']) => {
 };
 
 const getProgramBadge = (client: Client, determinedLevel?: SatopLevel | null) => {
-    const program = client.program;
-    switch (program) {
-        case 'SATOP': {
-            // WS4: the level badge reads the SIGNED determination (same source as the
-            // completion gate), NOT the static total_sessions_required. No signed
-            // determination → bare "SATOP" (never a level inferred from a number).
-            const label = determinedLevel ? `SATOP Level ${determinedLevel}` : 'SATOP';
-            return { label, color: 'bg-blue-100 text-blue-800 border-blue-200' };
-        }
-        case 'REACT':
-            return { label: 'REACT', color: 'bg-purple-100 text-purple-800 border-purple-200' };
-        case 'Anger Management':
+    const norm = normalizeProgram(client.program);
+    if (norm.program === 'SATOP') {
+        // WS4: the level badge reads the SIGNED determination (same source as the
+        // completion gate) — never the program name's implied level. With no signed
+        // determination, show the ENROLLED program identity (e.g. "SROP"/"SATOP"),
+        // which is an enrollment fact, not a clinical level claim.
+        const label = determinedLevel ? `SATOP Level ${determinedLevel}` : norm.canonical;
+        return { label, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+    }
+    switch (norm.canonical) {
+        case 'ANGER_MANAGEMENT':
             return { label: 'Anger Management', color: 'bg-orange-100 text-orange-800 border-orange-200' };
         case 'GAMBLING_RECOVERY':
             return { label: 'Gambling Recovery', color: 'bg-teal-100 text-teal-800 border-teal-200' };
-        case 'Compulsive Gambling':
-            return { label: 'Compulsive Gambling', color: 'bg-teal-100 text-teal-800 border-teal-200' };
         case 'OPIOID_RECOVERY':
             return { label: 'Opioid Recovery', color: 'bg-violet-100 text-violet-800 border-violet-200' };
-        case 'DOT':
-            return { label: 'DOT', color: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
+        case 'INDIVIDUAL_COUNSELING':
+            return { label: 'Individual Counseling', color: 'bg-slate-100 text-slate-800 border-slate-200' };
         default:
-            return { label: program, color: 'bg-slate-100 text-slate-800 border-slate-200' };
+            return { label: norm.canonical, color: 'bg-slate-100 text-slate-800 border-slate-200' };
     }
 };
 

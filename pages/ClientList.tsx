@@ -4,6 +4,7 @@ import Card from '../components/ui/Card';
 import { getClients } from '../services/api';
 import { Client, SignedDocument } from '../types';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import { normalizeProgram, programLabel } from '../config/programVocab';
 
 const SearchIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>;
 const PlusCircleIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="16"/><line x1="8" x2="16" y1="12" y2="12"/></svg>;
@@ -22,24 +23,19 @@ const getStatusColor = (status: Client['status']) => {
     }
 };
 
+// Tone keyed by canonical program (SATOP-family share the SATOP tone).
 const getProgramColor = (program: Client['program']) => {
-    switch (program) {
-        case 'SATOP': return 'bg-blue-100 text-blue-800';
-        case 'REACT': return 'bg-purple-100 text-purple-800';
-        case 'Anger Management': return 'bg-orange-100 text-orange-800';
-        case 'Compulsive Gambling':
+    switch (normalizeProgram(program).canonical) {
+        case 'SATOP': case 'OEP': case 'WIP': case 'CIP': case 'SROP':
+            return 'bg-blue-100 text-blue-800';
+        case 'ANGER_MANAGEMENT': return 'bg-orange-100 text-orange-800';
         case 'GAMBLING_RECOVERY': return 'bg-teal-100 text-teal-800';
         case 'OPIOID_RECOVERY': return 'bg-violet-100 text-violet-800';
-        case 'DOT': return 'bg-indigo-100 text-indigo-800';
         default: return 'bg-gray-100 text-gray-800';
     }
 };
 
-const getProgramLabel = (program: Client['program']) => {
-    if (program === 'GAMBLING_RECOVERY') return 'Gambling Recovery';
-    if (program === 'OPIOID_RECOVERY') return 'Opioid Recovery';
-    return program;
-};
+const getProgramLabel = (program: Client['program']) => programLabel(program);
 
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
@@ -117,12 +113,11 @@ const ClientList: React.FC = () => {
         };
         const programMatches = (client: Client) => {
             if (programFilter === 'All') return true;
-            // GAMBLING_RECOVERY is the new track introduced for this demo;
-            // 'Compulsive Gambling' is the legacy label still used by other rows.
-            if (programFilter === 'GAMBLING_RECOVERY') {
-                return client.program === 'GAMBLING_RECOVERY' || client.program === 'Compulsive Gambling';
-            }
-            return client.program === programFilter;
+            const norm = normalizeProgram(client.program);
+            // 'SATOP' filter groups the whole SATOP family (incl. SROP/CIP); other
+            // filters match the canonical value. Legacy spellings normalize first.
+            if (programFilter === 'SATOP') return norm.program === 'SATOP';
+            return norm.canonical === programFilter;
         };
         return clients
             .filter(client => client.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -261,9 +256,9 @@ const ClientList: React.FC = () => {
                             >
                                 <option value="All">All</option>
                                 <option value="SATOP">SATOP</option>
-                                <option value="REACT">REACT</option>
                                 <option value="GAMBLING_RECOVERY">Gambling Recovery</option>
                                 <option value="OPIOID_RECOVERY">Opioid Recovery</option>
+                                <option value="ANGER_MANAGEMENT">Anger Management</option>
                             </select>
                         </div>
                         <div className="flex items-center gap-2">
