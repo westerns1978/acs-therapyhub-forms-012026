@@ -22,8 +22,8 @@ import { ArrowRight, Phone, Clock, FileText, CreditCard, BarChart, CheckCircle2,
  *   their grid (mark · tagline+h2 · services · contact block).
  *
  * Mission unchanged (this is the portal's front door, not their marketing page):
- * headline "Finish what you started.", two doors (client primary → /portal/login,
- * quieter staff → /login), and the HONEST portal card — real engine hours framing
+ * headline "Finish what you started.", three doors (new prospect primary → /intake,
+ * returning client → /portal/login, quieter staff → /login), and the HONEST portal card — real engine hours framing
  * (16/75 incl. 16/35 counseling), real FORM_REGISTRY titles, the real completion
  * gate. No fabricated metrics, no dead features, no unconfirmed domain.
  *
@@ -131,10 +131,16 @@ const WebsitePortalBridge: React.FC = () => {
                         to make finishing simpler.
                     </p>
 
-                    {/* The two doors — their .hero-actions pill pair */}
+                    {/* Three doors — their .hero-actions pill style. The new-prospect door is
+                        PRIMARY (a first-time visitor's path); the returning-client and staff
+                        doors are secondary. Routing for the existing two is unchanged. */}
                     <div className="flex flex-wrap items-center" style={{ gap: '0.8rem', marginTop: '2rem' }}>
-                        <button onClick={() => navigate('/portal/login')} style={pillButton} className="hover:opacity-95 transition-all">
-                            I'm completing a program <ArrowRight size={18} />
+                        <button onClick={() => navigate('/intake')} style={pillButton} className="hover:opacity-95 transition-all">
+                            I'm new — get started <ArrowRight size={18} />
+                        </button>
+                        <button onClick={() => navigate('/portal/login')} style={pillButtonSecondary} className="transition-all"
+                                onMouseEnter={(e) => (e.currentTarget.style.color = RED)} onMouseLeave={(e) => (e.currentTarget.style.color = INK)}>
+                            I'm completing a program
                         </button>
                         <button onClick={() => navigate('/login')} style={pillButtonSecondary} className="transition-all"
                                 onMouseEnter={(e) => (e.currentTarget.style.color = RED)} onMouseLeave={(e) => (e.currentTarget.style.color = INK)}>
