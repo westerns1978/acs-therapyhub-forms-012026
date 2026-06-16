@@ -96,3 +96,16 @@ export const programLabel = (raw: string | null | undefined): string =>
 /** True iff the raw program routes as SATOP (generic SATOP or any level name). */
 export const isSatopProgram = (raw: string | null | undefined): boolean =>
   normalizeProgram(raw).program === 'SATOP';
+
+/** Inverse of SATOP_FAMILY_LEVEL: a signed determination level → the canonical
+ *  SATOP-family program it places into (IV→SROP, III→CIP, II→WIP, I→OEP). Used by
+ *  the front-door "Place & Activate" conversion to set program_type from the
+ *  clinician-signed determined level — never from the prospect. */
+export const programForLevel = (level: SatopLevel): CanonicalProgram => {
+  switch (level) {
+    case 'I': return 'OEP';
+    case 'II': return 'WIP';
+    case 'III': return 'CIP';
+    case 'IV': return 'SROP';
+  }
+};

@@ -47,3 +47,12 @@ export function satopFee(level: SatopLevel | null | undefined): number | null {
  * Late Cancellation Policy acknowledgment-form label (one number, no drift).
  */
 export const LATE_CANCELLATION_FEE = 40; // PLACEHOLDER, verify
+
+/**
+ * Flat intake/assessment fee charged at the public front door (the OMU screening
+ * fee), collected BEFORE placement — so it is level-agnostic (the SATOP level
+ * isn't known until a clinician signs the determination). $250 matches the real
+ * ACS SROP-intake fee. Single source for the public /intake checkout amount.
+ * Verify against the published ACS schedule; change it HERE only.
+ */
+export const INTAKE_FEE = 250; // matches the real ACS SROP intake fee

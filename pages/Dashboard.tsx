@@ -4,7 +4,7 @@ import Card from '../components/ui/Card';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../services/supabase';
-import { getAppointments, getClients, getRecentClientCommunications, type ClientCommunication } from '../services/api';
+import { getAppointments, getClients, getRecentClientCommunications, getProspects, type ClientCommunication, type ProspectRow } from '../services/api';
 import { fetchAlerts, summarizeAlerts, type AlertsSummary, type ClientAlert } from '../services/alertsService';
 import { fetchComplianceGuardrails, type GuardrailVerdict } from '../services/complianceEngine';
 import { Appointment } from '../types';
@@ -42,6 +42,9 @@ const Dashboard: React.FC = () => {
     const isTherapist = role === 'Therapist';
     const isAdmin = role === 'Admin';
     const isClinical = isDirector || isTherapist;
+    // Financial staff (Director/Admin) triage the intake queue — and only they can
+    // read payments (RLS), so the "fee paid?" badge is correct only for them.
+    const isFinancial = isDirector || isAdmin;
 
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [alerts, setAlerts] = useState<ClientAlert[]>([]);
@@ -49,6 +52,8 @@ const Dashboard: React.FC = () => {
     // Deterministic compliance-engine verdicts (Missouri pack) for the Guardrails card.
     const [guardrails, setGuardrails] = useState<GuardrailVerdict[]>([]);
     const [recentComms, setRecentComms] = useState<ClientCommunication[]>([]);
+    // Front-door intake queue (prospects) — financial staff only.
+    const [prospects, setProspects] = useState<ProspectRow[]>([]);
     const [clientNames, setClientNames] = useState<Record<string, string>>({});
     // Director aggregate stats. null = query failed / not meaningful → render '—'.
     // Monthly Revenue is intentionally absent until subscription/billing is real
@@ -90,6 +95,15 @@ const Dashboard: React.FC = () => {
                         const c = await getRecentClientCommunications(6);
                         if (!cancelled) setRecentComms(c);
                     } catch (e) { console.warn('[dashboard] recent comms failed:', e); }
+                }
+
+                // Front-door intake queue — financial staff (Director/Admin). Real
+                // prospect rows + their actually-cleared intake payments.
+                if (isFinancial) {
+                    try {
+                        const p = await getProspects();
+                        if (!cancelled) setProspects(p);
+                    } catch (e) { console.warn('[dashboard] intake queue failed:', e); }
                 }
 
                 // Aggregate stats — director only. Real counts off the clients table.
@@ -208,6 +222,40 @@ const Dashboard: React.FC = () => {
         </Card>
     );
 
+    // Front-door intake queue — the "new intakes" surface (in-app, financial staff).
+    // Click a prospect to open their workspace, where staff sign the placement
+    // determination and then "Place & Activate" (the conversion gate lives there).
+    const IntakeQueueCard = (
+        <Card
+            title={`Intake Queue${prospects.length ? ` · ${prospects.length}` : ''}`}
+            subtitle="New self-serve intakes awaiting placement. Click to review and place."
+        >
+            <div className="space-y-3">
+                {prospects.length > 0 ? prospects.map(p => (
+                    <button
+                        key={p.id}
+                        onClick={() => navigate(`/clients/${p.id}`)}
+                        className="w-full text-left flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                    >
+                        <UserPlus className="text-primary shrink-0 mt-0.5" size={18} />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex justify-between items-baseline gap-2">
+                                <p className="text-sm font-black text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
+                                <span className="text-[10px] text-slate-400 shrink-0">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : ''}</span>
+                            </div>
+                            {p.intakeInterest && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5 leading-relaxed">{p.intakeInterest}</p>}
+                            <span className={`inline-flex items-center gap-1 mt-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${p.intakeFeePaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                                {p.intakeFeePaid ? <><ShieldCheck size={11} /> Intake fee paid</> : 'Fee pending'}
+                            </span>
+                        </div>
+                    </button>
+                )) : (
+                    <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No new intakes.</div>
+                )}
+            </div>
+        </Card>
+    );
+
     return (
         <div className="max-w-7xl mx-auto space-y-8 animate-fade-in-up">
             {/* Briefing line — inline text, no popup. */}
@@ -254,6 +302,7 @@ const Dashboard: React.FC = () => {
                                 <Calendar size={16} /> Open Schedule
                             </button>
                         </Card>
+                        {IntakeQueueCard}
                         <Card title="Recent Client Messages" subtitle="Most recent communications sent.">
                             <div className="space-y-3">
                                 {recentComms.length > 0 ? recentComms.map(m => (
@@ -290,6 +339,7 @@ const Dashboard: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 space-y-8">
                         {ScheduleCard}
+                        {isFinancial && IntakeQueueCard}
                         <Card title="Risk Monitor" subtitle="Actionable alerts from real client activity.">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div className="p-4 rounded-2xl border-2 border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10 shadow-card dark:shadow-card-dark">

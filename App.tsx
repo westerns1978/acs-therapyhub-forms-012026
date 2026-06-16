@@ -60,6 +60,7 @@ const PortalFormPage = lazy(() => import('./pages/portal/PortalFormPage'));
 const PortalAppointments = lazy(() => import('./pages/portal/PortalAppointments'));
 const RecoveryPlanForm = lazy(() => import('./pages/portal/RecoveryPlanForm'));
 const WebsitePortalBridge = lazy(() => import('./pages/WebsitePortalBridge'));
+const PublicIntake = lazy(() => import('./pages/PublicIntake'));
 
 // Public Help & Training (no auth — readable while signed out)
 const HelpLayout = lazy(() => import('./pages/help/HelpLayout'));
@@ -86,6 +87,8 @@ function App() {
                   <Route path="/oauth/callback" element={<OAuthCallback />} />
                   <Route path="/portal/login" element={<ClientLogin />} />
                   <Route path="/website" element={<WebsitePortalBridge />} />
+                  {/* Public self-serve front door (no auth): intake → prospect → staff queue. */}
+                  <Route path="/intake" element={<PublicIntake />} />
                   <Route path="/visitor-resources" element={<PortalLayout><Resources /></PortalLayout>} />
 
                   {/* Public Help & Training — no auth required, readable while signed out */}
