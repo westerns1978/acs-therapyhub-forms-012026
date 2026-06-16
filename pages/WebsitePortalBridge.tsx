@@ -116,36 +116,45 @@ const WebsitePortalBridge: React.FC = () => {
                 </div>
             </header>
 
-            {/* ── Hero — their .hero grid + eyebrow + h1 scale; our message + two doors ── */}
+            {/* ── Hero — their .hero grid + eyebrow + h1 scale; our first-timer message + three doors ── */}
             <section className="mx-auto grid lg:grid-cols-[minmax(0,1.02fr)_minmax(20rem,0.98fr)] items-center" style={{ width: 'min(1320px, calc(100% - 1.5rem))', gap: 'clamp(1.8rem, 4vw, 4rem)', paddingTop: 'clamp(2rem, 4vw, 3.5rem)', paddingBottom: 'clamp(2.5rem, 4vw, 4rem)' }}>
                 <div>
                     <Eyebrow>Client portal — St. Louis &amp; Jefferson County</Eyebrow>
                     <h1 style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 'clamp(2.45rem, 3.95vw, 3.85rem)', lineHeight: 1.08, color: INK, maxWidth: 'min(13.8ch, 100%)', textWrap: 'balance' as any, margin: '1rem 0 0' }}>
-                        The hardest step is behind you.
+                        Your next step starts here.
                     </h1>
                     <p style={{ color: MUTED, fontSize: '1.06rem', maxWidth: '48ch', marginTop: '1.25rem' }}>
-                        You've already taken it. The ACS client portal helps you take the rest —
-                        track your hours, complete your forms, and earn your completion
-                        certificate — accepted by courts, employers, and probation officers. We
-                        understand most people come to us during stressful times; the portal is built
-                        to make finishing simpler.
+                        Whether the court sent you or you're here on your own, you're in the right
+                        place. Start your intake online and the portal carries you the rest of the
+                        way — your hours, your forms, and the completion certificate courts,
+                        employers, and probation officers accept. Most people come to us during a
+                        stressful time; we make finishing feel within reach.
                     </p>
 
-                    {/* Three doors — their .hero-actions pill style. The new-prospect door is
-                        PRIMARY (a first-time visitor's path); the returning-client and staff
-                        doors are secondary. Routing for the existing two is unchanged. */}
-                    <div className="flex flex-wrap items-center" style={{ gap: '0.8rem', marginTop: '2rem' }}>
+                    {/* Three doors with a clear one-primary / two-quiet hierarchy for a
+                        first-time visitor. Routing is unchanged: /intake, /portal/login, /login.
+                        Primary stands alone (dominant red); the returning-client door is a quieter
+                        outline and the staff door the quietest (a text link, not a pill). */}
+                    <div style={{ marginTop: '2rem' }}>
+                        {/* Primary — the one obvious action. */}
                         <button onClick={() => navigate('/intake')} style={pillButton} className="hover:opacity-95 transition-all">
-                            I'm new — get started <ArrowRight size={18} />
+                            Start my intake <ArrowRight size={18} />
                         </button>
-                        <button onClick={() => navigate('/portal/login')} style={pillButtonSecondary} className="transition-all"
-                                onMouseEnter={(e) => (e.currentTarget.style.color = RED)} onMouseLeave={(e) => (e.currentTarget.style.color = INK)}>
-                            I'm completing a program
-                        </button>
-                        <button onClick={() => navigate('/login')} style={pillButtonSecondary} className="transition-all"
-                                onMouseEnter={(e) => (e.currentTarget.style.color = RED)} onMouseLeave={(e) => (e.currentTarget.style.color = INK)}>
-                            ACS staff sign-in
-                        </button>
+                        <p style={{ color: MUTED, fontSize: '0.85rem', marginTop: '0.55rem' }}>Takes a few minutes.</p>
+
+                        {/* The quieter doors — visibly subordinate, beneath the primary. */}
+                        <div className="flex flex-wrap items-center" style={{ gap: '1.1rem', marginTop: '1.5rem' }}>
+                            <button onClick={() => navigate('/portal/login')} style={pillButtonSecondary} className="transition-all"
+                                    onMouseEnter={(e) => (e.currentTarget.style.color = RED)} onMouseLeave={(e) => (e.currentTarget.style.color = INK)}>
+                                I've already started
+                            </button>
+                            <button onClick={() => navigate('/login')}
+                                    style={{ background: 'transparent', border: 'none', padding: '0.3rem 0.2rem', color: MUTED, fontWeight: 600, fontSize: '0.92rem', cursor: 'pointer', lineHeight: 1 }}
+                                    className="transition-colors"
+                                    onMouseEnter={(e) => (e.currentTarget.style.color = RED)} onMouseLeave={(e) => (e.currentTarget.style.color = MUTED)}>
+                                ACS staff sign-in
+                            </button>
+                        </div>
                     </div>
                     <p style={{ color: MUTED, fontSize: '0.9rem', marginTop: '0.9rem' }}>
                         Track progress &nbsp;·&nbsp; complete forms &nbsp;·&nbsp; earn your certificate
