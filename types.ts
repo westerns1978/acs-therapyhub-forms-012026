@@ -44,13 +44,17 @@ export interface User {
 // (compliant / non-compliant / warrant) is NOT a status value: the
 // deterministic engine computes standing at render; storing it here would be
 // a second source of truth that could contradict the engine.
-export type ClientStatus = 'active' | 'completed' | 'archived';
-export const CLIENT_STATUSES: readonly ClientStatus[] = ['active', 'completed', 'archived'];
+// 'prospect' = a public self-serve intake before clinician placement. Excluded
+// from the active roster + compliance engine; visible only in the staff intake
+// queue until "Place & Activate" (front-door demo, 2026-06-17).
+export type ClientStatus = 'active' | 'completed' | 'archived' | 'prospect';
+export const CLIENT_STATUSES: readonly ClientStatus[] = ['active', 'completed', 'archived', 'prospect'];
 // Display labels — presentation only; identity is the lowercase value.
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   active: 'Active',
   completed: 'Completed',
   archived: 'Archived',
+  prospect: 'Prospect / Intake',
 };
 
 export interface Client {

@@ -10,6 +10,8 @@ import {
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { FORM_REGISTRY } from '../config/formRegistry';
+import { fetchClientDetermination } from './complianceEngine';
+import { programForLevel } from '../config/programVocab';
 import { LATE_CANCELLATION_FEE } from '../config/satopFees';
 
 import {
@@ -140,7 +142,13 @@ const mapClientToApp = (c: any): Client => {
     // uses. Here we only pass through an explicit completionPercentage if the row carries one.
     const completionPercentage = c.completionPercentage != null ? Number(c.completionPercentage) : 0;
 
-    const program = c.program ?? c.program_type ?? 'SATOP';
+    // A prospect (front-door intake, pre-placement) has NO program yet — its
+    // program_type is set by staff at "Place & Activate" from a signed
+    // determination. Don't coerce its null to 'SATOP' (that would be a phantom
+    // program). Every other status keeps the legacy 'SATOP' fallback. (Verified
+    // 2026-06-17: 0 non-prospect clients have a null program_type, so this scope
+    // changes nothing for existing clients.)
+    const program = c.program ?? c.program_type ?? (status === 'prospect' ? '' : 'SATOP');
     const name = c.name || [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Unknown Client';
 
     return {
@@ -203,7 +211,11 @@ export const getClients = async (
     if (opts?.status) {
         if (opts.status !== 'all') query = query.eq('status', opts.status);
     } else if (!opts?.includeArchived) {
-        query = query.neq('status', 'archived');
+        // Default roster excludes BOTH archived and prospect: a prospect (front-door
+        // intake, pre-placement) is not a client yet and must never leak into pickers
+        // or the active list. The explicit { status: 'prospect' } opt-out still fetches
+        // them for the intake-queue tile.
+        query = query.not('status', 'in', '("archived","prospect")');
     }
     const { data, error } = await query;
     if (error) {
@@ -221,12 +233,67 @@ export const getClientStatusCounts = async (): Promise<Record<ClientStatus, numb
         console.error('[api] getClientStatusCounts failed:', error);
         throw new Error(error.message || 'Failed to load client counts');
     }
-    const counts: Record<ClientStatus, number> = { active: 0, completed: 0, archived: 0 };
+    const counts: Record<ClientStatus, number> = { active: 0, completed: 0, archived: 0, prospect: 0 };
     for (const r of data || []) {
         const s = (r as any).status as ClientStatus;
         if (counts[s] !== undefined) counts[s]++;
     }
     return counts;
+};
+
+// ── Front-door intake (prospect lifecycle) ────────────────────────────────────
+
+/** One row in the staff intake-queue tile. `intakeFeePaid` is derived from a REAL
+ *  linked succeeded payment — never fabricated. */
+export interface ProspectRow {
+    id: string;
+    name: string;
+    intakeInterest: string | null;
+    createdAt: string | null;
+    intakeFeePaid: boolean;
+}
+
+/** The intake queue: prospect rows + whether their intake fee actually cleared.
+ *  Reads payments (Director/Admin RLS), so surface this only to financial staff. */
+export const getProspects = async (): Promise<ProspectRow[]> => {
+    const { data, error } = await supabase
+        .from('clients')
+        .select('id, name, intake_interest, created_at')
+        .eq('status', 'prospect')
+        .order('created_at', { ascending: false });
+    if (error) {
+        console.error('[api] getProspects failed:', error);
+        throw new Error(error.message || 'Failed to load intake queue');
+    }
+    const rows = data || [];
+    if (!rows.length) return [];
+    const ids = rows.map((r) => r.id);
+    // Paid? = a real succeeded payment linked to the prospect (auto-linked by the
+    // Stripe webhook via metadata.client_id). Never a fabricated "paid".
+    const { data: pays } = await supabase
+        .from('payments').select('client_id').eq('status', 'succeeded').in('client_id', ids);
+    const paid = new Set((pays || []).map((p: any) => p.client_id));
+    return rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        intakeInterest: r.intake_interest ?? null,
+        createdAt: r.created_at ?? null,
+        intakeFeePaid: paid.has(r.id),
+    }));
+};
+
+/** "Place & Activate" — convert a prospect to an active client. REQUIRES a
+ *  clinician-SIGNED placement determination (the existing gate): the program is
+ *  derived from the signed level (IV→SROP, III→CIP, II→WIP, I→OEP), never from the
+ *  prospect. Throws if no determination is signed yet — the gate cannot be skipped.
+ *  Does NOT create a portal auth account (that stays staff-provisioned, unchanged). */
+export const placeAndActivate = async (clientId: string): Promise<Client> => {
+    const level = await fetchClientDetermination(clientId);
+    if (!level) {
+        throw new Error('Sign a placement determination before activating this prospect.');
+    }
+    const program = programForLevel(level);
+    return updateClient(clientId, { program, status: 'active' });
 };
 
 export const getClient = async (id: string): Promise<Client | undefined> => {

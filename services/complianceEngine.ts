@@ -469,7 +469,7 @@ export async function fetchComplianceGuardrails(): Promise<GuardrailVerdict[]> {
     .from('clients')
     .select('*')
     // Lowercase-only since the 20260611 CHECK constraint guarantees the vocabulary.
-    .not('status', 'in', '(completed,archived)');
+    .not('status', 'in', '(completed,archived,prospect)');
   if (error || !data) {
     if (error) console.warn('[complianceEngine] clients query failed:', error.message);
     return [];
@@ -541,7 +541,7 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
     .from('clients')
     .select('*')
     // Lowercase-only since the 20260611 CHECK constraint guarantees the vocabulary.
-    .not('status', 'in', '(completed,archived)');
+    .not('status', 'in', '(completed,archived,prospect)');
   if (error || !data) {
     if (error) console.warn('[complianceEngine] readiness query failed:', error.message);
     return base;

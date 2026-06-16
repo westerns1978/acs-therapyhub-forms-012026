@@ -7,8 +7,8 @@ import type { ClientProgress } from '../../services/displayProgress';
 import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
-import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play } from 'lucide-react';
-import { generateClinicalSnapshot } from '../../services/api';
+import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { generateClinicalSnapshot, placeAndActivate } from '../../services/api';
 import ClinicalMarkdown from '../ClinicalMarkdown';
 
 interface ClientProfileHeaderProps {
@@ -69,6 +69,24 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
   const { user } = useAuth();
   // A live session writes a CLINICAL note — Director/Therapist only (not Admin/Jessica).
   const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist');
+
+  // Front-door conversion: a prospect (pre-placement) gets a "Place & Activate"
+  // action instead of the normal clinical buttons. The gate (a SIGNED placement
+  // determination must exist) is enforced in api.placeAndActivate, not here.
+  const isProspect = client.status === 'prospect';
+  const [placing, setPlacing] = useState(false);
+  const [placeError, setPlaceError] = useState<string | null>(null);
+  const handlePlaceActivate = async () => {
+    setPlaceError(null);
+    setPlacing(true);
+    try {
+      await placeAndActivate(client.id);
+      window.location.reload();   // re-render the now-active client with its program + gates
+    } catch (e: any) {
+      setPlaceError(e?.message || 'Could not place this prospect.');
+      setPlacing(false);
+    }
+  };
 
   // Program-aware: for a non-SATOP timeline program, the small "Progress" box shows the engine's
   // review STATE instead of a meaningless hours %. SATOP (timelineState null) keeps the % path.
@@ -136,6 +154,29 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
           </div>
           
           <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-3">
+                {isProspect ? (
+                  <>
+                    {/* Prospect (front-door intake): the clinical actions are premature.
+                        Place & Activate converts to an active client — gated on a SIGNED
+                        placement determination (enforced in api.placeAndActivate). */}
+                    <button
+                        onClick={handlePlaceActivate}
+                        disabled={placing}
+                        className="flex items-center gap-3 bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 hover:scale-105 transition-all shadow-xl shadow-emerald-600/20 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
+                    >
+                        {placing ? <Loader2 size={16} className="animate-spin" /> : <UserCheck size={16} />}
+                        {placing ? 'Placing…' : 'Place & Activate'}
+                    </button>
+                    <button
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-edit-client-modal', { detail: { client } }))}
+                        aria-label="Edit client"
+                        className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95"
+                    >
+                        <Pencil size={14} /> Edit
+                    </button>
+                  </>
+                ) : (
+                  <>
                 {canStartSession && (
                     <button
                         onClick={() => navigate(`/session/${client.id}`)}
@@ -177,7 +218,15 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                 >
                     <Pencil size={14} /> Edit
                 </button>
+                  </>
+                )}
           </div>
+          {placeError && (
+            <div className="mt-3 flex items-start gap-2 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-xl px-3 py-2 max-w-xl mx-auto lg:mx-0">
+                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                <p className="text-xs font-medium leading-relaxed">{placeError}</p>
+            </div>
+          )}
         </div>
 
         <div className="lg:w-64 grid grid-cols-1 gap-3">
