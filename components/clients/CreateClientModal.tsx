@@ -162,11 +162,13 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                             </h3>
                             <div className="space-y-1">
                                 <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Program Track</label>
+                                {/* Values are the CANONICAL program vocabulary (config/programVocab.ts);
+                                    the DB CHECK (20260616) rejects anything else. Labels are friendly. */}
                                 <select className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" value={formData.program} onChange={e => handleChange('program', e.target.value)}>
-                                    <option>SROP (SATOP Recidivism Reduction)</option>
-                                    <option>SATOP Level IV</option>
-                                    <option>REACT</option>
-                                    <option>Anger Management</option>
+                                    <option value="SROP">SROP — Serious & Repeat Offender Program (Level IV)</option>
+                                    <option value="CIP">CIP — Clinical Intervention Program (Level III)</option>
+                                    <option value="SATOP">SATOP (level set by determination)</option>
+                                    <option value="ANGER_MANAGEMENT">Anger Management</option>
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-6">

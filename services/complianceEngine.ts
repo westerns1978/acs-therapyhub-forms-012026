@@ -22,6 +22,7 @@ import pack from '../compliance/missouri-compliance-pack.json';
 import { supabase } from './supabase';
 import { REQUIRED_HOURS_BY_LEVEL, type SatopLevel } from '../config/satopFees';
 import { REQUIRED_FORMS_BY_LEVEL } from '../config/formRegistry';
+import { normalizeProgram } from '../config/programVocab';
 
 export type Primitive =
   | 'HOURS' | 'DEADLINE' | 'DOCUMENT' | 'SIGNATURE' | 'CONSTRAINT' | 'SEQUENCE' | 'CREDENTIAL';
@@ -84,11 +85,14 @@ export const getRule = (id: string): RuleDef | undefined => RULES[id];
  * pack `programs.*` node key. SATOP routes through the level logic in evaluateClientCompliance,
  * NOT here. Non-SATOP programs run their node's flat `rules` (the evaluators are generic).
  */
+// Keyed by the CANONICAL program vocabulary (config/programVocab.ts). SATOP-family
+// values (SATOP/OEP/WIP/CIP/SROP) are NOT here — they route through the level logic
+// in evaluateClientCompliance after normalizeProgram collapses them to 'SATOP'.
 const PROGRAM_TO_PACK: Record<string, string> = {
   OPIOID_RECOVERY: 'OUTPATIENT_SUD',         // opioid has no distinct node — generic outpatient SUD covers it
-  'INDIVIDUAL COUNSELING': 'OUTPATIENT_SUD',
+  INDIVIDUAL_COUNSELING: 'OUTPATIENT_SUD',
   GAMBLING_RECOVERY: 'GAMBLING',
-  'ANGER MANAGEMENT': 'ANGER',
+  ANGER_MANAGEMENT: 'ANGER',
 };
 export const packKeyForProgram = (program: string): string | null => PROGRAM_TO_PACK[program] ?? null;
 /** Human label of a pack program node (e.g. GAMBLING → "Compulsive Gambling Disorder
@@ -290,7 +294,10 @@ function toFacts(row: any, opts: { accrual?: AccruedHours; completionSignedOff?:
   return {
     id: row.id,
     name: row.name,
-    program: String(row.program_type || row.program || '').toUpperCase(),
+    // THE routing boundary: free-text program_type → canonical routed program
+    // (SATOP-family → 'SATOP'). normalizeProgram is the single conversion point;
+    // the rest of the engine reads facts.program without re-casing literals.
+    program: normalizeProgram(row.program_type ?? row.program).program,
     status: String(row.status || '').toLowerCase(),
     // WS3: completed hours + per-category come from the categorized accrual (Completed
     // appointments), never the static srop_hours_completed column.
@@ -808,7 +815,7 @@ export interface ProgramCardState {
 export async function fetchClientProgramCardState(clientId: string): Promise<ProgramCardState | null> {
   const { data: row, error } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
   if (error || !row) return null;
-  const program = String(row.program_type || row.program || '').toUpperCase();
+  const program = normalizeProgram(row.program_type ?? row.program).program;  // second derivation boundary
   if (program === 'SATOP') return null;            // SATOP keeps the % progress path
   const packKey = packKeyForProgram(program);
   if (!packKey) return null;                        // unmapped program — nothing to show

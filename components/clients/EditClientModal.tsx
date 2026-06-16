@@ -3,7 +3,11 @@ import { updateClient } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Client, ClientStatus } from '../../types';
 import { CLIENT_STATUS_LABELS } from '../../types';
+import { normalizeProgram, PROGRAM_LABELS, CANONICAL_PROGRAMS } from '../../config/programVocab';
 import { X, User, Shield, CreditCard, CheckCircle, Loader2, AlertTriangle, Lock } from 'lucide-react';
+
+// Canonical program options for the edit dropdown (value = stored vocab; label = friendly).
+const PROGRAM_OPTIONS = CANONICAL_PROGRAMS.map(p => ({ value: p, label: PROGRAM_LABELS[p] }));
 
 interface EditClientModalProps {
     isOpen: boolean;
@@ -51,7 +55,8 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
             county: (client as any).county || 'St. Louis',
             probationOfficer: client.probationOfficer || '',
             billingType: (client.billingType as string) || 'Self-Pay',
-            program: (client.program as string) || 'SROP',
+            // Normalize so a legacy/free-text value maps onto a canonical option.
+            program: normalizeProgram(client.program).canonical || 'SROP',
             status: (client.status as string) || 'active',
         });
         setError(null);
@@ -205,7 +210,7 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
                             )}
                         </h3>
                         <FieldLabel label="Program">
-                            <Select value={formData.program} onChange={v => setField('program', v)} disabled={!canEditClinical} options={['SROP', 'SATOP', 'SATOP Level IV', 'REACT', 'Anger Management', 'GAMBLING_RECOVERY', 'OPIOID_RECOVERY', 'DOT', 'Individual Counseling']} />
+                            <Select value={formData.program} onChange={v => setField('program', v)} disabled={!canEditClinical} options={PROGRAM_OPTIONS} />
                         </FieldLabel>
                         <FieldLabel label="Status">
                             {/* Lifecycle ONLY (DB CHECK-enforced): active | completed | archived.
@@ -261,7 +266,7 @@ const Input: React.FC<InputProps> = ({ value, onChange, type = 'text', placehold
 interface SelectProps {
     value: string;
     onChange: (v: string) => void;
-    options: string[];
+    options: (string | { value: string; label: string })[];   // string = value & label
     disabled?: boolean;
 }
 const Select: React.FC<SelectProps> = ({ value, onChange, options, disabled }) => (
@@ -271,9 +276,10 @@ const Select: React.FC<SelectProps> = ({ value, onChange, options, disabled }) =
         disabled={disabled}
         className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed"
     >
-        {options.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
-        ))}
+        {options.map(opt => {
+            const o = typeof opt === 'string' ? { value: opt, label: opt } : opt;
+            return <option key={o.value} value={o.value}>{o.label}</option>;
+        })}
     </select>
 );
 

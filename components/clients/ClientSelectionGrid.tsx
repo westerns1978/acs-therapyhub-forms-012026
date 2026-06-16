@@ -12,12 +12,9 @@ import { Client, ClientStatus, CLIENT_STATUS_LABELS } from '../../types';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import ClientAvatar from './ClientAvatar';
 import { Search, UserPlus, LayoutGrid, List, CheckCircle2, Archive, ArrowUpDown } from 'lucide-react';
+import { normalizeProgram, programLabel, isSatopProgram } from '../../config/programVocab';
 
-const programDisplayLabel = (program: Client['program']) => {
-    if (program === 'GAMBLING_RECOVERY') return 'Gambling Recovery';
-    if (program === 'OPIOID_RECOVERY') return 'Opioid Recovery';
-    return program;
-};
+const programDisplayLabel = (program: Client['program']) => programLabel(program);
 
 // Tone for a NON-SATOP timeline-program card state (program-aware engine output).
 const timelineTone = (status: ProgramCardState['status']) =>
@@ -76,7 +73,7 @@ const ClientCard: React.FC<{
     // SATOP renders the AUTHORITATIVE hours Progress% (accrual + signed determination) — unchanged.
     // NON-SATOP programs are documentation-timeline: the % is meaningless, so we show the
     // program-aware engine's compliance STATE (review due/overdue, or court-determined no-gate).
-    const isSatop = String(client.program || '').toUpperCase() === 'SATOP';
+    const isSatop = isSatopProgram(client.program);  // SROP/CIP route as SATOP too
     const [timeline, setTimeline] = useState<ProgramCardState | null>(null);
     const [timelineLoading, setTimelineLoading] = useState(!isSatop);
     useEffect(() => {
@@ -307,7 +304,7 @@ const ClientSelectionGrid: React.FC = () => {
         const run = async () => {
             const candidates = clients.filter(c =>
                 c.status === 'active'
-                && String(c.program || '').toUpperCase() === 'SATOP'
+                && isSatopProgram(c.program)
                 && (progressById.get(c.id)?.established ?? false)
                 && (progressById.get(c.id)?.progressPct ?? 0) >= 100);
             if (!candidates.length) { if (!cancelled) setEligibleById(new Map()); return; }
@@ -373,10 +370,11 @@ const ClientSelectionGrid: React.FC = () => {
         };
         const programMatches = (client: Client) => {
             if (programFilter === 'All') return true;
-            if (programFilter === 'GAMBLING_RECOVERY') {
-                return client.program === 'GAMBLING_RECOVERY' || client.program === 'Compulsive Gambling';
-            }
-            return client.program === programFilter;
+            const norm = normalizeProgram(client.program);
+            // 'SATOP' groups the whole SATOP family (incl. SROP/CIP); others match
+            // the canonical value (legacy spellings normalize first).
+            if (programFilter === 'SATOP') return norm.program === 'SATOP';
+            return norm.canonical === programFilter;
         };
         // (OPIOID_RECOVERY uses default exact match on client.program)
         return clients
@@ -430,9 +428,9 @@ const ClientSelectionGrid: React.FC = () => {
                         >
                             <option value="All">All</option>
                             <option value="SATOP">SATOP</option>
-                            <option value="REACT">REACT</option>
                             <option value="GAMBLING_RECOVERY">Gambling Recovery</option>
                             <option value="OPIOID_RECOVERY">Opioid Recovery</option>
+                            <option value="ANGER_MANAGEMENT">Anger Management</option>
                         </select>
                     </div>
                     <div className="relative">
