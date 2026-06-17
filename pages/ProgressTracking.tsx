@@ -157,7 +157,7 @@ const ProgramCompliance: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                 <div className="lg:col-span-3 space-y-6">
-                    {client.status === 'Completed' && (
+                    {client.status === 'completed' && (
                         <Card>
                             <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-4 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800/50 rounded-lg">
                                 <CheckCircleIcon className="w-12 h-12 text-green-500 flex-shrink-0" />
@@ -225,7 +225,7 @@ const ProgramCompliance: React.FC = () => {
                             <li className="flex justify-between items-center"><span>Interlock Status:</span> <span className="font-semibold">{client.interlockStatus}</span></li>
                             <li className="flex justify-between items-center"><span>Next Report Due:</span> <span className="font-mono text-xs">Aug 15, 2024</span></li>
                          </ul>
-                          <button disabled={client.status !== 'Completed'} className="w-full mt-3 text-sm bg-gray-100 dark:bg-slate-700 px-3 py-2 rounded-md hover:bg-gray-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                          <button disabled={client.status !== 'completed'} className="w-full mt-3 text-sm bg-gray-100 dark:bg-slate-700 px-3 py-2 rounded-md hover:bg-gray-200 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed">
                             Generate SATOP Completion Form
                         </button>
                     </Card>
