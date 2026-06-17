@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../services/supabase';
 import { INTAKE_FEE } from '../config/satopFees';
-import { CheckCircle2, Loader2, AlertTriangle, ArrowRight, Lock } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertTriangle, ArrowRight, Lock, Clock } from 'lucide-react';
 
 /**
  * Public front door (recon step 2–3): the unauthenticated self-serve intake.
@@ -16,9 +16,19 @@ import { CheckCircle2, Loader2, AlertTriangle, ArrowRight, Lock } from 'lucide-r
  *   3) On return the webhook has linked the payment to the prospect via
  *      metadata.client_id; the prospect appears in the staff intake-queue tile.
  *
+ * THE RETURN VIEW IS HONEST: we never show "payment received" by trusting the
+ * ?payment=success URL param (anyone can type that). We take the `session_id` Stripe
+ * appends to the return URL and confirm a real succeeded payment server-side via the
+ * read-only `acs-verify-payment` function before claiming success — polling briefly to
+ * absorb webhook latency, and falling back to an honest "still confirming" state
+ * (never a false "confirmed", never a false "failed").
+ *
  * No clinical detail is collected here. The real program/level is set by a
  * clinician at placement — a prospect can never self-place. DEMO / synthetic only.
  */
+const ACS_PHONE_DISPLAY = '314-849-2800';
+const ACS_PHONE_TEL = 'tel:3148492800';
+
 const fnHeaders = {
     'Content-Type': 'application/json',
     apikey: SUPABASE_ANON_KEY,
@@ -30,9 +40,48 @@ const PublicIntake: React.FC = () => {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Return state from the Stripe round-trip (?payment=success|cancelled lands in
-    // the query BEFORE the hash; HashRouter keeps #/intake in the fragment).
-    const payment = useMemo(() => new URLSearchParams(window.location.search).get('payment'), []);
+    // Return state from the Stripe round-trip. ?payment + ?session_id land in the
+    // query BEFORE the hash; HashRouter keeps #/intake in the fragment.
+    const params = useMemo(() => new URLSearchParams(window.location.search), []);
+    const payment = params.get('payment');
+    const sessionId = params.get('session_id');
+
+    // Server-verified payment state. 'verifying' until acs-verify-payment confirms a
+    // real succeeded payments row for THIS session id; 'unverified' if it never does.
+    const [verifyState, setVerifyState] = useState<'verifying' | 'confirmed' | 'unverified'>('verifying');
+    const [paidAmount, setPaidAmount] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (payment !== 'success') return;
+        // No usable session id → we cannot honestly confirm anything.
+        if (!sessionId || !sessionId.startsWith('cs_')) { setVerifyState('unverified'); return; }
+        let cancelled = false;
+        let attempt = 0;
+        const MAX_ATTEMPTS = 12;   // ~30s total — absorbs webhook delivery latency
+        const INTERVAL_MS = 2500;
+        const check = async () => {
+            attempt += 1;
+            try {
+                const res = await fetch(`${SUPABASE_URL}/functions/v1/acs-verify-payment`, {
+                    method: 'POST',
+                    headers: fnHeaders,
+                    body: JSON.stringify({ session_id: sessionId }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (cancelled) return;
+                if (res.ok && data?.confirmed) {
+                    setPaidAmount(typeof data.amount === 'number' ? data.amount : null);
+                    setVerifyState('confirmed');
+                    return;
+                }
+            } catch { /* transient network hiccup — fall through to retry */ }
+            if (cancelled) return;
+            if (attempt >= MAX_ATTEMPTS) { setVerifyState('unverified'); return; }
+            window.setTimeout(check, INTERVAL_MS);
+        };
+        check();
+        return () => { cancelled = true; };
+    }, [payment, sessionId]);
 
     const set = (k: keyof typeof form, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -85,21 +134,84 @@ const PublicIntake: React.FC = () => {
 
     // ── Return states ─────────────────────────────────────────────────────────
     if (payment === 'success') {
+        // Verifying — we received the return but haven't confirmed the real payment yet.
+        if (verifyState === 'verifying') {
+            return (
+                <Shell>
+                    <div className="text-center space-y-3">
+                        <div className="mx-auto w-14 h-14 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
+                            <Loader2 size={28} className="animate-spin" />
+                        </div>
+                        <h1 className="text-2xl font-bold text-slate-900">Confirming your payment…</h1>
+                        <p className="text-slate-600 leading-relaxed">
+                            Payment received — we’re just confirming it on our end. This usually takes
+                            only a moment; please don’t close this window.
+                        </p>
+                    </div>
+                </Shell>
+            );
+        }
+        // Confirmed — a real succeeded payment exists for this session. Safe to say so.
+        if (verifyState === 'confirmed') {
+            const amt = (paidAmount ?? INTAKE_FEE).toFixed(2);
+            return (
+                <Shell>
+                    <div className="text-center space-y-4">
+                        <div className="mx-auto w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                            <CheckCircle2 size={30} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <h1 className="text-2xl font-bold text-slate-900">You’re in — payment received</h1>
+                            <p className="text-slate-600 leading-relaxed">
+                                Your intake and assessment fee of{' '}
+                                <span className="font-semibold text-slate-800">${amt}</span> has been received.
+                                You’re in the right place, and the hardest part — starting — is behind you.
+                            </p>
+                        </div>
+                        <div className="text-left rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+                            <p className="text-xs font-bold uppercase text-slate-500 tracking-wider">What happens next</p>
+                            <ol className="space-y-2.5 text-sm text-slate-600 leading-relaxed">
+                                <li className="flex gap-2.5"><span className="font-bold text-primary shrink-0">1.</span> A member of the ACS team will call you to schedule your assessment.</li>
+                                <li className="flex gap-2.5"><span className="font-bold text-primary shrink-0">2.</span> At that assessment, a counselor confirms your program and how many hours you’ll need — it’s decided by a person, not a form.</li>
+                                <li className="flex gap-2.5"><span className="font-bold text-primary shrink-0">3.</span> Once you’re placed, we’ll set up your portal login so you can track hours, sign forms, and earn your completion certificate.</li>
+                            </ol>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                            Questions before we reach you? Call us at{' '}
+                            <a href={ACS_PHONE_TEL} className="font-semibold text-primary hover:underline whitespace-nowrap">{ACS_PHONE_DISPLAY}</a>.
+                        </p>
+                        <Link to="/website" className="inline-flex items-center gap-1.5 text-primary font-semibold hover:underline">
+                            Back to home <ArrowRight size={16} />
+                        </Link>
+                    </div>
+                </Shell>
+            );
+        }
+        // Unverified — the param says success but we could not confirm a real payment
+        // (still settling, or the URL was reached without paying). Honest, never false.
         return (
             <Shell>
-                <div className="text-center space-y-3">
-                    <div className="mx-auto w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                        <CheckCircle2 size={30} />
+                <div className="text-center space-y-4">
+                    <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                        <Clock size={28} />
                     </div>
-                    <h1 className="text-2xl font-bold text-slate-900">Intake received</h1>
-                    <p className="text-slate-600 leading-relaxed">
-                        Thank you — your intake and assessment fee have been received. A member of
-                        the ACS team will reach out to schedule your assessment and confirm your
-                        program placement.
-                    </p>
-                    <Link to="/website" className="inline-flex items-center gap-1.5 text-primary font-semibold hover:underline">
-                        Back to home <ArrowRight size={16} />
-                    </Link>
+                    <div className="space-y-1.5">
+                        <h1 className="text-2xl font-bold text-slate-900">Still confirming your payment</h1>
+                        <p className="text-slate-600 leading-relaxed">
+                            We haven’t been able to confirm your payment just yet — sometimes it takes a
+                            few minutes to settle. If you completed payment, you’ll hear from the ACS team
+                            soon. If something didn’t go through, we’ll help you sort it out.
+                        </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-3">
+                        <button onClick={() => window.location.reload()} className="inline-flex items-center gap-2 py-2.5 px-5 rounded-xl text-white bg-primary hover:bg-primary-focus font-bold transition">
+                            <Loader2 size={16} /> Check again
+                        </button>
+                        <p className="text-sm text-slate-500">
+                            Or call us at{' '}
+                            <a href={ACS_PHONE_TEL} className="font-semibold text-primary hover:underline whitespace-nowrap">{ACS_PHONE_DISPLAY}</a>.
+                        </p>
+                    </div>
                 </div>
             </Shell>
         );
@@ -107,18 +219,27 @@ const PublicIntake: React.FC = () => {
     if (payment === 'cancelled') {
         return (
             <Shell>
-                <div className="text-center space-y-3">
+                <div className="text-center space-y-4">
                     <div className="mx-auto w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
                         <AlertTriangle size={28} />
                     </div>
-                    <h1 className="text-2xl font-bold text-slate-900">Payment not completed</h1>
-                    <p className="text-slate-600 leading-relaxed">
-                        Your intake was saved but the assessment fee wasn’t completed, so your
-                        enrollment is on hold. You can restart the payment any time.
-                    </p>
-                    <a href={`${window.location.origin}${window.location.pathname}#/intake`} onClick={() => window.location.reload()} className="inline-flex items-center gap-1.5 text-primary font-semibold hover:underline cursor-pointer">
-                        Start over <ArrowRight size={16} />
-                    </a>
+                    <div className="space-y-1.5">
+                        <h1 className="text-2xl font-bold text-slate-900">Payment not completed</h1>
+                        <p className="text-slate-600 leading-relaxed">
+                            It looks like your payment didn’t go through, so your intake isn’t finished
+                            yet — and nothing was charged. You can pick up right where you left off
+                            whenever you’re ready.
+                        </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-3">
+                        <button onClick={() => { window.location.href = `${window.location.origin}${window.location.pathname}#/intake`; }} className="inline-flex items-center gap-2 py-2.5 px-5 rounded-xl text-white bg-primary hover:bg-primary-focus font-bold transition">
+                            Try again <ArrowRight size={16} />
+                        </button>
+                        <p className="text-sm text-slate-500">
+                            Questions? Call us at{' '}
+                            <a href={ACS_PHONE_TEL} className="font-semibold text-primary hover:underline whitespace-nowrap">{ACS_PHONE_DISPLAY}</a>.
+                        </p>
+                    </div>
                 </div>
             </Shell>
         );
