@@ -300,7 +300,10 @@ const PublicIntake: React.FC = () => {
     );
 };
 
-const inputCls = 'w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition';
+// Pin the typed value to a strong foreground and placeholders to a muted token —
+// EXPLICITLY, so the input text can't inherit a light color (e.g. under a dark/
+// "force dark" browser) and end up as faint gray on the light input. Light-only page.
+const inputCls = 'w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition';
 
 const Field: React.FC<{ label: string; required?: boolean; children: React.ReactNode }> = ({ label, required, children }) => (
     <div className="space-y-1">
@@ -310,7 +313,9 @@ const Field: React.FC<{ label: string; required?: boolean; children: React.React
 );
 
 const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <div className="flex items-center justify-center min-h-screen bg-slate-100 p-4">
+    // colorScheme:light opts this public, light-only page out of a browser's
+    // force-dark inversion (which darkens the card + lightens text → faint).
+    <div className="flex items-center justify-center min-h-screen bg-slate-100 p-4" style={{ colorScheme: 'light' }}>
         <div className="w-full max-w-lg p-8 bg-white rounded-2xl shadow-xl border border-slate-200">
             <div className="text-center mb-6">
                 <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg" alt="ACS" className="mx-auto h-12 object-contain" />
