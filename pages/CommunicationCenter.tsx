@@ -158,7 +158,7 @@ const CommunicationCenter: React.FC = () => {
     const quickReplies = ["Please confirm your appointment.", "Great job on your progress!", "Please sign the pending document.", "See you next week."];
 
     return (
-        <div className="flex h-[calc(100vh-9rem)] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/40 dark:border-slate-700 overflow-hidden">
+        <div className="flex h-[calc(100vh-9rem)] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden">
             {/* Sidebar List */}
             <div className="w-80 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-950/50">
                 <div className="p-4">

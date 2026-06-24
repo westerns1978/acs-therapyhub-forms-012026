@@ -66,7 +66,7 @@ const FormCard: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -5, scale: 1.01 }}
       transition={{ delay: index * 0.05, duration: 0.3 }}
-      className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-white/40 dark:border-slate-700 rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col group h-full hover:shadow-2xl"
+      className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-border dark:border-slate-700 rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col group h-full hover:shadow-2xl"
     >
       <div className="p-8 flex-grow">
         <div className="flex justify-between items-start mb-6">
@@ -222,7 +222,7 @@ export const FormLibrary: React.FC<FormLibraryProps> = ({ onSelectForm }) => {
           </div>
       </header>
 
-      <div className="sticky top-20 z-30 p-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-3xl rounded-[3rem] border border-white/40 dark:border-slate-800 shadow-2xl flex flex-col md:flex-row gap-4 items-center">
+      <div className="sticky top-20 z-30 p-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-3xl rounded-[3rem] border border-border dark:border-slate-800 shadow-2xl flex flex-col md:flex-row gap-4 items-center">
           <div className="relative flex-1 group w-full">
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-all group-focus-within:scale-110" size={20} />
             <input

@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { getAppointments, getClients, deleteAppointment, updateAppointmentStatus, assessLateCancellationFee } from '../services/api';
+import { getAppointments, getClients, getCounselors, deleteAppointment, updateAppointmentStatus, assessLateCancellationFee } from '../services/api';
+import type { Counselor } from '../services/api';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
+import CounselorDayView from '../components/sessions/CounselorDayView';
+import { parseTimeToMinutes, formatTime12 } from '../config/time';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -19,6 +22,8 @@ const SessionManagement: React.FC = () => {
     const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist');
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
+    const [counselors, setCounselors] = useState<Counselor[]>([]);
+    const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
     const [isLoading, setIsLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -129,10 +134,17 @@ const SessionManagement: React.FC = () => {
             setIsLoading(true);
             setLoadError(null);
             try {
-                // Fetch all appointments; the week grid filters client-side per day.
-                const [apts, cls] = await Promise.all([getAppointments(), getClients()]);
+                // Fetch all appointments; the week/day grids filter client-side per date.
+                // Counselors are the day-view lanes (best-effort — a lane-fetch failure must
+                // not blank the whole schedule, so it falls back to no lanes, not an error).
+                const [apts, cls, cnsl] = await Promise.all([
+                    getAppointments(),
+                    getClients(),
+                    getCounselors().catch(err => { console.warn('[SessionManagement] counselor lanes unavailable:', err); return [] as Counselor[]; }),
+                ]);
                 setAppointments(apts);
                 setClients(cls);
+                setCounselors(cnsl);
             } catch (err) {
                 // getAppointments rethrows on a real DB error (no mock fallback). Surface a
                 // visible error + Retry rather than a hung spinner or fabricated rows.
@@ -163,26 +175,21 @@ const SessionManagement: React.FC = () => {
         return days;
     }, [startOfWeek]);
 
-    const hours = Array.from({ length: 13 }, (_, i) => i + 8);
+    // Visible window: 6 AM start, 16 rows (matches CounselorDayView so early slots fit).
+    const WIN_START = 6;
+    const WIN_HOURS = 16;
+    const hours = Array.from({ length: WIN_HOURS }, (_, i) => i + WIN_START);
 
     const getEventStyle = (apt: Appointment) => {
-        const timeParts = apt.startTime.match(/(\d+):(\d+) (AM|PM)/);
-        let hour = 9; 
-        let minute = 0;
-        
-        if (timeParts) {
-            hour = parseInt(timeParts[1]);
-            if (timeParts[3] === 'PM' && hour !== 12) hour += 12;
-            if (timeParts[3] === 'AM' && hour === 12) hour = 0;
-            minute = parseInt(timeParts[2]);
-        }
+        // Position from the canonical time via config/time.ts. Unparseable → 9 AM slot.
+        const mins = parseTimeToMinutes(apt.startTime);
+        const startMin = Number.isNaN(mins) ? 9 * 60 : mins;
+        const startOffset = startMin - WIN_START * 60;
+        const duration = 50;
 
-        const startOffset = (hour - 8) * 60 + minute;
-        const duration = 50; 
-        
         return {
-            top: `${(startOffset / (13 * 60)) * 100}%`,
-            height: `${(duration / (13 * 60)) * 100}%`,
+            top: `${(startOffset / (WIN_HOURS * 60)) * 100}%`,
+            height: `${(duration / (WIN_HOURS * 60)) * 100}%`,
         };
     };
 
@@ -211,15 +218,22 @@ const SessionManagement: React.FC = () => {
     return (
         <div className="h-full flex flex-col space-y-6">
             {/* Header Controls */}
-            <div className="flex justify-between items-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-white/40 dark:border-slate-700">
+            <div className="flex justify-between items-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-border dark:border-slate-700">
                 <div className="flex items-center gap-6">
                     <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Today</button>
+                    {/* Week ↔ Day view toggle. Day = all-counselor swim-lanes (admin view). */}
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl text-sm font-bold border border-slate-300 dark:border-slate-600 shadow-sm">
+                        <button onClick={() => setViewMode('week')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'week' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Week</button>
+                        <button onClick={() => setViewMode('day')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'day' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Day</button>
+                    </div>
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-full">
-                        <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }} className="p-1.5 rounded-full hover:bg-white dark:hover:bg-slate-600 shadow-sm transition-all"><ChevronLeft size={18}/></button>
-                        <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }} className="p-1.5 rounded-full hover:bg-white dark:hover:bg-slate-600 shadow-sm transition-all"><ChevronRight size={18}/></button>
+                        <button aria-label={viewMode === 'day' ? 'Previous day' : 'Previous week'} onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - (viewMode === 'day' ? 1 : 7)); setCurrentDate(d); }} className="p-1.5 rounded-full hover:bg-white dark:hover:bg-slate-600 shadow-sm transition-all"><ChevronLeft size={18}/></button>
+                        <button aria-label={viewMode === 'day' ? 'Next day' : 'Next week'} onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() + (viewMode === 'day' ? 1 : 7)); setCurrentDate(d); }} className="p-1.5 rounded-full hover:bg-white dark:hover:bg-slate-600 shadow-sm transition-all"><ChevronRight size={18}/></button>
                     </div>
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
-                        {startOfWeek.toLocaleDateString('default', { month: 'long', year: 'numeric' })}
+                        {viewMode === 'day'
+                            ? currentDate.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+                            : startOfWeek.toLocaleDateString('default', { month: 'long', year: 'numeric' })}
                     </h2>
                 </div>
                 <button onClick={() => setScheduleModalOpen(true)} className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary-focus hover:shadow-primary/40 hover:-translate-y-0.5 transition-all flex items-center gap-2">
@@ -227,13 +241,22 @@ const SessionManagement: React.FC = () => {
                 </button>
             </div>
 
-            {/* Calendar Grid */}
-            <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-white/40 dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
+            {/* Day view: all-counselor swim-lanes (admin). Week view: the 7-day grid below. */}
+            {viewMode === 'day' ? (
+                <CounselorDayView
+                    date={currentDate}
+                    counselors={counselors}
+                    appointments={appointments}
+                    onSelectAppt={setSelectedAppt}
+                />
+            ) : (
+            /* Calendar Grid */
+            <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
                 {/* Header Row */}
                 <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-700/60">
                     <div className="p-4 border-r border-slate-100 dark:border-slate-700/30 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center pt-8">GMT-05</div>
                     {weekDays.map(day => (
-                        <div key={day.toISOString()} className={`p-4 text-center border-r border-slate-100 dark:border-slate-700/30 last:border-0 ${isToday(day) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                        <div key={day.toISOString()} className={`p-4 text-center border-r border-border dark:border-slate-700/50 last:border-0 ${isToday(day) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
                             <p className={`text-[10px] font-bold uppercase mb-2 tracking-wider ${isToday(day) ? 'text-primary' : 'text-slate-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</p>
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto text-xl transition-all ${isToday(day) ? 'bg-primary text-white font-bold shadow-lg shadow-primary/30 scale-110' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                                 {day.getDate()}
@@ -248,7 +271,7 @@ const SessionManagement: React.FC = () => {
                         {/* Time Column */}
                         <div className="border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/20">
                             {hours.map(hour => (
-                                <div key={hour} className="h-[92px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-3 pt-2 relative">
+                                <div key={hour} className="h-[75px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-3 pt-2 relative">
                                     <span className="text-xs font-medium text-slate-400 relative -top-3">{hour > 12 ? hour - 12 : hour} {hour >= 12 ? 'PM' : 'AM'}</span>
                                 </div>
                             ))}
@@ -258,9 +281,9 @@ const SessionManagement: React.FC = () => {
                         {weekDays.map(day => {
                             const dayEvents = appointments.filter(a => new Date(a.date).toDateString() === day.toDateString());
                             return (
-                                <div key={day.toISOString()} className="relative border-r border-slate-100 dark:border-slate-700/30 last:border-0 group">
+                                <div key={day.toISOString()} className="relative border-r border-border dark:border-slate-700/50 last:border-0 group">
                                     {/* Hour Grid Lines */}
-                                    {hours.map(h => <div key={h} className="h-[92px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
+                                    {hours.map(h => <div key={h} className="h-[75px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
                                     
                                     {/* Events */}
                                     {dayEvents.map(apt => {
@@ -281,7 +304,7 @@ const SessionManagement: React.FC = () => {
                                                 <div className="pl-2 overflow-hidden">
                                                     <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
                                                     <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
-                                                        <Clock size={10} /> {apt.startTime} - {apt.endTime}
+                                                        <Clock size={10} /> {formatTime12(apt.startTime)} - {formatTime12(apt.endTime)}
                                                     </div>
                                                     {apt.modality.includes('Zoom') && (
                                                         <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold opacity-90">
@@ -315,7 +338,7 @@ const SessionManagement: React.FC = () => {
                                     {isToday(day) && (
                                         <div 
                                             className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
-                                            style={{ top: `${((new Date().getHours() - 8) * 60 + new Date().getMinutes()) / (13 * 60) * 100}%` }}
+                                            style={{ top: `${((new Date().getHours() - WIN_START) * 60 + new Date().getMinutes()) / (WIN_HOURS * 60) * 100}%` }}
                                         >
                                             <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm ring-2 ring-white dark:ring-slate-800"></div>
                                             <div className="h-[2px] w-full bg-red-500 shadow-sm"></div>
@@ -327,6 +350,7 @@ const SessionManagement: React.FC = () => {
                     </div>
                 </div>
             </div>
+            )}
 
             {isScheduleModalOpen && (
                 <ScheduleSessionModal

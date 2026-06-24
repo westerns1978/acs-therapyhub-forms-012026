@@ -5,7 +5,7 @@ import GemyndFlowLogo from './GemyndFlowLogo';
 import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
 
 // Clara's avatar — same image the portal floating bubble uses, for one identity across surfaces.
-const CLARA_AVATAR_URL = 'https://storage.googleapis.com/westerns1978-digital-assets/ACS%20TherapyHub/clara2.png';
+const CLARA_AVATAR_URL = 'https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/clara2.png';
 
 interface GlobalHeaderProps {
     onCommandPaletteToggle: () => void;

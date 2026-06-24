@@ -21,7 +21,7 @@ const SuperbillPreview: React.FC<SuperbillPreviewProps> = ({ client, sessions })
         <div className="bg-white text-gray-800 p-8 font-sans text-sm">
             <header className="flex justify-between items-start mb-8">
                 <div>
-                    <img src="https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg" alt="ACS Logo" className="h-12 object-contain" />
+                    <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg" alt="ACS Logo" className="h-12 object-contain" />
                     <div className="mt-2 text-xs text-gray-600">
                         <p>{providerInfo.address}</p>
                         <p>{providerInfo.phone}</p>

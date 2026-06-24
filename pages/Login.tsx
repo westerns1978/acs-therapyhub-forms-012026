@@ -5,7 +5,7 @@ import IValtMfaModal from '../components/IValtMfaModal';
 import { Mail, Lock, AlertTriangle, ChevronLeft, ArrowRight } from 'lucide-react';
 import type { StaffRole } from '../types';
 
-const ACS_LOGO_URL = 'https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg';
+const ACS_LOGO_URL = 'https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg';
 
 // Demo personas. Each maps to a REAL (test) Supabase Auth account that the demo
 // login self-provisions on first use (see services/authService.ts) — clicking a

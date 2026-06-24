@@ -13,6 +13,7 @@ import { FORM_REGISTRY } from '../config/formRegistry';
 import { fetchClientDetermination } from './complianceEngine';
 import { programForLevel } from '../config/programVocab';
 import { LATE_CANCELLATION_FEE } from '../config/satopFees';
+import { parseTimeToMinutes } from '../config/time';
 
 import {
     dbMessages, dbSropData, dbComplianceEvents, dbAuditLogs,
@@ -338,9 +339,12 @@ export const checkSupabaseConnection = () => storageService.checkConnection();
 const pad2 = (n: number) => n.toString().padStart(2, '0');
 const timeStrFromDate = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 const combineDateAndTime = (date: Date, hhmm: string): Date => {
-    const [h, m] = hhmm.split(':').map(Number);
+    // Parse via the single source of truth so a 12-hour "06:00 PM" stores as 18:00,
+    // not 6 AM (the old split(':') dropped the meridiem). 24-hour "18:00" round-trips.
+    const mins = parseTimeToMinutes(hhmm);
     const out = new Date(date);
-    out.setHours(h || 0, m || 0, 0, 0);
+    if (Number.isNaN(mins)) { out.setHours(0, 0, 0, 0); return out; }
+    out.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
     return out;
 };
 const diffMinutes = (start: Date, end: Date) => Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
@@ -489,6 +493,24 @@ export const getGroupsWithCounselor = async () => {
         counselor_zoom_link: g.counselors?.zoom_link ?? null,
         counselor_zoom_meeting_id: g.counselors?.zoom_meeting_id ?? null,
     }));
+};
+
+export interface Counselor { id: string; name: string; active: boolean; }
+
+// Active counselors, name-ordered — the lane source for the all-counselor day view.
+// Lanes are keyed by NAME (appointments attribute via therapist_name, not therapist_id;
+// see DEFERRED.md). Returns [] visibly on error rather than fabricating lanes.
+export const getCounselors = async (): Promise<Counselor[]> => {
+    const { data, error } = await supabase
+        .from('counselors')
+        .select('id, name, active')
+        .eq('active', true)
+        .order('name', { ascending: true });
+    if (error) {
+        console.error('[api] getCounselors failed:', error.message);
+        throw new Error(error.message || 'Failed to load counselors');
+    }
+    return (data || []) as Counselor[];
 };
 
 export const updateAppointment = async (id: string, patch: Partial<Appointment>): Promise<Appointment> => {

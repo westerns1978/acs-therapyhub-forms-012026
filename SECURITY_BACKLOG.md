@@ -69,7 +69,7 @@ by app, so it doesn't crater apps that currently rely on the blanket grant.
 
 ## BLOCKER 1 — Rotate the leaked Gemini API key (cross-app scheduled task)
 
-**Key:** `AIzaSyBLU362ndX18qYQO7OiW3mGniyn2Lsk93M`
+**Key:** `AIzaSyBLU362…` *(full value redacted from this file 2026-06-15 during the Gemini-key-compromise sweep; this is the leaked/compromised key — identified by its `AIzaSyBLU362…` prefix for rotation below. Still recoverable from git history — rotation remains the only fix.)*
 
 **Status (2026-05-22):** This is Dan's **shared Gemini key** used across multiple
 Gemynd apps and wired into Supabase secrets app-wide. Rotation is a coordinated

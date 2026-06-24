@@ -32,7 +32,7 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
       <div className="flex justify-between items-start mb-10 border-b-2 border-gray-900 pb-6">
         <div>
             <img
-              src="https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg"
+              src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg"
               alt="ACS Logo"
               className="h-16 object-contain"
             />

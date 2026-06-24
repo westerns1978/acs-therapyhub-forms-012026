@@ -149,8 +149,11 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             title: isGroup ? sessionType : `Individual Counseling - ${client?.name}`,
             type: sessionType,
             date: new Date(date + 'T00:00:00'),
-            startTime: new Date(`1970-01-01T${startTime}`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
-            endTime: new Date(`1970-01-01T${endTime}`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+            // Canonical 24-hour "HH:MM" (matches the <input type="time"> value and the
+            // read-path format). NO 12-hour conversion here — that produced "06:00 PM",
+            // which combineDateAndTime then mis-stored as 6 AM. See config/time.ts.
+            startTime,
+            endTime,
             modality: 'Virtual (Zoom)',
             therapist: selectedGroup?.counselor_name || user?.name || 'Unassigned',
             zoomLink,

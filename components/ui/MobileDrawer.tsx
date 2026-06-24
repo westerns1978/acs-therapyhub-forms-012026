@@ -93,7 +93,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
                 <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-3">
                         <img 
-                            src="https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg" 
+                            src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg" 
                             alt="ACS" 
                             className="h-8"
                         />

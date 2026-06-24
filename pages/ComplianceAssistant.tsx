@@ -136,7 +136,7 @@ Plan:
                     {messages.map((msg, index) => (
                         <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             {msg.role === 'model' && (
-                                <img src="https://storage.googleapis.com/westerns1978-digital-assets/ACS%20TherapyHub/clara.png" alt="Clara" className="w-8 h-8 rounded-full flex-shrink-0" />
+                                <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/clara2.png" alt="Clara" className="w-8 h-8 rounded-full flex-shrink-0" />
                             )}
                             <div className={`max-w-lg p-3 rounded-2xl ${msg.role === 'user' ? 'bg-primary text-white rounded-br-none' : 'bg-background border border-border rounded-bl-none'}`}>
                                 <div className="text-sm space-y-2">
@@ -160,7 +160,7 @@ Plan:
                     ))}
                     {loading && (
                          <div className="flex items-start gap-3 justify-start">
-                            <img src="https://storage.googleapis.com/westerns1978-digital-assets/ACS%20TherapyHub/clara.png" alt="Clara" className="w-8 h-8 rounded-full flex-shrink-0" />
+                            <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/clara2.png" alt="Clara" className="w-8 h-8 rounded-full flex-shrink-0" />
                             <div className="max-w-lg p-3 rounded-2xl bg-background border border-border rounded-bl-none">
                                 <div className="flex items-center gap-2">
                                     <span className="h-2 w-2 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></span>

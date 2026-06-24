@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Appointment, AppointmentStatus, ServiceType } from '../../types';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
+import { formatTime12 } from '../../config/time';
 import Modal from '../ui/Modal';
 import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft } from 'lucide-react';
 
@@ -16,11 +17,11 @@ export type CancelFeeDecision =
 // the inline status-pill convention already used in ManageAttendeesModal. Scheduled
 // keeps the original blue treatment so unchanged cards look identical to before.
 const STATUS_STYLES: Record<AppointmentStatus, { card: string; bar: string; badge: string }> = {
-    'Scheduled':   { card: 'bg-blue-50/90 dark:bg-blue-900/40 border-blue-200/50 dark:border-blue-700/50 text-blue-900 dark:text-blue-100',                bar: 'bg-blue-500',    badge: 'bg-blue-100 text-blue-800' },
-    'In Progress': { card: 'bg-indigo-50/90 dark:bg-indigo-900/40 border-indigo-200/50 dark:border-indigo-700/50 text-indigo-900 dark:text-indigo-100',    bar: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-800' },
-    'Completed':   { card: 'bg-emerald-50/90 dark:bg-emerald-900/40 border-emerald-200/50 dark:border-emerald-700/50 text-emerald-900 dark:text-emerald-100', bar: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800' },
-    'No Show':     { card: 'bg-amber-50/90 dark:bg-amber-900/40 border-amber-200/50 dark:border-amber-700/50 text-amber-900 dark:text-amber-100',          bar: 'bg-amber-500',   badge: 'bg-amber-100 text-amber-800' },
-    'Canceled':    { card: 'bg-slate-100/90 dark:bg-slate-800/60 border-slate-300/60 dark:border-slate-600/50 text-slate-500 dark:text-slate-400',         bar: 'bg-slate-400',   badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300' },
+    'Scheduled':   { card: 'bg-blue-50/90 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-100',                bar: 'bg-blue-500',    badge: 'bg-blue-100 text-blue-800' },
+    'In Progress': { card: 'bg-indigo-50/90 dark:bg-indigo-900/40 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-100',    bar: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-800' },
+    'Completed':   { card: 'bg-emerald-50/90 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100', bar: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800' },
+    'No Show':     { card: 'bg-amber-50/90 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100',          bar: 'bg-amber-500',   badge: 'bg-amber-100 text-amber-800' },
+    'Canceled':    { card: 'bg-slate-100/90 dark:bg-slate-800/60 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400',         bar: 'bg-slate-400',   badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300' },
 };
 
 export const getAppointmentStatusStyle = (s: AppointmentStatus) => STATUS_STYLES[s] || STATUS_STYLES['Scheduled'];
@@ -97,7 +98,7 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                         <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full flex-shrink-0 ${style.badge}`}>{appointment.status}</span>
                     </div>
                     <div className="mt-2 space-y-1 text-sm text-slate-500 dark:text-slate-400">
-                        <p className="flex items-center gap-2"><Clock size={14} /> {when} · {appointment.startTime} – {appointment.endTime}</p>
+                        <p className="flex items-center gap-2"><Clock size={14} /> {when} · {formatTime12(appointment.startTime)} – {formatTime12(appointment.endTime)}</p>
                         <p className="flex items-center gap-2">{appointment.modality.includes('Zoom') ? <Video size={14} /> : <MapPin size={14} />} {appointment.modality}</p>
                         {appointment.therapist && <p className="text-xs">with {appointment.therapist}</p>}
                     </div>
@@ -112,7 +113,7 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                     <div>
                                         <p className="font-bold text-amber-900 dark:text-amber-200 text-sm">Inside 24 hours</p>
                                         <p className="text-sm text-amber-800/90 dark:text-amber-200/80 mt-0.5 leading-snug">
-                                            This cancellation is less than 24 hours before the appointment ({when} · {appointment.startTime}). Per the ACS Late Cancellation Policy, a <span className="font-black">${LATE_CANCELLATION_FEE}</span> late-cancellation fee applies.
+                                            This cancellation is less than 24 hours before the appointment ({when} · {formatTime12(appointment.startTime)}). Per the ACS Late Cancellation Policy, a <span className="font-black">${LATE_CANCELLATION_FEE}</span> late-cancellation fee applies.
                                         </p>
                                     </div>
                                 </div>
