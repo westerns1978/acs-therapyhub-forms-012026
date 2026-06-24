@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Appointment } from '../../types';
 import type { Counselor } from '../../services/api';
 import { getAppointmentStatusStyle } from './AppointmentStatusModal';
+import { parseTimeToMinutes, formatTime12 } from '../../config/time';
 import { Clock, Video } from 'lucide-react';
 
 interface CounselorDayViewProps {
@@ -19,18 +20,11 @@ const DAY_END_HOUR = 21;
 const WINDOW_MIN = (DAY_END_HOUR - DAY_START_HOUR) * 60;
 const HOURS = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i);
 
-// Parse a time label → minutes-from-midnight. The app formats appointment times as
-// 24-hour "HH:MM" (e.g. "06:00", "13:00") via timeStrFromDate; we also tolerate an
-// "h:mm AM/PM" form defensively. Falls back to 9:00 only if truly unparseable.
+// Time parsing/formatting comes from config/time.ts (single source of truth). Falls
+// back to 9:00 for positioning only if the label is truly unparseable.
 const parseMinutes = (t: string): number => {
-    const m = t?.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-    if (!m) return 9 * 60;
-    let hour = parseInt(m[1], 10);
-    const minute = parseInt(m[2], 10);
-    const mer = m[3]?.toUpperCase();
-    if (mer === 'PM' && hour !== 12) hour += 12;
-    if (mer === 'AM' && hour === 12) hour = 0;
-    return hour * 60 + minute;
+    const mins = parseTimeToMinutes(t);
+    return Number.isNaN(mins) ? 9 * 60 : mins;
 };
 
 const UNASSIGNED = '__unassigned__';
@@ -124,7 +118,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
                                         <div className="pl-2 overflow-hidden">
                                             <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
                                             <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
-                                                <Clock size={10} /> {apt.startTime} – {apt.endTime}
+                                                <Clock size={10} /> {formatTime12(apt.startTime)} – {formatTime12(apt.endTime)}
                                             </div>
                                             {apt.modality?.includes('Zoom') && (
                                                 <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold opacity-90">

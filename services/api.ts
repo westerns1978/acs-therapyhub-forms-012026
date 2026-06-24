@@ -13,6 +13,7 @@ import { FORM_REGISTRY } from '../config/formRegistry';
 import { fetchClientDetermination } from './complianceEngine';
 import { programForLevel } from '../config/programVocab';
 import { LATE_CANCELLATION_FEE } from '../config/satopFees';
+import { parseTimeToMinutes } from '../config/time';
 
 import {
     dbMessages, dbSropData, dbComplianceEvents, dbAuditLogs,
@@ -338,9 +339,12 @@ export const checkSupabaseConnection = () => storageService.checkConnection();
 const pad2 = (n: number) => n.toString().padStart(2, '0');
 const timeStrFromDate = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 const combineDateAndTime = (date: Date, hhmm: string): Date => {
-    const [h, m] = hhmm.split(':').map(Number);
+    // Parse via the single source of truth so a 12-hour "06:00 PM" stores as 18:00,
+    // not 6 AM (the old split(':') dropped the meridiem). 24-hour "18:00" round-trips.
+    const mins = parseTimeToMinutes(hhmm);
     const out = new Date(date);
-    out.setHours(h || 0, m || 0, 0, 0);
+    if (Number.isNaN(mins)) { out.setHours(0, 0, 0, 0); return out; }
+    out.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
     return out;
 };
 const diffMinutes = (start: Date, end: Date) => Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));

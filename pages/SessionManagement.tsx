@@ -4,6 +4,7 @@ import type { Counselor } from '../services/api';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import CounselorDayView from '../components/sessions/CounselorDayView';
+import { parseTimeToMinutes, formatTime12 } from '../config/time';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -180,21 +181,10 @@ const SessionManagement: React.FC = () => {
     const hours = Array.from({ length: WIN_HOURS }, (_, i) => i + WIN_START);
 
     const getEventStyle = (apt: Appointment) => {
-        // The app formats times as 24-hour "HH:MM" (timeStrFromDate); also tolerate
-        // an "h:mm AM/PM" form. Mirrors CounselorDayView.parseMinutes so appointments
-        // no longer fall back to the 9 AM slot.
-        const m = apt.startTime?.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-        let hour = 9;
-        let minute = 0;
-        if (m) {
-            hour = parseInt(m[1], 10);
-            minute = parseInt(m[2], 10);
-            const mer = m[3]?.toUpperCase();
-            if (mer === 'PM' && hour !== 12) hour += 12;
-            if (mer === 'AM' && hour === 12) hour = 0;
-        }
-
-        const startOffset = (hour - WIN_START) * 60 + minute;
+        // Position from the canonical time via config/time.ts. Unparseable → 9 AM slot.
+        const mins = parseTimeToMinutes(apt.startTime);
+        const startMin = Number.isNaN(mins) ? 9 * 60 : mins;
+        const startOffset = startMin - WIN_START * 60;
         const duration = 50;
 
         return {
@@ -232,9 +222,9 @@ const SessionManagement: React.FC = () => {
                 <div className="flex items-center gap-6">
                     <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Today</button>
                     {/* Week ↔ Day view toggle. Day = all-counselor swim-lanes (admin view). */}
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-full text-sm font-bold">
-                        <button onClick={() => setViewMode('week')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'week' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'}`}>Week</button>
-                        <button onClick={() => setViewMode('day')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'day' ? 'bg-white dark:bg-slate-600 shadow-sm text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'}`}>Day</button>
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl text-sm font-bold border border-slate-300 dark:border-slate-600 shadow-sm">
+                        <button onClick={() => setViewMode('week')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'week' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Week</button>
+                        <button onClick={() => setViewMode('day')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'day' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Day</button>
                     </div>
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-full">
                         <button aria-label={viewMode === 'day' ? 'Previous day' : 'Previous week'} onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - (viewMode === 'day' ? 1 : 7)); setCurrentDate(d); }} className="p-1.5 rounded-full hover:bg-white dark:hover:bg-slate-600 shadow-sm transition-all"><ChevronLeft size={18}/></button>
@@ -314,7 +304,7 @@ const SessionManagement: React.FC = () => {
                                                 <div className="pl-2 overflow-hidden">
                                                     <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
                                                     <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
-                                                        <Clock size={10} /> {apt.startTime} - {apt.endTime}
+                                                        <Clock size={10} /> {formatTime12(apt.startTime)} - {formatTime12(apt.endTime)}
                                                     </div>
                                                     {apt.modality.includes('Zoom') && (
                                                         <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold opacity-90">

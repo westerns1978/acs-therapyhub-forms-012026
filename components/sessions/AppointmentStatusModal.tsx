@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Appointment, AppointmentStatus, ServiceType } from '../../types';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
+import { formatTime12 } from '../../config/time';
 import Modal from '../ui/Modal';
 import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft } from 'lucide-react';
 
@@ -97,7 +98,7 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                         <span className={`px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full flex-shrink-0 ${style.badge}`}>{appointment.status}</span>
                     </div>
                     <div className="mt-2 space-y-1 text-sm text-slate-500 dark:text-slate-400">
-                        <p className="flex items-center gap-2"><Clock size={14} /> {when} · {appointment.startTime} – {appointment.endTime}</p>
+                        <p className="flex items-center gap-2"><Clock size={14} /> {when} · {formatTime12(appointment.startTime)} – {formatTime12(appointment.endTime)}</p>
                         <p className="flex items-center gap-2">{appointment.modality.includes('Zoom') ? <Video size={14} /> : <MapPin size={14} />} {appointment.modality}</p>
                         {appointment.therapist && <p className="text-xs">with {appointment.therapist}</p>}
                     </div>
@@ -112,7 +113,7 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                     <div>
                                         <p className="font-bold text-amber-900 dark:text-amber-200 text-sm">Inside 24 hours</p>
                                         <p className="text-sm text-amber-800/90 dark:text-amber-200/80 mt-0.5 leading-snug">
-                                            This cancellation is less than 24 hours before the appointment ({when} · {appointment.startTime}). Per the ACS Late Cancellation Policy, a <span className="font-black">${LATE_CANCELLATION_FEE}</span> late-cancellation fee applies.
+                                            This cancellation is less than 24 hours before the appointment ({when} · {formatTime12(appointment.startTime)}). Per the ACS Late Cancellation Policy, a <span className="font-black">${LATE_CANCELLATION_FEE}</span> late-cancellation fee applies.
                                         </p>
                                     </div>
                                 </div>
