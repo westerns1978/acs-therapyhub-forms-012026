@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import { useAuth } from '../contexts/AuthContext';
+import { useClara } from '../contexts/ClaraContext';
 import { supabase } from '../services/supabase';
 import { getAppointments, getClients, getRecentClientCommunications, getProspects, type ClientCommunication, type ProspectRow } from '../services/api';
 import { fetchAlerts, summarizeAlerts, type AlertsSummary, type ClientAlert } from '../services/alertsService';
 import { fetchComplianceGuardrails, type GuardrailVerdict } from '../services/complianceEngine';
+import { buildGuardrailExplainPrompt, CLARA_AVATAR_URL } from '../services/claraPrompts';
 import { Appointment } from '../types';
-import { Video, Calendar, AlertTriangle, Activity, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus } from 'lucide-react';
+import { Video, Calendar, AlertTriangle, Activity, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus, Sparkles } from 'lucide-react';
 
 const greetingFor = (h: number) => (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening');
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
@@ -21,8 +23,8 @@ const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 const StatCard: React.FC<{ title: string; value: string; icon: any; color: string; trend?: { dir: 'up' | 'down' | 'flat'; label: string } | null }> = ({ title, value, icon: Icon, color, trend }) => (
     <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-border dark:border-slate-700 shadow-card dark:shadow-card-dark">
         <div className="flex items-center justify-between min-h-[2.25rem]">
-            <div className={`p-2.5 rounded-xl ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
-                <Icon size={18} />
+            <div className={`p-2 rounded-lg ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
+                <Icon size={16} />
             </div>
             {trend && (
                 <span className={`text-[10px] font-black tabular-nums px-2 py-0.5 rounded-full ${trend.dir === 'up' ? 'text-emerald-600 bg-emerald-500/10' : trend.dir === 'down' ? 'text-primary bg-primary/10' : 'text-slate-400 bg-slate-400/10'}`}>{trend.label}</span>
@@ -36,6 +38,23 @@ const StatCard: React.FC<{ title: string; value: string; icon: any; color: strin
 const Dashboard: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+    const clara = useClara();
+
+    // One-tap contextual Clara: open the panel and seed a prompt built ONLY from the
+    // verdict already on the card (services/claraPrompts). Clara phrases the real rule —
+    // she invents nothing. stopPropagation keeps the row's navigate from also firing.
+    const explainFlagWithClara = (g: GuardrailVerdict) => {
+        clara.open();
+        void clara.sendText(buildGuardrailExplainPrompt({
+            staffFirstName: (user?.name || '').split(' ')[0] || 'there',
+            clientName: g.clientName,
+            program: g.program,
+            status: g.status,
+            headline: g.headline,
+            detail: g.detail,
+            citation: g.citation,
+        }));
+    };
 
     const role = user?.role;
     const isDirector = role === 'Director';
@@ -161,30 +180,30 @@ const Dashboard: React.FC = () => {
                         onClick={() => isClinical
                             ? navigate(`/session/${apt.id}/green-room`)
                             : apt.clientId ? navigate(`/clients/${apt.clientId}`) : navigate('/session-management')}
-                        className="w-full py-6 flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 px-4 rounded-2xl transition-all text-left"
+                        className="w-full py-4 flex items-center justify-between group cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/30 px-4 rounded-2xl transition-all text-left"
                     >
                         <div className="flex items-center gap-8">
                             <div className="text-center w-20">
-                                <p className="text-xl font-black text-slate-900 dark:text-white leading-none">{apt.startTime}</p>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{apt.endTime}</p>
+                                <p className="text-lg font-bold text-slate-900 dark:text-white leading-none">{apt.startTime}</p>
+                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-1">{apt.endTime}</p>
                             </div>
                             <div className="h-10 w-px bg-slate-200 dark:bg-slate-700"></div>
                             <div>
-                                <h4 className="font-black text-lg text-slate-800 dark:text-white group-hover:text-primary transition-colors">{apt.clientName || apt.title}</h4>
+                                <h4 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-primary transition-colors">{apt.clientName || apt.title}</h4>
                                 <div className="flex items-center gap-4 mt-1.5">
-                                    <span className="text-[10px] font-black bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500">{apt.type}</span>
-                                    {apt.modality?.includes('Zoom') && <span className="flex items-center gap-1.5 text-[10px] font-bold text-secondary"><Video size={12}/> TELEHEALTH</span>}
+                                    <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500">{apt.type}</span>
+                                    {apt.modality?.includes('Zoom') && <span className="flex items-center gap-1.5 text-[10px] font-bold text-secondary"><Video size={12}/> Telehealth</span>}
                                 </div>
                             </div>
                         </div>
-                        <span className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
-                            <ArrowUpRight size={18}/>
+                        <span className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                            <ArrowUpRight size={16}/>
                         </span>
                     </button>
                 )) : (
                     <div className="py-20 text-center text-slate-300">
-                        <Calendar size={48} className="mx-auto mb-4 opacity-20" />
-                        <p className="text-xs font-black uppercase tracking-[0.3em]">No appointments scheduled for today.</p>
+                        <Calendar size={40} className="mx-auto mb-4 opacity-20" />
+                        <p className="text-xs font-bold uppercase tracking-[0.3em]">No appointments scheduled for today.</p>
                     </div>
                 )}
             </div>
@@ -201,19 +220,30 @@ const Dashboard: React.FC = () => {
                         ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
                         : 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/20';
                     return (
-                        <button
+                        <div
                             key={g.id}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => navigate(`/clients/${g.clientId}`)}
-                            className={`w-full text-left flex items-start gap-4 p-4 border rounded-2xl transition-colors ${box}`}
+                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/clients/${g.clientId}`); } }}
+                            className={`w-full text-left flex items-start gap-4 p-4 border rounded-2xl transition-colors cursor-pointer ${box}`}
                         >
-                            <AlertTriangle className={`shrink-0 mt-1 ${accent}`} size={20} />
+                            <AlertTriangle className={`shrink-0 mt-1 ${accent}`} size={16} />
                             <div className="min-w-0 flex-1">
-                                <p className={`text-[10px] font-black uppercase tracking-widest ${accent}`}>{g.status} · {g.clientName} · {g.program}</p>
+                                <p className={`text-[10px] font-bold uppercase tracking-widest ${accent}`}>{g.status} · {g.clientName} · {g.program}</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">{g.headline}</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{g.detail}</p>
                                 <p className="text-[10px] font-mono text-slate-400 mt-1.5">{g.citation}</p>
+                                {/* Contextual Clara — explains this exact flag, seeded only from the verdict. */}
+                                <button
+                                    onClick={e => { e.stopPropagation(); explainFlagWithClara(g); }}
+                                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline"
+                                >
+                                    <img src={CLARA_AVATAR_URL} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                    Ask Clara to explain this flag
+                                </button>
                             </div>
-                        </button>
+                        </div>
                     );
                 }) : (
                     <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No compliance flags.</div>
@@ -257,11 +287,18 @@ const Dashboard: React.FC = () => {
     );
 
     return (
-        <div className="max-w-7xl mx-auto space-y-8 animate-fade-in-up">
-            {/* Briefing line — inline text, no popup. */}
+        <div className="max-w-7xl mx-auto space-y-6 animate-fade-in-up">
+            {/* Briefing line — inline text, no popup. Attributed to Clara (her voice,
+                unprompted) with a subtle avatar + tag — never a banner, never auto-open. */}
             <div>
-                <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tighter">{hello}</h1>
-                <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 mt-3 max-w-3xl">{briefingDetail}</p>
+                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{hello}</h1>
+                <div className="flex items-start gap-2.5 mt-3 max-w-3xl">
+                    <img src={CLARA_AVATAR_URL} alt="Clara" className="w-6 h-6 rounded-full object-cover mt-0.5 ring-1 ring-primary/20 shrink-0" />
+                    <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Clara</span>
+                        <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 leading-relaxed">{briefingDetail}</p>
+                    </div>
+                </div>
                 {isClinical && alertSummary.total > 0 && (
                     <button
                         onClick={() => navigate('/risk-monitor')}
@@ -342,19 +379,19 @@ const Dashboard: React.FC = () => {
                         {isFinancial && IntakeQueueCard}
                         <Card title="Risk Monitor" subtitle="Actionable alerts from real client activity.">
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div className="p-4 rounded-2xl border-2 border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10 shadow-card dark:shadow-card-dark">
+                                <div className="p-4 rounded-2xl border border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-red-600">{alertSummary.critical}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Critical</div>
                                 </div>
-                                <div className="p-4 rounded-2xl border-2 border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10 shadow-card dark:shadow-card-dark">
+                                <div className="p-4 rounded-2xl border border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-orange-600">{alertSummary.high}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">High</div>
                                 </div>
-                                <div className="p-4 rounded-2xl border-2 border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10 shadow-card dark:shadow-card-dark">
+                                <div className="p-4 rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-amber-600">{alertSummary.elevated}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Elevated</div>
                                 </div>
-                                <div className="p-4 rounded-2xl border-2 border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 shadow-card dark:shadow-card-dark">
+                                <div className="p-4 rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-blue-600">{alertSummary.moderate}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Moderate</div>
                                 </div>

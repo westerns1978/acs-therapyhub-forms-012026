@@ -17,8 +17,12 @@ import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
 import { useAuth } from '../contexts/AuthContext';
+import { useClara } from '../contexts/ClaraContext';
 import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms, fetchClientProgramCardState, fetchClientPlan, type AccruedHours, type ProgramCardState } from '../services/complianceEngine';
 import type { SatopLevel } from '../config/satopFees';
+import { REQUIRED_FORMS_BY_LEVEL } from '../config/formRegistry';
+import { normalizeProgram } from '../config/programVocab';
+import { buildClientSummaryPrompt } from '../services/claraPrompts';
 import { composeProgress } from '../services/displayProgress';
 import { composePacketReadiness } from '../services/packetReadiness';
 import { downloadClientRecordPacket } from '../services/pdfDocuments';
@@ -150,6 +154,7 @@ const ClientWorkspace: React.FC = () => {
     const { clientId } = useParams<{ clientId: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
+    const clara = useClara();
     const canSeeClinical = !!user && CLINICAL_ROLES.includes(user.role);
     // Billing is an operational surface: all staff (Director/Therapist/Admin), mirroring
     // payments/charges RLS (private.is_staff()). isStaffRole() is exactly is_staff()'s set,
@@ -269,6 +274,35 @@ const ClientWorkspace: React.FC = () => {
     // no extra fetch, never the neutralized client.completionPercentage.
     const clientProgress = composeProgress(clientDeterminedLevel, clientAccrual);
 
+    // Contextual Clara — the one high-value, one-tap action: open Clara and seed a summary
+    // built ONLY from the facts already on this page (services/claraPrompts). She phrases
+    // real data; she invents nothing. No new query, no auto-open. Clinical staff only.
+    const summarizeWithClara = () => {
+        const norm = normalizeProgram(client.program);
+        const programLabel = clientDeterminedLevel ? `SATOP Level ${clientDeterminedLevel}` : norm.canonical;
+        const requiredFormsCount = clientDeterminedLevel
+            ? (REQUIRED_FORMS_BY_LEVEL[clientDeterminedLevel]?.length ?? null)
+            : null;
+        clara.open();
+        void clara.sendText(buildClientSummaryPrompt({
+            staffFirstName: (user?.name || '').split(' ')[0] || 'there',
+            name: client.name,
+            programLabel,
+            lifecycle: client.status,
+            established: clientProgress.established,
+            completedTotal: clientProgress.completedTotal,
+            requiredTotal: clientProgress.requiredTotal,
+            progressPct: clientProgress.progressPct,
+            isSrop: clientProgress.isSrop,
+            counselingCompleted: clientProgress.counselingCompleted,
+            counselingRequired: clientProgress.counselingRequired,
+            signedFormsCount: clientSignedForms ? clientSignedForms.size : null,
+            requiredFormsCount,
+            outstandingBalance: assessment.facts.outstandingBalance,
+            timelineReview: clientTimelineState ? clientTimelineState.label : null,
+        }));
+    };
+
     // Build 1 — Packet Readiness: the per-client checklist model, composed from the SAME
     // assessment/gate inputs above (pure adapter, no extra fetch). Fed to the overview tab.
     const packetReadiness = composePacketReadiness({
@@ -344,7 +378,7 @@ const ClientWorkspace: React.FC = () => {
 
     return (
         <div className="animate-fade-in-up space-y-6">
-            <ClientProfileHeader client={client} determinedLevel={clientDeterminedLevel} progress={clientProgress} timelineState={clientTimelineState} />
+            <ClientProfileHeader client={client} determinedLevel={clientDeterminedLevel} progress={clientProgress} timelineState={clientTimelineState} onAskClara={canSeeClinical ? summarizeWithClara : undefined} />
 
             <div className="flex items-center justify-between border-b border-border dark:border-dark-border gap-3 flex-wrap">
                 <nav className="flex -mb-px space-x-8 overflow-x-auto">

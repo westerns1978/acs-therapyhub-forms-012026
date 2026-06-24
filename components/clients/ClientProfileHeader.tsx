@@ -9,6 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
 import { generateClinicalSnapshot, placeAndActivate } from '../../services/api';
+import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
 import ClinicalMarkdown from '../ClinicalMarkdown';
 
 interface ClientProfileHeaderProps {
@@ -21,6 +22,9 @@ interface ClientProfileHeaderProps {
   /** Program-aware: non-SATOP timeline compliance state (null for SATOP). When present, the
    *  small "Progress" box shows the review state instead of a meaningless hours %. */
   timelineState?: ProgramCardState | null;
+  /** Contextual Clara: opens Clara seeded with a real-data summary of THIS client. Composed
+   *  by the caller (ClientWorkspace) from facts already on the page. Undefined → hidden. */
+  onAskClara?: () => void;
 }
 
 // Lifecycle badge (status normalization, 2026-06-11). The old version painted
@@ -61,7 +65,7 @@ const getProgramBadge = (client: Client, determinedLevel?: SatopLevel | null) =>
     }
 };
 
-const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress, timelineState }) => {
+const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress, timelineState, onAskClara }) => {
   const [isSnapshotExpanded, setIsSnapshotExpanded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [clinicalSnapshot, setClinicalSnapshot] = useState<string | null>(null);
@@ -177,6 +181,18 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                   </>
                 ) : (
                   <>
+                {/* Contextual Clara — the one obvious, high-value action: one tap → Clara
+                    summarizes THIS client from real on-page facts. Clara-branded (her avatar)
+                    so the value is unmistakably hers. Seed/composition live in ClientWorkspace. */}
+                {onAskClara && (
+                    <button
+                        onClick={onAskClara}
+                        className="flex items-center gap-2.5 bg-primary text-white pl-2 pr-5 py-2 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-primary-focus hover:scale-105 transition-all shadow-xl shadow-primary/20 active:scale-95"
+                    >
+                        <img src={CLARA_AVATAR_URL} alt="" className="w-7 h-7 rounded-full object-cover ring-2 ring-white/40" />
+                        Summarize with Clara
+                    </button>
+                )}
                 {canStartSession && (
                     <button
                         onClick={() => navigate(`/session/${client.id}`)}
