@@ -17,11 +17,11 @@ export type CancelFeeDecision =
 // the inline status-pill convention already used in ManageAttendeesModal. Scheduled
 // keeps the original blue treatment so unchanged cards look identical to before.
 const STATUS_STYLES: Record<AppointmentStatus, { card: string; bar: string; badge: string }> = {
-    'Scheduled':   { card: 'bg-blue-50/90 dark:bg-blue-900/40 border-blue-200/50 dark:border-blue-700/50 text-blue-900 dark:text-blue-100',                bar: 'bg-blue-500',    badge: 'bg-blue-100 text-blue-800' },
-    'In Progress': { card: 'bg-indigo-50/90 dark:bg-indigo-900/40 border-indigo-200/50 dark:border-indigo-700/50 text-indigo-900 dark:text-indigo-100',    bar: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-800' },
-    'Completed':   { card: 'bg-emerald-50/90 dark:bg-emerald-900/40 border-emerald-200/50 dark:border-emerald-700/50 text-emerald-900 dark:text-emerald-100', bar: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800' },
-    'No Show':     { card: 'bg-amber-50/90 dark:bg-amber-900/40 border-amber-200/50 dark:border-amber-700/50 text-amber-900 dark:text-amber-100',          bar: 'bg-amber-500',   badge: 'bg-amber-100 text-amber-800' },
-    'Canceled':    { card: 'bg-slate-100/90 dark:bg-slate-800/60 border-slate-300/60 dark:border-slate-600/50 text-slate-500 dark:text-slate-400',         bar: 'bg-slate-400',   badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300' },
+    'Scheduled':   { card: 'bg-blue-50/90 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-100',                bar: 'bg-blue-500',    badge: 'bg-blue-100 text-blue-800' },
+    'In Progress': { card: 'bg-indigo-50/90 dark:bg-indigo-900/40 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-100',    bar: 'bg-indigo-500',  badge: 'bg-indigo-100 text-indigo-800' },
+    'Completed':   { card: 'bg-emerald-50/90 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100', bar: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800' },
+    'No Show':     { card: 'bg-amber-50/90 dark:bg-amber-900/40 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-100',          bar: 'bg-amber-500',   badge: 'bg-amber-100 text-amber-800' },
+    'Canceled':    { card: 'bg-slate-100/90 dark:bg-slate-800/60 border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400',         bar: 'bg-slate-400',   badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300' },
 };
 
 export const getAppointmentStatusStyle = (s: AppointmentStatus) => STATUS_STYLES[s] || STATUS_STYLES['Scheduled'];

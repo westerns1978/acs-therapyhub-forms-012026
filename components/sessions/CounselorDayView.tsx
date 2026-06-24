@@ -70,12 +70,12 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
     const gridCols = `4rem repeat(${lanes.length}, minmax(0, 1fr))`;
 
     return (
-        <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-white/40 dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
+        <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
             {/* Lane header row: counselor names */}
             <div className="grid border-b border-slate-200 dark:border-slate-700/60" style={{ gridTemplateColumns: gridCols }}>
-                <div className="p-3 border-r border-slate-100 dark:border-slate-700/30 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center self-center">GMT-05</div>
+                <div className="p-3 border-r border-border dark:border-slate-700/50 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center self-center">GMT-05</div>
                 {lanes.map(lane => (
-                    <div key={lane.key} className="p-3 text-center border-r border-slate-100 dark:border-slate-700/30 last:border-0">
+                    <div key={lane.key} className="p-3 text-center border-r border-border dark:border-slate-700/50 last:border-0">
                         <p className={`text-sm font-bold truncate ${lane.key === UNASSIGNED ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>{lane.label}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{lane.events.length} {lane.events.length === 1 ? 'session' : 'sessions'}</p>
                     </div>
@@ -96,7 +96,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
 
                     {/* Counselor lanes */}
                     {lanes.map(lane => (
-                        <div key={lane.key} className="relative border-r border-slate-100 dark:border-slate-700/30 last:border-0 group">
+                        <div key={lane.key} className="relative border-r border-border dark:border-slate-700/50 last:border-0 group">
                             {/* Hour gridlines */}
                             {HOURS.map(h => <div key={h} className="h-[65px] border-b border-slate-50 dark:border-slate-800/30"></div>)}
 

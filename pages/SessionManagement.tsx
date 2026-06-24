@@ -218,7 +218,7 @@ const SessionManagement: React.FC = () => {
     return (
         <div className="h-full flex flex-col space-y-6">
             {/* Header Controls */}
-            <div className="flex justify-between items-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-white/40 dark:border-slate-700">
+            <div className="flex justify-between items-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-border dark:border-slate-700">
                 <div className="flex items-center gap-6">
                     <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Today</button>
                     {/* Week ↔ Day view toggle. Day = all-counselor swim-lanes (admin view). */}
@@ -251,12 +251,12 @@ const SessionManagement: React.FC = () => {
                 />
             ) : (
             /* Calendar Grid */
-            <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-white/40 dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
+            <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
                 {/* Header Row */}
                 <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-700/60">
                     <div className="p-4 border-r border-slate-100 dark:border-slate-700/30 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center pt-8">GMT-05</div>
                     {weekDays.map(day => (
-                        <div key={day.toISOString()} className={`p-4 text-center border-r border-slate-100 dark:border-slate-700/30 last:border-0 ${isToday(day) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                        <div key={day.toISOString()} className={`p-4 text-center border-r border-border dark:border-slate-700/50 last:border-0 ${isToday(day) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
                             <p className={`text-[10px] font-bold uppercase mb-2 tracking-wider ${isToday(day) ? 'text-primary' : 'text-slate-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</p>
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto text-xl transition-all ${isToday(day) ? 'bg-primary text-white font-bold shadow-lg shadow-primary/30 scale-110' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                                 {day.getDate()}
@@ -281,7 +281,7 @@ const SessionManagement: React.FC = () => {
                         {weekDays.map(day => {
                             const dayEvents = appointments.filter(a => new Date(a.date).toDateString() === day.toDateString());
                             return (
-                                <div key={day.toISOString()} className="relative border-r border-slate-100 dark:border-slate-700/30 last:border-0 group">
+                                <div key={day.toISOString()} className="relative border-r border-border dark:border-slate-700/50 last:border-0 group">
                                     {/* Hour Grid Lines */}
                                     {hours.map(h => <div key={h} className="h-[75px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
                                     

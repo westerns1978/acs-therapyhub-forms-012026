@@ -77,7 +77,7 @@ const DocumentGridCard: React.FC<{ document: DocumentFile; onClick: () => void }
   return (
     <div
       onClick={onClick}
-      className="group relative bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl border border-white/40 dark:border-slate-700 rounded-2xl p-4 cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:border-primary/30 shadow-lg overflow-hidden"
+      className="group relative bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl border border-border dark:border-slate-700 rounded-2xl p-4 cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:border-primary/30 shadow-lg overflow-hidden"
     >
       <div className="flex items-center gap-4">
         <div className="p-3 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-all shrink-0">
