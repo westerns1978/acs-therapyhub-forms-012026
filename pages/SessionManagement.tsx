@@ -174,26 +174,32 @@ const SessionManagement: React.FC = () => {
         return days;
     }, [startOfWeek]);
 
-    const hours = Array.from({ length: 13 }, (_, i) => i + 8);
+    // Visible window: 6 AM start, 16 rows (matches CounselorDayView so early slots fit).
+    const WIN_START = 6;
+    const WIN_HOURS = 16;
+    const hours = Array.from({ length: WIN_HOURS }, (_, i) => i + WIN_START);
 
     const getEventStyle = (apt: Appointment) => {
-        const timeParts = apt.startTime.match(/(\d+):(\d+) (AM|PM)/);
-        let hour = 9; 
+        // The app formats times as 24-hour "HH:MM" (timeStrFromDate); also tolerate
+        // an "h:mm AM/PM" form. Mirrors CounselorDayView.parseMinutes so appointments
+        // no longer fall back to the 9 AM slot.
+        const m = apt.startTime?.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        let hour = 9;
         let minute = 0;
-        
-        if (timeParts) {
-            hour = parseInt(timeParts[1]);
-            if (timeParts[3] === 'PM' && hour !== 12) hour += 12;
-            if (timeParts[3] === 'AM' && hour === 12) hour = 0;
-            minute = parseInt(timeParts[2]);
+        if (m) {
+            hour = parseInt(m[1], 10);
+            minute = parseInt(m[2], 10);
+            const mer = m[3]?.toUpperCase();
+            if (mer === 'PM' && hour !== 12) hour += 12;
+            if (mer === 'AM' && hour === 12) hour = 0;
         }
 
-        const startOffset = (hour - 8) * 60 + minute;
-        const duration = 50; 
-        
+        const startOffset = (hour - WIN_START) * 60 + minute;
+        const duration = 50;
+
         return {
-            top: `${(startOffset / (13 * 60)) * 100}%`,
-            height: `${(duration / (13 * 60)) * 100}%`,
+            top: `${(startOffset / (WIN_HOURS * 60)) * 100}%`,
+            height: `${(duration / (WIN_HOURS * 60)) * 100}%`,
         };
     };
 
@@ -275,7 +281,7 @@ const SessionManagement: React.FC = () => {
                         {/* Time Column */}
                         <div className="border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/20">
                             {hours.map(hour => (
-                                <div key={hour} className="h-[92px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-3 pt-2 relative">
+                                <div key={hour} className="h-[75px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-3 pt-2 relative">
                                     <span className="text-xs font-medium text-slate-400 relative -top-3">{hour > 12 ? hour - 12 : hour} {hour >= 12 ? 'PM' : 'AM'}</span>
                                 </div>
                             ))}
@@ -287,7 +293,7 @@ const SessionManagement: React.FC = () => {
                             return (
                                 <div key={day.toISOString()} className="relative border-r border-slate-100 dark:border-slate-700/30 last:border-0 group">
                                     {/* Hour Grid Lines */}
-                                    {hours.map(h => <div key={h} className="h-[92px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
+                                    {hours.map(h => <div key={h} className="h-[75px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
                                     
                                     {/* Events */}
                                     {dayEvents.map(apt => {
@@ -342,7 +348,7 @@ const SessionManagement: React.FC = () => {
                                     {isToday(day) && (
                                         <div 
                                             className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
-                                            style={{ top: `${((new Date().getHours() - 8) * 60 + new Date().getMinutes()) / (13 * 60) * 100}%` }}
+                                            style={{ top: `${((new Date().getHours() - WIN_START) * 60 + new Date().getMinutes()) / (WIN_HOURS * 60) * 100}%` }}
                                         >
                                             <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm ring-2 ring-white dark:ring-slate-800"></div>
                                             <div className="h-[2px] w-full bg-red-500 shadow-sm"></div>
