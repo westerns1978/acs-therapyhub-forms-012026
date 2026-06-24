@@ -7,9 +7,9 @@ import type { ClientProgress } from '../../services/displayProgress';
 import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
-import { Phone, Mail, CalendarPlus, FilePlus, Sparkles, ChevronDown, ChevronUp, BrainCircuit, ShieldAlert, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
-import { generateClinicalSnapshot, placeAndActivate } from '../../services/api';
-import ClinicalMarkdown from '../ClinicalMarkdown';
+import { CalendarPlus, FilePlus, BrainCircuit, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { placeAndActivate } from '../../services/api';
+import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
 
 interface ClientProfileHeaderProps {
   client: Client;
@@ -21,6 +21,9 @@ interface ClientProfileHeaderProps {
   /** Program-aware: non-SATOP timeline compliance state (null for SATOP). When present, the
    *  small "Progress" box shows the review state instead of a meaningless hours %. */
   timelineState?: ProgramCardState | null;
+  /** Contextual Clara: opens Clara seeded with a real-data summary of THIS client. Composed
+   *  by the caller (ClientWorkspace) from facts already on the page. Undefined → hidden. */
+  onAskClara?: () => void;
 }
 
 // Lifecycle badge (status normalization, 2026-06-11). The old version painted
@@ -61,10 +64,7 @@ const getProgramBadge = (client: Client, determinedLevel?: SatopLevel | null) =>
     }
 };
 
-const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress, timelineState }) => {
-  const [isSnapshotExpanded, setIsSnapshotExpanded] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [clinicalSnapshot, setClinicalSnapshot] = useState<string | null>(null);
+const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress, timelineState, onAskClara }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   // A live session writes a CLINICAL note — Director/Therapist only (not Admin/Jessica).
@@ -104,24 +104,6 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
     }
     return { head: 'Plan Review', value: 'No plan', sub: null, tone };
   })() : null;
-
-  const handleGenerateSnapshot = async () => {
-    if (clinicalSnapshot) {
-        setIsSnapshotExpanded(!isSnapshotExpanded);
-        return;
-    }
-
-    setIsGenerating(true);
-    setIsSnapshotExpanded(true);
-    try {
-        const snapshot = await generateClinicalSnapshot(client);
-        setClinicalSnapshot(snapshot);
-    } catch (error) {
-        setClinicalSnapshot("AI summary isn't available right now — please try again in a moment.");
-    } finally {
-        setIsGenerating(false);
-    }
-  };
 
   return (
     <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-white/20 dark:border-slate-800 rounded-[2.5rem] shadow-2xl p-8 transition-all duration-500 overflow-hidden relative">
@@ -177,6 +159,18 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                   </>
                 ) : (
                   <>
+                {/* Contextual Clara — the one obvious, high-value action: one tap → Clara
+                    summarizes THIS client from real on-page facts. Clara-branded (her avatar)
+                    so the value is unmistakably hers. Seed/composition live in ClientWorkspace. */}
+                {onAskClara && (
+                    <button
+                        onClick={onAskClara}
+                        className="flex items-center gap-2.5 bg-primary text-white pl-2 pr-5 py-2 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-primary-focus hover:scale-105 transition-all shadow-xl shadow-primary/20 active:scale-95"
+                    >
+                        <img src={CLARA_AVATAR_URL} alt="" className="w-7 h-7 rounded-full object-cover ring-2 ring-white/40" />
+                        Summarize with Clara
+                    </button>
+                )}
                 {canStartSession && (
                     <button
                         onClick={() => navigate(`/session/${client.id}`)}
@@ -200,13 +194,6 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                     className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95"
                 >
                     <CalendarPlus size={16} /> Schedule
-                </button>
-                <button
-                    onClick={handleGenerateSnapshot}
-                    className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${isSnapshotExpanded ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-primary text-white hover:bg-primary-focus shadow-lg shadow-primary/20'}`}
-                >
-                    <Sparkles size={16} className={isGenerating ? "animate-pulse" : ""} />
-                    {isGenerating ? "Pulling it together..." : "Clinical Snapshot"}
                 </button>
                 {/* Opens EditClientModal owned by MainLayout. Available to all
                     roles; the modal itself locks clinical fields for Admin. */}
@@ -244,54 +231,8 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
         </div>
       </div>
 
-      {isSnapshotExpanded && (
-        <div className="mt-10 p-8 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-[2rem] animate-fade-in-up relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-transparent"></div>
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-xl"><Sparkles size={20} className="text-primary"/></div>
-                    <h3 className="font-black text-sm uppercase tracking-[0.2em] text-slate-500">AI Synthesized Intelligence</h3>
-                </div>
-                <button onClick={() => setIsSnapshotExpanded(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
-            </div>
-            
-            {isGenerating ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-4">
-                    <div className="flex gap-1.5">
-                        {[1,2,3].map(i => <div key={i} className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: `${i*0.1}s` }}></div>)}
-                    </div>
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pulling together what we have on this client...</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                    <div className="lg:col-span-3 prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                        {clinicalSnapshot && <ClinicalMarkdown content={clinicalSnapshot} />}
-                        <p className="text-[9px] text-slate-400 mt-6 font-mono border-t border-slate-200 dark:border-slate-800 pt-4 uppercase tracking-tighter flex items-center gap-2">
-                           <ShieldAlert size={10} /> Clinical use only. AI-generated summary (Gemini 2.5 Flash) — review before relying on it.
-                        </p>
-                    </div>
-                    <div className="lg:col-span-1 border-l border-slate-200 dark:border-slate-800 pl-8 space-y-6">
-                         {/* "Draft Court Report" was a dead placeholder button. The real
-                             court/DMH document is the Status Report PDF, already a
-                             first-class action in the client workspace action row, so the
-                             redundant placeholder is removed rather than duplicated here. */}
-                         <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Risk Marker</p>
-                            <div className="flex items-center gap-2 text-amber-500 font-bold text-xs">
-                                <ShieldAlert size={14} /> High Travel Latency
-                            </div>
-                         </div>
-                    </div>
-                </div>
-            )}
-        </div>
-      )}
     </div>
   );
 };
-
-const X = ({ size, className }: { size: number, className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-);
 
 export default ClientProfileHeader;
