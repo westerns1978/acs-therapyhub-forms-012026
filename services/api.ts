@@ -491,6 +491,24 @@ export const getGroupsWithCounselor = async () => {
     }));
 };
 
+export interface Counselor { id: string; name: string; active: boolean; }
+
+// Active counselors, name-ordered — the lane source for the all-counselor day view.
+// Lanes are keyed by NAME (appointments attribute via therapist_name, not therapist_id;
+// see DEFERRED.md). Returns [] visibly on error rather than fabricating lanes.
+export const getCounselors = async (): Promise<Counselor[]> => {
+    const { data, error } = await supabase
+        .from('counselors')
+        .select('id, name, active')
+        .eq('active', true)
+        .order('name', { ascending: true });
+    if (error) {
+        console.error('[api] getCounselors failed:', error.message);
+        throw new Error(error.message || 'Failed to load counselors');
+    }
+    return (data || []) as Counselor[];
+};
+
 export const updateAppointment = async (id: string, patch: Partial<Appointment>): Promise<Appointment> => {
     // Only send keys the caller actually supplied. Avoids clobbering existing
     // fields with the insert-mapper's defaults (which resets start_time to "now"
