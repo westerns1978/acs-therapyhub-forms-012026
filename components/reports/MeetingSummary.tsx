@@ -37,7 +37,7 @@ const MeetingSummary: React.FC<MeetingSummaryProps> = ({ onDone }) => {
             `}</style>
             <div className="max-w-4xl mx-auto">
                 <header className="flex justify-between items-center pb-4 border-b">
-                     <img src="https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg" alt="ACS Logo" className="h-12" />
+                     <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg" alt="ACS Logo" className="h-12" />
                     <div>
                         <h1 className="text-2xl font-bold">ACS TherapyHub Platform Overview</h1>
                         <p className="text-right text-gray-600">Generated: {new Date().toLocaleDateString()}</p>

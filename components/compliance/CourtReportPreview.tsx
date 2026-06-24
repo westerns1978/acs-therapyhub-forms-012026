@@ -15,7 +15,7 @@ const CourtReportPreview: React.FC<CourtReportPreviewProps> = ({ client, sropDat
         <div className="bg-white text-gray-800 p-8 font-sans text-base">
             <header className="flex justify-between items-start mb-8">
                 <div>
-                    <img src="https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg" alt="ACS Logo" className="h-12 object-contain" />
+                    <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg" alt="ACS Logo" className="h-12 object-contain" />
                     <p className="mt-2 text-xs text-gray-600">11648 Gravois, Suite 245, St. Louis, MO 63126</p>
                 </div>
                 <div className="text-right">

@@ -67,7 +67,7 @@ const ClientLogin: React.FC = () => {
     <div className="flex items-center justify-center min-h-screen bg-surface">
       <div className="w-full max-w-md p-8 space-y-8 bg-background rounded-2xl shadow-lg border border-border">
         <div className="text-center">
-          <img src="https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg" alt="ACS Logo" className="mx-auto h-16 object-contain dark:bg-white/90 dark:p-2 dark:rounded-lg" />
+          <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg" alt="ACS Logo" className="mx-auto h-16 object-contain dark:bg-white/90 dark:p-2 dark:rounded-lg" />
           <h2 className="mt-6 text-2xl font-bold text-on-surface">Client Portal</h2>
           <p className="mt-2 text-on-surface-secondary">Welcome. Please sign in to access your account.</p>
         </div>

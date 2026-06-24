@@ -16,7 +16,7 @@ const PortalHeader: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const logoUrl = "https://storage.googleapis.com/westerns1978-digital-assets/Websites/acs-therapy/ACS-Logo1.svg";
+    const logoUrl = "https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg";
     
     const navLinks = [
         { name: 'Dashboard', path: '/portal/dashboard', icon: Home },
@@ -157,7 +157,7 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({ children }) => {
         className="fixed bottom-8 right-8 z-40 w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ease-in-out hover:scale-110 hover:shadow-indigo-500/50 focus:outline-none focus:ring-4 focus:ring-indigo-300" 
         aria-label="Open Clara AI Assistant"
       >
-          <img src="https://storage.googleapis.com/westerns1978-digital-assets/ACS%20TherapyHub/clara2.png" alt="Clara AI" className="w-full h-full object-cover rounded-full border-2 border-white/20" />
+          <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/clara2.png" alt="Clara AI" className="w-full h-full object-cover rounded-full border-2 border-white/20" />
       </button>
 
       <SynapseChatPopover variant="floating" />
