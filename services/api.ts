@@ -1160,11 +1160,6 @@ export const generateSoapNoteFromTranscript = async (
     return geminiText('gemini-2.5-flash', prompt);
 };
 
-export const generateClinicalSnapshot = async (client: Client) => {
-    return geminiText('gemini-2.5-flash',
-        `Synthesize operational intelligence for client ${client.name} (Program: ${client.program}, County: ${client.county}). Identify critical workflow bottlenecks.`);
-};
-
 /**
  * COMMUNITY RESOURCE FINDER: Google Maps Grounding via Gemini 2.5 Flash.
  */
