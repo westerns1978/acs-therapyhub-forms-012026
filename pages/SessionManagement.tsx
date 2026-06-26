@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { getAppointments, getClients, getCounselors, deleteAppointment, updateAppointmentStatus, assessLateCancellationFee } from '../services/api';
+import { getAppointments, getClients, getCounselors, deleteAppointment, updateAppointment, updateAppointmentStatus, assessLateCancellationFee, cancelSeries, deleteSeries } from '../services/api';
 import type { Counselor } from '../services/api';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import CounselorDayView from '../components/sessions/CounselorDayView';
 import { parseTimeToMinutes, formatTime12 } from '../config/time';
+import { timeRangesOverlap } from '../services/recurrence';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -129,6 +130,61 @@ const SessionManagement: React.FC = () => {
         }
     };
 
+    // Persist a per-occurrence note (appointments.notes). Patches local state so the saved
+    // note survives a refresh and the pop-up reflects it immediately.
+    const handleSaveNotes = async (notes: string) => {
+        if (!selectedAppt) return;
+        setSavingStatus(true);
+        try {
+            const updated = await updateAppointment(selectedAppt.id, { notes });
+            setAppointments(prev => prev.map(a => (a.id === updated.id ? updated : a)));
+            setSelectedAppt(updated);
+        } catch (err) {
+            console.error('[SessionManagement] save note failed:', err);
+            alert('Could not save the note: ' + (err as Error).message);
+        } finally {
+            setSavingStatus(false);
+        }
+    };
+
+    // Series edit-scope. Both bulk ops PROTECT Completed occurrences (accrual). After a bulk
+    // change we refetch rather than surgically patch — the simplest correct thing for N rows.
+    const handleCancelSeries = async () => {
+        const sid = selectedAppt?.seriesId;
+        if (!sid) return;
+        if (!window.confirm('Cancel all upcoming sessions in this recurring series? Completed sessions are kept.')) return;
+        setSavingStatus(true);
+        try {
+            const { canceled } = await cancelSeries(sid);
+            setAppointments(await getAppointments());
+            setSelectedAppt(null);
+            alert(`Cancelled ${canceled} session${canceled === 1 ? '' : 's'} in the series.`);
+        } catch (err) {
+            console.error('[SessionManagement] cancel series failed:', err);
+            alert('Could not cancel the series: ' + (err as Error).message);
+        } finally {
+            setSavingStatus(false);
+        }
+    };
+
+    const handleDeleteSeries = async () => {
+        const sid = selectedAppt?.seriesId;
+        if (!sid) return;
+        if (!window.confirm('Permanently delete the non-completed sessions in this recurring series? Completed sessions are kept.')) return;
+        setSavingStatus(true);
+        try {
+            const { deleted } = await deleteSeries(sid);
+            setAppointments(await getAppointments());
+            setSelectedAppt(null);
+            alert(`Deleted ${deleted} session${deleted === 1 ? '' : 's'} from the series.`);
+        } catch (err) {
+            console.error('[SessionManagement] delete series failed:', err);
+            alert('Could not delete the series: ' + (err as Error).message);
+        } finally {
+            setSavingStatus(false);
+        }
+    };
+
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
@@ -179,6 +235,32 @@ const SessionManagement: React.FC = () => {
     const WIN_START = 6;
     const WIN_HOURS = 16;
     const hours = Array.from({ length: WIN_HOURS }, (_, i) => i + WIN_START);
+
+    // Live therapist double-booking detection across the loaded set. Same-therapist (by name,
+    // this round) + same day + half-open time overlap (the shared recurrence primitive). Both
+    // colliding occurrences are flagged. Canceled rows don't count. O(n²) is fine at clinic scale.
+    const conflictIds = useMemo(() => {
+        const ids = new Set<string>();
+        const active = appointments.filter(a => a.status !== 'Canceled' && a.therapist);
+        for (let i = 0; i < active.length; i++) {
+            for (let j = i + 1; j < active.length; j++) {
+                const a = active[i], b = active[j];
+                if (a.therapist !== b.therapist) continue;
+                if (new Date(a.date).toDateString() !== new Date(b.date).toDateString()) continue;
+                if (timeRangesOverlap(a.startTime, a.endTime, b.startTime, b.endTime)) {
+                    ids.add(a.id); ids.add(b.id);
+                }
+            }
+        }
+        return ids;
+    }, [appointments]);
+
+    // The client behind the selected appointment (for the pop-up's demographics). Matches by
+    // uuid clientId; legacy text-id rows won't resolve → demographics block stays hidden.
+    const selectedClient = useMemo(
+        () => (selectedAppt?.clientId ? clients.find(c => c.id === selectedAppt.clientId) ?? null : null),
+        [selectedAppt, clients],
+    );
 
     const getEventStyle = (apt: Appointment) => {
         // Position from the canonical time via config/time.ts. Unparseable → 9 AM slot.
@@ -288,6 +370,7 @@ const SessionManagement: React.FC = () => {
                                     {/* Events */}
                                     {dayEvents.map(apt => {
                                         const s = getAppointmentStatusStyle(apt.status);
+                                        const isConflict = conflictIds.has(apt.id);
                                         return (
                                         <div
                                             key={apt.id}
@@ -295,12 +378,17 @@ const SessionManagement: React.FC = () => {
                                             tabIndex={0}
                                             onClick={() => setSelectedAppt(apt)}
                                             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedAppt(apt); } }}
-                                            className={`group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${s.card}`}
+                                            className={`group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${s.card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
                                             style={getEventStyle(apt)}
-                                            title={`${apt.title} — ${apt.status} (click to change status)`}
+                                            title={isConflict ? `${apt.title} — DOUBLE-BOOKED with another ${apt.therapist} session` : `${apt.title} — ${apt.status} (click to change status)`}
                                         >
                                             <div className="flex items-start gap-1">
                                                 <div className={`w-1 h-full absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
+                                                {isConflict && (
+                                                    <span className="absolute top-1 right-1 z-10" title={`Double-booked with another ${apt.therapist} session`}>
+                                                        <AlertTriangle size={12} className="text-red-600 fill-red-100" />
+                                                    </span>
+                                                )}
                                                 <div className="pl-2 overflow-hidden">
                                                     <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
                                                     <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
@@ -371,6 +459,10 @@ const SessionManagement: React.FC = () => {
                 onStartSession={canStartSession ? handleStartSession : undefined}
                 isSaving={savingStatus}
                 canManage={canManage}
+                client={selectedClient}
+                onSaveNotes={canManage ? handleSaveNotes : undefined}
+                onCancelSeries={canManage && selectedAppt?.seriesId ? handleCancelSeries : undefined}
+                onDeleteSeries={canManage && selectedAppt?.seriesId ? handleDeleteSeries : undefined}
             />
         </div>
     );

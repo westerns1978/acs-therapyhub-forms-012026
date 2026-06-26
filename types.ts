@@ -68,6 +68,9 @@ export interface Client {
   program: 'SATOP' | 'REACT' | 'Anger Management' | 'Compulsive Gambling' | 'GAMBLING_RECOVERY' | 'OPIOID_RECOVERY' | 'DOT' | 'Individual Counseling' | 'SROP';
   programType: 'SATOP_Level_IV' | 'Individual_Counseling' | 'Substance_Use_Assessment';
   status: ClientStatus;
+  /** Operational scheduling-funnel category (DOT / Outpatient / Relapse Prevention…).
+   *  Free-text passthrough from clients.client_type; distinct from clinical program_type. */
+  clientType?: string;
   enrollmentDate: string;
   completionPercentage: number;
   nextDeadline?: string;
@@ -418,8 +421,34 @@ export interface Appointment {
   clientId?: string;
   clientName?: string;
   isRecurring?: boolean;
+  /** Recurring 1:1 series this occurrence belongs to (null/undefined = ad-hoc one-off). */
+  seriesId?: string;
+  /** Per-occurrence clinician note, persisted on the appointment row. */
+  notes?: string;
   googleEventId?: string;
   googleEventLink?: string;
+}
+
+/**
+ * Recurring 1:1 series — the parent rule + enrollment (one client, one therapist).
+ * Mirrors public.appointment_series. Occurrences are ordinary Appointment rows that
+ * carry seriesId back to this. Group recurrence is intentionally out of scope.
+ */
+export interface AppointmentSeries {
+  id: string;
+  clientId: string;
+  therapistName: string;
+  appointmentType: AppointmentType;
+  modality?: Appointment['modality'];
+  weekday: number;          // 0=Sun .. 6=Sat
+  startLocal: string;       // "HH:MM"
+  endLocal: string;         // "HH:MM"
+  serviceType?: ServiceType;
+  zoomLink?: string;
+  zoomMeetingId?: string;
+  recurrenceCount?: number; // wired path this round
+  recurrenceUntil?: string; // stored-but-unwired (fast-follow)
+  status?: string;
 }
 
 export interface ProgressData { month: string; score: number; notes: string; }
