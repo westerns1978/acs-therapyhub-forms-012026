@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Client, Appointment, AppointmentType } from '../../types';
-import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor } from '../../services/api';
-import { isGoogleCalendarLinked, createGoogleCalendarEvent, getGoogleFreeBusy } from '../../services/googleCalendar';
+import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries } from '../../services/api';
+import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
+import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
+import { formatTime12, parseTimeToMinutes } from '../../config/time';
 import { useAuth } from '../../contexts/AuthContext';
-import { MapPin, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { MapPin, AlertTriangle, CheckCircle, Loader2, Repeat } from 'lucide-react';
 
 interface ScheduleSessionModalProps {
     isOpen: boolean;
@@ -24,14 +26,36 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     const [endTime, setEndTime] = useState('20:00');
     const [capacity, setCapacity] = useState(15);
     const [selectedClientId, setSelectedClientId] = useState<string | undefined>(clients[0]?.id);
-    
+
+    // Booking-dropdown TYPE funnel (status → type). The clients passed in are already
+    // status-scoped (active/completed) by getClients; this narrows by operational client_type.
+    // No-op until client_type is populated — the control only renders when types exist.
+    const [clientTypeFilter, setClientTypeFilter] = useState('All');
+    const presentClientTypes = Array.from(
+        new Set(clients.map(c => c.clientType).filter((t): t is string => !!t)),
+    ).sort();
+    const visibleClients = clientTypeFilter === 'All'
+        ? clients
+        : clients.filter(c => c.clientType === clientTypeFilter);
+
+    // Recurring 1:1 series (1:1 only — group recurrence is out of scope this round).
+    const MAX_OCCURRENCES = 52;
+    const [isRecurring, setIsRecurring] = useState(false);
+    const [occurrenceCount, setOccurrenceCount] = useState(6);
+    const [isSaving, setIsSaving] = useState(false);
+
     // Smart Scheduling State
     const [travelRisk, setTravelRisk] = useState<'Low' | 'Medium' | 'High' | null>(null);
     const [riskReason, setRiskReason] = useState<string>('');
     const [isAnalyzingRisk, setIsAnalyzingRisk] = useState(false);
 
-    // Google Calendar conflict check
-    const [calendarConflict, setCalendarConflict] = useState<string | null>(null);
+    // Deterministic therapist double-booking check (replaces the advisory Google free/busy).
+    // A conflict is a real overlap against this therapist's existing appointments; policy is
+    // warn-and-allow — staff may override with an explicit acknowledgement.
+    interface ConflictHit { date: Date; startTime: string; endTime: string; withTitle: string; }
+    const [conflicts, setConflicts] = useState<ConflictHit[]>([]);
+    const [checkingConflicts, setCheckingConflicts] = useState(false);
+    const [overrideConflicts, setOverrideConflicts] = useState(false);
 
     // WS6: optional standing group. When selected, the appointment inherits the counselor's
     // permanent Zoom room + the group's service_type and skips minting a throwaway meeting.
@@ -72,40 +96,77 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         return () => clearTimeout(debounce);
     }, [date, startTime, selectedClientId, sessionType]);
 
-    // Debounced Google Calendar conflict check against the user's primary
-    // calendar. Best-effort: silent failures are acceptable (link may be
-    // stale, network may be down, etc.); we only warn when we have data.
-    useEffect(() => {
-        setCalendarConflict(null);
-        if (!user?.id || !isGoogleCalendarLinked()) return;
-        const check = async () => {
-            try {
-                const startIso = new Date(`${date}T${startTime}:00`).toISOString();
-                const endIso = new Date(`${date}T${endTime}:00`).toISOString();
-                if (new Date(endIso).getTime() <= new Date(startIso).getTime()) return;
-                const busy = await getGoogleFreeBusy(String(user.id), startIso, endIso);
-                if (busy.length > 0) {
-                    const b = busy[0];
-                    const fmt = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                    setCalendarConflict(`Overlaps a personal event on your Google Calendar (${fmt(b.start)}–${fmt(b.end)}).`);
-                }
-            } catch (err) {
-                // Swallow — conflict check is advisory only.
-            }
-        };
-        const t = setTimeout(check, 900);
-        return () => clearTimeout(t);
-    }, [date, startTime, endTime, user?.id]);
-
     const isGroup = sessionType.toLowerCase().includes('group');
     const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
     // Therapist = the selected standing group's counselor (David/Karen/...), else the acting
     // counselor (the logged-in user). Replaces the old hardcoded 'Bill Sunderman'.
     const therapistName = selectedGroupObj?.counselor_name || user?.name || 'Unassigned';
 
+    // Recurrence is a 1:1 AD-HOC affordance this round: not for group session types, and not
+    // when a standing group is attached (a series doesn't carry group_id — out of scope). Either
+    // selection hides the control and forces a single booking.
+    const recurring = isRecurring && !isGroup && !selectedGroupId;
+
+    // True when the time window is invalid (unparseable or end <= start) — nothing to check yet.
+    const invalidWindow = (() => {
+        const s = parseTimeToMinutes(startTime), e = parseTimeToMinutes(endTime);
+        return Number.isNaN(s) || Number.isNaN(e) || e <= s;
+    })();
+
+    // Build the candidate occurrence windows for the current form state: N weekly dates when
+    // recurring, else the single picked date. Pure derivation — feeds both the conflict check
+    // and the submit path so they can never disagree about what's being booked.
+    const firstDate = new Date(date + 'T00:00:00');
+    const candidateDates = recurring
+        ? generateWeeklyOccurrences(firstDate, Math.min(Math.max(occurrenceCount, 1), MAX_OCCURRENCES))
+        : [firstDate];
+
+    // Debounced DETERMINISTIC therapist double-booking check. Queries this therapist's existing
+    // appointments across the candidate span, then intersects intervals (pure detectOverlaps).
+    // Warn-and-allow: a hit blocks submit only until staff tick the override box. Resets the
+    // override whenever the booking shape changes so a stale ack can't slip a new conflict by.
+    useEffect(() => {
+        setConflicts([]);
+        setOverrideConflicts(false);
+        if (!therapistName || therapistName === 'Unassigned') return;
+        if (invalidWindow) return; // invalid window → nothing to check yet
+        const run = async () => {
+            setCheckingConflicts(true);
+            try {
+                const sorted = [...candidateDates].sort((a, b) => a.getTime() - b.getTime());
+                const from = new Date(sorted[0]); from.setHours(0, 0, 0, 0);
+                const to = new Date(sorted[sorted.length - 1]); to.setHours(23, 59, 59, 999);
+                const existing = await getTherapistAppointments(therapistName, from.toISOString(), to.toISOString());
+                const candidates = candidateDates.map(d => ({ date: d, startTime, endTime }));
+                const existingWindows = existing.map(a => ({ date: new Date(a.date), startTime: a.startTime, endTime: a.endTime, _t: a.clientName || a.title }));
+                const hits = detectOverlaps(candidates, existingWindows);
+                setConflicts(hits.map(h => ({
+                    date: h.candidate.date,
+                    startTime: h.candidate.startTime,
+                    endTime: h.candidate.endTime,
+                    withTitle: (h.conflictsWith as any)._t || 'another appointment',
+                })));
+            } catch {
+                // Visible-empty on failure: getTherapistAppointments already returns [] on error,
+                // so we never silently assert "no conflicts" off a thrown query.
+            } finally {
+                setCheckingConflicts(false);
+            }
+        };
+        const t = setTimeout(run, 600);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [date, startTime, endTime, therapistName, isRecurring, occurrenceCount, isGroup]);
+
+    const hasConflicts = conflicts.length > 0;
+    const blockedByConflicts = hasConflicts && !overrideConflicts;
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+        // Warn-and-allow: a real overlap blocks submit until staff explicitly override.
+        if (blockedByConflicts) return;
+        setIsSaving(true);
+        try {
         const client = clients.find(p => p.id === selectedClientId);
         const selectedGroup = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
 
@@ -143,6 +204,37 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             } catch (err) {
                 console.warn('[ScheduleSessionModal] Zoom create failed:', err);
             }
+        }
+
+        // ── Recurring 1:1 series ────────────────────────────────────────────────────────
+        // Writes the parent rule + N dated occurrences in one go, each carrying a REAL uuid
+        // client_id (clients[].id) so the appointment pop-up can fetch phone/email. One minted
+        // Zoom link (above) is reused across the series. Google Calendar push is deferred for
+        // series (would spam N events) — single sessions keep their write-through below.
+        if (recurring) {
+            if (!selectedClientId || !client) {
+                alert('Choose a client before booking a recurring series.');
+                return;
+            }
+            const { occurrences } = await createRecurringSeries({
+                clientId: selectedClientId,
+                clientName: client.name,
+                therapistName,
+                appointmentType: sessionType,
+                modality: 'Virtual (Zoom)',
+                title: `Individual Counseling - ${client.name}`,
+                firstDate,
+                startTime,
+                endTime,
+                count: Math.min(Math.max(occurrenceCount, 1), MAX_OCCURRENCES),
+                serviceType,
+                zoomLink,
+                zoomMeetingId,
+            });
+            // Surface every created occurrence to the parent grid.
+            occurrences.forEach(o => onSave({ ...o, date: new Date(o.date) }));
+            onClose();
+            return;
         }
 
         const newAppointmentData: Omit<Appointment, 'id'> = {
@@ -214,6 +306,12 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             googleEventLink,
         });
         onClose();
+        } catch (err) {
+            console.error('[ScheduleSessionModal] save failed:', err);
+            alert('Could not create the session: ' + (err as Error).message);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     if (!isOpen) return null;
@@ -261,11 +359,22 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                         </div>
 
                         {!isGroup && (
-                             <div>
-                                <label htmlFor="client" className="block text-sm font-medium mb-1">Client</label>
-                                <select id="client" value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md" disabled={!!preselectedClient}>
-                                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                             <div className="space-y-2">
+                                {!preselectedClient && presentClientTypes.length > 0 && (
+                                    <div>
+                                        <label htmlFor="clientType" className="block text-sm font-medium mb-1">Type <span className="text-slate-400 font-normal">(funnel)</span></label>
+                                        <select id="clientType" value={clientTypeFilter} onChange={e => setClientTypeFilter(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
+                                            <option value="All">All types</option>
+                                            {presentClientTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                                <div>
+                                    <label htmlFor="client" className="block text-sm font-medium mb-1">Client</label>
+                                    <select id="client" value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md" disabled={!!preselectedClient}>
+                                        {visibleClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
                             </div>
                         )}
                         
@@ -291,6 +400,35 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 <input type="time" id="endTime" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md" />
                             </div>
                         </div>
+
+                        {/* Recurring 1:1 series — 1:1 ad-hoc only (group recurrence out of scope). Weekly,
+                            for N occurrences starting on the picked date (its weekday repeats). */}
+                        {!isGroup && !selectedGroupId && (
+                            <div className="rounded-lg border border-border dark:border-slate-600 p-3">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)} className="rounded" />
+                                    <Repeat size={15} className="text-slate-500" />
+                                    <span className="text-sm font-medium">Repeat weekly</span>
+                                </label>
+                                {isRecurring && (
+                                    <div className="mt-3 flex items-center gap-2">
+                                        <label htmlFor="occCount" className="text-sm text-slate-600 dark:text-slate-300">for</label>
+                                        <input
+                                            type="number" id="occCount" min={1} max={MAX_OCCURRENCES}
+                                            value={occurrenceCount}
+                                            onChange={e => setOccurrenceCount(Math.min(Math.max(parseInt(e.target.value, 10) || 1, 1), MAX_OCCURRENCES))}
+                                            className="w-20 p-2 border border-border dark:border-slate-600 bg-transparent rounded-md text-center"
+                                        />
+                                        <span className="text-sm text-slate-600 dark:text-slate-300">weekly sessions</span>
+                                        {candidateDates.length > 1 && (
+                                            <span className="ml-auto text-xs text-slate-500">
+                                                {candidateDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {candidateDates[candidateDates.length - 1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Smart Scheduling Indicator */}
                         {!isGroup && selectedClientId && (
@@ -320,13 +458,33 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                             </div>
                         )}
 
-                        {/* Google Calendar conflict warning (advisory, won't block submit) */}
-                        {calendarConflict && (
-                            <div className="mt-2 p-3 rounded-lg border bg-amber-50 border-amber-200 flex items-start gap-3">
-                                <AlertTriangle size={16} className="text-amber-600 mt-0.5" />
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-wider mb-0.5 text-amber-700">Google Calendar Conflict</p>
-                                    <p className="text-sm font-semibold text-amber-800">{calendarConflict}</p>
+                        {/* Deterministic therapist double-booking warning. Lists each colliding
+                            occurrence; warn-and-allow via the override checkbox. No AI, no Google. */}
+                        {checkingConflicts && (
+                            <p className="mt-1 text-xs text-slate-400 flex items-center gap-1.5">
+                                <Loader2 size={12} className="animate-spin" /> Checking {therapistName}'s schedule…
+                            </p>
+                        )}
+                        {hasConflicts && (
+                            <div className="mt-2 p-3 rounded-lg border bg-red-50 border-red-200">
+                                <div className="flex items-start gap-3">
+                                    <AlertTriangle size={16} className="text-red-600 mt-0.5 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-bold uppercase tracking-wider mb-1 text-red-700">
+                                            Double-booking — {therapistName} {conflicts.length === 1 ? 'is' : 'is'} already booked
+                                        </p>
+                                        <ul className="text-sm text-red-800 space-y-0.5">
+                                            {conflicts.map((c, i) => (
+                                                <li key={i}>
+                                                    {c.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {formatTime12(c.startTime)}–{formatTime12(c.endTime)} — overlaps <b>{c.withTitle}</b>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" checked={overrideConflicts} onChange={e => setOverrideConflicts(e.target.checked)} className="rounded" />
+                                            <span className="text-sm font-semibold text-red-800">Book anyway (override {conflicts.length} conflict{conflicts.length === 1 ? '' : 's'})</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -338,8 +496,15 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                     </main>
 
                     <footer className="p-4 border-t border-black/10 dark:border-white/10 flex justify-end">
-                        <button type="submit" className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-focus transition">
-                            Create Session
+                        <button
+                            type="submit"
+                            disabled={isSaving || blockedByConflicts || invalidWindow}
+                            className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-focus transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {isSaving && <Loader2 size={16} className="animate-spin" />}
+                            {recurring
+                                ? `Create ${Math.min(Math.max(occurrenceCount, 1), MAX_OCCURRENCES)} Sessions`
+                                : 'Create Session'}
                         </button>
                     </footer>
                 </form>

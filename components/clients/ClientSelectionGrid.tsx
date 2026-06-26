@@ -264,7 +264,17 @@ const ClientSelectionGrid: React.FC = () => {
     const [view, setView] = useState<'cards' | 'list'>(loadViewPref);
     const [searchTerm, setSearchTerm] = useState('');
     const [programFilter, setProgramFilter] = useState('All');
+    // Operational TYPE funnel (status → type). client_type is free-text and currently NULL on
+    // the seed, so the chip row stays a no-op until David's categories land — placeholders for
+    // now: 'All' plus whatever distinct client_type values actually exist in the loaded set.
+    const [typeFilter, setTypeFilter] = useState('All');
     const location = useLocation();
+
+    // Distinct, non-empty client_type values present in the current (status-filtered) set.
+    const presentTypes = useMemo(
+        () => Array.from(new Set(clients.map(c => c.clientType).filter((t): t is string => !!t))).sort(),
+        [clients],
+    );
 
     useEffect(() => {
         const fetchClients = async () => {
@@ -376,6 +386,7 @@ const ClientSelectionGrid: React.FC = () => {
             if (programFilter === 'SATOP') return norm.program === 'SATOP';
             return norm.canonical === programFilter;
         };
+        const typeMatches = (client: Client) => typeFilter === 'All' || client.clientType === typeFilter;
         // (OPIOID_RECOVERY uses default exact match on client.program)
         return clients
             .filter(client =>
@@ -383,8 +394,9 @@ const ClientSelectionGrid: React.FC = () => {
                 (client.caseNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
             )
             .filter(programMatches)
+            .filter(typeMatches)
             .sort((a, b) => recency(b) - recency(a));
-    }, [clients, searchTerm, programFilter]);
+    }, [clients, searchTerm, programFilter, typeFilter]);
 
     const chipCount = (key: StatusChip): number | null => {
         if (!counts) return null;
@@ -501,6 +513,33 @@ const ClientSelectionGrid: React.FC = () => {
                         <List size={13} /> List
                     </button>
                 </div>
+            </div>
+
+            {/* Operational TYPE funnel (status → type). Chips appear only once clients carry a
+                client_type; until David's category list lands the seed is all-NULL, so the row
+                shows a muted placeholder rather than an empty control. */}
+            <div className="mb-6 -mt-2">
+                {presentTypes.length > 0 ? (
+                    <div className="inline-flex flex-wrap items-center gap-1 p-1 bg-background dark:bg-dark-surface-secondary border border-border dark:border-dark-border rounded-xl" role="tablist" aria-label="Client type filter">
+                        <span className="px-2 text-[10px] font-black uppercase tracking-widest text-slate-400">Type</span>
+                        {['All', ...presentTypes].map(t => {
+                            const active = typeFilter === t;
+                            return (
+                                <button
+                                    key={t}
+                                    role="tab"
+                                    aria-selected={active}
+                                    onClick={() => setTypeFilter(t)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${active ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                                >
+                                    {t}
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-[11px] text-slate-400 italic">Client types appear here once categorized (DOT, Outpatient, Relapse Prevention…).</p>
+                )}
             </div>
 
             {view === 'cards' ? (

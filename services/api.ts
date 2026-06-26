@@ -6,7 +6,7 @@ import {
   SessionRecord, SROPProgress, ClientActivity,
   VideoSession, PracticeMetrics, User, AsamAnalysisResult, DailyBriefingData, ComplianceStatus,
   RevenueDataPoint, ComplianceDataPoint,
-  TreatmentPlan, TreatmentPlanContent, TreatmentPlanStatus
+  TreatmentPlan, TreatmentPlanContent, TreatmentPlanStatus, AppointmentSeries
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { FORM_REGISTRY } from '../config/formRegistry';
@@ -14,6 +14,7 @@ import { fetchClientDetermination } from './complianceEngine';
 import { programForLevel } from '../config/programVocab';
 import { LATE_CANCELLATION_FEE } from '../config/satopFees';
 import { parseTimeToMinutes } from '../config/time';
+import { generateWeeklyOccurrences } from './recurrence';
 
 import {
     dbMessages, dbSropData, dbComplianceEvents, dbAuditLogs,
@@ -159,6 +160,7 @@ const mapClientToApp = (c: any): Client => {
         status,
         completionPercentage,
         caseNumber: c.caseNumber ?? c.case_number ?? '',
+        clientType: c.clientType ?? c.client_type ?? undefined,
         phone: c.phone ?? c.primary_phone ?? '',
         program,
         programType: c.programType ?? c.program_type ?? program,
@@ -398,6 +400,8 @@ const mapAppointmentRowToApp = (row: any): Appointment => {
         clientId: row.client_id || undefined,
         clientName: row.client_name || undefined,
         isRecurring: row.is_recurring ?? false,
+        seriesId: row.series_id || undefined,
+        notes: row.notes ?? undefined,
         googleEventId: row.google_event_id || undefined,
         googleEventLink: row.google_event_link || undefined,
     };
@@ -424,6 +428,8 @@ const mapAppToAppointmentRow = (appt: Partial<Appointment>) => {
         client_id: appt.clientId ?? null,
         client_name: appt.clientName ?? null,
         is_recurring: appt.isRecurring ?? false,
+        series_id: appt.seriesId ?? null,            // recurring 1:1 occurrence (null = ad-hoc)
+        notes: appt.notes ?? null,                   // per-occurrence clinician note
         google_event_id: appt.googleEventId ?? null,
         google_event_link: appt.googleEventLink ?? null,
         updated_at: new Date().toISOString(),
@@ -530,6 +536,8 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
     if ('clientId' in patch) row.client_id = patch.clientId ?? null;
     if ('clientName' in patch) row.client_name = patch.clientName ?? null;
     if ('isRecurring' in patch) row.is_recurring = patch.isRecurring ?? false;
+    if ('seriesId' in patch) row.series_id = patch.seriesId ?? null;
+    if ('notes' in patch) row.notes = patch.notes ?? null;
     if ('googleEventId' in patch) row.google_event_id = patch.googleEventId ?? null;
     if ('googleEventLink' in patch) row.google_event_link = patch.googleEventLink ?? null;
     if ('date' in patch || 'startTime' in patch || 'endTime' in patch) {
@@ -576,6 +584,177 @@ export const deleteAppointment = async (id: string): Promise<void> => {
         console.error('[api] deleteAppointment failed:', error);
         throw new Error(error.message || 'Failed to delete appointment');
     }
+};
+
+// --- Recurring 1:1 scheduling -----------------------------------------------------------------
+// VERIFIED-LANE. No AI: dates come from the pure recurrence.ts helper; conflict math is the
+// pure detectOverlaps. This layer only persists + queries.
+
+/** A therapist's appointments overlapping a [from,to] window, Canceled excluded — the existing
+ *  set the conflict check intersects candidate occurrences against. Matched by NAME this round
+ *  (fast-follow: therapist_id FK → swap the .eq predicate). Returns [] visibly on error so a
+ *  failed conflict lookup never silently claims "no conflicts". */
+export const getTherapistAppointments = async (
+    therapistName: string,
+    fromISO: string,
+    toISO: string,
+): Promise<Appointment[]> => {
+    const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('therapist_name', therapistName)
+        .gte('start_time', fromISO)
+        .lte('start_time', toISO)
+        .neq('status', 'Canceled')
+        .order('start_time', { ascending: true });
+    if (error) {
+        console.warn('[api] getTherapistAppointments failed:', error.message);
+        return [];
+    }
+    return (data || []).map(mapAppointmentRowToApp);
+};
+
+export interface CreateRecurringSeriesInput {
+    clientId: string;        // REAL uuid FK to clients (the pop-up fetches phone/email by it)
+    clientName: string;
+    therapistName: string;
+    appointmentType: Appointment['type'];
+    modality: Appointment['modality'];
+    title: string;
+    firstDate: Date;         // first occurrence (weekday is implicit in this date)
+    startTime: string;       // canonical "HH:MM"
+    endTime: string;
+    count: number;           // N weekly occurrences (the wired bound)
+    serviceType?: Appointment['serviceType'];
+    zoomLink?: string;
+    zoomMeetingId?: string;
+}
+
+const mapSeriesRowToApp = (row: any): AppointmentSeries => ({
+    id: row.id,
+    clientId: row.client_id,
+    therapistName: row.therapist_name,
+    appointmentType: row.appointment_type,
+    modality: row.modality || undefined,
+    weekday: row.weekday,
+    startLocal: typeof row.start_local === 'string' ? row.start_local.slice(0, 5) : row.start_local,
+    endLocal: typeof row.end_local === 'string' ? row.end_local.slice(0, 5) : row.end_local,
+    serviceType: row.service_type || undefined,
+    zoomLink: row.zoom_link || undefined,
+    zoomMeetingId: row.zoom_meeting_id || undefined,
+    recurrenceCount: row.recurrence_count ?? undefined,
+    recurrenceUntil: row.recurrence_until || undefined,
+    status: row.status || undefined,
+});
+
+/** Create a recurring 1:1 series: insert the parent rule, then bulk-insert N dated occurrences
+ *  (ordinary appointments rows carrying series_id). Returns the series + the created occurrences.
+ *  The occurrences are born 'Scheduled'; serviceType is set at mark-complete unless inherited. */
+export const createRecurringSeries = async (
+    input: CreateRecurringSeriesInput,
+): Promise<{ series: AppointmentSeries; occurrences: Appointment[] }> => {
+    const dates = generateWeeklyOccurrences(input.firstDate, input.count);
+    if (dates.length === 0) throw new Error('A recurring series needs at least one occurrence.');
+
+    const { data: seriesRow, error: seriesErr } = await supabase
+        .from('appointment_series')
+        .insert({
+            client_id: input.clientId,
+            therapist_name: input.therapistName,
+            appointment_type: input.appointmentType,
+            modality: input.modality ?? null,
+            weekday: input.firstDate.getDay(),
+            start_local: input.startTime,
+            end_local: input.endTime,
+            service_type: input.serviceType ?? null,
+            zoom_link: input.zoomLink ?? null,
+            zoom_meeting_id: input.zoomMeetingId ?? null,
+            recurrence_count: input.count,
+        })
+        .select()
+        .single();
+    if (seriesErr) {
+        console.error('[api] createRecurringSeries (series insert) failed:', seriesErr);
+        throw new Error(seriesErr.message || 'Failed to create the recurring series.');
+    }
+
+    const seriesId = seriesRow.id as string;
+    const rows = dates.map((d) => mapAppToAppointmentRow({
+        title: input.title,
+        type: input.appointmentType,
+        date: d,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        modality: input.modality,
+        therapist: input.therapistName,
+        status: 'Scheduled',
+        serviceType: input.serviceType,
+        clientId: input.clientId,
+        clientName: input.clientName,
+        zoomLink: input.zoomLink,
+        zoomMeetingId: input.zoomMeetingId,
+        seriesId,
+        isRecurring: true,
+    }));
+
+    const { data: occRows, error: occErr } = await supabase
+        .from('appointments')
+        .insert(rows)
+        .select();
+    if (occErr) {
+        // Roll back the orphaned parent so a half-made series can't linger.
+        await supabase.from('appointment_series').delete().eq('id', seriesId);
+        console.error('[api] createRecurringSeries (occurrences insert) failed:', occErr);
+        throw new Error(occErr.message || 'Failed to create the recurring occurrences.');
+    }
+
+    return {
+        series: mapSeriesRowToApp(seriesRow),
+        occurrences: (occRows || []).map(mapAppointmentRowToApp),
+    };
+};
+
+/** Cancel the EVENTUAL occurrences of a series (status → Canceled). Completed sessions are
+ *  PROTECTED (they carry WS3 accrual) and left untouched — likewise already-Canceled rows.
+ *  Returns how many were canceled. The series row is marked canceled too. */
+export const cancelSeries = async (seriesId: string): Promise<{ canceled: number }> => {
+    const { data, error } = await supabase
+        .from('appointments')
+        .update({ status: 'Canceled', updated_at: new Date().toISOString() })
+        .eq('series_id', seriesId)
+        .not('status', 'in', '("Completed","Canceled")')
+        .select('id');
+    if (error) {
+        console.error('[api] cancelSeries failed:', error);
+        throw new Error(error.message || 'Failed to cancel the series.');
+    }
+    await supabase.from('appointment_series').update({ status: 'canceled' }).eq('id', seriesId);
+    return { canceled: (data || []).length };
+};
+
+/** Delete the non-Completed occurrences of a series. Completed sessions are PROTECTED (accrual
+ *  history) and kept. The parent series row is removed only when no Completed occurrence remains
+ *  — otherwise it's left so the surviving rows keep a valid FK. Returns the delete count. */
+export const deleteSeries = async (seriesId: string): Promise<{ deleted: number }> => {
+    const { data, error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('series_id', seriesId)
+        .neq('status', 'Completed')
+        .select('id');
+    if (error) {
+        console.error('[api] deleteSeries failed:', error);
+        throw new Error(error.message || 'Failed to delete the series.');
+    }
+    const { count } = await supabase
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('series_id', seriesId)
+        .eq('status', 'Completed');
+    if (!count) {
+        await supabase.from('appointment_series').delete().eq('id', seriesId);
+    }
+    return { deleted: (data || []).length };
 };
 
 // --- Late-cancellation fee (WS-LateCancel) ---------------------------------------------------

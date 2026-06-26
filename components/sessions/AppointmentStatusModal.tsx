@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Appointment, AppointmentStatus, ServiceType } from '../../types';
+import { Appointment, AppointmentStatus, ServiceType, Client } from '../../types';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
 import { formatTime12 } from '../../config/time';
 import Modal from '../ui/Modal';
-import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft } from 'lucide-react';
+import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft, Phone, Mail, Repeat, Save } from 'lucide-react';
 
 /** The fee decision the cancel flow hands back to its parent. Outside the 24h window it's
  *  always { fee: 'none' }; inside, staff choose to assess or waive (with a logged reason). */
@@ -41,10 +41,21 @@ interface AppointmentStatusModalProps {
     isSaving: boolean;
     /** Staff-only gate. When false the actions are hidden (read-only detail). */
     canManage: boolean;
+    /** The matched client for this appointment (by uuid clientId) — drives the demographics
+     *  block. Null for legacy text-id rows or group slots that don't resolve to one client. */
+    client?: Client | null;
+    /** Persist a per-occurrence note (appointments.notes). */
+    onSaveNotes?: (notes: string) => void;
+    /** Recurring-series edit-scope. Offered only when the appointment carries a seriesId.
+     *  These act on the WHOLE series (future/non-completed occurrences); the buttons above
+     *  act on THIS occurrence only. */
+    onCancelSeries?: () => void;
+    onDeleteSeries?: () => void;
 }
 
 const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     appointment, isOpen, onClose, onSetStatus, onCancel, onDelete, onStartSession, isSaving, canManage,
+    client, onSaveNotes, onCancelSeries, onDeleteSeries,
 }) => {
     // WS3: a session category is REQUIRED before completion (drives categorized accrual).
     const [serviceType, setServiceType] = useState<ServiceType | ''>('');
@@ -52,11 +63,16 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     const [cancelPanel, setCancelPanel] = useState(false);
     const [waiveOpen, setWaiveOpen] = useState(false);
     const [waiveReason, setWaiveReason] = useState('');
+    // Per-occurrence note draft. Reset when the appointment changes.
+    const [notesDraft, setNotesDraft] = useState('');
     useEffect(() => {
         setServiceType((appointment?.serviceType as ServiceType) ?? '');
         setCancelPanel(false); setWaiveOpen(false); setWaiveReason('');
+        setNotesDraft(appointment?.notes ?? '');
     }, [appointment?.id]);
     if (!appointment) return null;
+
+    const notesDirty = (appointment.notes ?? '') !== notesDraft;
 
     // "Less than 24 hours in advance" — only for an appointment that hasn't started yet.
     // A past/started appointment is no-show territory (deferred), never an auto fee.
@@ -101,7 +117,50 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                         <p className="flex items-center gap-2"><Clock size={14} /> {when} · {formatTime12(appointment.startTime)} – {formatTime12(appointment.endTime)}</p>
                         <p className="flex items-center gap-2">{appointment.modality.includes('Zoom') ? <Video size={14} /> : <MapPin size={14} />} {appointment.modality}</p>
                         {appointment.therapist && <p className="text-xs">with {appointment.therapist}</p>}
+                        {appointment.seriesId && (
+                            <p className="flex items-center gap-2 text-xs text-indigo-500 dark:text-indigo-300"><Repeat size={13} /> Part of a recurring series</p>
+                        )}
                     </div>
+
+                    {/* Client demographics — David's 6/24 ask. Shown when the appointment resolves
+                        to a real client (uuid clientId). Legacy text-id rows won't match → hidden. */}
+                    {client && (
+                        <div className="mt-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 p-3 space-y-1.5">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Client contact</p>
+                            {client.phone
+                                ? <a href={`tel:${client.phone}`} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 hover:underline"><Phone size={14} /> {client.phone}</a>
+                                : <p className="flex items-center gap-2 text-sm text-slate-400"><Phone size={14} /> No phone on file</p>}
+                            {client.email
+                                ? <a href={`mailto:${client.email}`} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 hover:underline"><Mail size={14} /> {client.email}</a>
+                                : <p className="flex items-center gap-2 text-sm text-slate-400"><Mail size={14} /> No email on file</p>}
+                        </div>
+                    )}
+
+                    {/* Per-occurrence note (appointments.notes). Available to staff regardless of
+                        status; save is enabled only when the draft differs from what's persisted. */}
+                    {canManage && onSaveNotes && (
+                        <div className="mt-3">
+                            <label htmlFor="apptNotes" className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Session note</label>
+                            <textarea
+                                id="apptNotes"
+                                value={notesDraft}
+                                onChange={e => setNotesDraft(e.target.value)}
+                                rows={3}
+                                placeholder="Add a note for this appointment…"
+                                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100"
+                            />
+                            <div className="mt-1.5 flex justify-end">
+                                <button
+                                    type="button"
+                                    disabled={isSaving || !notesDirty}
+                                    onClick={() => onSaveNotes(notesDraft.trim())}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-slate-700 hover:bg-slate-800 text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Save size={14} /> Save note
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {canManage ? (
@@ -238,8 +297,45 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                             >
                                 <Trash2 size={15} /> Delete permanently
                             </button>
-                            <p className="mt-1 text-center text-[11px] text-slate-400">Cancelling keeps the record; deleting also removes its Google Calendar event.</p>
+                            <p className="mt-1 text-center text-[11px] text-slate-400">
+                                {appointment.seriesId
+                                    ? 'The actions above affect THIS occurrence only. Cancelling keeps the record; deleting also removes its Google Calendar event.'
+                                    : 'Cancelling keeps the record; deleting also removes its Google Calendar event.'}
+                            </p>
                         </div>
+
+                        {/* Recurring-series edit-scope — whole-series actions, distinct from the
+                            this-occurrence buttons above. Completed occurrences are protected. */}
+                        {appointment.seriesId && (onCancelSeries || onDeleteSeries) && (
+                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-indigo-500 dark:text-indigo-300 mb-2">
+                                    <Repeat size={13} /> Entire series
+                                </p>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {onCancelSeries && (
+                                        <button
+                                            type="button"
+                                            onClick={onCancelSeries}
+                                            disabled={isSaving}
+                                            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition disabled:opacity-60"
+                                        >
+                                            <Ban size={15} /> Cancel entire series
+                                        </button>
+                                    )}
+                                    {onDeleteSeries && (
+                                        <button
+                                            type="button"
+                                            onClick={onDeleteSeries}
+                                            disabled={isSaving}
+                                            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition disabled:opacity-60"
+                                        >
+                                            <Trash2 size={15} /> Delete entire series
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="mt-1 text-center text-[11px] text-slate-400">Completed sessions in the series are kept (they hold accrued hours).</p>
+                            </div>
+                        )}
                     </>
                     )
                 ) : (
