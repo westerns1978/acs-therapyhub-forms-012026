@@ -25,15 +25,16 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type { User, UserRole, StaffRole } from '../types';
 
-// Demo/trial STAFF accounts. The demo login self-provisions these as REAL
-// Supabase Auth users on first use (signUp), so the demo path produces a real
-// session rather than a stub. Clearly namespaced so they never collide with
-// real staff accounts. (Reported to the maintainer; safe to delete post-trial.)
+// The three live ACS staff accounts. These are REAL Supabase Auth users (pilot
+// password) presented as the actual people who use them — David, Karen, Jessica —
+// not demo personas. `name` is the signUp default (full_name in user_metadata); the
+// live accounts already carry these names (de-demoed 2026-06-29), so signUp never
+// re-fires. The email namespace is retained (existing rows); the display name is real.
 export const DEMO_PASSWORD = 'acs-demo-trial-2026!';
 export const DEMO_ACCOUNTS: Record<StaffRole, { email: string; name: string }> = {
-  Director:  { email: 'demo.director@acs-therapyhub.com',  name: 'David Yoder (Demo Director)' },
-  Therapist: { email: 'demo.therapist@acs-therapyhub.com', name: 'Karen (Demo Therapist)' },
-  Admin:     { email: 'demo.admin@acs-therapyhub.com',     name: 'Jessica (Demo Admin)' },
+  Director:  { email: 'demo.director@acs-therapyhub.com',  name: 'David Yoder' },
+  Therapist: { email: 'demo.therapist@acs-therapyhub.com', name: 'Karen Ventimiglia' },
+  Admin:     { email: 'demo.admin@acs-therapyhub.com',     name: 'Jessica' },
 };
 
 /**
