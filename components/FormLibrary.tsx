@@ -54,12 +54,6 @@ const FormCard: React.FC<{
   const draft = localStorage.getItem(`draft-${definition.id}`);
   const progress = draft ? JSON.parse(draft).progress : 0;
 
-  const difficultyColors = {
-    Simple: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400',
-    Moderate: 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400',
-    Complex: 'bg-primary/10 text-primary border-primary/20',
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -95,16 +89,10 @@ const FormCard: React.FC<{
             {definition.description}
         </p>
 
+        {/* Density pass: category (top-left) is the single accent; here we keep only a muted
+            time chip. Difficulty + tag/required chips dropped — one signal, not five. */}
         <div className="flex flex-wrap items-center gap-2 mt-8">
-          {definition.tags?.map(tag => (
-              <span key={tag} className="px-2.5 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 border border-black/5">
-                {tag}
-              </span>
-          ))}
-          <span className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md border ${difficultyColors[definition.difficulty || 'Simple']}`}>
-            {definition.difficulty}
-          </span>
-          <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/10 flex items-center gap-1.5">
+          <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 border border-black/5 flex items-center gap-1.5">
             <Clock size={10}/> {definition.estimatedTime}
           </span>
         </div>
@@ -213,12 +201,8 @@ export const FormLibrary: React.FC<FormLibraryProps> = ({ onSelectForm }) => {
               <h1 className="text-6xl font-black tracking-tighter text-slate-900 dark:text-white leading-tight">Forms <span className="text-primary">Library</span></h1>
               <p className="mt-4 text-lg text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                 Browse and complete HIPAA-compliant clinical forms. Auto-save enabled.
+                <span className="text-slate-400 dark:text-slate-500"> · {allForms.length} forms available.</span>
               </p>
-          </div>
-          
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] shadow-2xl border border-black/5 dark:border-white/5 text-center min-w-[240px]">
-              <p className="text-5xl font-black text-primary tracking-tighter">{allForms.length}</p>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mt-2">Available Forms</p>
           </div>
       </header>
 
