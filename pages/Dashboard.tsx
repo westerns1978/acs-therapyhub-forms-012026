@@ -15,26 +15,6 @@ import { Video, Calendar, AlertTriangle, Activity, ArrowUpRight, ShieldCheck, Me
 const greetingFor = (h: number) => (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening');
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
-// Director-only aggregate stat tile. No delta — no historical baseline to compute one.
-// Director-only aggregate stat tile. Shares the app card treatment (warm border +
-// layered shadow + 16px radius). `trend` is optional and intentionally NOT fabricated —
-// when there's no historical baseline we render nothing (no fake delta), but the slot is
-// reserved in the icon row for when a real trend exists.
-const StatCard: React.FC<{ title: string; value: string; icon: any; color: string; trend?: { dir: 'up' | 'down' | 'flat'; label: string } | null }> = ({ title, value, icon: Icon, color, trend }) => (
-    <div className="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-border dark:border-slate-700 shadow-card dark:shadow-card-dark">
-        <div className="flex items-center justify-between min-h-[2.25rem]">
-            <div className={`p-2 rounded-lg ${color} bg-opacity-10 text-${color.split('-')[1]}-600`}>
-                <Icon size={16} />
-            </div>
-            {trend && (
-                <span className={`text-[10px] font-black tabular-nums px-2 py-0.5 rounded-full ${trend.dir === 'up' ? 'text-emerald-600 bg-emerald-500/10' : trend.dir === 'down' ? 'text-primary bg-primary/10' : 'text-slate-400 bg-slate-400/10'}`}>{trend.label}</span>
-            )}
-        </div>
-        <p className="mt-4 text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest">{title}</p>
-        <p className="mt-1 text-3xl font-black text-slate-900 dark:text-white tracking-tight tabular-nums leading-none">{value}</p>
-    </div>
-);
-
 const Dashboard: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -210,15 +190,26 @@ const Dashboard: React.FC = () => {
         </Card>
     );
 
+    // Advisory, not an alarm: calmer heading + neutral cards with a thin status accent (not a
+    // wall of red/amber). Same content, same verdicts, same Clara explain action.
     const GuardrailsCard = (
-        <Card title="Clinical Guardrails" subtitle="Deterministic Missouri compliance checks (9 CSR) — engine-computed, advisory.">
-            <div className="space-y-3">
+        <Card noPadding>
+            <div className="px-6 pt-5 pb-3 flex items-start justify-between gap-3">
+                <div>
+                    <h3 className="flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-slate-300 tracking-tight">
+                        <ShieldCheck size={15} className="text-slate-400 shrink-0" /> Clinical Guardrails
+                    </h3>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Advisory — deterministic Missouri checks (9 CSR).</p>
+                </div>
+                {guardrails.length > 0 && (
+                    <span className="shrink-0 mt-0.5 text-[10px] font-bold tabular-nums text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-2 py-0.5 rounded-full">{guardrails.length}</span>
+                )}
+            </div>
+            <div className="px-6 pb-6 space-y-2.5">
                 {guardrails.length > 0 ? guardrails.slice(0, 6).map(g => {
                     const isViolation = g.status === 'violation';
-                    const accent = isViolation ? 'text-red-600' : 'text-amber-600';
-                    const box = isViolation
-                        ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
-                        : 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/20';
+                    const accent = isViolation ? 'text-red-500/90' : 'text-amber-500/90';
+                    const bar = isViolation ? 'bg-red-400/70' : 'bg-amber-400/70';
                     return (
                         <div
                             key={g.id}
@@ -226,9 +217,10 @@ const Dashboard: React.FC = () => {
                             tabIndex={0}
                             onClick={() => navigate(`/clients/${g.clientId}`)}
                             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/clients/${g.clientId}`); } }}
-                            className={`w-full text-left flex items-start gap-4 p-4 border rounded-2xl transition-colors cursor-pointer ${box}`}
+                            className="relative w-full text-left flex items-start gap-3 p-3.5 pl-4 border border-slate-100 dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors cursor-pointer overflow-hidden"
                         >
-                            <AlertTriangle className={`shrink-0 mt-1 ${accent}`} size={16} />
+                            <span className={`absolute left-0 top-0 bottom-0 w-1 ${bar}`}></span>
+                            <AlertTriangle className={`shrink-0 mt-0.5 ${accent}`} size={15} />
                             <div className="min-w-0 flex-1">
                                 <p className={`text-[10px] font-bold uppercase tracking-widest ${accent}`}>{g.status} · {g.clientName} · {g.program}</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">{g.headline}</p>
@@ -309,14 +301,22 @@ const Dashboard: React.FC = () => {
                 )}
             </div>
 
-            {/* Director-only aggregate stats. Monthly Revenue intentionally omitted. */}
+            {/* Director-only aggregate stats — a thin inline strip, not oversized tiles. Clara's
+                line above already carries these; this is a quiet at-a-glance echo, same counts.
+                Monthly Revenue intentionally omitted. */}
             {isDirector && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {/* Computed, not typed: the count of open guardrail flags from the deterministic
-                        engine (fetchComplianceGuardrails) — summarizes the Clinical Guardrails panel
-                        below. NOT the old static avg(compliance_score). 0 when nothing is flagged. */}
-                    <StatCard title="Open Guardrail Flags" value={guardrails.length.toString()} icon={AlertTriangle} color="bg-amber-500" />
-                    <StatCard title="Active Clients" value={metrics.activeClients === null ? '—' : metrics.activeClients.toString()} icon={Activity} color="bg-primary" />
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-500 dark:text-slate-400">
+                    <span className="inline-flex items-center gap-2">
+                        <AlertTriangle size={14} className="text-amber-500/80 shrink-0" />
+                        <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{guardrails.length}</span>
+                        open guardrail {guardrails.length === 1 ? 'flag' : 'flags'}
+                    </span>
+                    <span className="text-slate-300 dark:text-slate-600">·</span>
+                    <span className="inline-flex items-center gap-2">
+                        <Activity size={14} className="text-primary/80 shrink-0" />
+                        <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{metrics.activeClients === null ? '—' : metrics.activeClients}</span>
+                        active clients
+                    </span>
                 </div>
             )}
 

@@ -93,17 +93,23 @@ const ClientCard: React.FC<{
             onClick={() => navigate(`/clients/${client.id}`)}
             className="bg-white/70 dark:bg-dark-surface/70 backdrop-blur-xl border border-black/5 dark:border-white/10 rounded-xl shadow-md p-4 flex flex-col items-center text-center cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
         >
-            <ClientAvatar client={client} className="w-20 h-20 text-3xl mb-3" />
+            <ClientAvatar client={client} className="w-14 h-14 text-xl mb-2" />
             <h3 className="font-bold">{client.name}</h3>
             <p className="text-sm text-surface-secondary-content">{programDisplayLabel(client.program)}</p>
             {client.clientType && <ClientTypeBadge type={client.clientType} className="mt-1.5" />}
             {isSatop ? (
-                <>
-                    <div className="w-full bg-gray-200 rounded-full h-2 my-3">
-                        <div className="bg-primary h-2 rounded-full" style={{ width: `${pct}%` }}></div>
-                    </div>
-                    <p className="text-xs text-surface-secondary-content">{progress?.established ? <>Progress: <span className="font-semibold">{progress.progressPct ?? 0}%</span></> : <span className="text-slate-400">Not yet established</span>}</p>
-                </>
+                // Started clients show the authoritative progress bar; un-started ones get a quiet
+                // muted footnote instead of an empty 0% bar + loud "Not yet established" filler.
+                progress?.established ? (
+                    <>
+                        <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-1.5 mt-3 mb-1.5">
+                            <div className="bg-primary h-1.5 rounded-full" style={{ width: `${pct}%` }}></div>
+                        </div>
+                        <p className="text-xs text-surface-secondary-content">Progress: <span className="font-semibold">{progress.progressPct ?? 0}%</span></p>
+                    </>
+                ) : (
+                    <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-2">Not yet established</p>
+                )
             ) : (
                 <div className="my-3 w-full min-h-[2.75rem] flex items-center justify-center">
                     {timelineLoading ? (
