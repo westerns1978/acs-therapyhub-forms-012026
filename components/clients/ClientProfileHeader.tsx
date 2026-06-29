@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Client, CLIENT_STATUS_LABELS } from '../../types';
+import { Client, Appointment, CLIENT_STATUS_LABELS } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
+import { formatTime12 } from '../../config/time';
 import { normalizeProgram } from '../../config/programVocab';
 import type { ClientProgress } from '../../services/displayProgress';
 import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
-import { CalendarPlus, FilePlus, BrainCircuit, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { CalendarPlus, FilePlus, BrainCircuit, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock } from 'lucide-react';
 import { placeAndActivate } from '../../services/api';
 import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
 
@@ -24,7 +25,20 @@ interface ClientProfileHeaderProps {
   /** Contextual Clara: opens Clara seeded with a real-data summary of THIS client. Composed
    *  by the caller (ClientWorkspace) from facts already on the page. Undefined → hidden. */
   onAskClara?: () => void;
+  /** Booking glance: most-recent PAST appointment (null = none on file). Undefined → the whole
+   *  glance line is hidden (e.g. DocumentManagement renders the header without it). */
+  lastBooked?: Appointment | null;
+  /** Booking glance: next UPCOMING appointment (null = none scheduled). See lastBooked. */
+  nextBooked?: Appointment | null;
 }
+
+// Compact "Mon DD, YYYY, h:mm AM" for the glance line. Date via the standard Intl formatter
+// (same as the calendar header); time via config/time.ts (the canonical 24h-aware formatter).
+const formatBooking = (apt: Appointment): string => {
+    const d = apt.date instanceof Date ? apt.date : new Date(apt.date);
+    const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${datePart}, ${formatTime12(apt.startTime)}`;
+};
 
 // Lifecycle badge (status normalization, 2026-06-11). The old version painted
 // a green "Compliant" on every active client purely because STATUS_MAP renamed
@@ -64,7 +78,10 @@ const getProgramBadge = (client: Client, determinedLevel?: SatopLevel | null) =>
     }
 };
 
-const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress, timelineState, onAskClara }) => {
+const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, determinedLevel, progress, timelineState, onAskClara, lastBooked, nextBooked }) => {
+  // Only render the glance line when a caller opts in (passes the props). DocumentManagement
+  // renders the header without them → both undefined → line hidden (no misleading empty states).
+  const showBookingGlance = lastBooked !== undefined || nextBooked !== undefined;
   const navigate = useNavigate();
   const { user } = useAuth();
   // A live session writes a CLINICAL note — Director/Therapist only (not Admin/Jessica).
@@ -134,7 +151,28 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm font-bold text-slate-500 uppercase tracking-widest">
               <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> ID: {client.caseNumber}</span>
           </div>
-          
+
+          {/* Booking glance — most-recent past + next upcoming appointment. Both resolve via
+              appointments.client_id matched to this client's uuid (same as the contact popup). */}
+          {showBookingGlance && (
+            <div className="mt-3 flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-1.5 text-sm">
+                <span className="flex items-center gap-2">
+                    <CalendarClock size={15} className="text-slate-400 shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Last booked:</span>
+                    {lastBooked
+                        ? <span className="font-bold text-slate-700 dark:text-slate-200">{formatBooking(lastBooked)}</span>
+                        : <span className="font-medium italic text-slate-400">No prior appointments</span>}
+                </span>
+                <span className="hidden sm:inline text-slate-300 dark:text-slate-600">·</span>
+                <span className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Next booked:</span>
+                    {nextBooked
+                        ? <span className="font-bold text-slate-700 dark:text-slate-200">{formatBooking(nextBooked)}</span>
+                        : <span className="font-medium italic text-slate-400">Nothing scheduled</span>}
+                </span>
+            </div>
+          )}
+
           <div className="mt-8 flex flex-wrap items-center justify-center lg:justify-start gap-3">
                 {isProspect ? (
                   <>

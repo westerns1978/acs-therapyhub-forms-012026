@@ -457,6 +457,47 @@ export const getAppointments = async (date?: Date): Promise<Appointment[]> => {
 };
 export const getSyncedAppointments = async (date?: Date) => (await getAppointments(date));
 export const getClientAppointments = async (id: string) => (await getAppointments()).filter(a => a.clientId === id);
+
+// Per-client booking glance: the most-recent PAST and the next UPCOMING appointment.
+// Matches on appointments.client_id the SAME way the contact-popup lookup does — exact
+// string equality against the client's uuid id. The column is TEXT (SECURITY_BACKLOG #7),
+// so a legacy non-uuid row simply doesn't match and is excluded, never returned as someone
+// else's appt. Returns the mapped row or null; a real DB error rethrows (no silent fallback).
+export const getLastAppointment = async (clientId: string): Promise<Appointment | null> => {
+    try {
+        const { data, error } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('client_id', clientId)
+            .lt('start_time', new Date().toISOString())
+            .order('start_time', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (error) throw error;
+        return data ? mapAppointmentRowToApp(data) : null;
+    } catch (e) {
+        console.error('[api] getLastAppointment failed:', e);
+        throw e instanceof Error ? e : new Error('Failed to load last appointment');
+    }
+};
+
+export const getNextAppointment = async (clientId: string): Promise<Appointment | null> => {
+    try {
+        const { data, error } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('client_id', clientId)
+            .gte('start_time', new Date().toISOString())
+            .order('start_time', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+        if (error) throw error;
+        return data ? mapAppointmentRowToApp(data) : null;
+    } catch (e) {
+        console.error('[api] getNextAppointment failed:', e);
+        throw e instanceof Error ? e : new Error('Failed to load next appointment');
+    }
+};
 export const getPayments = async () => (mockPayments || []).map(p => ({...p, id: p.id.toString(), date: new Date(p.date), amount: p.amount, method: 'Stripe', status: 'Completed'}));
 export const getPracticeMetrics = async () => ({ incomeMTD: 15400, unbilledAmount: 1200, missingNotesCount: 3, outstandingInvoicesCount: 2, totalActiveClients: (dbClients || []).length });
 
