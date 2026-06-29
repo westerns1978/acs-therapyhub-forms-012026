@@ -3,6 +3,13 @@
 Three buckets. Keep terse; one line per item. Newest on top within a bucket.
 
 ## SHIPPED
+- **Real staff accounts (de-demo)** — MERGED `de3b42d` + DEPLOYED live 2026-06-29
+  (acs-therapyhub.web.app; entry `index-B5r9Y3wn.js`, login chunk `Login-CKR1oUma.js`). The three live
+  ACS staff logins read as real people, not demo personas: Director → "David Yoder", Therapist →
+  "Karen Ventimiglia", Admin → "Jessica". Runtime source = `auth.users.raw_user_meta_data.full_name`
+  (3 ACS rows, roles preserved); code lists aligned (`authService.ts` DEMO_ACCOUNTS, `pages/Login.tsx`
+  demoRoles). All three log in clean to the correct role surface; no "(Demo" suffix anywhere (bundle +
+  live metadata witnessed). Calendar stays all-counselor by design.
 - **Density & calm pass (cosmetic)** — MERGED `ded7d1d` + DEPLOYED live 2026-06-29
   (acs-therapyhub.web.app; entry `index-KzH6pJ3r.js`). Presentation-only across four surfaces, no
   query/schema/route/logic change (16 clients, 11 forms, 10 nav links unchanged): Dashboard big stat
@@ -20,14 +27,6 @@ Three buckets. Keep terse; one line per item. Newest on top within a bucket.
   client header. `getLastAppointment`/`getNextAppointment` (services/api.ts).
 
 ## IN-FLIGHT
-- **Real staff accounts (de-demo) — SHIPPED pending GO** (code witnessed, holding for GO to
-  merge+deploy; the name change is already LIVE in Supabase). Stripped the "(Demo X)" suffixes from
-  the three live ACS staff accounts so they read as real people: Director → "David Yoder", Therapist
-  → "Karen Ventimiglia", Admin → "Jessica". Source = `auth.users.raw_user_meta_data.full_name`
-  (updated for the 3 ACS rows only, roles preserved); code lists aligned in `authService.ts`
-  (DEMO_ACCOUNTS) + `pages/Login.tsx` (demoRoles). All three log in clean to the correct role surface
-  (David→Director, Karen→Therapist/clinical, Jessica→Admin ops). Branch `feat/real-staff-accounts`.
-  Calendar scope deliberately untouched (still all-counselor — David's call).
 - **Client-type token set — 3 open questions for the David call** (the straw-man revision; resolving
   these is a one-migration change: drop+recreate `clients_client_type_check` + edit `config/clientType.ts`):
   1. **DWI Court / MRT** — counselors run it (Debra; David's block bundles DWI Court) but there is NO
@@ -37,15 +36,13 @@ Three buckets. Keep terse; one line per item. Newest on top within a bucket.
   3. **REACT** — the `REACT Group` service is mapped under Relapse Prevention. Should REACT be its own
      client_type rather than collapsed into RELAPSE_PREVENTION?
 
-## ROADMAP
-- **Per-counselor accounts + calendar scoping (gated on David's call)** — today there are 3 shared
-  role personas (Director/Therapist/Admin), not per-person counselor logins. To give each counselor
-  their own day: (a) the 4 absent counselors (John, Rick, Bill, Debra) need real accounts; (b) link a
-  login to its `counselors` row — `counselors` has NO `user_id`/`email` column today, so the link is a
-  small migration (add `counselors.user_id` + populate); now that Karen's account name matches the
-  `counselors` row ("Karen Ventimiglia"), a name-match would also work but is fragile. The link is
-  mechanically TRIVIAL; the REAL work is the per-counselor scoping it enables (an RLS predicate +
-  a "my sessions" calendar filter) — which David explicitly deferred (calendar stays all-counselor).
+- **All-staff accounts + self-serve provisioning + counselor identity link (post-pilot)** — DECISION:
+  all staff see the shared practice calendar by design (10-person shop, everyone lives in it) — NO
+  per-counselor visibility scoping. The engagement instead: (a) real per-person accounts for all staff
+  (incl. the 4 counselors without logins — John, Rick, Bill, Debra); (b) a self-serve provisioning UI
+  to create/role accounts (today roles are set by hand in `app_metadata`); (c) a `counselors.user_id`
+  identity link for ATTRIBUTION — name-on-blocks ("whose session"), not visibility scoping. The link
+  is a small migration (add `counselors.user_id` + populate); the value is identity, not filtering.
 - **Capability filter (client-type v2 / NEXT PHASE)** — the capability matrix: `client_type` →
   eligible counselors/calendars, narrowing the scheduler so a client of type X can only be booked
   with credentialed staff. Ground exists today only as the `groups` table (counselor→program/
