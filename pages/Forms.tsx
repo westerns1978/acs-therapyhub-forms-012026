@@ -16,6 +16,9 @@ import { SATOP_CHECKLIST_DEFINITION } from '../components/forms/SatopChecklistFo
 import { AUTHORIZATION_RELEASE_DEFINITION } from '../components/forms/AuthorizationForReleaseForm';
 import { CHART_CHECKLIST_DEFINITION } from '../components/forms/ChartChecklistForm';
 import { SESSION_ATTENDANCE_DEFINITION } from '../components/forms/SessionAttendanceForm';
+import { HIPAA_ACK_DEFINITION } from '../components/forms/HipaaAckForm';
+import { TELEHEALTH_CONSENT_DEFINITION } from '../components/forms/TelehealthConsentForm';
+import { LATE_CANCELLATION_DEFINITION } from '../components/forms/LateCancellationForm';
 import { FileText, Inbox } from 'lucide-react';
 
 type Tab = 'library' | 'submissions';
@@ -55,6 +58,12 @@ const Forms: React.FC = () => {
                     return <BaseFormTemplate formDefinition={CHART_CHECKLIST_DEFINITION} onBackToLibrary={handleBack} />;
                 case 'session-attendance':
                     return <BaseFormTemplate formDefinition={SESSION_ATTENDANCE_DEFINITION} onBackToLibrary={handleBack} />;
+                case 'hipaa-ack':
+                    return <BaseFormTemplate formDefinition={HIPAA_ACK_DEFINITION} onBackToLibrary={handleBack} />;
+                case 'telehealth-consent':
+                    return <BaseFormTemplate formDefinition={TELEHEALTH_CONSENT_DEFINITION} onBackToLibrary={handleBack} />;
+                case 'late-cancellation':
+                    return <BaseFormTemplate formDefinition={LATE_CANCELLATION_DEFINITION} onBackToLibrary={handleBack} />;
                 default:
                     return <FormLibrary onSelectForm={setCurrentView} />;
             }

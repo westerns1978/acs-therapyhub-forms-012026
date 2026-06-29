@@ -20,8 +20,11 @@ import { SATOP_CHECKLIST_DEFINITION } from './forms/SatopChecklistForm';
 import { AUTHORIZATION_RELEASE_DEFINITION } from './forms/AuthorizationForReleaseForm';
 import { CHART_CHECKLIST_DEFINITION } from './forms/ChartChecklistForm';
 import { SESSION_ATTENDANCE_DEFINITION } from './forms/SessionAttendanceForm';
+import { HIPAA_ACK_DEFINITION } from './forms/HipaaAckForm';
+import { TELEHEALTH_CONSENT_DEFINITION } from './forms/TelehealthConsentForm';
+import { LATE_CANCELLATION_DEFINITION } from './forms/LateCancellationForm';
 
-export type View = 'library' | 'satop-intake' | 'recovery-plan' | 'consent-treatment' | 'meeting-report' | 'emergency-contact' | 'discharge-summary' | 'telehealth-feedback' | 'satop-checklist' | 'authorization-release' | 'chart-checklist' | 'session-attendance';
+export type View = 'library' | 'satop-intake' | 'recovery-plan' | 'consent-treatment' | 'meeting-report' | 'emergency-contact' | 'discharge-summary' | 'telehealth-feedback' | 'satop-checklist' | 'authorization-release' | 'chart-checklist' | 'session-attendance' | 'hipaa-ack' | 'telehealth-consent' | 'late-cancellation';
 
 interface FormLibraryProps {
   onSelectForm: (form: View) => void;
@@ -39,6 +42,9 @@ const allForms = [
   { id: 'authorization-release', definition: AUTHORIZATION_RELEASE_DEFINITION, view: 'authorization-release' as View },
   { id: 'chart-checklist', definition: CHART_CHECKLIST_DEFINITION, view: 'chart-checklist' as View },
   { id: 'session-attendance', definition: SESSION_ATTENDANCE_DEFINITION, view: 'session-attendance' as View },
+  { id: 'hipaa-ack', definition: HIPAA_ACK_DEFINITION, view: 'hipaa-ack' as View },
+  { id: 'telehealth-consent', definition: TELEHEALTH_CONSENT_DEFINITION, view: 'telehealth-consent' as View },
+  { id: 'late-cancellation', definition: LATE_CANCELLATION_DEFINITION, view: 'late-cancellation' as View },
 ];
 
 const FormCard: React.FC<{
