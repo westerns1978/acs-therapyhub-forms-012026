@@ -7,12 +7,12 @@ import type { StaffRole } from '../types';
 
 const ACS_LOGO_URL = 'https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg';
 
-// Demo personas. Each maps to a REAL (test) Supabase Auth account that the demo
-// login self-provisions on first use (see services/authService.ts) — clicking a
-// role now creates an actual `authenticated` session, not a sessionStorage stub.
+// The three live ACS staff accounts, shown as the real people who use them.
+// Each maps to a REAL Supabase Auth account (pilot password); picking a role
+// signs into that account (see services/authService.ts).
 const demoRoles: { role: StaffRole; name: string }[] = [
   { role: 'Director',  name: 'David Yoder' },
-  { role: 'Therapist', name: 'Karen' },
+  { role: 'Therapist', name: 'Karen Ventimiglia' },
   { role: 'Admin',     name: 'Jessica' },
 ];
 
