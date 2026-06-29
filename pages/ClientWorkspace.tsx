@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getClient, getDocumentFilesForClient, getFormSubmissions, getSROPData, getClientActivityFeed, generateRelapseRiskPrediction } from '../services/api';
-import { Client, DocumentFile, FormSubmission, SROPProgress, ClientActivity, isStaffRole } from '../types';
+import { getClient, getDocumentFilesForClient, getFormSubmissions, getSROPData, getClientActivityFeed, generateRelapseRiskPrediction, getLastAppointment, getNextAppointment } from '../services/api';
+import { Client, DocumentFile, FormSubmission, SROPProgress, ClientActivity, Appointment, isStaffRole } from '../types';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ClientSelectionGrid from '../components/clients/ClientSelectionGrid';
 import ClientProfileHeader from '../components/clients/ClientProfileHeader';
@@ -192,6 +192,9 @@ const ClientWorkspace: React.FC = () => {
     // timeline rules (plan-review cadence) evaluate against. Without it, assessClient
     // reads "no plan on file" even when a plan exists.
     const [clientPlanDate, setClientPlanDate] = useState<string | null>(null);
+    // Booking glance: most-recent past + next upcoming appointment for the header line.
+    const [lastBooked, setLastBooked] = useState<Appointment | null>(null);
+    const [nextBooked, setNextBooked] = useState<Appointment | null>(null);
     const [preview, setPreview] = useState<PreviewKind | null>(null);
 
     const loadClientData = useCallback(async (id: string) => {
@@ -214,6 +217,8 @@ const ClientWorkspace: React.FC = () => {
                     fetchClientSignedForms(id),
                     fetchClientProgramCardState(id),
                     fetchClientPlan(id),
+                    getLastAppointment(id),
+                    getNextAppointment(id),
                 ]);
 
                 if (results[0].status === 'fulfilled') setDocuments(results[0].value as DocumentFile[] || []);
@@ -230,6 +235,8 @@ const ClientWorkspace: React.FC = () => {
                 setClientSignedForms(results[7].status === 'fulfilled' ? (results[7].value as Set<string>) : null);
                 setClientTimelineState(results[8].status === 'fulfilled' ? (results[8].value as ProgramCardState | null) : null);
                 setClientPlanDate(results[9].status === 'fulfilled' ? (results[9].value as string | null) : null);
+                setLastBooked(results[10].status === 'fulfilled' ? (results[10].value as Appointment | null) : null);
+                setNextBooked(results[11].status === 'fulfilled' ? (results[11].value as Appointment | null) : null);
             } else {
                 setClient(null);
                 navigate('/clients');
@@ -378,7 +385,7 @@ const ClientWorkspace: React.FC = () => {
 
     return (
         <div className="animate-fade-in-up space-y-6">
-            <ClientProfileHeader client={client} determinedLevel={clientDeterminedLevel} progress={clientProgress} timelineState={clientTimelineState} onAskClara={canSeeClinical ? summarizeWithClara : undefined} />
+            <ClientProfileHeader client={client} determinedLevel={clientDeterminedLevel} progress={clientProgress} timelineState={clientTimelineState} lastBooked={lastBooked} nextBooked={nextBooked} onAskClara={canSeeClinical ? summarizeWithClara : undefined} />
 
             <div className="flex items-center justify-between border-b border-border dark:border-dark-border gap-3 flex-wrap">
                 <nav className="flex -mb-px space-x-8 overflow-x-auto">
