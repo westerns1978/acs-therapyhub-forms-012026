@@ -13,6 +13,7 @@ import LoadingSpinner from '../ui/LoadingSpinner';
 import ClientAvatar from './ClientAvatar';
 import { Search, UserPlus, LayoutGrid, List, CheckCircle2, Archive, ArrowUpDown } from 'lucide-react';
 import { normalizeProgram, programLabel, isSatopProgram } from '../../config/programVocab';
+import ClientTypeBadge from './ClientTypeBadge';
 
 const programDisplayLabel = (program: Client['program']) => programLabel(program);
 
@@ -95,6 +96,7 @@ const ClientCard: React.FC<{
             <ClientAvatar client={client} className="w-20 h-20 text-3xl mb-3" />
             <h3 className="font-bold">{client.name}</h3>
             <p className="text-sm text-surface-secondary-content">{programDisplayLabel(client.program)}</p>
+            {client.clientType && <ClientTypeBadge type={client.clientType} className="mt-1.5" />}
             {isSatop ? (
                 <>
                     <div className="w-full bg-gray-200 rounded-full h-2 my-3">
