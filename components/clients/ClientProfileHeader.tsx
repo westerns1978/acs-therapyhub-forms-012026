@@ -8,6 +8,7 @@ import type { ClientProgress } from '../../services/displayProgress';
 import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
+import ClientTypeBadge from './ClientTypeBadge';
 import { CalendarPlus, FilePlus, BrainCircuit, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock } from 'lucide-react';
 import { placeAndActivate } from '../../services/api';
 import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
@@ -151,6 +152,14 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm font-bold text-slate-500 uppercase tracking-widest">
               <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> ID: {client.caseNumber}</span>
           </div>
+
+          {/* Operational client-type chip — read-only, styled unlike the clinical program pill
+              above so the two axes don't read as duplicates. Sits with the booking glance. */}
+          {client.clientType && (
+            <div className="mt-3 flex justify-center lg:justify-start">
+              <ClientTypeBadge type={client.clientType} />
+            </div>
+          )}
 
           {/* Booking glance — most-recent past + next upcoming appointment. Both resolve via
               appointments.client_id matched to this client's uuid (same as the contact popup). */}
