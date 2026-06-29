@@ -27,6 +27,13 @@ Three buckets. Keep terse; one line per item. Newest on top within a bucket.
   client header. `getLastAppointment`/`getNextAppointment` (services/api.ts).
 
 ## IN-FLIGHT
+- **Forms library 11 → 14 (wire built-but-dormant forms) — SHIPPED pending GO** (code witnessed,
+  holding for GO to merge+deploy). Surfaced three forms that were fully built but never wired into the
+  library: HIPAA Notice Acknowledgement (`hipaa-ack`), Telehealth Informed Consent (`telehealth-consent`),
+  Late Cancellation Policy (`late-cancellation`) — all LEGAL. Two wiring points each: `allForms` +
+  `View` union in `components/FormLibrary.tsx`, and the import + switch case in `pages/Forms.tsx`.
+  Library now shows 14; each opens and renders its real fields; original 11 unaffected. No content/field
+  edits. Branch `feat/wire-dormant-forms`.
 - **Client-type token set — 3 open questions for the David call** (the straw-man revision; resolving
   these is a one-migration change: drop+recreate `clients_client_type_check` + edit `config/clientType.ts`):
   1. **DWI Court / MRT** — counselors run it (Debra; David's block bundles DWI Court) but there is NO
@@ -36,6 +43,15 @@ Three buckets. Keep terse; one line per item. Newest on top within a bucket.
   3. **REACT** — the `REACT Group` service is mapped under Relapse Prevention. Should REACT be its own
      client_type rather than collapsed into RELAPSE_PREVENTION?
 
+- **Forms content reconciliation (from the 2026-06-29 recon — content is REAL, these are nits)** —
+  (a) **Consent for Treatment**: reconcile the payment-terms / "Responsibility Agreement" portion
+  against David's source PDF (`Consent for Treatment and Responsibility Agreement.pdf`); the $40 fee +
+  core terms are present but the 14-day payment clause and the "Responsibility Agreement" framing are
+  thinner than the PDF. (b) **SATOP Client Intake**: program-track labels use generic `12-Week /
+  16-Week Track` — switch to the SATOP level vocabulary (OEP/WIP/CIP/SROP) the rest of the app uses.
+  (c) **Dead-twin export cleanup**: remove the unused duplicate definitions `CONSENT_TREATMENT_DEFINITION`
+  (`ConsentTreatmentFormDef.tsx`, shares id `consent-treatment`) and `RECOVERY_PLAN_DEFINITION`
+  (`RecoveryPlanFormDef.tsx`) — logged, not touched this pass.
 - **All-staff accounts + self-serve provisioning + counselor identity link (post-pilot)** — DECISION:
   all staff see the shared practice calendar by design (10-person shop, everyone lives in it) — NO
   per-counselor visibility scoping. The engagement instead: (a) real per-person accounts for all staff
