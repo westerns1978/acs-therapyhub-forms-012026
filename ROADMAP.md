@@ -3,6 +3,12 @@
 Three buckets. Keep terse; one line per item. Newest on top within a bucket.
 
 ## SHIPPED
+- **Forms library 11 → 14 (wired built-but-dormant forms)** — MERGED `4cdafd5` + DEPLOYED live
+  2026-06-29 (acs-therapyhub.web.app; entry `index-DAhFJLrE.js`, library chunk `Forms-DKqfQ85T.js`).
+  Surfaced HIPAA Notice Acknowledgement, Telehealth Informed Consent, Late Cancellation Policy (all
+  LEGAL) into `allForms` + `View` union (`FormLibrary.tsx`) + the `Forms.tsx` switch. Library shows 14;
+  each opens and renders its real fields; original 11 unaffected. Pure surfacing — no content/field
+  edits; dead-twin duplicates left logged (see ROADMAP).
 - **Real staff accounts (de-demo)** — MERGED `de3b42d` + DEPLOYED live 2026-06-29
   (acs-therapyhub.web.app; entry `index-B5r9Y3wn.js`, login chunk `Login-CKR1oUma.js`). The three live
   ACS staff logins read as real people, not demo personas: Director → "David Yoder", Therapist →
@@ -27,13 +33,6 @@ Three buckets. Keep terse; one line per item. Newest on top within a bucket.
   client header. `getLastAppointment`/`getNextAppointment` (services/api.ts).
 
 ## IN-FLIGHT
-- **Forms library 11 → 14 (wire built-but-dormant forms) — SHIPPED pending GO** (code witnessed,
-  holding for GO to merge+deploy). Surfaced three forms that were fully built but never wired into the
-  library: HIPAA Notice Acknowledgement (`hipaa-ack`), Telehealth Informed Consent (`telehealth-consent`),
-  Late Cancellation Policy (`late-cancellation`) — all LEGAL. Two wiring points each: `allForms` +
-  `View` union in `components/FormLibrary.tsx`, and the import + switch case in `pages/Forms.tsx`.
-  Library now shows 14; each opens and renders its real fields; original 11 unaffected. No content/field
-  edits. Branch `feat/wire-dormant-forms`.
 - **Client-type token set — 3 open questions for the David call** (the straw-man revision; resolving
   these is a one-migration change: drop+recreate `clients_client_type_check` + edit `config/clientType.ts`):
   1. **DWI Court / MRT** — counselors run it (Debra; David's block bundles DWI Court) but there is NO
