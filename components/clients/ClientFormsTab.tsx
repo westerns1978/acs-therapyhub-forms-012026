@@ -1,10 +1,11 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Client, FormSubmission, Form, RecoveryPlanData } from '../../types';
 import Card from '../ui/Card';
 import AssignFormModal from '../forms/AssignFormModal';
 import { SignedFileLink, SignedFileFrame } from '../ui/SignedFile';
-import { PlusCircle, Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, Bell } from 'lucide-react';
+import { PlusCircle, Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, Bell, PencilLine } from 'lucide-react';
 import { dbForms } from '../../data/database'; // Using mock forms for now
 import { approveFormSubmission } from '../../services/api';
 
@@ -158,6 +159,7 @@ const ViewSubmissionModal: React.FC<{ submission: FormSubmission, clientName: st
 };
 
 const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions, onFormAssigned }) => {
+    const navigate = useNavigate();
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
     const [reviewingSubmission, setReviewingSubmission] = useState<FormSubmission | null>(null);
@@ -217,14 +219,23 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
                                             {(sub.status === 'Not Started' || sub.status === 'In Progress' || isOverdue) && (
-                                                <button 
-                                                    onClick={() => handleSendReminder(sub.id)}
-                                                    disabled={sendingReminderId === sub.id}
-                                                    className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                                                    title="Send Reminder"
-                                                >
-                                                    {sendingReminderId === sub.id ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} />}
-                                                </button>
+                                                <>
+                                                    <button
+                                                        onClick={() => navigate(`/forms?clientId=${client.id}&open=${sub.formId}`)}
+                                                        className="flex items-center gap-2 text-[10px] uppercase tracking-widest bg-primary text-white px-3 py-2 rounded-lg font-black shadow-md hover:bg-primary-focus transition-all"
+                                                        title={`Fill out this form for ${client.name}`}
+                                                    >
+                                                        <PencilLine size={14} /> Fill Out
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSendReminder(sub.id)}
+                                                        disabled={sendingReminderId === sub.id}
+                                                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
+                                                        title="Send Reminder"
+                                                    >
+                                                        {sendingReminderId === sub.id ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} />}
+                                                    </button>
+                                                </>
                                             )}
                                             {needsReview && (
                                                 <button 

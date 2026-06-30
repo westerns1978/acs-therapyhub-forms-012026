@@ -12,6 +12,9 @@ import { ChevronLeft, Save, Send, AlertTriangle, Loader2, X } from 'lucide-react
 interface BaseFormTemplateProps<T> {
   formDefinition: FormDefinition<T>;
   onBackToLibrary: () => void;
+  // Staff "fill on behalf of a client" target. The portal path leaves this
+  // undefined and resolves the client from the authenticated session instead.
+  clientId?: string;
 }
 
 // Coerce any form value into a string an <input> can safely render. Without
@@ -38,10 +41,15 @@ const INPUT_BASE_CLASSES =
     "px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white " +
     "shadow-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors";
 
-export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLibrary }: BaseFormTemplateProps<T>) => {
-  // Portal client now comes from the real Supabase session (null in the
-  // counselor context, where the legacy fallback in handleSubmit applies).
+export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLibrary, clientId }: BaseFormTemplateProps<T>) => {
+  // Portal client comes from the real Supabase session (null in the counselor
+  // context). The form writes to EXACTLY one client: the explicitly-threaded
+  // staff target (clientId, e.g. /forms?clientId=…), else the authenticated
+  // portal client. There is NO demo fallback — a write with no resolved client
+  // used to silently land on the "aaaaaaaa…" demo client (Marcus), corrupting
+  // another chart. We now refuse to save instead (see handleSubmit).
   const portalClient = usePortalClient();
+  const targetClientId = clientId ?? portalClient?.id ?? null;
   const [formData, setFormData] = useState<T>(() => {
     const savedData = localStorage.getItem(`draft-${formDefinition.id}`);
     if (savedData) {
@@ -119,15 +127,22 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
       return;
     }
 
+    // Refuse to persist when no client is resolved. Previously this fell back to
+    // a hardcoded demo client, so a staff-filled form silently saved to the
+    // wrong chart. Better to block with a clear message than corrupt a record.
+    if (!targetClientId) {
+      setSubmissionError(
+        "No client is selected for this form, so it can't be saved. Open it from the client's record (Forms tab → \"Fill out\") so it's attached to their chart.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmissionError(null);
 
     try {
-      // Portal submissions use the authenticated client's id (from the real
-      // session). The hardcoded fallback is retained ONLY for the counselor-
-      // side template preview (Forms.tsx), where there is no portal client —
-      // unchanged from prior behavior.
-      const clientId = portalClient?.id || 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+      // The one client this submission belongs to (staff target or portal session).
+      const clientId = targetClientId;
 
       // If staff previously assigned this form, there's already a row with
       // status='Not Started'. Update it so we don't create a duplicate.
@@ -281,8 +296,8 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
 
                 {submissionError && (
                     <div className="mt-8 p-6 bg-red-500/10 border border-red-500/20 rounded-3xl flex items-center gap-4 text-red-600 dark:text-red-400 animate-shake">
-                        <div className="bg-red-600 text-white p-2 rounded-xl"><AlertTriangle size={20} /></div>
-                        <span className="text-sm font-black uppercase tracking-widest">Submission failed. Please try again.</span>
+                        <div className="bg-red-600 text-white p-2 rounded-xl shrink-0"><AlertTriangle size={20} /></div>
+                        <span className="text-sm font-bold leading-relaxed">{submissionError}</span>
                     </div>
                 )}
             </div>

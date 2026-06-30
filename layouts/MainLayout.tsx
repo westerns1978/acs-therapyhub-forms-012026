@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
+import ErrorBoundary from '../components/ErrorBoundary';
 import NavigationSidebar from '../components/ui/NavigationSidebar';
 import CommandPalette from '../components/ui/CommandPalette';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,6 +24,7 @@ interface MainLayoutProps {
 
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user } = useAuth();
+  const location = useLocation();
   const [isSidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [isMobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -172,7 +174,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div className={`flex flex-col flex-1 min-w-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'} ${clara.isOpen ? 'lg:mr-[420px]' : ''}`}>
             <main className="flex-1 min-w-0 p-4 sm:p-6 pt-20 pb-8 lg:pt-20 lg:p-8 motion-safe:animate-fade-in-up">
                 <Breadcrumbs />
-                {children}
+                {/* Page-scoped boundary: a render crash in one page shows the
+                    recoverable panel HERE while the header, sidebar, and Clara
+                    stay alive — a clinician keeps the app and can navigate away
+                    (which auto-clears the error via the route resetKey). */}
+                <ErrorBoundary resetKey={location.pathname}>
+                    {children}
+                </ErrorBoundary>
             </main>
         </div>
       </div>
