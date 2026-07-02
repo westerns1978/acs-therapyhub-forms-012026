@@ -4,8 +4,8 @@
  * Single file, zero dependencies. Drop into any React/Vite app.
  *
  * Provides progressive transport fallback:
- *   1. Appliance bridge   → https://flowhub.local:8585  (preferred)
- *   2. Local bridge       → https://localhost:8585       (fallback)
+ *   1. Local bridge       → http://127.0.0.1:8585        (tried first; cert-free loopback)
+ *   2. Appliance bridge   → https://flowhub.local:8585   (LAN network-appliance path)
  *
  * USAGE:
  *
@@ -79,8 +79,8 @@ export interface BridgeHealth {
 // ─── Configuration ──────────────────────────────────────────────────────────
 
 const DEFAULT_BRIDGE_CANDIDATES = [
-  "https://flowhub.local:8585",
-  "https://localhost:8585",
+  "http://127.0.0.1:8585",       // loopback — tried FIRST; cert-free, instant on-box
+  "https://flowhub.local:8585",  // LAN network-appliance path — STAYS HTTPS
 ];
 
 const HEALTH_PROBE_TIMEOUT_MS = 3000;
