@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Appointment, AppointmentStatus, ServiceType, Client } from '../../types';
+import { getLastAppointment, getNextAppointment } from '../../services/api';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
 import { formatTime12 } from '../../config/time';
 import Modal from '../ui/Modal';
@@ -70,9 +71,44 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
         setCancelPanel(false); setWaiveOpen(false); setWaiveReason('');
         setNotesDraft(appointment?.notes ?? '');
     }, [appointment?.id]);
+
+    // WS4 booking glance — this client's most-recent PAST and next UPCOMING appointment.
+    // Tri-state so the reads never flash the wrong thing: `undefined` = still loading ("…"),
+    // `null` = loaded, none found ("—"), an Appointment = loaded. Mirrors ClientWorkspace's
+    // consume pattern exactly (Promise.allSettled → fulfilled ? value : null), so a thrown
+    // read (DB error) or an unresolved legacy TEXT client_id degrades to "—", never crashes.
+    const [lastBooked, setLastBooked] = useState<Appointment | null | undefined>(undefined);
+    const [nextBooked, setNextBooked] = useState<Appointment | null | undefined>(undefined);
+    useEffect(() => {
+        const cid = client?.id;
+        if (!isOpen || !cid) { setLastBooked(undefined); setNextBooked(undefined); return; }
+        let active = true;
+        setLastBooked(undefined); setNextBooked(undefined); // reflect loading on (re)open
+        Promise.allSettled([getLastAppointment(cid), getNextAppointment(cid)]).then(([last, next]) => {
+            if (!active) return;
+            setLastBooked(last.status === 'fulfilled' ? (last.value as Appointment | null) : null);
+            setNextBooked(next.status === 'fulfilled' ? (next.value as Appointment | null) : null);
+        });
+        return () => { active = false; };
+    }, [isOpen, client?.id]);
+
     if (!appointment) return null;
 
     const notesDirty = (appointment.notes ?? '') !== notesDraft;
+
+    // Compact "Mon D, YYYY, h:mm AM" for the booking-glance lines (same format as the
+    // client header's booking glance). Tri-state value: undefined → "…" (loading),
+    // null → "—" (none on file), Appointment → the formatted date.
+    const formatBooking = (apt: Appointment): string => {
+        const d = apt.date instanceof Date ? apt.date : new Date(apt.date);
+        const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return `${datePart}, ${formatTime12(apt.startTime)}`;
+    };
+    const renderBookingValue = (apt: Appointment | null | undefined) => {
+        if (apt === undefined) return <span className="text-slate-400">…</span>;
+        if (apt === null) return <span className="text-slate-400">—</span>;
+        return <span className="font-semibold text-slate-700 dark:text-slate-200">{formatBooking(apt)}</span>;
+    };
 
     // "Less than 24 hours in advance" — only for an appointment that hasn't started yet.
     // A past/started appointment is no-show territory (deferred), never an auto fee.
@@ -133,6 +169,14 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                             {client.email
                                 ? <a href={`mailto:${client.email}`} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 hover:underline"><Mail size={14} /> {client.email}</a>
                                 : <p className="flex items-center gap-2 text-sm text-slate-400"><Mail size={14} /> No email on file</p>}
+                            {/* WS4 booking glance — most-recent past + next upcoming appointment for
+                                this client (getLastAppointment/getNextAppointment; see the effect above). */}
+                            <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 pt-1">
+                                <Clock size={14} className="shrink-0" /> <span>Last booked: {renderBookingValue(lastBooked)}</span>
+                            </p>
+                            <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                <Clock size={14} className="shrink-0" /> <span>Next booked: {renderBookingValue(nextBooked)}</span>
+                            </p>
                         </div>
                     )}
 

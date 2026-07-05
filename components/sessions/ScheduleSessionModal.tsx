@@ -18,6 +18,20 @@ interface ScheduleSessionModalProps {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// WS3: two-step Session Type. A parent CATEGORY select filters the child service
+// select; the child's value stays a full AppointmentType string, so isGroup,
+// capacity, recurrence, and every downstream consumer are untouched. The parent is
+// DERIVED from the current sessionType (single source of truth) — there's no separate
+// parent state to desync — so a preselected/edited appointment opens on the correct
+// category with the right child preselected, and a fresh session keeps today's default.
+const SESSION_TYPE_CATEGORIES: { label: string; types: AppointmentType[] }[] = [
+    { label: 'Group',      types: ['SATOP Group', 'REACT Group', 'Anger Management Group', 'Gambling Group'] },
+    { label: 'Individual', types: ['Individual Counseling'] },
+    { label: 'Assessment', types: ['DOT Assessment', 'Intake Assessment'] },
+];
+const categoryForType = (t: AppointmentType): string =>
+    SESSION_TYPE_CATEGORIES.find(c => c.types.includes(t))?.label ?? SESSION_TYPE_CATEGORIES[0].label;
+
 const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onClose, onSave, clients, preselectedClient }) => {
     const { user } = useAuth();
     const [sessionType, setSessionType] = useState<AppointmentType>('SATOP Group');
@@ -95,6 +109,16 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         const debounce = setTimeout(analyze, 800);
         return () => clearTimeout(debounce);
     }, [date, startTime, selectedClientId, sessionType]);
+
+    // WS3 parent/child derivation (see SESSION_TYPE_CATEGORIES). Parent is read off the
+    // current sessionType so it always agrees with the child; changing it snaps the child
+    // to the first service in that category.
+    const sessionCategory = categoryForType(sessionType);
+    const typesForCategory = SESSION_TYPE_CATEGORIES.find(c => c.label === sessionCategory)?.types ?? [];
+    const handleCategoryChange = (label: string) => {
+        const cat = SESSION_TYPE_CATEGORIES.find(c => c.label === label);
+        if (cat && cat.types.length) setSessionType(cat.types[0]);
+    };
 
     const isGroup = sessionType.toLowerCase().includes('group');
     const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
@@ -326,17 +350,22 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                     </header>
                     
                     <main className="p-6 space-y-4">
-                        <div>
-                            <label htmlFor="sessionType" className="block text-sm font-medium mb-1">Session Type</label>
-                            <select id="sessionType" value={sessionType} onChange={e => setSessionType(e.target.value as AppointmentType)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
-                                <option>SATOP Group</option>
-                                <option>REACT Group</option>
-                                <option>Anger Management Group</option>
-                                <option>Gambling Group</option>
-                                <option>Individual Counseling</option>
-                                <option>DOT Assessment</option>
-                                <option>Intake Assessment</option>
-                            </select>
+                        {/* WS3 two-step: parent "Session type" category filters the child "Service"
+                            select. The child value stays a full AppointmentType, so nothing downstream
+                            (isGroup, capacity, recurrence) changes. */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="sessionCategory" className="block text-sm font-medium mb-1">Session type</label>
+                                <select id="sessionCategory" value={sessionCategory} onChange={e => handleCategoryChange(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
+                                    {SESSION_TYPE_CATEGORIES.map(c => <option key={c.label} value={c.label}>{c.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="sessionType" className="block text-sm font-medium mb-1">Service</label>
+                                <select id="sessionType" value={sessionType} onChange={e => setSessionType(e.target.value as AppointmentType)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
+                                    {typesForCategory.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
                         </div>
 
                         {/* WS6: optional standing group — inherits the counselor's permanent
