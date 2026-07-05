@@ -542,7 +542,10 @@ export const getGroupsWithCounselor = async () => {
     }));
 };
 
-export interface Counselor { id: string; name: string; active: boolean; }
+// authUserId is the WS1 step-A identity link (counselors.auth_user_id → auth.users.id).
+// It's how the day view resolves "which lane is the logged-in clinician's own" without a
+// fragile name match. Nullable: unlinked counselors (Bill/Debra/John/Rick) have none.
+export interface Counselor { id: string; name: string; active: boolean; authUserId: string | null; }
 
 // Active counselors, name-ordered — the lane source for the all-counselor day view.
 // Lanes are keyed by NAME (appointments attribute via therapist_name, not therapist_id;
@@ -550,14 +553,16 @@ export interface Counselor { id: string; name: string; active: boolean; }
 export const getCounselors = async (): Promise<Counselor[]> => {
     const { data, error } = await supabase
         .from('counselors')
-        .select('id, name, active')
+        .select('id, name, active, auth_user_id')
         .eq('active', true)
         .order('name', { ascending: true });
     if (error) {
         console.error('[api] getCounselors failed:', error.message);
         throw new Error(error.message || 'Failed to load counselors');
     }
-    return (data || []) as Counselor[];
+    return (data || []).map((c: any) => ({
+        id: c.id, name: c.name, active: c.active, authUserId: c.auth_user_id ?? null,
+    }));
 };
 
 export const updateAppointment = async (id: string, patch: Partial<Appointment>): Promise<Appointment> => {
