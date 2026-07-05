@@ -3,8 +3,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Video, Mic, MicOff, Camera, ArrowLeft, ChevronDown, AlertCircle,
   FileText, ShieldAlert, Info, ArrowRight, Loader2,
+  ClipboardList, Send, CheckSquare, Square, AlertTriangle, CheckCircle2,
 } from 'lucide-react';
-import { fetchGreenRoomSession, type GreenRoomData, type GreenRoomAttendee } from '../services/greenRoom';
+import { fetchGreenRoomSession, type GreenRoomData, type GreenRoomAttendee, type GreenRoomSession } from '../services/greenRoom';
+import { distributeGroupNote } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 /* ── time helpers ───────────────────────────────────────────────────────────── */
 const fmtTime = (iso: string) =>
@@ -223,6 +226,128 @@ const ClientCard: React.FC<{ a: GreenRoomAttendee; defaultOpen: boolean }> = ({ 
   );
 };
 
+/* ── group check-in → distribute one note to each present chart (WS2) ─────────── */
+const GroupCheckInCard: React.FC<{ session: GreenRoomSession; attendees: GreenRoomAttendee[] }> = ({ session, attendees }) => {
+  const { user } = useAuth();
+  // "Who's in the room" — default everyone present. Toggling excludes an absent client.
+  const [present, setPresent] = useState<Set<string>>(() => new Set(attendees.map((a) => a.clientId)));
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ posted: string[]; alreadyPosted: string[]; failed: string[] } | null>(null);
+
+  const nameOf = (cid: string) => attendees.find((a) => a.clientId === cid)?.name ?? 'a client';
+  const toggle = (cid: string) =>
+    setPresent((prev) => { const n = new Set(prev); if (n.has(cid)) n.delete(cid); else n.add(cid); return n; });
+
+  const presentIds = attendees.map((a) => a.clientId).filter((cid) => present.has(cid));
+  const failedIds = result?.failed ?? [];
+  // Retry re-posts ONLY the failed set; already-posted seats stay skipped by the unique index.
+  const retryMode = failedIds.length > 0;
+  const targetIds = retryMode ? failedIds : presentIds;
+  const canPost = !busy && note.trim().length > 0 && targetIds.length > 0;
+
+  const post = async () => {
+    if (!canPost) return;
+    setBusy(true);
+    try {
+      const r = await distributeGroupNote(session.groupId!, session.startTime, note.trim(), targetIds, {
+        therapistId: user?.id ?? null,
+      });
+      // Merge on retry so earlier successes/already-posted persist; only the failed set narrows.
+      setResult((prev) => (retryMode && prev)
+        ? {
+            posted: Array.from(new Set([...prev.posted, ...r.posted])),
+            alreadyPosted: Array.from(new Set([...prev.alreadyPosted, ...r.alreadyPosted])),
+            failed: r.failed,
+          }
+        : r);
+    } catch (e) {
+      // Whole-call failure (e.g. roster resolve) — keep prior successes, mark the target set failed
+      // so the panel stays open and offers a retry. Never silently swallow.
+      console.error('[GreenRoom] distributeGroupNote failed:', e);
+      setResult((prev) => ({ posted: prev?.posted ?? [], alreadyPosted: prev?.alreadyPosted ?? [], failed: targetIds }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const postedCount = result?.posted.length ?? 0;
+  const alreadyCount = result?.alreadyPosted.length ?? 0;
+
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-border dark:border-slate-700/50 rounded-2xl shadow-card p-5">
+      <div className="flex gap-3 items-start">
+        <span className="w-9 h-9 rounded-xl bg-primary/10 grid place-items-center text-primary shrink-0"><ClipboardList size={17} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="font-bold text-[13.5px]">Group check-in &amp; note</div>
+          <p className="text-[13px] text-slate-500 mt-1 leading-relaxed">Select who’s in the room, write one note, and post it to each present client’s chart. Re-posting is safe — a chart that already has this session’s note is skipped, never duplicated.</p>
+
+          {/* who's in the room */}
+          <div className="mt-3 space-y-1.5">
+            {attendees.map((a) => {
+              const on = present.has(a.clientId);
+              return (
+                <button
+                  key={a.clientId}
+                  type="button"
+                  onClick={() => toggle(a.clientId)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition ${on ? 'border-primary/40 bg-primary/5' : 'border-border/60 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/40 opacity-70'}`}
+                >
+                  {on ? <CheckSquare size={16} className="text-primary shrink-0" /> : <Square size={16} className="text-slate-400 shrink-0" />}
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[13.5px] font-bold truncate">{a.name}</span>
+                    <span className="block text-[11px] text-slate-500 truncate">{a.programLabel}</span>
+                  </span>
+                  <span className={`text-[10px] font-black uppercase tracking-wide ${on ? 'text-primary' : 'text-slate-400'}`}>{on ? 'Present' : 'Absent'}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={4}
+            placeholder="Group session note — posts to each present client’s chart…"
+            className="mt-3 w-full px-3 py-2 rounded-xl border border-border dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100"
+          />
+
+          {/* result banners */}
+          {result && (postedCount > 0 || alreadyCount > 0) && (
+            <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-300">
+              <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+              <p className="text-xs font-medium leading-relaxed">
+                Posted to {postedCount} chart{postedCount === 1 ? '' : 's'}.
+                {alreadyCount > 0 && ` ${alreadyCount} already on chart.`}
+              </p>
+            </div>
+          )}
+          {result && failedIds.length > 0 && (
+            <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-300">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <p className="text-xs font-medium leading-relaxed">
+                Couldn’t post to: {failedIds.map(nameOf).join(', ')}. Retry to re-post just these.
+              </p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={post}
+            disabled={!canPost}
+            className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-primary text-white hover:bg-primary-focus transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+            {retryMode
+              ? `Retry ${failedIds.length} failed`
+              : `Post to ${targetIds.length} chart${targetIds.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ── page ───────────────────────────────────────────────────────────────────── */
 const GreenRoom: React.FC = () => {
   const { appointmentId } = useParams<{ appointmentId: string }>();
@@ -347,6 +472,12 @@ const GreenRoom: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* WS2 — group check-in: mark who's present, post one note to each present chart.
+              Group sessions only; the individual note path stays SessionWrapUpModal. */}
+          {session.isGroup && session.groupId && attendees.length > 0 && (
+            <GroupCheckInCard session={session} attendees={attendees} />
+          )}
         </div>
 
         {/* RIGHT — roster */}
