@@ -262,6 +262,20 @@ const SessionManagement: React.FC = () => {
         [selectedAppt, clients],
     );
 
+    // WS1 step C — day-view lane scope. UI scope must be a SUBSET of DB (RLS) scope, never
+    // wider. Gate on the SAME role strings as private.is_schedule_admin() (Director/Admin) so
+    // the board only shows lanes RLS could ever return rows for.
+    const isScheduleAdmin = user?.role === 'Director' || user?.role === 'Admin';
+    // A non-admin clinician's own counselor lane: resolved via the step-A auth_user_id link,
+    // fallback to an exact name match. null → no lane (fail-closed empty state, never full board).
+    const myCounselor = useMemo(
+        () =>
+            counselors.find(c => c.authUserId && user?.id && c.authUserId === user.id) ??
+            counselors.find(c => user?.name && c.name === user.name) ??
+            null,
+        [counselors, user?.id, user?.name],
+    );
+
     const getEventStyle = (apt: Appointment) => {
         // Position from the canonical time via config/time.ts. Unparseable → 9 AM slot.
         const mins = parseTimeToMinutes(apt.startTime);
@@ -323,14 +337,34 @@ const SessionManagement: React.FC = () => {
                 </button>
             </div>
 
-            {/* Day view: all-counselor swim-lanes (admin). Week view: the 7-day grid below. */}
+            {/* Day view: all-counselor swim-lanes for schedule admins (David/Jess); a single
+                own-lane for a non-admin clinician (Karen); an empty state if unresolvable.
+                Week view: the 7-day grid below (no counselor scaffold — left untouched). */}
             {viewMode === 'day' ? (
-                <CounselorDayView
-                    date={currentDate}
-                    counselors={counselors}
-                    appointments={appointments}
-                    onSelectAppt={setSelectedAppt}
-                />
+                isScheduleAdmin ? (
+                    <CounselorDayView
+                        date={currentDate}
+                        counselors={counselors}
+                        appointments={appointments}
+                        onSelectAppt={setSelectedAppt}
+                    />
+                ) : myCounselor ? (
+                    <CounselorDayView
+                        date={currentDate}
+                        counselors={counselors}
+                        appointments={appointments}
+                        onSelectAppt={setSelectedAppt}
+                        soloLabel={myCounselor.name}
+                    />
+                ) : (
+                    <div className="flex-1 flex items-center justify-center min-h-[600px] bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700">
+                        <div className="max-w-md text-center p-8">
+                            <CalIcon className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={40} />
+                            <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No schedule assigned</h2>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Your account isn't linked to a counselor calendar yet, so there's no day view to show. Ask an administrator to link your account.</p>
+                        </div>
+                    </div>
+                )
             ) : (
             /* Calendar Grid */
             <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">

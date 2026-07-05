@@ -10,6 +10,12 @@ interface CounselorDayViewProps {
     counselors: Counselor[];
     appointments: Appointment[];          // ALL appointments; filtered to `date` here
     onSelectAppt: (appt: Appointment) => void;
+    // WS1 step C — single-lane mode for a non-admin clinician. When set, the view renders ONE
+    // lane with this label holding ALL visible appointments (RLS already scopes them to this
+    // clinician), and does NOT bucket by therapist_name (which would mis-file credential-
+    // suffixed rows into "Unassigned") and shows NO Unassigned lane. Omitted/null = admin
+    // all-counselor mode (unchanged).
+    soloLabel?: string | null;
 }
 
 // Visible window: 6 AM – 9 PM. Covers early individual slots through evening groups
@@ -29,7 +35,7 @@ const parseMinutes = (t: string): number => {
 
 const UNASSIGNED = '__unassigned__';
 
-const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt }) => {
+const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt, soloLabel }) => {
     // Appointments on this calendar day.
     const dayEvents = useMemo(
         () => appointments.filter(a => new Date(a.date).toDateString() === date.toDateString()),
@@ -40,6 +46,12 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
     // only appears when a same-day appointment's therapist matches no counselor — so the
     // admin view never silently drops a session.
     const lanes = useMemo(() => {
+        // Single-lane mode (non-admin clinician): every visible appointment is already this
+        // clinician's (RLS-scoped), so put them ALL in one lane — do NOT bucket by therapist_name
+        // (that mis-files "Karen Ventimiglia, LPC" into Unassigned) and show NO Unassigned lane.
+        if (soloLabel) {
+            return [{ key: 'solo', label: soloLabel, events: dayEvents }];
+        }
         const counselorNames = new Set(counselors.map(c => c.name));
         const byLane = new Map<string, Appointment[]>();
         counselors.forEach(c => byLane.set(c.name, []));
@@ -55,7 +67,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
             result.push({ key: UNASSIGNED, label: 'Unassigned', events: byLane.get(UNASSIGNED) || [] });
         }
         return result;
-    }, [counselors, dayEvents]);
+    }, [counselors, dayEvents, soloLabel]);
 
     const blockStyle = (apt: Appointment): React.CSSProperties => {
         const startMin = parseMinutes(apt.startTime);
