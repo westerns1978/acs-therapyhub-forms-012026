@@ -43,6 +43,10 @@ export interface GreenRoomNote {
 
 export interface GreenRoomAttendee {
   clientId: string;
+  /** This attendee's OWN appointment row id (their seat in the group occurrence: one
+   *  appointments row per client sharing group_id + start_time). Null if it can't be
+   *  resolved. WS2 distribution stamps this as the group note's idempotency key. */
+  appointmentId: string | null;
   name: string;
   initials: string;
   programLabel: string;        // 'SATOP · Level IV (SROP)' | 'SATOP · placement pending'
@@ -122,18 +126,27 @@ export async function fetchGreenRoomSession(appointmentId: string): Promise<Gree
     isGroup: !!appt.group_id,
   };
 
-  // Roster: group → appointments sharing group_id + start_time; individual → the one client.
+  // Roster: group → appointments sharing group_id + start_time (each row a seat with its own
+  // appointment_id); individual → the one client. We carry each seat's appointment_id so a group
+  // note can be stamped to it (WS2 distribution's idempotency key — see distributeGroupNote).
+  const seatByClient = new Map<string, string>(); // client_id → appointment_id (their seat)
   let rosterClientIds: string[] = [];
   if (appt.group_id) {
     const { data: sibs, error: sErr } = await supabase
       .from('appointments')
-      .select('client_id')
+      .select('id, client_id')
       .eq('group_id', appt.group_id)
       .eq('start_time', appt.start_time);
     if (sErr) throw new Error(sErr.message);
-    rosterClientIds = (sibs || []).map((r: any) => r.client_id).filter(Boolean);
+    for (const r of sibs || []) {
+      if (r.client_id) {
+        rosterClientIds.push(r.client_id);
+        if (!seatByClient.has(r.client_id)) seatByClient.set(r.client_id, r.id);
+      }
+    }
   } else if (appt.client_id) {
     rosterClientIds = [appt.client_id];
+    seatByClient.set(appt.client_id, appt.id);
   }
   rosterClientIds = Array.from(new Set(rosterClientIds));
 
@@ -155,6 +168,7 @@ export async function fetchGreenRoomSession(appointmentId: string): Promise<Gree
         : null;
       return {
         clientId: client.id,
+        appointmentId: seatByClient.get(cid) ?? null,
         name: client.name,
         initials: toInitials(client.name),
         programLabel: programLabel(client.program_type, progress),

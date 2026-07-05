@@ -1057,10 +1057,101 @@ export const saveClinicalNote = async (
         .single();
     if (error) {
         console.error('[api] saveClinicalNote failed:', error);
-        throw new Error(error.message || 'Failed to save clinical note');
+        // Preserve the Postgres SQLSTATE on the thrown Error (message unchanged, so existing
+        // callers are unaffected). distributeGroupNote classifies 23505 (unique-violation from
+        // ux_clinical_notes_group_seat) as a benign already-posted, not a failure.
+        const e = new Error(error.message || 'Failed to save clinical note');
+        (e as any).code = (error as any).code;
+        throw e;
     }
     return data;
 };
+
+// --- WS2: group check-in → distribute one note into each present attendee's chart ------------
+export interface GroupNoteDistribution {
+    posted: string[];        // client_ids that got a NEW group note this run
+    alreadyPosted: string[]; // client_ids whose seat already had a group note (23505 — NO dup written)
+    failed: string[];        // client_ids whose write errored for any OTHER reason
+}
+
+/**
+ * Distribute ONE group note into each SELECTED present attendee's chart.
+ *
+ * Resolves the group occurrence's roster the SAME way greenRoom.ts does (appointments sharing
+ * group_id + start_time; one seat per client), filters to the selected clients, and loops the
+ * EXISTING saveClinicalNote — stamping each note with that attendee's OWN appointment_id and
+ * note_type = 'Group Session'. Reuses clinical_notes' clinician-only RLS; no RLS touched here.
+ *
+ * IDEMPOTENT via the ux_clinical_notes_group_seat partial unique index: a re-post for a seat
+ * that already has a group note raises 23505, classified `alreadyPosted` — no duplicate chart
+ * entry, no double-count. So a re-click / reopen / retry is safe.
+ *
+ * Partial-failure safe: Promise.allSettled over the loop — one client's failure never aborts
+ * the others. FAIL-CLOSED: a selected client with no resolvable seat can't be stamped with the
+ * idempotency key, so it's reported `failed` rather than written with a null key (which would
+ * be un-dedupable and could later double-chart).
+ */
+export const distributeGroupNote = async (
+    groupId: string,
+    startTime: string,
+    note: string,
+    selectedClientIds: string[],
+    opts: { therapistId?: string | null; isSigned?: boolean; noteFormat?: 'SOAP' | 'DAP' } = {},
+): Promise<GroupNoteDistribution> => {
+    if (!groupId) throw new Error('A group is required to distribute a note.');
+    if (!startTime) throw new Error('The group occurrence time is required.');
+    if (!note?.trim()) throw new Error('The group note is empty.');
+    const selected = Array.from(new Set(selectedClientIds.filter(Boolean)));
+    if (selected.length === 0) return { posted: [], alreadyPosted: [], failed: [] };
+
+    // Resolve the roster (group_id + start_time), carrying each seat's own appointment_id.
+    const { data: seats, error: seatErr } = await supabase
+        .from('appointments')
+        .select('id, client_id')
+        .eq('group_id', groupId)
+        .eq('start_time', startTime);
+    if (seatErr) {
+        console.error('[api] distributeGroupNote roster resolve failed:', seatErr);
+        throw new Error(seatErr.message || 'Could not resolve the group roster.');
+    }
+    const seatByClient = new Map<string, string>();
+    for (const r of seats || []) {
+        if (r.client_id && !seatByClient.has(r.client_id)) seatByClient.set(r.client_id, r.id);
+    }
+
+    const targets = selected.map((cid) => ({ cid, appointmentId: seatByClient.get(cid) ?? null }));
+
+    const results = await Promise.allSettled(
+        targets.map(async ({ cid, appointmentId }) => {
+            if (!appointmentId) {
+                // No seat → can't stamp the idempotency key → refuse (would be un-dedupable).
+                throw new Error('No group seat (appointment) found for this client in the occurrence.');
+            }
+            await saveClinicalNote(cid, note, {
+                appointmentId,
+                noteType: 'Group Session',            // the idempotency marker (partial unique index)
+                therapistId: opts.therapistId ?? null,
+                isSigned: opts.isSigned ?? false,
+                noteFormat: opts.noteFormat ?? 'SOAP',
+            });
+            return cid;
+        }),
+    );
+
+    const posted: string[] = [];
+    const alreadyPosted: string[] = [];
+    const failed: string[] = [];
+    results.forEach((r, i) => {
+        const cid = targets[i].cid;
+        if (r.status === 'fulfilled') { posted.push(cid); return; }
+        if ((r.reason as any)?.code === '23505') { alreadyPosted.push(cid); return; } // seat already charted — benign
+        console.error('[api] distributeGroupNote write failed for', cid, r.reason);
+        failed.push(cid);
+    });
+
+    return { posted, alreadyPosted, failed };
+};
+
 export const getMessages = async () => dbMessages || [];
 export const getStaffMessages = async () => (dbMessages || []).filter(m => m.sender === 'counselor' || m.sender === 'system');
 export const getConversation = async (clientId?: string) => dbMessages || [];

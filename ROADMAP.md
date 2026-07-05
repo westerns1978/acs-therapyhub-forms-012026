@@ -33,6 +33,18 @@ Three buckets. Keep terse; one line per item. Newest on top within a bucket.
   client header. `getLastAppointment`/`getNextAppointment` (services/api.ts).
 
 ## IN-FLIGHT
+- **WS2 group check-in → chart distribution (branch `feat/group-checkin-distribute`, no-deploy pass)** —
+  `distributeGroupNote()` posts one group note into each present attendee's chart, stamping that
+  attendee's own `appointment_id` + `note_type='Group Session'` and looping the existing
+  `saveClinicalNote` (clinician-only RLS, untouched). UI is a "who's in the room" check-in card on
+  GreenRoom (group sessions only). **Idempotency = Option C, DB-enforced**: migration
+  `20260705_group_checkin_1_clinical_notes_group_seat_unique.sql` adds a partial unique index
+  `ux_clinical_notes_group_seat on clinical_notes(appointment_id) where note_type='Group Session'`,
+  so a re-post raises 23505 → classified `alreadyPosted` (no duplicate, no double-count). **RELEASE
+  ORDER: apply the migration to live BEFORE deploying the bundle** — without the index the 23505
+  guarantee is absent and a re-post double-charts. **DEFERRED delta**: attendance persistence —
+  Present/No-Show is React-state only (no `attendance_status` column) until David asks to record it;
+  MVP is note distribution only.
 - **Client-type token set — 3 open questions for the David call** (the straw-man revision; resolving
   these is a one-migration change: drop+recreate `clients_client_type_check` + edit `config/clientType.ts`):
   1. **DWI Court / MRT** — counselors run it (Debra; David's block bundles DWI Court) but there is NO
