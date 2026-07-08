@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Client, Appointment } from '../../types';
 import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, ServiceType } from '../../config/sessionTaxonomy';
-import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries } from '../../services/api';
+import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
+import { counselorsForSessionType } from '../../config/sessionTaxonomy';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
@@ -71,6 +72,12 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>(undefined);
     useEffect(() => { if (isOpen) getGroupsWithCounselor().then(setGroups).catch(() => setGroups([])); }, [isOpen]);
 
+    // Cascade level 3: the bookable counselor roster (active rows). Visible-empty on
+    // failure — an empty select is honest; we never fabricate a roster.
+    const [counselors, setCounselors] = useState<Counselor[]>([]);
+    const [selectedCounselorId, setSelectedCounselorId] = useState<string | undefined>(undefined);
+    useEffect(() => { if (isOpen) getCounselors().then(setCounselors).catch(() => setCounselors([])); }, [isOpen]);
+
     useEffect(() => {
         if (preselectedClient) {
             setSessionTypeId('op_1on1'); // makeup flow: default to a 1:1
@@ -96,6 +103,13 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     // better than "Group" on a calendar card); 1:1s/evals keep their bare label.
     const sessionLabel = sessionDef.label === 'Group' ? `${serviceType3} Group` : sessionDef.label;
 
+    // Cascade level 3: qualification matrix. null = OPEN row (no roster given — David) →
+    // the full active roster stays selectable. Names key against counselors.name.
+    const qualifiedNames = counselorsForSessionType(sessionTypeId);
+    const qualifiedCounselors = qualifiedNames === null
+        ? counselors
+        : counselors.filter(c => qualifiedNames.includes(c.name));
+
     // Trigger AI Risk Analysis when date/time/client changes
     useEffect(() => {
         const analyze = async () => {
@@ -120,9 +134,29 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     }, [date, startTime, selectedClientId, sessionTypeId]);
 
     const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
-    // Therapist = the selected standing group's counselor (David/Karen/...), else the acting
-    // counselor (the logged-in user). Replaces the old hardcoded 'Bill Sunderman'.
-    const therapistName = selectedGroupObj?.counselor_name || user?.name || 'Unassigned';
+
+    // Reconcile the counselor selection: a standing group PINS its own counselor; otherwise
+    // keep the current pick while it stays qualified, else default to the logged-in user
+    // when qualified, else the first qualified counselor. Runs on any cascade change so a
+    // stale selection can never survive a session-type switch it isn't qualified for.
+    useEffect(() => {
+        if (selectedGroupObj) {
+            const pinned = counselors.find(c => c.name === selectedGroupObj.counselor_name);
+            setSelectedCounselorId(pinned?.id);
+            return;
+        }
+        setSelectedCounselorId(prev => {
+            if (prev && qualifiedCounselors.some(c => c.id === prev)) return prev;
+            const own = user?.name ? qualifiedCounselors.find(c => c.name === user.name) : undefined;
+            return (own ?? qualifiedCounselors[0])?.id;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionTypeId, counselors, selectedGroupId]);
+
+    const selectedCounselor = counselors.find(c => c.id === selectedCounselorId);
+    // Therapist display name follows the explicit counselor pick (group-pinned or chosen);
+    // group counselor_name is the fallback while the roster is still loading.
+    const therapistName = selectedCounselor?.name || selectedGroupObj?.counselor_name || 'Unassigned';
 
     // Recurrence is a 1:1 AD-HOC affordance this round: not for group session types, and not
     // when a standing group is attached (a series doesn't carry group_id — out of scope). Either
@@ -244,6 +278,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                 therapistName,
                 appointmentType: sessionLabel,
                 sessionTypeId: sessionDef.id,
+                counselorId: selectedCounselorId,
                 modality: 'Virtual (Zoom)',
                 title: `${sessionLabel} - ${client.name}`,
                 firstDate,
@@ -264,6 +299,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             title: isGroup ? sessionLabel : `${sessionLabel} - ${client?.name}`,
             type: sessionLabel,
             sessionTypeId: sessionDef.id,
+            counselorId: selectedCounselorId,
             date: new Date(date + 'T00:00:00'),
             // Canonical 24-hour "HH:MM" (matches the <input type="time"> value and the
             // read-path format). NO 12-hour conversion here — that produced "06:00 PM",
@@ -271,7 +307,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             startTime,
             endTime,
             modality: 'Virtual (Zoom)',
-            therapist: selectedGroup?.counselor_name || user?.name || 'Unassigned',
+            therapist: therapistName,
             zoomLink,
             status: 'Scheduled',
             serviceType,
@@ -519,8 +555,22 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                         )}
 
                          <div>
-                            <label className="block text-sm font-medium mb-1">Therapist</label>
-                            <input type="text" readOnly value={therapistName} className="w-full p-2 border border-border dark:border-slate-600 bg-gray-100 dark:bg-slate-800 rounded-md" />
+                            <label htmlFor="counselor" className="block text-sm font-medium mb-1">Counselor</label>
+                            <select
+                                id="counselor"
+                                value={selectedCounselorId ?? ''}
+                                onChange={e => setSelectedCounselorId(e.target.value || undefined)}
+                                disabled={!!selectedGroupObj}
+                                className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md disabled:bg-gray-100 dark:disabled:bg-slate-800"
+                            >
+                                {qualifiedCounselors.length === 0 && <option value="">— No counselors available —</option>}
+                                {qualifiedCounselors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            {selectedGroupObj ? (
+                                <p className="mt-1 text-xs text-slate-500">Pinned to the standing group's counselor.</p>
+                            ) : qualifiedNames === null ? (
+                                <p className="mt-1 text-xs text-slate-500">No roster defined for Group sessions — full roster shown (open item for David).</p>
+                            ) : null}
                         </div>
                     </main>
 

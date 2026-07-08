@@ -392,6 +392,7 @@ const mapAppointmentRowToApp = (row: any): Appointment => {
         status: normalizeAppointmentStatus(row.status),
         serviceType: row.service_type || undefined,
         sessionTypeId: row.session_type || undefined,
+        counselorId: row.counselor_id || undefined,
         groupId: row.group_id || undefined,
         capacity: row.capacity ?? undefined,
         // NOTE: appointments.client_id is TEXT in the DB, while every other
@@ -425,6 +426,7 @@ const mapAppToAppointmentRow = (appt: Partial<Appointment>) => {
         status: appt.status ?? 'Scheduled',
         service_type: appt.serviceType ?? null,   // WS3/WS6: born categorized (group inherits; ad-hoc → null, set at mark-complete)
         session_type: appt.sessionTypeId ?? null,  // taxonomy token (config/sessionTaxonomy.ts) — NOT the accrual axis
+        counselor_id: appt.counselorId ?? null,    // explicit attribution; NULL → trigger self-attributes the booker
         group_id: appt.groupId ?? null,            // WS6: standing-group instance (null = ad-hoc)
         capacity: appt.capacity ?? null,
         client_id: appt.clientId ?? null,
@@ -581,6 +583,7 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
     if ('status' in patch) row.status = patch.status ?? 'Scheduled';
     if ('serviceType' in patch) row.service_type = patch.serviceType ?? null;
     if ('sessionTypeId' in patch) row.session_type = patch.sessionTypeId ?? null;
+    if ('counselorId' in patch) row.counselor_id = patch.counselorId ?? null;
     if ('capacity' in patch) row.capacity = patch.capacity ?? null;
     if ('clientId' in patch) row.client_id = patch.clientId ?? null;
     if ('clientName' in patch) row.client_name = patch.clientName ?? null;
@@ -676,6 +679,7 @@ export interface CreateRecurringSeriesInput {
     count: number;           // N weekly occurrences (the wired bound)
     serviceType?: Appointment['serviceType'];
     sessionTypeId?: string;  // taxonomy token — stamped on each occurrence row
+    counselorId?: string;    // explicit attribution — stamped on each occurrence row
     zoomLink?: string;
     zoomMeetingId?: string;
 }
@@ -740,6 +744,7 @@ export const createRecurringSeries = async (
         status: 'Scheduled',
         serviceType: input.serviceType,
         sessionTypeId: input.sessionTypeId,
+        counselorId: input.counselorId,
         clientId: input.clientId,
         clientName: input.clientName,
         zoomLink: input.zoomLink,

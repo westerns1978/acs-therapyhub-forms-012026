@@ -421,6 +421,9 @@ export interface Appointment {
   /** Taxonomy token (config/sessionTaxonomy.ts id) — maps to appointments.session_type.
    *  Distinct from serviceType (WS3 accrual category) and from type (display label). */
   sessionTypeId?: string;
+  /** FK counselors.id — explicit counselor attribution (WS1 identity link). When absent,
+   *  the DB trigger self-attributes the acting clinician (NULL-only fill). */
+  counselorId?: string;
   groupId?: string; // WS6: standing-group instance (null/undefined = ad-hoc session)
   capacity?: number;
   attendees?: Attendee[];
