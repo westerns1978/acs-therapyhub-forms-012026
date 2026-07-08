@@ -391,6 +391,7 @@ const mapAppointmentRowToApp = (row: any): Appointment => {
         zoomMeetingId: row.zoom_meeting_id || undefined,
         status: normalizeAppointmentStatus(row.status),
         serviceType: row.service_type || undefined,
+        sessionTypeId: row.session_type || undefined,
         groupId: row.group_id || undefined,
         capacity: row.capacity ?? undefined,
         // NOTE: appointments.client_id is TEXT in the DB, while every other
@@ -423,6 +424,7 @@ const mapAppToAppointmentRow = (appt: Partial<Appointment>) => {
         zoom_meeting_id: appt.zoomMeetingId ?? null,
         status: appt.status ?? 'Scheduled',
         service_type: appt.serviceType ?? null,   // WS3/WS6: born categorized (group inherits; ad-hoc → null, set at mark-complete)
+        session_type: appt.sessionTypeId ?? null,  // taxonomy token (config/sessionTaxonomy.ts) — NOT the accrual axis
         group_id: appt.groupId ?? null,            // WS6: standing-group instance (null = ad-hoc)
         capacity: appt.capacity ?? null,
         client_id: appt.clientId ?? null,
@@ -578,6 +580,7 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
     if ('zoomMeetingId' in patch) row.zoom_meeting_id = patch.zoomMeetingId ?? null;
     if ('status' in patch) row.status = patch.status ?? 'Scheduled';
     if ('serviceType' in patch) row.service_type = patch.serviceType ?? null;
+    if ('sessionTypeId' in patch) row.session_type = patch.sessionTypeId ?? null;
     if ('capacity' in patch) row.capacity = patch.capacity ?? null;
     if ('clientId' in patch) row.client_id = patch.clientId ?? null;
     if ('clientName' in patch) row.client_name = patch.clientName ?? null;
@@ -672,6 +675,7 @@ export interface CreateRecurringSeriesInput {
     endTime: string;
     count: number;           // N weekly occurrences (the wired bound)
     serviceType?: Appointment['serviceType'];
+    sessionTypeId?: string;  // taxonomy token — stamped on each occurrence row
     zoomLink?: string;
     zoomMeetingId?: string;
 }
@@ -735,6 +739,7 @@ export const createRecurringSeries = async (
         therapist: input.therapistName,
         status: 'Scheduled',
         serviceType: input.serviceType,
+        sessionTypeId: input.sessionTypeId,
         clientId: input.clientId,
         clientName: input.clientName,
         zoomLink: input.zoomLink,

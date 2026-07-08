@@ -388,7 +388,10 @@ export interface SessionAttendanceData {
 }
 
 export type AppointmentStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Canceled' | 'No Show';
-export type AppointmentType = 'SATOP Group' | 'REACT Group' | 'Anger Management Group' | 'Gambling Group' | 'Individual Counseling' | 'DOT Assessment' | 'Intake Assessment';
+// Session-type labels now come from config/sessionTaxonomy.ts (three-level booking
+// cascade, David 7/7). Legacy literals ('SATOP Group', 'Individual Counseling', ...)
+// remain valid stored data, so this is a string alias rather than a closed union.
+export type AppointmentType = string;
 // WS3 reg hour-category (9 CSR 30-3.206) for session-hours accrual — distinct from
 // AppointmentType (program/format). Required before an appointment can be Completed;
 // 'other' = a non-program session that deliberately does not accrue.
@@ -415,6 +418,9 @@ export interface Appointment {
   zoomMeetingId?: string;
   status: AppointmentStatus;
   serviceType?: ServiceType;
+  /** Taxonomy token (config/sessionTaxonomy.ts id) — maps to appointments.session_type.
+   *  Distinct from serviceType (WS3 accrual category) and from type (display label). */
+  sessionTypeId?: string;
   groupId?: string; // WS6: standing-group instance (null/undefined = ad-hoc session)
   capacity?: number;
   attendees?: Attendee[];

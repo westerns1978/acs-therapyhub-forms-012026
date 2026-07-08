@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Client, Appointment, AppointmentType } from '../../types';
+import { Client, Appointment } from '../../types';
+import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, ServiceType } from '../../config/sessionTaxonomy';
 import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries } from '../../services/api';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
@@ -18,23 +19,16 @@ interface ScheduleSessionModalProps {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// WS3: two-step Session Type. A parent CATEGORY select filters the child service
-// select; the child's value stays a full AppointmentType string, so isGroup,
-// capacity, recurrence, and every downstream consumer are untouched. The parent is
-// DERIVED from the current sessionType (single source of truth) — there's no separate
-// parent state to desync — so a preselected/edited appointment opens on the correct
-// category with the right child preselected, and a fresh session keeps today's default.
-const SESSION_TYPE_CATEGORIES: { label: string; types: AppointmentType[] }[] = [
-    { label: 'Group',      types: ['SATOP Group', 'REACT Group', 'Anger Management Group', 'Gambling Group'] },
-    { label: 'Individual', types: ['Individual Counseling'] },
-    { label: 'Assessment', types: ['DOT Assessment', 'Intake Assessment'] },
-];
-const categoryForType = (t: AppointmentType): string =>
-    SESSION_TYPE_CATEGORIES.find(c => c.types.includes(t))?.label ?? SESSION_TYPE_CATEGORIES[0].label;
+// Three-level cascade (David 7/7): Service Type (OP/SATOP/Evaluation) -> Session Type,
+// both from config/sessionTaxonomy.ts. State holds only the session-type ID; the service
+// level is DERIVED from it (single source of truth — no parent state to desync). The
+// counselor level (matrix filtering) lands in the next step. NOTE: the taxonomy service
+// is NOT appointments.service_type — that column stays the WS3 accrual category
+// ('counseling'/...) and keeps its existing behavior (group-inherited or set at complete).
 
 const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onClose, onSave, clients, preselectedClient }) => {
     const { user } = useAuth();
-    const [sessionType, setSessionType] = useState<AppointmentType>('SATOP Group');
+    const [sessionTypeId, setSessionTypeId] = useState<string>(SESSION_TYPES[0].id);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [startTime, setStartTime] = useState('18:00');
     const [endTime, setEndTime] = useState('20:00');
@@ -79,18 +73,33 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
 
     useEffect(() => {
         if (preselectedClient) {
-            setSessionType('Individual Counseling');
+            setSessionTypeId('op_1on1'); // makeup flow: default to a 1:1
             setSelectedClientId(preselectedClient.id);
         } else {
-            setSessionType('SATOP Group');
+            setSessionTypeId(SESSION_TYPES[0].id);
             setSelectedClientId(clients[0]?.id);
         }
     }, [preselectedClient, clients]);
-    
+
+    // Cascade derivation: the service level is read off the current session type so the
+    // two selects always agree; changing the service snaps to its first session type.
+    const sessionDef = sessionTypeById(sessionTypeId) ?? SESSION_TYPES[0];
+    const serviceType3 = sessionDef.service;
+    const sessionTypesForCurrentService = sessionTypesForService(serviceType3);
+    const handleServiceChange = (svc: string) => {
+        const first = sessionTypesForService(svc as ServiceType)[0];
+        if (first) setSessionTypeId(first.id);
+    };
+
+    const isGroup = sessionDef.label.toLowerCase().includes('group');
+    // Display label carries the service for the two 'Group' rows ("OP Group" reads
+    // better than "Group" on a calendar card); 1:1s/evals keep their bare label.
+    const sessionLabel = sessionDef.label === 'Group' ? `${serviceType3} Group` : sessionDef.label;
+
     // Trigger AI Risk Analysis when date/time/client changes
     useEffect(() => {
         const analyze = async () => {
-            if (selectedClientId && date && startTime && !sessionType.includes('Group')) {
+            if (selectedClientId && date && startTime && !isGroup) {
                 setIsAnalyzingRisk(true);
                 setTravelRisk(null);
                 try {
@@ -108,19 +117,8 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         };
         const debounce = setTimeout(analyze, 800);
         return () => clearTimeout(debounce);
-    }, [date, startTime, selectedClientId, sessionType]);
+    }, [date, startTime, selectedClientId, sessionTypeId]);
 
-    // WS3 parent/child derivation (see SESSION_TYPE_CATEGORIES). Parent is read off the
-    // current sessionType so it always agrees with the child; changing it snaps the child
-    // to the first service in that category.
-    const sessionCategory = categoryForType(sessionType);
-    const typesForCategory = SESSION_TYPE_CATEGORIES.find(c => c.label === sessionCategory)?.types ?? [];
-    const handleCategoryChange = (label: string) => {
-        const cat = SESSION_TYPE_CATEGORIES.find(c => c.label === label);
-        if (cat && cat.types.length) setSessionType(cat.types[0]);
-    };
-
-    const isGroup = sessionType.toLowerCase().includes('group');
     const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
     // Therapist = the selected standing group's counselor (David/Karen/...), else the acting
     // counselor (the logged-in user). Replaces the old hardcoded 'Bill Sunderman'.
@@ -216,7 +214,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                     15,
                     Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000),
                 );
-                const topic = isGroup ? sessionType : `Individual Counseling - ${client?.name ?? ''}`.trim();
+                const topic = isGroup ? sessionLabel : `${sessionLabel} - ${client?.name ?? ''}`.trim();
                 const zm = await createZoomMeeting(String(user.id), {
                     topic,
                     startIso,
@@ -244,9 +242,10 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                 clientId: selectedClientId,
                 clientName: client.name,
                 therapistName,
-                appointmentType: sessionType,
+                appointmentType: sessionLabel,
+                sessionTypeId: sessionDef.id,
                 modality: 'Virtual (Zoom)',
-                title: `Individual Counseling - ${client.name}`,
+                title: `${sessionLabel} - ${client.name}`,
                 firstDate,
                 startTime,
                 endTime,
@@ -262,8 +261,9 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         }
 
         const newAppointmentData: Omit<Appointment, 'id'> = {
-            title: isGroup ? sessionType : `Individual Counseling - ${client?.name}`,
-            type: sessionType,
+            title: isGroup ? sessionLabel : `${sessionLabel} - ${client?.name}`,
+            type: sessionLabel,
+            sessionTypeId: sessionDef.id,
             date: new Date(date + 'T00:00:00'),
             // Canonical 24-hour "HH:MM" (matches the <input type="time"> value and the
             // read-path format). NO 12-hour conversion here — that produced "06:00 PM",
@@ -350,20 +350,20 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                     </header>
                     
                     <main className="p-6 space-y-4">
-                        {/* WS3 two-step: parent "Session type" category filters the child "Service"
-                            select. The child value stays a full AppointmentType, so nothing downstream
-                            (isGroup, capacity, recurrence) changes. */}
+                        {/* Three-level cascade (David 7/7): "Service type" (OP/SATOP/Evaluation)
+                            filters "Session type" (config/sessionTaxonomy.ts). Counselor filtering
+                            (level 3) lands in the next step. */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="sessionCategory" className="block text-sm font-medium mb-1">Session type</label>
-                                <select id="sessionCategory" value={sessionCategory} onChange={e => handleCategoryChange(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
-                                    {SESSION_TYPE_CATEGORIES.map(c => <option key={c.label} value={c.label}>{c.label}</option>)}
+                                <label htmlFor="serviceType" className="block text-sm font-medium mb-1">Service type</label>
+                                <select id="serviceType" value={serviceType3} onChange={e => handleServiceChange(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
+                                    {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label htmlFor="sessionType" className="block text-sm font-medium mb-1">Service</label>
-                                <select id="sessionType" value={sessionType} onChange={e => setSessionType(e.target.value as AppointmentType)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
-                                    {typesForCategory.map(t => <option key={t} value={t}>{t}</option>)}
+                                <label htmlFor="sessionType" className="block text-sm font-medium mb-1">Session type</label>
+                                <select id="sessionType" value={sessionTypeId} onChange={e => setSessionTypeId(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
+                                    {sessionTypesForCurrentService.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                                 </select>
                             </div>
                         </div>
