@@ -154,12 +154,12 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
           </div>
 
           {/* Operational client-type chip — read-only, styled unlike the clinical program pill
-              above so the two axes don't read as duplicates. Sits with the booking glance. */}
-          {client.clientType && (
-            <div className="mt-3 flex justify-center lg:justify-start">
-              <ClientTypeBadge type={client.clientType} />
-            </div>
-          )}
+              above so the two axes don't read as duplicates. Sits with the booking glance.
+              Always rendered (sched step 11) — the badge itself surfaces a "needs review"
+              state for untagged/ambiguous-legacy client_type rather than staying invisible. */}
+          <div className="mt-3 flex justify-center lg:justify-start">
+            <ClientTypeBadge type={client.clientType} />
+          </div>
 
           {/* Booking glance — most-recent past + next upcoming appointment. Both resolve via
               appointments.client_id matched to this client's uuid (same as the contact popup). */}

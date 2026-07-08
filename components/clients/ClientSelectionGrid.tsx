@@ -96,7 +96,9 @@ const ClientCard: React.FC<{
             <ClientAvatar client={client} className="w-14 h-14 text-xl mb-2" />
             <h3 className="font-bold">{client.name}</h3>
             <p className="text-sm text-surface-secondary-content">{programDisplayLabel(client.program)}</p>
-            {client.clientType && <ClientTypeBadge type={client.clientType} className="mt-1.5" />}
+            {/* Always rendered (sched step 11) — surfaces a "needs review" state for
+                untagged/ambiguous-legacy client_type instead of staying invisible. */}
+            <ClientTypeBadge type={client.clientType} className="mt-1.5" />
             {isSatop ? (
                 // Started clients show the authoritative progress bar; un-started ones get a quiet
                 // muted footnote instead of an empty 0% bar + loud "Not yet established" filler.
