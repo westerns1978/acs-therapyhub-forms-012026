@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Appointment, AppointmentStatus, ServiceType, Client } from '../../types';
-import { getLastAppointment, getNextAppointment } from '../../services/api';
+import { getLastAppointment, getNextAppointment, getTherapistAppointments } from '../../services/api';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
-import { formatTime12 } from '../../config/time';
+import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
+import { detectOverlaps } from '../../services/recurrence';
 import Modal from '../ui/Modal';
-import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft, Phone, Mail, Repeat, Save } from 'lucide-react';
+import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft, Phone, Mail, Repeat, Save, Loader2, CalendarClock } from 'lucide-react';
 
 /** The fee decision the cancel flow hands back to its parent. Outside the 24h window it's
  *  always { fee: 'none' }; inside, staff choose to assess or waive (with a logged reason). */
@@ -47,6 +48,9 @@ interface AppointmentStatusModalProps {
     client?: Client | null;
     /** Persist a per-occurrence note (appointments.notes). */
     onSaveNotes?: (notes: string) => void;
+    /** Step 10: persist a new date/time for this occurrence via the existing updateAppointment.
+     *  Omitted = no reschedule UI (read-only detail keeps its current behavior). */
+    onReschedule?: (date: Date, startTime: string, endTime: string) => void;
     /** Recurring-series edit-scope. Offered only when the appointment carries a seriesId.
      *  These act on the WHOLE series (future/non-completed occurrences); the buttons above
      *  act on THIS occurrence only. */
@@ -56,7 +60,7 @@ interface AppointmentStatusModalProps {
 
 const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     appointment, isOpen, onClose, onSetStatus, onCancel, onDelete, onStartSession, isSaving, canManage,
-    client, onSaveNotes, onCancelSeries, onDeleteSeries,
+    client, onSaveNotes, onCancelSeries, onDeleteSeries, onReschedule,
 }) => {
     // WS3: a session category is REQUIRED before completion (drives categorized accrual).
     const [serviceType, setServiceType] = useState<ServiceType | ''>('');
@@ -66,11 +70,84 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     const [waiveReason, setWaiveReason] = useState('');
     // Per-occurrence note draft. Reset when the appointment changes.
     const [notesDraft, setNotesDraft] = useState('');
+    // Step 10: reschedule draft (date/start/end), synced to the appointment's CURRENT persisted
+    // values. Deps include date/startTime/endTime (not just id) so a successful reschedule —
+    // which patches this same appointment id with new values — resyncs the draft too, clearing
+    // the dirty state instead of leaving stale pre-save values in the inputs.
+    const [rescheduleDate, setRescheduleDate] = useState('');
+    const [rescheduleStart, setRescheduleStart] = useState('');
+    const [rescheduleEnd, setRescheduleEnd] = useState('');
+    const [rescheduleConflicts, setRescheduleConflicts] = useState<string[]>([]);
+    const [checkingReschedule, setCheckingReschedule] = useState(false);
+    const [overrideRescheduleConflict, setOverrideRescheduleConflict] = useState(false);
     useEffect(() => {
         setServiceType((appointment?.serviceType as ServiceType) ?? '');
         setCancelPanel(false); setWaiveOpen(false); setWaiveReason('');
         setNotesDraft(appointment?.notes ?? '');
-    }, [appointment?.id]);
+        if (appointment) {
+            setRescheduleDate(toLocalYMD(new Date(appointment.date)));
+            setRescheduleStart(appointment.startTime);
+            setRescheduleEnd(appointment.endTime);
+        }
+        setRescheduleConflicts([]);
+        setOverrideRescheduleConflict(false);
+    }, [appointment?.id, appointment?.date, appointment?.startTime, appointment?.endTime]);
+
+    // Preserves the appointment's ORIGINAL duration when the user picks a new start time —
+    // the end time auto-shifts with it (still hand-editable afterward if staff want a
+    // different length). Falls back to 60 min if the stored window is somehow invalid.
+    const originalDurationMin = (() => {
+        if (!appointment) return 60;
+        const s = parseTimeToMinutes(appointment.startTime), e = parseTimeToMinutes(appointment.endTime);
+        return (!Number.isNaN(s) && !Number.isNaN(e) && e > s) ? e - s : 60;
+    })();
+    const handleRescheduleStartChange = (val: string) => {
+        setRescheduleStart(val);
+        const s = parseTimeToMinutes(val);
+        if (!Number.isNaN(s)) setRescheduleEnd(minutesToTimeLabel(s + originalDurationMin));
+    };
+
+    const rescheduleDirty = !!appointment && (
+        rescheduleDate !== toLocalYMD(new Date(appointment.date))
+        || rescheduleStart !== appointment.startTime
+        || rescheduleEnd !== appointment.endTime
+    );
+
+    // Debounced re-run of the SAME deterministic overlap check ScheduleSessionModal uses
+    // (getTherapistAppointments + detectOverlaps), scoped to the new date and EXCLUDING this
+    // appointment's own row (else it would trivially "conflict" with its own current slot).
+    useEffect(() => {
+        setRescheduleConflicts([]);
+        setOverrideRescheduleConflict(false);
+        if (!appointment || !appointment.therapist || appointment.therapist === 'Unassigned') return;
+        const s = parseTimeToMinutes(rescheduleStart), e = parseTimeToMinutes(rescheduleEnd);
+        if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return;
+        const t = setTimeout(async () => {
+            setCheckingReschedule(true);
+            try {
+                const day = new Date(rescheduleDate + 'T00:00:00');
+                const from = new Date(day); from.setHours(0, 0, 0, 0);
+                const to = new Date(day); to.setHours(23, 59, 59, 999);
+                const existing = await getTherapistAppointments(appointment.therapist, from.toISOString(), to.toISOString());
+                const others = existing.filter(a => a.id !== appointment.id);
+                const existingWindows = others.map(a => ({ date: new Date(a.date), startTime: a.startTime, endTime: a.endTime, _t: a.clientName || a.title }));
+                const hits = detectOverlaps([{ date: day, startTime: rescheduleStart, endTime: rescheduleEnd }], existingWindows);
+                setRescheduleConflicts(hits.map(h => (h.conflictsWith as any)._t || 'another appointment'));
+            } catch {
+                // Visible-empty on failure — never silently assert "no conflicts".
+            } finally {
+                setCheckingReschedule(false);
+            }
+        }, 600);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [appointment?.id, appointment?.therapist, rescheduleDate, rescheduleStart, rescheduleEnd]);
+
+    const rescheduleBlocked = rescheduleConflicts.length > 0 && !overrideRescheduleConflict;
+    const handleReschedule = () => {
+        if (!appointment || !onReschedule || rescheduleBlocked) return;
+        onReschedule(new Date(rescheduleDate + 'T00:00:00'), rescheduleStart, rescheduleEnd);
+    };
 
     // WS4 booking glance — this client's most-recent PAST and next UPCOMING appointment.
     // Tri-state so the reads never flash the wrong thing: `undefined` = still loading ("…"),
@@ -284,6 +361,54 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                         </div>
                     ) : (
                     <>
+                        {/* Step 10: reschedule this occurrence — date/time edit via updateAppointment,
+                            re-running the SAME deterministic overlap check the booking modal uses. */}
+                        {onReschedule && (
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                                <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-400">
+                                    <CalendarClock size={13} /> Reschedule
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    <input
+                                        type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)}
+                                        className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100"
+                                    />
+                                    <input
+                                        type="time" value={rescheduleStart} onChange={e => handleRescheduleStartChange(e.target.value)}
+                                        className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100"
+                                    />
+                                    <input
+                                        type="time" value={rescheduleEnd} onChange={e => setRescheduleEnd(e.target.value)}
+                                        className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100"
+                                    />
+                                </div>
+                                {checkingReschedule && (
+                                    <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                                        <Loader2 size={12} className="animate-spin" /> Checking for conflicts…
+                                    </p>
+                                )}
+                                {rescheduleConflicts.length > 0 && (
+                                    <div className="p-2 rounded-lg border bg-red-50 border-red-200">
+                                        <p className="text-xs font-bold text-red-700 flex items-center gap-1.5">
+                                            <AlertTriangle size={13} className="shrink-0" /> Double-booking — overlaps {rescheduleConflicts.join(', ')}
+                                        </p>
+                                        <label className="mt-1.5 flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" checked={overrideRescheduleConflict} onChange={e => setOverrideRescheduleConflict(e.target.checked)} className="rounded" />
+                                            <span className="text-xs font-semibold text-red-800">Reschedule anyway (override)</span>
+                                        </label>
+                                    </div>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={handleReschedule}
+                                    disabled={isSaving || !rescheduleDirty || rescheduleBlocked}
+                                    className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-bold bg-slate-700 hover:bg-slate-800 text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Save size={14} /> Save new time
+                                </button>
+                            </div>
+                        )}
+
                         {appointment.clientId && onStartSession && (
                             <button
                                 type="button"

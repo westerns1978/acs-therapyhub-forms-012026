@@ -6,7 +6,7 @@ import { counselorsForSessionType } from '../../config/sessionTaxonomy';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
-import { formatTime12, parseTimeToMinutes, minutesToTimeLabel } from '../../config/time';
+import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { useAuth } from '../../contexts/AuthContext';
 import { MapPin, AlertTriangle, CheckCircle, Loader2, Repeat } from 'lucide-react';
 
@@ -26,7 +26,6 @@ interface ScheduleSessionModalProps {
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const toLocalYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 // Three-level cascade (David 7/7): Service Type (OP/SATOP/Evaluation) -> Session Type,
 // both from config/sessionTaxonomy.ts. State holds only the session-type ID; the service

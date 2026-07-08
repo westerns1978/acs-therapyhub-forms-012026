@@ -149,6 +149,23 @@ const SessionManagement: React.FC = () => {
         }
     };
 
+    // Step 10: persist a new date/time for this occurrence (the modal already ran the overlap
+    // check and got an explicit override if needed — this just writes what it decided).
+    const handleReschedule = async (date: Date, startTime: string, endTime: string) => {
+        if (!selectedAppt) return;
+        setSavingStatus(true);
+        try {
+            const updated = await updateAppointment(selectedAppt.id, { date, startTime, endTime });
+            setAppointments(prev => prev.map(a => (a.id === updated.id ? updated : a)));
+            setSelectedAppt(updated);
+        } catch (err) {
+            console.error('[SessionManagement] reschedule failed:', err);
+            alert('Could not reschedule: ' + (err as Error).message);
+        } finally {
+            setSavingStatus(false);
+        }
+    };
+
     // Series edit-scope. Both bulk ops PROTECT Completed occurrences (accrual). After a bulk
     // change we refetch rather than surgically patch — the simplest correct thing for N rows.
     const handleCancelSeries = async () => {
@@ -345,6 +362,7 @@ const SessionManagement: React.FC = () => {
                 canManage={canManage}
                 client={selectedClient}
                 onSaveNotes={canManage ? handleSaveNotes : undefined}
+                onReschedule={canManage ? handleReschedule : undefined}
                 onCancelSeries={canManage && selectedAppt?.seriesId ? handleCancelSeries : undefined}
                 onDeleteSeries={canManage && selectedAppt?.seriesId ? handleDeleteSeries : undefined}
             />
