@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Appointment } from '../../types';
 import type { Counselor } from '../../services/api';
 import { getAppointmentStatusStyle } from './AppointmentStatusModal';
-import { parseTimeToMinutes, formatTime12 } from '../../config/time';
+import { parseTimeToMinutes, formatTime12, minutesToTimeLabel } from '../../config/time';
 import { serviceCardClass } from '../../config/sessionTaxonomy';
 import { Clock, Video, AlertTriangle } from 'lucide-react';
 
@@ -24,6 +24,13 @@ interface CounselorDayViewProps {
     /** Step 8 week board: fixed-width lane columns + horizontal scroll instead of the
      *  default compress-to-fit. Day view leaves this unset — unchanged behavior. */
     scrollable?: boolean;
+    /** Step 9 distributed booking: the solo lane's counselor id (non-admin mode), so a
+     *  slot click can prefill it same as any other lane. Ignored in admin mode. */
+    soloCounselorId?: string;
+    /** Step 9: fires when staff click an EMPTY point in a lane (not an existing appointment
+     *  card, which stops propagation). Omitted = no click affordance (neither view opts out
+     *  today, but kept optional so a future read-only consumer isn't forced to wire it). */
+    onSlotClick?: (info: { counselorId?: string; counselorName?: string; date: Date; time: string }) => void;
 }
 
 // Visible window: 6 AM – 9 PM. Covers early individual slots through evening groups
@@ -43,7 +50,7 @@ const parseMinutes = (t: string): number => {
 
 const UNASSIGNED = '__unassigned__';
 
-const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt, soloLabel, conflictIds, scrollable }) => {
+const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt, soloLabel, conflictIds, scrollable, soloCounselorId, onSlotClick }) => {
     // Appointments on this calendar day.
     const dayEvents = useMemo(
         () => appointments.filter(a => new Date(a.date).toDateString() === date.toDateString()),
@@ -58,7 +65,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
         // clinician's (RLS-scoped), so put them ALL in one lane — do NOT bucket by therapist_name
         // (that mis-files "Karen Ventimiglia, LPC" into Unassigned) and show NO Unassigned lane.
         if (soloLabel) {
-            return [{ key: 'solo', label: soloLabel, events: dayEvents }];
+            return [{ key: 'solo', label: soloLabel, events: dayEvents, counselorId: soloCounselorId }];
         }
         const counselorNames = new Set(counselors.map(c => c.name));
         const byLane = new Map<string, Appointment[]>();
@@ -70,12 +77,14 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
             if (!byLane.has(key)) byLane.set(key, []);
             byLane.get(key)!.push(a);
         });
-        const result = counselors.map(c => ({ key: c.name, label: c.name, events: byLane.get(c.name) || [] }));
+        const result = counselors.map(c => ({ key: c.name, label: c.name, events: byLane.get(c.name) || [], counselorId: c.id as string | undefined }));
         if (hasUnassigned) {
-            result.push({ key: UNASSIGNED, label: 'Unassigned', events: byLane.get(UNASSIGNED) || [] });
+            // No resolvable counselor for this lane — a slot click here still opens the
+            // modal (via onSlotClick below), just without a counselor prefill.
+            result.push({ key: UNASSIGNED, label: 'Unassigned', events: byLane.get(UNASSIGNED) || [], counselorId: undefined });
         }
         return result;
-    }, [counselors, dayEvents, soloLabel]);
+    }, [counselors, dayEvents, soloLabel, soloCounselorId]);
 
     const blockStyle = (apt: Appointment): React.CSSProperties => {
         const startMin = parseMinutes(apt.startTime);
@@ -83,6 +92,19 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
         const top = ((startMin - DAY_START_HOUR * 60) / WINDOW_MIN) * 100;
         const height = ((endMin - startMin) / WINDOW_MIN) * 100;
         return { top: `${Math.max(0, top)}%`, height: `${Math.min(height, 100 - Math.max(0, top))}%` };
+    };
+
+    // Step 9: empty-slot click -> prefilled booking. Reads the click's vertical position
+    // within the lane, snaps to the nearest 30 min, and reports it plus the lane's counselor
+    // (if any). Appointment cards stopPropagation() so clicking one opens ITS detail, never
+    // also fires this.
+    const handleLaneClick = (counselorId: string | undefined, counselorName: string | undefined, e: React.MouseEvent<HTMLDivElement>) => {
+        if (!onSlotClick) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+        let minutesFromStart = Math.round((ratio * WINDOW_MIN) / 30) * 30;
+        minutesFromStart = Math.max(0, Math.min(minutesFromStart, WINDOW_MIN - 30));
+        onSlotClick({ counselorId, counselorName, date, time: minutesToTimeLabel(DAY_START_HOUR * 60 + minutesFromStart) });
     };
 
     const isToday = date.toDateString() === new Date().toDateString();
@@ -124,7 +146,11 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
 
                     {/* Counselor lanes */}
                     {lanes.map(lane => (
-                        <div key={lane.key} className="relative border-r border-border dark:border-slate-700/50 last:border-0 group">
+                        <div
+                            key={lane.key}
+                            className={`relative border-r border-border dark:border-slate-700/50 last:border-0 group ${onSlotClick ? 'cursor-pointer' : ''}`}
+                            onClick={onSlotClick ? e => handleLaneClick(lane.counselorId, lane.key === UNASSIGNED ? undefined : lane.label, e) : undefined}
+                        >
                             {/* Hour gridlines */}
                             {HOURS.map(h => <div key={h} className="h-[65px] border-b border-slate-50 dark:border-slate-800/30"></div>)}
 
@@ -142,8 +168,8 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
                                         key={apt.id}
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => onSelectAppt(apt)}
-                                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectAppt(apt); } }}
+                                        onClick={e => { e.stopPropagation(); onSelectAppt(apt); }}
+                                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelectAppt(apt); } }}
                                         className={`group/event absolute left-1 right-1 rounded-xl p-2 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
                                         style={blockStyle(apt)}
                                         title={isConflict ? `${apt.title} — DOUBLE-BOOKED with another ${apt.therapist} session` : `${apt.title} — ${apt.status} (click to change status)`}

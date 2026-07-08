@@ -27,6 +27,9 @@ const SessionManagement: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
+    // Step 9: empty-slot click prefill (counselor + time), cleared whenever the modal closes
+    // so the generic "Schedule Session" button never accidentally reuses a stale slot pick.
+    const [slotPrefill, setSlotPrefill] = useState<{ counselorId?: string; counselorName?: string; date: Date; time: string } | null>(null);
     const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
     const [savingStatus, setSavingStatus] = useState(false);
     // Calendar load must FAIL VISIBLY — never silently render phantom/mock appointments.
@@ -246,20 +249,6 @@ const SessionManagement: React.FC = () => {
         [selectedAppt, clients],
     );
 
-    // WS1 step C — day-view lane scope. UI scope must be a SUBSET of DB (RLS) scope, never
-    // wider. Gate on the SAME role strings as private.is_schedule_admin() (Director/Admin) so
-    // the board only shows lanes RLS could ever return rows for.
-    const isScheduleAdmin = user?.role === 'Director' || user?.role === 'Admin';
-    // A non-admin clinician's own counselor lane: resolved via the step-A auth_user_id link,
-    // fallback to an exact name match. null → no lane (fail-closed empty state, never full board).
-    const myCounselor = useMemo(
-        () =>
-            counselors.find(c => c.authUserId && user?.id && c.authUserId === user.id) ??
-            counselors.find(c => user?.name && c.name === user.name) ??
-            null,
-        [counselors, user?.id, user?.name],
-    );
-
     if (isLoading) return <LoadingSpinner />;
 
     if (loadError) {
@@ -281,7 +270,8 @@ const SessionManagement: React.FC = () => {
             <div className="flex justify-between items-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-border dark:border-slate-700">
                 <div className="flex items-center gap-6">
                     <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Today</button>
-                    {/* Week ↔ Day view toggle. Day = all-counselor swim-lanes (admin view). */}
+                    {/* Week ↔ Day view toggle. Both are the full all-counselor swim-lane board —
+                        step 9's distributed model (see below) opened it to every clinician. */}
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl text-sm font-bold border border-slate-300 dark:border-slate-600 shadow-sm">
                         <button onClick={() => setViewMode('week')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'week' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Week</button>
                         <button onClick={() => setViewMode('day')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'day' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Day</button>
@@ -296,18 +286,21 @@ const SessionManagement: React.FC = () => {
                             : startOfWeek.toLocaleDateString('default', { month: 'long', year: 'numeric' })}
                     </h2>
                 </div>
-                <button onClick={() => setScheduleModalOpen(true)} className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary-focus hover:shadow-primary/40 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                <button onClick={() => { setSlotPrefill(null); setScheduleModalOpen(true); }} className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary-focus hover:shadow-primary/40 hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     <CalIcon size={18} /> Schedule Session
                 </button>
             </div>
 
-            {/* Both Day and Week now render the SAME per-counselor swim-lane board (David 7/7,
-                step 8 — the Outlook split-view model): all-counselor lanes for schedule admins
-                (David/Jess), a single own-lane for a non-admin clinician (Karen), an empty state
-                if unresolvable. Week additionally forces fixed-width scrollable lanes and carries
+            {/* Step 9 — distributed booking model ("open the calendar, not the chart"): EVERY
+                staff role (Director/Therapist/Admin — same set as private.is_staff(), which now
+                also governs the widened appointments SELECT policy) sees the FULL all-counselor
+                board and can book onto any lane. This supersedes WS1 step C's non-admin solo-lane
+                restriction, which belonged to the prior "each clinician sees only their own
+                calendar" model. Week additionally forces fixed-width scrollable lanes and carries
                 the double-booking ring (parity with the old flat 7-day grid it replaces); Day
-                keeps its original compress-to-fit, no-ring behavior exactly as before. */}
-            {isScheduleAdmin ? (
+                keeps its original compress-to-fit, no-ring behavior exactly as before. Clicking an
+                empty slot opens the modal prefilled with that lane's counselor + the clicked time. */}
+            {canManage ? (
                 <CounselorDayView
                     date={currentDate}
                     counselors={counselors}
@@ -315,23 +308,14 @@ const SessionManagement: React.FC = () => {
                     onSelectAppt={setSelectedAppt}
                     conflictIds={viewMode === 'week' ? conflictIds : undefined}
                     scrollable={viewMode === 'week'}
-                />
-            ) : myCounselor ? (
-                <CounselorDayView
-                    date={currentDate}
-                    counselors={counselors}
-                    appointments={appointments}
-                    onSelectAppt={setSelectedAppt}
-                    soloLabel={myCounselor.name}
-                    conflictIds={viewMode === 'week' ? conflictIds : undefined}
-                    scrollable={viewMode === 'week'}
+                    onSlotClick={info => { setSlotPrefill(info); setScheduleModalOpen(true); }}
                 />
             ) : (
                 <div className="flex-1 flex items-center justify-center min-h-[600px] bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700">
                     <div className="max-w-md text-center p-8">
                         <CalIcon className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={40} />
-                        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No schedule assigned</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Your account isn't linked to a counselor calendar yet, so there's no schedule to show. Ask an administrator to link your account.</p>
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No scheduling access</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Your account's role doesn't include scheduling. Ask an administrator if you believe this is wrong.</p>
                     </div>
                 </div>
             )}
@@ -339,9 +323,13 @@ const SessionManagement: React.FC = () => {
             {isScheduleModalOpen && (
                 <ScheduleSessionModal
                     isOpen={isScheduleModalOpen}
-                    onClose={() => setScheduleModalOpen(false)}
+                    onClose={() => { setScheduleModalOpen(false); setSlotPrefill(null); }}
                     onSave={(newApt) => setAppointments(prev => [...prev, newApt])}
                     clients={clients}
+                    prefillCounselorId={slotPrefill?.counselorId}
+                    prefillCounselorName={slotPrefill?.counselorName}
+                    prefillDate={slotPrefill?.date}
+                    prefillTime={slotPrefill?.time}
                 />
             )}
 

@@ -16,9 +16,17 @@ interface ScheduleSessionModalProps {
     onSave: (newAppointment: Appointment) => void;
     clients: Client[];
     preselectedClient?: Client;
+    // Step 9 distributed booking: seeded from a calendar slot click (counselor lane + time).
+    // The modal is a fresh mount each open ({isScheduleModalOpen && <Modal/>} in the parent),
+    // so these only need to inform INITIAL state, not be watched afterward.
+    prefillCounselorId?: string;
+    prefillCounselorName?: string;
+    prefillDate?: Date;
+    prefillTime?: string;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const toLocalYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 // Three-level cascade (David 7/7): Service Type (OP/SATOP/Evaluation) -> Session Type,
 // both from config/sessionTaxonomy.ts. State holds only the session-type ID; the service
@@ -27,11 +35,24 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // is NOT appointments.service_type — that column stays the WS3 accrual category
 // ('counseling'/...) and keeps its existing behavior (group-inherited or set at complete).
 
-const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onClose, onSave, clients, preselectedClient }) => {
+const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onClose, onSave, clients, preselectedClient, prefillCounselorId, prefillCounselorName, prefillDate, prefillTime }) => {
     const { user } = useAuth();
-    const [sessionTypeId, setSessionTypeId] = useState<string>(SESSION_TYPES[0].id);
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [startTime, setStartTime] = useState('18:00');
+    // A slot click seeds the session type to one this counselor actually qualifies for
+    // (else the matrix-driven counselor-reconciliation effect below would immediately
+    // reassign away from the prefilled counselor). 'OPEN' rows (Group) always qualify.
+    const [sessionTypeId, setSessionTypeId] = useState<string>(() => {
+        if (prefillCounselorName) {
+            const qualifies = SESSION_TYPES.find(
+                t => t.counselors !== 'OPEN' && (t.counselors as readonly string[]).includes(prefillCounselorName),
+            );
+            if (qualifies) return qualifies.id;
+            const open = SESSION_TYPES.find(t => t.counselors === 'OPEN');
+            if (open) return open.id;
+        }
+        return SESSION_TYPES[0].id;
+    });
+    const [date, setDate] = useState(() => (prefillDate ? toLocalYMD(prefillDate) : new Date().toISOString().split('T')[0]));
+    const [startTime, setStartTime] = useState(prefillTime ?? '18:00');
     const [endTime, setEndTime] = useState('19:00');
     const [capacity, setCapacity] = useState(15);
     // "In person" (David 7/7): every booking carries the checkbox; checked skips the
@@ -55,6 +76,9 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     const [isRecurring, setIsRecurring] = useState(false);
     const [occurrenceCount, setOccurrenceCount] = useState(6);
     const [isSaving, setIsSaving] = useState(false);
+    // Step 9: booking failures (RLS rejection, network error, ...) render inline instead of
+    // a blocking alert() — a rejected rule should read as designed, not like a crash.
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     // Smart Scheduling State
     const [travelRisk, setTravelRisk] = useState<'Low' | 'Medium' | 'High' | null>(null);
@@ -78,18 +102,22 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     // Cascade level 3: the bookable counselor roster (active rows). Visible-empty on
     // failure — an empty select is honest; we never fabricate a roster.
     const [counselors, setCounselors] = useState<Counselor[]>([]);
-    const [selectedCounselorId, setSelectedCounselorId] = useState<string | undefined>(undefined);
+    const [selectedCounselorId, setSelectedCounselorId] = useState<string | undefined>(prefillCounselorId);
     useEffect(() => { if (isOpen) getCounselors().then(setCounselors).catch(() => setCounselors([])); }, [isOpen]);
 
     useEffect(() => {
         if (preselectedClient) {
             setSessionTypeId('op_1on1'); // makeup flow: default to a 1:1
             setSelectedClientId(preselectedClient.id);
-        } else {
+        } else if (!prefillCounselorName) {
             setSessionTypeId(SESSION_TYPES[0].id);
             setSelectedClientId(clients[0]?.id);
+        } else {
+            // Slot-click flow: the mount-time initializer already chose a session type this
+            // counselor qualifies for — don't stomp it back to the vanilla default.
+            setSelectedClientId(clients[0]?.id);
         }
-    }, [preselectedClient, clients]);
+    }, [preselectedClient, clients, prefillCounselorName]);
 
     // Cascade derivation: the service level is read off the current session type so the
     // two selects always agree; changing the service snaps to its first session type.
@@ -159,11 +187,12 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         }
         setSelectedCounselorId(prev => {
             if (prev && qualifiedCounselors.some(c => c.id === prev)) return prev;
+            if (prefillCounselorId && qualifiedCounselors.some(c => c.id === prefillCounselorId)) return prefillCounselorId;
             const own = user?.name ? qualifiedCounselors.find(c => c.name === user.name) : undefined;
             return (own ?? qualifiedCounselors[0])?.id;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sessionTypeId, counselors, selectedGroupId]);
+    }, [sessionTypeId, counselors, selectedGroupId, prefillCounselorId]);
 
     const selectedCounselor = counselors.find(c => c.id === selectedCounselorId);
     // Therapist display name follows the explicit counselor pick (group-pinned or chosen);
@@ -231,6 +260,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setSaveError(null);
         // Warn-and-allow: a real overlap blocks submit until staff explicitly override.
         if (blockedByConflicts) return;
         setIsSaving(true);
@@ -282,7 +312,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         // series (would spam N events) — single sessions keep their write-through below.
         if (recurring) {
             if (!selectedClientId || !client) {
-                alert('Choose a client before booking a recurring series.');
+                setSaveError('Choose a client before booking a recurring series.');
                 return;
             }
             const { occurrences } = await createRecurringSeries({
@@ -381,7 +411,12 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         onClose();
         } catch (err) {
             console.error('[ScheduleSessionModal] save failed:', err);
-            alert('Could not create the session: ' + (err as Error).message);
+            const message = (err as Error).message || '';
+            setSaveError(
+                message.includes('row-level security')
+                    ? "This booking was blocked by a permissions rule. If you believe you should be able to book this session, contact an administrator."
+                    : `Could not create the session: ${message}`,
+            );
         } finally {
             setIsSaving(false);
         }
@@ -592,6 +627,13 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 <p className="mt-1 text-xs text-slate-500">No roster defined for Group sessions — full roster shown (open item for David).</p>
                             ) : null}
                         </div>
+
+                        {saveError && (
+                            <div className="mt-2 p-3 rounded-lg border bg-red-50 border-red-200 flex items-start gap-3">
+                                <AlertTriangle size={16} className="text-red-600 mt-0.5 shrink-0" />
+                                <p className="text-sm text-red-800">{saveError}</p>
+                            </div>
+                        )}
                     </main>
 
                     <footer className="p-4 border-t border-black/10 dark:border-white/10 flex justify-end">
