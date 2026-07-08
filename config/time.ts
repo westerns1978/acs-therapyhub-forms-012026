@@ -29,6 +29,13 @@ export const parseTimeToMinutes = (label: string | null | undefined): number => 
     return hour * 60 + minute;
 };
 
+/** Canonical 24-hour "HH:MM" from minutes-from-midnight, clamped to 23:59 so a
+ *  derived end time can never wrap past midnight into an inverted window. */
+export const minutesToTimeLabel = (mins: number): string => {
+    const clamped = Math.max(0, Math.min(Math.round(mins), 23 * 60 + 59));
+    return `${pad2(Math.floor(clamped / 60))}:${pad2(clamped % 60)}`;
+};
+
 /** Friendly 12-hour display, e.g. "18:00" → "6:00 PM". Falls back to the raw label
  *  if unparseable (never throws, never invents a time). */
 export const formatTime12 = (label: string | null | undefined): string => {

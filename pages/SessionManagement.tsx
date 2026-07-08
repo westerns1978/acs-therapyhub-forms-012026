@@ -5,6 +5,7 @@ import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import CounselorDayView from '../components/sessions/CounselorDayView';
 import { parseTimeToMinutes, formatTime12 } from '../config/time';
+import { serviceCardClass } from '../config/sessionTaxonomy';
 import { timeRangesOverlap } from '../services/recurrence';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
@@ -404,6 +405,10 @@ const SessionManagement: React.FC = () => {
                                     {/* Events */}
                                     {dayEvents.map(apt => {
                                         const s = getAppointmentStatusStyle(apt.status);
+                                        // Card fill = service color (David 7/7); status stays on the
+                                        // bar + badge. No taxonomy color (legacy rows, OMU family) →
+                                        // fall back to the status card unchanged.
+                                        const card = serviceCardClass(apt.sessionTypeId) ?? s.card;
                                         const isConflict = conflictIds.has(apt.id);
                                         return (
                                         <div
@@ -412,7 +417,7 @@ const SessionManagement: React.FC = () => {
                                             tabIndex={0}
                                             onClick={() => setSelectedAppt(apt)}
                                             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedAppt(apt); } }}
-                                            className={`group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${s.card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
+                                            className={`group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
                                             style={getEventStyle(apt)}
                                             title={isConflict ? `${apt.title} — DOUBLE-BOOKED with another ${apt.therapist} session` : `${apt.title} — ${apt.status} (click to change status)`}
                                         >

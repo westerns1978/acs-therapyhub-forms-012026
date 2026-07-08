@@ -97,3 +97,20 @@ export const durationForSessionType = (id: string): number =>
 /** Service color token; null = unconfirmed or unknown id — render neutral. */
 export const colorForSessionType = (id: string | null | undefined): ServiceColor | null =>
   sessionTypeById(id)?.color ?? null;
+
+// Service-color card treatment for calendar events. Mirrors the status-card idiom in
+// AppointmentStatusModal (status itself is demoted to the left bar + badge). null
+// (OMU family, legacy rows without a session_type) → caller falls back to the status
+// card, so an unconfirmed color is never guessed.
+export const SERVICE_COLOR_CARD_CLASSES: Record<ServiceColor, string> = {
+  yellow: 'bg-yellow-50/90 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700 text-yellow-900 dark:text-yellow-100',
+  blue:   'bg-blue-50/90 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-100',
+  green:  'bg-green-50/90 dark:bg-green-900/40 border-green-300 dark:border-green-700 text-green-900 dark:text-green-100',
+  pink:   'bg-pink-50/90 dark:bg-pink-900/40 border-pink-300 dark:border-pink-700 text-pink-900 dark:text-pink-100',
+  grey:   'bg-slate-100/90 dark:bg-slate-800/60 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300',
+};
+
+export const serviceCardClass = (sessionTypeId: string | null | undefined): string | null => {
+  const color = colorForSessionType(sessionTypeId);
+  return color ? SERVICE_COLOR_CARD_CLASSES[color] : null;
+};

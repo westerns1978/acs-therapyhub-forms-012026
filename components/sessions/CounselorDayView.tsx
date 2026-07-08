@@ -3,6 +3,7 @@ import { Appointment } from '../../types';
 import type { Counselor } from '../../services/api';
 import { getAppointmentStatusStyle } from './AppointmentStatusModal';
 import { parseTimeToMinutes, formatTime12 } from '../../config/time';
+import { serviceCardClass } from '../../config/sessionTaxonomy';
 import { Clock, Video } from 'lucide-react';
 
 interface CounselorDayViewProps {
@@ -115,6 +116,9 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
                             {/* Appointment blocks */}
                             {lane.events.map(apt => {
                                 const s = getAppointmentStatusStyle(apt.status);
+                                // Card fill = service color; status stays on the bar + badge.
+                                // No taxonomy color → status card unchanged (see SessionManagement).
+                                const card = serviceCardClass(apt.sessionTypeId) ?? s.card;
                                 return (
                                     <div
                                         key={apt.id}
@@ -122,7 +126,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
                                         tabIndex={0}
                                         onClick={() => onSelectAppt(apt)}
                                         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectAppt(apt); } }}
-                                        className={`group/event absolute left-1 right-1 rounded-xl p-2 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${s.card}`}
+                                        className={`group/event absolute left-1 right-1 rounded-xl p-2 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card}`}
                                         style={blockStyle(apt)}
                                         title={`${apt.title} — ${apt.status} (click to change status)`}
                                     >

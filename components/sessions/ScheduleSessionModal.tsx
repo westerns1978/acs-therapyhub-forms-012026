@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Client, Appointment } from '../../types';
-import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, ServiceType } from '../../config/sessionTaxonomy';
+import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, durationForSessionType, ServiceType } from '../../config/sessionTaxonomy';
 import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
 import { counselorsForSessionType } from '../../config/sessionTaxonomy';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
-import { formatTime12, parseTimeToMinutes } from '../../config/time';
+import { formatTime12, parseTimeToMinutes, minutesToTimeLabel } from '../../config/time';
 import { useAuth } from '../../contexts/AuthContext';
 import { MapPin, AlertTriangle, CheckCircle, Loader2, Repeat } from 'lucide-react';
 
@@ -32,8 +32,11 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     const [sessionTypeId, setSessionTypeId] = useState<string>(SESSION_TYPES[0].id);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [startTime, setStartTime] = useState('18:00');
-    const [endTime, setEndTime] = useState('20:00');
+    const [endTime, setEndTime] = useState('19:00');
     const [capacity, setCapacity] = useState(15);
+    // "In person" (David 7/7): every booking carries the checkbox; checked skips the
+    // ad-hoc Zoom mint and stores modality 'In-Person'.
+    const [inPerson, setInPerson] = useState(false);
     const [selectedClientId, setSelectedClientId] = useState<string | undefined>(clients[0]?.id);
 
     // Booking-dropdown TYPE funnel (status → type). The clients passed in are already
@@ -102,6 +105,15 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     // Display label carries the service for the two 'Group' rows ("OP Group" reads
     // better than "Group" on a calendar card); 1:1s/evals keep their bare label.
     const sessionLabel = sessionDef.label === 'Group' ? `${serviceType3} Group` : sessionDef.label;
+
+    // Duration policy (David 7/7): 60m default, MRT 1:1 = 15m. End time re-derives from
+    // start + the session type's duration whenever either changes; a manual end edit
+    // holds only until the next such change.
+    useEffect(() => {
+        const s = parseTimeToMinutes(startTime);
+        if (Number.isNaN(s)) return;
+        setEndTime(minutesToTimeLabel(s + durationForSessionType(sessionTypeId)));
+    }, [sessionTypeId, startTime]);
 
     // Cascade level 3: qualification matrix. null = OPEN row (no roster given — David) →
     // the full active roster stays selectable. Names key against counselors.name.
@@ -238,8 +250,9 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             zoomMeetingId = selectedGroup.counselor_zoom_meeting_id || undefined;
             serviceType = (selectedGroup.service_type as Appointment['serviceType']) || undefined;
             groupId = selectedGroup.id;
-        } else if (user?.id && isZoomLinked()) {
-            // Ad-hoc (no group): auto-create a per-session Zoom meeting — unchanged path.
+        } else if (user?.id && isZoomLinked() && !inPerson) {
+            // Ad-hoc virtual (no group): auto-create a per-session Zoom meeting — unchanged
+            // path. In-person bookings skip the mint entirely.
             // Failure is non-fatal; appointment still saves without a zoom link.
             try {
                 const startIso = new Date(`${date}T${startTime}:00`).toISOString();
@@ -279,7 +292,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                 appointmentType: sessionLabel,
                 sessionTypeId: sessionDef.id,
                 counselorId: selectedCounselorId,
-                modality: 'Virtual (Zoom)',
+                modality: inPerson ? 'In-Person' : 'Virtual (Zoom)',
                 title: `${sessionLabel} - ${client.name}`,
                 firstDate,
                 startTime,
@@ -306,7 +319,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             // which combineDateAndTime then mis-stored as 6 AM. See config/time.ts.
             startTime,
             endTime,
-            modality: 'Virtual (Zoom)',
+            modality: inPerson ? 'In-Person' : 'Virtual (Zoom)',
             therapist: therapistName,
             zoomLink,
             status: 'Scheduled',
@@ -465,6 +478,13 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 <input type="time" id="endTime" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md" />
                             </div>
                         </div>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={inPerson} onChange={e => setInPerson(e.target.checked)} className="rounded" />
+                            <MapPin size={15} className="text-slate-500" />
+                            <span className="text-sm font-medium">In person</span>
+                            <span className="text-xs text-slate-400">(no Zoom link is created)</span>
+                        </label>
 
                         {/* Recurring 1:1 series — 1:1 ad-hoc only (group recurrence out of scope). Weekly,
                             for N occurrences starting on the picked date (its weekday repeats). */}
