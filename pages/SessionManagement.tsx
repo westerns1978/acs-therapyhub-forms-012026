@@ -4,13 +4,11 @@ import type { Counselor } from '../services/api';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import CounselorDayView from '../components/sessions/CounselorDayView';
-import { parseTimeToMinutes, formatTime12 } from '../config/time';
-import { serviceCardClass } from '../config/sessionTaxonomy';
 import { timeRangesOverlap } from '../services/recurrence';
-import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
+import AppointmentStatusModal from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, AlertTriangle } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -222,21 +220,6 @@ const SessionManagement: React.FC = () => {
         return new Date(d.setDate(diff));
     }, [currentDate]);
 
-    const weekDays = useMemo(() => {
-        const days = [];
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(startOfWeek);
-            d.setDate(startOfWeek.getDate() + i);
-            days.push(d);
-        }
-        return days;
-    }, [startOfWeek]);
-
-    // Visible window: 6 AM start, 16 rows (matches CounselorDayView so early slots fit).
-    const WIN_START = 6;
-    const WIN_HOURS = 16;
-    const hours = Array.from({ length: WIN_HOURS }, (_, i) => i + WIN_START);
-
     // Live therapist double-booking detection across the loaded set. Same-therapist (by name,
     // this round) + same day + half-open time overlap (the shared recurrence primitive). Both
     // colliding occurrences are flagged. Canceled rows don't count. O(n²) is fine at clinic scale.
@@ -276,26 +259,6 @@ const SessionManagement: React.FC = () => {
             null,
         [counselors, user?.id, user?.name],
     );
-
-    const getEventStyle = (apt: Appointment) => {
-        // Position from the canonical time via config/time.ts. Unparseable → 9 AM slot.
-        const mins = parseTimeToMinutes(apt.startTime);
-        const startMin = Number.isNaN(mins) ? 9 * 60 : mins;
-        const startOffset = startMin - WIN_START * 60;
-        const duration = 50;
-
-        return {
-            top: `${(startOffset / (WIN_HOURS * 60)) * 100}%`,
-            height: `${(duration / (WIN_HOURS * 60)) * 100}%`,
-        };
-    };
-
-    const isToday = (date: Date) => {
-        const today = new Date();
-        return date.getDate() === today.getDate() && 
-               date.getMonth() === today.getMonth() && 
-               date.getFullYear() === today.getFullYear();
-    };
 
     if (isLoading) return <LoadingSpinner />;
 
@@ -338,145 +301,39 @@ const SessionManagement: React.FC = () => {
                 </button>
             </div>
 
-            {/* Day view: all-counselor swim-lanes for schedule admins (David/Jess); a single
-                own-lane for a non-admin clinician (Karen); an empty state if unresolvable.
-                Week view: the 7-day grid below (no counselor scaffold — left untouched). */}
-            {viewMode === 'day' ? (
-                isScheduleAdmin ? (
-                    <CounselorDayView
-                        date={currentDate}
-                        counselors={counselors}
-                        appointments={appointments}
-                        onSelectAppt={setSelectedAppt}
-                    />
-                ) : myCounselor ? (
-                    <CounselorDayView
-                        date={currentDate}
-                        counselors={counselors}
-                        appointments={appointments}
-                        onSelectAppt={setSelectedAppt}
-                        soloLabel={myCounselor.name}
-                    />
-                ) : (
-                    <div className="flex-1 flex items-center justify-center min-h-[600px] bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700">
-                        <div className="max-w-md text-center p-8">
-                            <CalIcon className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={40} />
-                            <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No schedule assigned</h2>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Your account isn't linked to a counselor calendar yet, so there's no day view to show. Ask an administrator to link your account.</p>
-                        </div>
-                    </div>
-                )
+            {/* Both Day and Week now render the SAME per-counselor swim-lane board (David 7/7,
+                step 8 — the Outlook split-view model): all-counselor lanes for schedule admins
+                (David/Jess), a single own-lane for a non-admin clinician (Karen), an empty state
+                if unresolvable. Week additionally forces fixed-width scrollable lanes and carries
+                the double-booking ring (parity with the old flat 7-day grid it replaces); Day
+                keeps its original compress-to-fit, no-ring behavior exactly as before. */}
+            {isScheduleAdmin ? (
+                <CounselorDayView
+                    date={currentDate}
+                    counselors={counselors}
+                    appointments={appointments}
+                    onSelectAppt={setSelectedAppt}
+                    conflictIds={viewMode === 'week' ? conflictIds : undefined}
+                    scrollable={viewMode === 'week'}
+                />
+            ) : myCounselor ? (
+                <CounselorDayView
+                    date={currentDate}
+                    counselors={counselors}
+                    appointments={appointments}
+                    onSelectAppt={setSelectedAppt}
+                    soloLabel={myCounselor.name}
+                    conflictIds={viewMode === 'week' ? conflictIds : undefined}
+                    scrollable={viewMode === 'week'}
+                />
             ) : (
-            /* Calendar Grid */
-            <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
-                {/* Header Row */}
-                <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-700/60">
-                    <div className="p-4 border-r border-slate-100 dark:border-slate-700/30 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center pt-8">GMT-05</div>
-                    {weekDays.map(day => (
-                        <div key={day.toISOString()} className={`p-4 text-center border-r border-border dark:border-slate-700/50 last:border-0 ${isToday(day) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
-                            <p className={`text-[10px] font-bold uppercase mb-2 tracking-wider ${isToday(day) ? 'text-primary' : 'text-slate-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</p>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto text-xl transition-all ${isToday(day) ? 'bg-primary text-white font-bold shadow-lg shadow-primary/30 scale-110' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                                {day.getDate()}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Time Grid */}
-                <div className="flex-1 overflow-y-auto relative custom-scrollbar">
-                    <div className="grid grid-cols-8 h-[1200px]">
-                        {/* Time Column */}
-                        <div className="border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/20">
-                            {hours.map(hour => (
-                                <div key={hour} className="h-[75px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-3 pt-2 relative">
-                                    <span className="text-xs font-medium text-slate-400 relative -top-3">{hour > 12 ? hour - 12 : hour} {hour >= 12 ? 'PM' : 'AM'}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Day Columns */}
-                        {weekDays.map(day => {
-                            const dayEvents = appointments.filter(a => new Date(a.date).toDateString() === day.toDateString());
-                            return (
-                                <div key={day.toISOString()} className="relative border-r border-border dark:border-slate-700/50 last:border-0 group">
-                                    {/* Hour Grid Lines */}
-                                    {hours.map(h => <div key={h} className="h-[75px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
-                                    
-                                    {/* Events */}
-                                    {dayEvents.map(apt => {
-                                        const s = getAppointmentStatusStyle(apt.status);
-                                        // Card fill = service color (David 7/7); status stays on the
-                                        // bar + badge. No taxonomy color (legacy rows, OMU family) →
-                                        // fall back to the status card unchanged.
-                                        const card = serviceCardClass(apt.sessionTypeId) ?? s.card;
-                                        const isConflict = conflictIds.has(apt.id);
-                                        return (
-                                        <div
-                                            key={apt.id}
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={() => setSelectedAppt(apt)}
-                                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedAppt(apt); } }}
-                                            className={`group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
-                                            style={getEventStyle(apt)}
-                                            title={isConflict ? `${apt.title} — DOUBLE-BOOKED with another ${apt.therapist} session` : `${apt.title} — ${apt.status} (click to change status)`}
-                                        >
-                                            <div className="flex items-start gap-1">
-                                                <div className={`w-1 h-full absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
-                                                {isConflict && (
-                                                    <span className="absolute top-1 right-1 z-10" title={`Double-booked with another ${apt.therapist} session`}>
-                                                        <AlertTriangle size={12} className="text-red-600 fill-red-100" />
-                                                    </span>
-                                                )}
-                                                <div className="pl-2 overflow-hidden">
-                                                    <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
-                                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
-                                                        <Clock size={10} /> {formatTime12(apt.startTime)} - {formatTime12(apt.endTime)}
-                                                    </div>
-                                                    {apt.modality.includes('Zoom') && (
-                                                        <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold opacity-90">
-                                                            <Video size={10}/> Virtual
-                                                        </div>
-                                                    )}
-                                                    {apt.status !== 'Scheduled' && (
-                                                        <span className={`inline-flex items-center mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${s.badge}`}>
-                                                            {apt.status}
-                                                        </span>
-                                                    )}
-                                                    {apt.googleEventId && (
-                                                        <a
-                                                            href={apt.googleEventLink || '#'}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            onClick={e => e.stopPropagation()}
-                                                            title="Open in Google Calendar"
-                                                            className="flex items-center gap-1 mt-1 text-[10px] font-semibold text-green-700 dark:text-green-300 hover:underline"
-                                                        >
-                                                            <Check size={10}/> Synced to Google
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        );
-                                    })}
-                                    
-                                    {/* Current Time Indicator */}
-                                    {isToday(day) && (
-                                        <div 
-                                            className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
-                                            style={{ top: `${((new Date().getHours() - WIN_START) * 60 + new Date().getMinutes()) / (WIN_HOURS * 60) * 100}%` }}
-                                        >
-                                            <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm ring-2 ring-white dark:ring-slate-800"></div>
-                                            <div className="h-[2px] w-full bg-red-500 shadow-sm"></div>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                <div className="flex-1 flex items-center justify-center min-h-[600px] bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700">
+                    <div className="max-w-md text-center p-8">
+                        <CalIcon className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={40} />
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No schedule assigned</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Your account isn't linked to a counselor calendar yet, so there's no schedule to show. Ask an administrator to link your account.</p>
                     </div>
                 </div>
-            </div>
             )}
 
             {isScheduleModalOpen && (
