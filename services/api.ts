@@ -1677,26 +1677,38 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
     // (Pre-existing: every EditClientModal save for a dob-less client 400'd.)
     if (row.dob === '') row.dob = null;
 
+    // Audit v1, events 2/3: snapshot pre-update values for every column this call
+    // may touch (including the two lifecycle stamps, which aren't in `row` yet)
+    // so we can (a) diff against the post-update row to skip logging a no-op
+    // re-save, and (b) — reusing the same read — check completed_at for the
+    // 'active' transition below instead of a second round-trip.
+    const beforeCols = Array.from(new Set([...Object.keys(row), 'archived_at', 'completed_at']));
+    const { data: before, error: beforeErr } = await supabase
+        .from('clients').select(beforeCols.join(',')).eq('id', id).maybeSingle();
+    if (beforeErr) throw new Error(beforeErr.message || 'Failed to read client state before update');
+
     // Lifecycle transition stamps (migration 20260611). Callers send `status`
     // only when it actually changed (EditClientModal diffs), so a stamp here
     // means a real transition. Completing a program is a HISTORICAL FACT:
     // completed_at survives archive/unarchive — only archived_at clears on
     // reactivation, and unarchiving a client who had completed restores them
     // to 'completed', not 'active'.
+    let isArchiving = false;
     if (row.status !== undefined) {
         if (row.status === 'archived') {
             row.archived_at = new Date().toISOString();
+            isArchiving = true;
         } else if (row.status === 'completed') {
             row.completed_at = new Date().toISOString();
             row.archived_at = null;
         } else if (row.status === 'active') {
-            const { data: cur, error: curErr } = await supabase
-                .from('clients').select('completed_at').eq('id', id).maybeSingle();
-            if (curErr) throw new Error(curErr.message || 'Failed to read client state for unarchive');
-            if (cur?.completed_at) row.status = 'completed';
+            if ((before as any)?.completed_at) row.status = 'completed';
             row.archived_at = null;
         }
     }
+
+    const changedFields = Object.keys(row).filter((col) => (before as any)?.[col] !== row[col]);
+
     const { data, error } = await supabase
         .from('clients')
         .update(row)
@@ -1704,6 +1716,26 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
         .select()
         .single();
     if (error) throw error;
+
+    // Audit v1, events 2/3: client.updated / client.archived. Fire-and-forget,
+    // same posture as note.signed — never awaited, never throws, and skipped
+    // entirely when nothing actually changed (avoids ledger noise from a
+    // re-save that round-trips the same values).
+    if (changedFields.length > 0) {
+        supabase.auth.getUser().then(({ data: auth }) => {
+            const actor = auth?.user?.id;
+            if (!actor) return;
+            void logAudit({
+                actor,
+                action: isArchiving ? 'client.archived' : 'client.updated',
+                entity_type: 'clients',
+                entity_id: id,
+                timestamp: new Date().toISOString(),
+                details: { client_id: id, changed_fields: changedFields },
+            });
+        });
+    }
+
     return mapClientToApp(data);
 };
 
