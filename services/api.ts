@@ -1099,6 +1099,7 @@ export const saveClinicalNote = async (
                 entity_type: 'clinical_notes',
                 entity_id: data.id,
                 timestamp: new Date().toISOString(),
+                details: { client_id: clientId },
             });
         });
     }
@@ -1446,15 +1447,45 @@ export const updateVideoSessionStatus = async (id: string, status: string) => {}
 export const getAsamAssessment = async (id: string) => dbAsamAssessments[id] || {1:{dimension:1, name:'Intoxication', notes:''}, 2:{dimension:2, name:'Biomedical', notes:''}, 3:{dimension:3, name:'Emotional', notes:''}, 4:{dimension:4, name:'Readiness', notes:''}, 5:{dimension:5, name:'Relapse', notes:''}, 6:{dimension:6, name:'Environment', notes:''}};
 export const getProgramPlan = async (id: string) => dbProgramPlans[id] || {clientId: id, goals: []};
 export const getComplianceEvents = async () => dbComplianceEvents || [];
+export interface AuditLogFilters {
+    userId?: string;
+    /** Filters on details.client_id (jsonb path) — populated for note.signed,
+     *  client.updated, client.archived. Applied server-side via PostgREST's
+     *  column->>key operator syntax. */
+    clientId?: string;
+    action?: string;
+    /** 'YYYY-MM-DD', inclusive of the whole day. */
+    dateFrom?: string;
+    /** 'YYYY-MM-DD', inclusive of the whole day (bumped to < next-day internally
+     *  so the selected end date isn't cut off at midnight). */
+    dateTo?: string;
+    /** Row cap — audit_logs has no built-in pagination UI yet, so this is the
+     *  "don't dump thousands of rows unbounded" guard. */
+    limit?: number;
+}
+
 // Audit v1: real read replacing the in-memory mock. Best-effort/fail-soft (returns [] on
 // error rather than throwing) — Compliance.tsx loads this alongside several other Promise.all
 // reads with no per-read try/catch, and an audit-trail read failure shouldn't blank the whole
 // page. Resolves a friendly actor name via counselors.auth_user_id where possible; falls back
-// to the raw user_id (not every staff role has a counselor row, e.g. Admin).
-export const getAuditLogs = async (): Promise<AuditLog[]> => {
+// to the raw user_id (not every staff role has a counselor row, e.g. Admin). Filters are
+// applied server-side (not client-side array filtering) so this scales with the table.
+export const getAuditLogs = async (filters: AuditLogFilters = {}): Promise<AuditLog[]> => {
     try {
+        let query = supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
+        if (filters.userId) query = query.eq('user_id', filters.userId);
+        if (filters.clientId) query = query.eq('details->>client_id', filters.clientId);
+        if (filters.action) query = query.eq('action', filters.action);
+        if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
+        if (filters.dateTo) {
+            const endExclusive = new Date(filters.dateTo);
+            endExclusive.setDate(endExclusive.getDate() + 1);
+            query = query.lt('created_at', endExclusive.toISOString());
+        }
+        query = query.limit(filters.limit ?? 500);
+
         const [{ data, error }, { data: counselors }] = await Promise.all([
-            supabase.from('audit_logs').select('*').order('created_at', { ascending: false }),
+            query,
             supabase.from('counselors').select('auth_user_id, name'),
         ]);
         if (error) throw error;
@@ -1463,10 +1494,14 @@ export const getAuditLogs = async (): Promise<AuditLog[]> => {
         );
         return (data || []).map((row: any) => ({
             id: row.id,
-            timestamp: row.created_at,
+            timestamp: new Date(row.created_at),
             user: nameByAuthId.get(row.user_id) || row.user_id || 'Unknown',
+            userId: row.user_id,
             action: row.action,
             details: row.entity_type && row.entity_id ? `${row.entity_type}:${row.entity_id}` : '',
+            clientId: row.details?.client_id,
+            entityType: row.entity_type,
+            entityId: row.entity_id,
         }));
     } catch (e) {
         console.error('[api] getAuditLogs failed:', e);
@@ -1676,26 +1711,38 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
     // (Pre-existing: every EditClientModal save for a dob-less client 400'd.)
     if (row.dob === '') row.dob = null;
 
+    // Audit v1, events 2/3: snapshot pre-update values for every column this call
+    // may touch (including the two lifecycle stamps, which aren't in `row` yet)
+    // so we can (a) diff against the post-update row to skip logging a no-op
+    // re-save, and (b) — reusing the same read — check completed_at for the
+    // 'active' transition below instead of a second round-trip.
+    const beforeCols = Array.from(new Set([...Object.keys(row), 'archived_at', 'completed_at']));
+    const { data: before, error: beforeErr } = await supabase
+        .from('clients').select(beforeCols.join(',')).eq('id', id).maybeSingle();
+    if (beforeErr) throw new Error(beforeErr.message || 'Failed to read client state before update');
+
     // Lifecycle transition stamps (migration 20260611). Callers send `status`
     // only when it actually changed (EditClientModal diffs), so a stamp here
     // means a real transition. Completing a program is a HISTORICAL FACT:
     // completed_at survives archive/unarchive — only archived_at clears on
     // reactivation, and unarchiving a client who had completed restores them
     // to 'completed', not 'active'.
+    let isArchiving = false;
     if (row.status !== undefined) {
         if (row.status === 'archived') {
             row.archived_at = new Date().toISOString();
+            isArchiving = true;
         } else if (row.status === 'completed') {
             row.completed_at = new Date().toISOString();
             row.archived_at = null;
         } else if (row.status === 'active') {
-            const { data: cur, error: curErr } = await supabase
-                .from('clients').select('completed_at').eq('id', id).maybeSingle();
-            if (curErr) throw new Error(curErr.message || 'Failed to read client state for unarchive');
-            if (cur?.completed_at) row.status = 'completed';
+            if ((before as any)?.completed_at) row.status = 'completed';
             row.archived_at = null;
         }
     }
+
+    const changedFields = Object.keys(row).filter((col) => (before as any)?.[col] !== row[col]);
+
     const { data, error } = await supabase
         .from('clients')
         .update(row)
@@ -1703,6 +1750,26 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
         .select()
         .single();
     if (error) throw error;
+
+    // Audit v1, events 2/3: client.updated / client.archived. Fire-and-forget,
+    // same posture as note.signed — never awaited, never throws, and skipped
+    // entirely when nothing actually changed (avoids ledger noise from a
+    // re-save that round-trips the same values).
+    if (changedFields.length > 0) {
+        supabase.auth.getUser().then(({ data: auth }) => {
+            const actor = auth?.user?.id;
+            if (!actor) return;
+            void logAudit({
+                actor,
+                action: isArchiving ? 'client.archived' : 'client.updated',
+                entity_type: 'clients',
+                entity_id: id,
+                timestamp: new Date().toISOString(),
+                details: { client_id: id, changed_fields: changedFields },
+            });
+        });
+    }
+
     return mapClientToApp(data);
 };
 

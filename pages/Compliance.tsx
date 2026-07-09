@@ -3,8 +3,8 @@ import Card from '../components/ui/Card';
 import ComplianceTimeline from '../components/compliance/ComplianceTimeline';
 import AuditTrailTable from '../components/compliance/AuditTrailTable';
 import ReportPreviewModal from '../components/ui/ReportPreviewModal';
-import { getComplianceEvents, getAuditLogs, getClients, getSROPData, getSessionRecords } from '../services/api';
-import { ComplianceEvent, AuditLog, StaffCertification, Client, SROPProgress, SessionRecord } from '../types';
+import { getComplianceEvents, getClients, getSROPData, getSessionRecords } from '../services/api';
+import { ComplianceEvent, StaffCertification, Client, SROPProgress, SessionRecord } from '../types';
 import { dbStaffCertifications } from '../data/database';
 import CourtReportPreview from '../components/compliance/CourtReportPreview';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -41,7 +41,6 @@ const Compliance: React.FC = () => {
     const [isReportModalOpen, setReportModalOpen] = useState(false);
     const [reportContent, setReportContent] = useState({ title: '', content: <></> });
     const [complianceEvents, setComplianceEvents] = useState<ComplianceEvent[]>([]);
-    const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
     const [staffCerts, setStaffCerts] = useState<StaffCertification[]>(dbStaffCertifications);
     const [allSessionRecords, setAllSessionRecords] = useState<SessionRecord[]>([]);
@@ -50,9 +49,8 @@ const Compliance: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
-            const [events, logs, clientsData, sessionRecordsData] = await Promise.all([
+            const [events, clientsData, sessionRecordsData] = await Promise.all([
                 getComplianceEvents(),
-                getAuditLogs(),
                 // includeArchived: the CSV export here is a COMPLIANCE RECORD —
                 // court/audit history must cover archived clients (7-yr retention),
                 // so this surface deliberately bypasses the active-only default.
@@ -60,7 +58,6 @@ const Compliance: React.FC = () => {
                 getSessionRecords('')
             ]);
             setComplianceEvents(events.map(e => ({...e, dueDate: new Date(e.dueDate)})));
-            setAuditLogs(logs.map(l => ({...l, timestamp: new Date(l.timestamp)})));
             setClients(clientsData);
             setAllSessionRecords(sessionRecordsData.map(s => ({...s, date: new Date(s.date)})));
             setIsLoading(false);
@@ -186,7 +183,7 @@ const Compliance: React.FC = () => {
                     </Card>
                 </div>
                 <div className="lg:col-span-2">
-                    <AuditTrailTable logs={auditLogs} />
+                    <AuditTrailTable clients={clients} />
                 </div>
             </div>
 

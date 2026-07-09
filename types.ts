@@ -489,7 +489,7 @@ export interface SROPProgress { clientId: string; totalHours: number; phase1: { 
 export type DocumentType = 'consent' | 'treatment-plan' | 'court-report';
 export interface SignedDocument { id: string; clientId: string; documentType: DocumentType; signatureDataUrl: string; signedAt: Date; }
 export interface ComplianceEvent { id: string; clientId: string; clientName: string; type: 'ASAM Reassessment' | 'Program Plan Review' | 'Court Report Due' | 'Recovery Plan Review'; dueDate: Date; status: 'upcoming' | 'overdue' | 'complete'; }
-export interface AuditLog { id: string; timestamp: Date; user: string; action: string; details: string; }
+export interface AuditLog { id: string; timestamp: Date; user: string; userId?: string; action: string; details: string; clientId?: string; entityType?: string; entityId?: string; }
 export interface ProgramGoal { id: string; description: string; status: 'Not Started' | 'In Progress' | 'Completed' | 'On Hold'; progress: number; objectives: string[]; interventions: string[]; }
 export interface ProgramPlan { clientId: string; goals: ProgramGoal[]; }
 export interface SessionRecord { id: string; clientId: string; date: Date; type: 'Individual Session' | 'SROP Group' | 'Intake Assessment'; duration: number; rate: number; status: 'Paid' | 'Unpaid' | 'Pending' | 'No Show Fee'; }
