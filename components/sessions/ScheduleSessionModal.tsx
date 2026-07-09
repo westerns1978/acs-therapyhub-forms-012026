@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Client, Appointment } from '../../types';
 import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, durationForSessionType, ServiceType } from '../../config/sessionTaxonomy';
 import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
@@ -423,16 +424,29 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
 
     if (!isOpen) return null;
 
-    return (
+    // Modal-sizing fix, part 2: this app's layout <main> keeps a persisted fadeInUp
+    // transform after its entrance animation (even an identity transform establishes a
+    // containing block for descendant position:fixed elements) — so a bare `fixed inset-0`
+    // rendered in-tree centers against the full SCROLLABLE PAGE, not the viewport, landing
+    // the modal (footer included) below the fold regardless of any internal height cap.
+    // Portalling to document.body escapes that ancestor so `fixed` resolves to the real
+    // viewport. See project_modal_portal_transform_trap memory; DocumentPreviewModal already
+    // uses this pattern elsewhere in the app.
+    return createPortal(
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
-            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-lg">
-                <form onSubmit={handleSubmit}>
-                    <header className="flex justify-between items-center p-4 border-b border-black/10 dark:border-white/10">
+            {/* Modal-sizing fix, part 1: cap height to the viewport and lay out as a flex
+                column so header/footer stay pinned and ONLY the field region scrolls
+                internally. Without this, a tall field set (recurrence expanded, conflict
+                banner, error banner) pushed the footer's Save button below the fold with
+                no way to reach it. */}
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+                <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+                    <header className="flex justify-between items-center p-4 border-b border-black/10 dark:border-white/10 flex-shrink-0">
                         <h2 className="text-lg font-semibold">{preselectedClient ? `Schedule Makeup for ${preselectedClient.name}` : 'Schedule New Session'}</h2>
                         <button type="button" onClick={onClose} className="text-2xl font-light" aria-label="Close modal">&times;</button>
                     </header>
-                    
-                    <main className="p-6 space-y-4">
+
+                    <main className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                         {/* Three-level cascade (David 7/7): "Service type" (OP/SATOP/Evaluation)
                             filters "Session type" (config/sessionTaxonomy.ts). Counselor filtering
                             (level 3) lands in the next step. */}
@@ -635,7 +649,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                         )}
                     </main>
 
-                    <footer className="p-4 border-t border-black/10 dark:border-white/10 flex justify-end">
+                    <footer className="p-4 border-t border-black/10 dark:border-white/10 flex justify-end flex-shrink-0">
                         <button
                             type="submit"
                             disabled={isSaving || blockedByConflicts || invalidWindow}
@@ -649,7 +663,8 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                     </footer>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 };
 
