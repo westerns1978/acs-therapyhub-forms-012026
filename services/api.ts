@@ -6,7 +6,7 @@ import {
   SessionRecord, SROPProgress, ClientActivity,
   VideoSession, PracticeMetrics, User, AsamAnalysisResult, DailyBriefingData, ComplianceStatus,
   RevenueDataPoint, ComplianceDataPoint,
-  TreatmentPlan, TreatmentPlanContent, TreatmentPlanStatus, AppointmentSeries
+  TreatmentPlan, TreatmentPlanContent, TreatmentPlanStatus, AppointmentSeries, AuditLog
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { FORM_REGISTRY } from '../config/formRegistry';
@@ -15,9 +15,10 @@ import { programForLevel } from '../config/programVocab';
 import { LATE_CANCELLATION_FEE } from '../config/satopFees';
 import { parseTimeToMinutes } from '../config/time';
 import { generateWeeklyOccurrences } from './recurrence';
+import { logAudit } from './auditLog';
 
 import {
-    dbMessages, dbSropData, dbComplianceEvents, dbAuditLogs,
+    dbMessages, dbSropData, dbComplianceEvents,
     dbClientAssignments, dbFormTemplates, dbBillingSummaries,
     dbClientActivityFeed, dbForms, dbVideoSessions,
     dbSessionRecords,
@@ -1069,6 +1070,26 @@ export const saveClinicalNote = async (
         (e as any).code = (error as any).code;
         throw e;
     }
+
+    // Audit v1, event 1: the note SIGN write (is_signed=true). saveClinicalNote is the one
+    // choke point for both create and sign (there is no separate UPDATE-to-sign path — see
+    // recon/audit-logging), so instrumenting here covers every caller that signs. Fire-and-
+    // forget: logAudit never throws, and this is deliberately NOT awaited so a slow/failed
+    // audit write can never delay or break the note save the caller is waiting on.
+    if (opts.isSigned) {
+        supabase.auth.getUser().then(({ data: auth }) => {
+            const actor = auth?.user?.id;
+            if (!actor) return; // no session to attribute to — skip rather than log a null actor
+            void logAudit({
+                actor,
+                action: 'note.signed',
+                entity_type: 'clinical_notes',
+                entity_id: data.id,
+                timestamp: new Date().toISOString(),
+            });
+        });
+    }
+
     return data;
 };
 
@@ -1412,7 +1433,33 @@ export const updateVideoSessionStatus = async (id: string, status: string) => {}
 export const getAsamAssessment = async (id: string) => dbAsamAssessments[id] || {1:{dimension:1, name:'Intoxication', notes:''}, 2:{dimension:2, name:'Biomedical', notes:''}, 3:{dimension:3, name:'Emotional', notes:''}, 4:{dimension:4, name:'Readiness', notes:''}, 5:{dimension:5, name:'Relapse', notes:''}, 6:{dimension:6, name:'Environment', notes:''}};
 export const getProgramPlan = async (id: string) => dbProgramPlans[id] || {clientId: id, goals: []};
 export const getComplianceEvents = async () => dbComplianceEvents || [];
-export const getAuditLogs = async () => dbAuditLogs || [];
+// Audit v1: real read replacing the in-memory mock. Best-effort/fail-soft (returns [] on
+// error rather than throwing) — Compliance.tsx loads this alongside several other Promise.all
+// reads with no per-read try/catch, and an audit-trail read failure shouldn't blank the whole
+// page. Resolves a friendly actor name via counselors.auth_user_id where possible; falls back
+// to the raw user_id (not every staff role has a counselor row, e.g. Admin).
+export const getAuditLogs = async (): Promise<AuditLog[]> => {
+    try {
+        const [{ data, error }, { data: counselors }] = await Promise.all([
+            supabase.from('audit_logs').select('*').order('created_at', { ascending: false }),
+            supabase.from('counselors').select('auth_user_id, name'),
+        ]);
+        if (error) throw error;
+        const nameByAuthId = new Map(
+            (counselors || []).filter((c: any) => c.auth_user_id).map((c: any) => [c.auth_user_id, c.name]),
+        );
+        return (data || []).map((row: any) => ({
+            id: row.id,
+            timestamp: row.created_at,
+            user: nameByAuthId.get(row.user_id) || row.user_id || 'Unknown',
+            action: row.action,
+            details: row.entity_type && row.entity_id ? `${row.entity_type}:${row.entity_id}` : '',
+        }));
+    } catch (e) {
+        console.error('[api] getAuditLogs failed:', e);
+        return [];
+    }
+};
 export const updateDocumentComplianceStatus = async (ids: string[], status: string, user: any) => [];
 export const addSessionRecord = async (record: any) => {};
 export const getComplianceAnalysis = async (client: any, sropData: any) => "Analysis";
