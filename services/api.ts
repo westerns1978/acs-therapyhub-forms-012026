@@ -1447,15 +1447,45 @@ export const updateVideoSessionStatus = async (id: string, status: string) => {}
 export const getAsamAssessment = async (id: string) => dbAsamAssessments[id] || {1:{dimension:1, name:'Intoxication', notes:''}, 2:{dimension:2, name:'Biomedical', notes:''}, 3:{dimension:3, name:'Emotional', notes:''}, 4:{dimension:4, name:'Readiness', notes:''}, 5:{dimension:5, name:'Relapse', notes:''}, 6:{dimension:6, name:'Environment', notes:''}};
 export const getProgramPlan = async (id: string) => dbProgramPlans[id] || {clientId: id, goals: []};
 export const getComplianceEvents = async () => dbComplianceEvents || [];
+export interface AuditLogFilters {
+    userId?: string;
+    /** Filters on details.client_id (jsonb path) — populated for note.signed,
+     *  client.updated, client.archived. Applied server-side via PostgREST's
+     *  column->>key operator syntax. */
+    clientId?: string;
+    action?: string;
+    /** 'YYYY-MM-DD', inclusive of the whole day. */
+    dateFrom?: string;
+    /** 'YYYY-MM-DD', inclusive of the whole day (bumped to < next-day internally
+     *  so the selected end date isn't cut off at midnight). */
+    dateTo?: string;
+    /** Row cap — audit_logs has no built-in pagination UI yet, so this is the
+     *  "don't dump thousands of rows unbounded" guard. */
+    limit?: number;
+}
+
 // Audit v1: real read replacing the in-memory mock. Best-effort/fail-soft (returns [] on
 // error rather than throwing) — Compliance.tsx loads this alongside several other Promise.all
 // reads with no per-read try/catch, and an audit-trail read failure shouldn't blank the whole
 // page. Resolves a friendly actor name via counselors.auth_user_id where possible; falls back
-// to the raw user_id (not every staff role has a counselor row, e.g. Admin).
-export const getAuditLogs = async (): Promise<AuditLog[]> => {
+// to the raw user_id (not every staff role has a counselor row, e.g. Admin). Filters are
+// applied server-side (not client-side array filtering) so this scales with the table.
+export const getAuditLogs = async (filters: AuditLogFilters = {}): Promise<AuditLog[]> => {
     try {
+        let query = supabase.from('audit_logs').select('*').order('created_at', { ascending: false });
+        if (filters.userId) query = query.eq('user_id', filters.userId);
+        if (filters.clientId) query = query.eq('details->>client_id', filters.clientId);
+        if (filters.action) query = query.eq('action', filters.action);
+        if (filters.dateFrom) query = query.gte('created_at', filters.dateFrom);
+        if (filters.dateTo) {
+            const endExclusive = new Date(filters.dateTo);
+            endExclusive.setDate(endExclusive.getDate() + 1);
+            query = query.lt('created_at', endExclusive.toISOString());
+        }
+        query = query.limit(filters.limit ?? 500);
+
         const [{ data, error }, { data: counselors }] = await Promise.all([
-            supabase.from('audit_logs').select('*').order('created_at', { ascending: false }),
+            query,
             supabase.from('counselors').select('auth_user_id, name'),
         ]);
         if (error) throw error;
@@ -1464,10 +1494,14 @@ export const getAuditLogs = async (): Promise<AuditLog[]> => {
         );
         return (data || []).map((row: any) => ({
             id: row.id,
-            timestamp: row.created_at,
+            timestamp: new Date(row.created_at),
             user: nameByAuthId.get(row.user_id) || row.user_id || 'Unknown',
+            userId: row.user_id,
             action: row.action,
             details: row.entity_type && row.entity_id ? `${row.entity_type}:${row.entity_id}` : '',
+            clientId: row.details?.client_id,
+            entityType: row.entity_type,
+            entityId: row.entity_id,
         }));
     } catch (e) {
         console.error('[api] getAuditLogs failed:', e);
