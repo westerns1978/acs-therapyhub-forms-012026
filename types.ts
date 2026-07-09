@@ -47,15 +47,36 @@ export interface User {
 // 'prospect' = a public self-serve intake before clinician placement. Excluded
 // from the active roster + compliance engine; visible only in the staff intake
 // queue until "Place & Activate" (front-door demo, 2026-06-17).
-export type ClientStatus = 'active' | 'completed' | 'archived' | 'prospect';
-export const CLIENT_STATUSES: readonly ClientStatus[] = ['active', 'completed', 'archived', 'prospect'];
+//
+// 2026-07-08 (sched step 12): 'paused' | 'unsuccessful_dx' | 'successful_dx' ADDED
+// non-destructively (David's 5-status target model). NO existing row's stored status
+// value changed — see migration 20260708_sched12_status_extend.sql for the live
+// before/after count witness. 'prospect' and 'completed' now DISPLAY as "Pending" and
+// "Successful Dx" respectively (LABEL-ONLY remap, below) — their stored values are
+// unchanged. 'archived' is RETAINED as a distinct admin-only lifecycle state (its own
+// label, not folded into "Unsuccessful Dx"); needsStatusReview() flags archived AND
+// completed rows for David to confirm the mapping, since "completed"/"archived" alone
+// don't record WHETHER a discharge was successful.
+export type ClientStatus = 'active' | 'completed' | 'archived' | 'prospect' | 'paused' | 'unsuccessful_dx' | 'successful_dx';
+export const CLIENT_STATUSES: readonly ClientStatus[] = ['active', 'completed', 'archived', 'prospect', 'paused', 'unsuccessful_dx', 'successful_dx'];
 // Display labels — presentation only; identity is the lowercase value.
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   active: 'Active',
-  completed: 'Completed',
-  archived: 'Archived',
-  prospect: 'Prospect / Intake',
+  completed: 'Successful Dx',     // label-only (Dan, 7/8) — stored value stays 'completed'
+  archived: 'Archived',           // retained as its own admin state, not relabeled
+  prospect: 'Pending',            // label-only (Dan, 7/8) — stored value stays 'prospect'
+  paused: 'Paused',
+  unsuccessful_dx: 'Unsuccessful Dx',
+  successful_dx: 'Successful Dx',
 };
+
+/** Straw-man states David wants a human to confirm before trusting the new label/taxonomy:
+ *  'archived' may actually mean "Unsuccessful Dx" for some clients, and 'completed' rows
+ *  were never recorded as successful-vs-unsuccessful — only "finished." Flagging surfaces
+ *  this in the UI; nothing is remapped automatically ("no row remapped by guess"). */
+const STATUS_NEEDS_REVIEW: readonly ClientStatus[] = ['archived', 'completed'];
+export const needsStatusReview = (raw: ClientStatus | string | null | undefined): boolean =>
+  STATUS_NEEDS_REVIEW.includes(raw as ClientStatus);
 
 export interface Client {
   id: string;
@@ -388,7 +409,10 @@ export interface SessionAttendanceData {
 }
 
 export type AppointmentStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Canceled' | 'No Show';
-export type AppointmentType = 'SATOP Group' | 'REACT Group' | 'Anger Management Group' | 'Gambling Group' | 'Individual Counseling' | 'DOT Assessment' | 'Intake Assessment';
+// Session-type labels now come from config/sessionTaxonomy.ts (three-level booking
+// cascade, David 7/7). Legacy literals ('SATOP Group', 'Individual Counseling', ...)
+// remain valid stored data, so this is a string alias rather than a closed union.
+export type AppointmentType = string;
 // WS3 reg hour-category (9 CSR 30-3.206) for session-hours accrual — distinct from
 // AppointmentType (program/format). Required before an appointment can be Completed;
 // 'other' = a non-program session that deliberately does not accrue.
@@ -415,6 +439,12 @@ export interface Appointment {
   zoomMeetingId?: string;
   status: AppointmentStatus;
   serviceType?: ServiceType;
+  /** Taxonomy token (config/sessionTaxonomy.ts id) — maps to appointments.session_type.
+   *  Distinct from serviceType (WS3 accrual category) and from type (display label). */
+  sessionTypeId?: string;
+  /** FK counselors.id — explicit counselor attribution (WS1 identity link). When absent,
+   *  the DB trigger self-attributes the acting clinician (NULL-only fill). */
+  counselorId?: string;
   groupId?: string; // WS6: standing-group instance (null/undefined = ad-hoc session)
   capacity?: number;
   attendees?: Attendee[];

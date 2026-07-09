@@ -4,12 +4,11 @@ import type { Counselor } from '../services/api';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import CounselorDayView from '../components/sessions/CounselorDayView';
-import { parseTimeToMinutes, formatTime12 } from '../config/time';
 import { timeRangesOverlap } from '../services/recurrence';
-import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
+import AppointmentStatusModal from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, MapPin, Clock, Check, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, AlertTriangle } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +27,9 @@ const SessionManagement: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
+    // Step 9: empty-slot click prefill (counselor + time), cleared whenever the modal closes
+    // so the generic "Schedule Session" button never accidentally reuses a stale slot pick.
+    const [slotPrefill, setSlotPrefill] = useState<{ counselorId?: string; counselorName?: string; date: Date; time: string } | null>(null);
     const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
     const [savingStatus, setSavingStatus] = useState(false);
     // Calendar load must FAIL VISIBLY — never silently render phantom/mock appointments.
@@ -147,6 +149,23 @@ const SessionManagement: React.FC = () => {
         }
     };
 
+    // Step 10: persist a new date/time for this occurrence (the modal already ran the overlap
+    // check and got an explicit override if needed — this just writes what it decided).
+    const handleReschedule = async (date: Date, startTime: string, endTime: string) => {
+        if (!selectedAppt) return;
+        setSavingStatus(true);
+        try {
+            const updated = await updateAppointment(selectedAppt.id, { date, startTime, endTime });
+            setAppointments(prev => prev.map(a => (a.id === updated.id ? updated : a)));
+            setSelectedAppt(updated);
+        } catch (err) {
+            console.error('[SessionManagement] reschedule failed:', err);
+            alert('Could not reschedule: ' + (err as Error).message);
+        } finally {
+            setSavingStatus(false);
+        }
+    };
+
     // Series edit-scope. Both bulk ops PROTECT Completed occurrences (accrual). After a bulk
     // change we refetch rather than surgically patch — the simplest correct thing for N rows.
     const handleCancelSeries = async () => {
@@ -221,21 +240,6 @@ const SessionManagement: React.FC = () => {
         return new Date(d.setDate(diff));
     }, [currentDate]);
 
-    const weekDays = useMemo(() => {
-        const days = [];
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(startOfWeek);
-            d.setDate(startOfWeek.getDate() + i);
-            days.push(d);
-        }
-        return days;
-    }, [startOfWeek]);
-
-    // Visible window: 6 AM start, 16 rows (matches CounselorDayView so early slots fit).
-    const WIN_START = 6;
-    const WIN_HOURS = 16;
-    const hours = Array.from({ length: WIN_HOURS }, (_, i) => i + WIN_START);
-
     // Live therapist double-booking detection across the loaded set. Same-therapist (by name,
     // this round) + same day + half-open time overlap (the shared recurrence primitive). Both
     // colliding occurrences are flagged. Canceled rows don't count. O(n²) is fine at clinic scale.
@@ -262,40 +266,6 @@ const SessionManagement: React.FC = () => {
         [selectedAppt, clients],
     );
 
-    // WS1 step C — day-view lane scope. UI scope must be a SUBSET of DB (RLS) scope, never
-    // wider. Gate on the SAME role strings as private.is_schedule_admin() (Director/Admin) so
-    // the board only shows lanes RLS could ever return rows for.
-    const isScheduleAdmin = user?.role === 'Director' || user?.role === 'Admin';
-    // A non-admin clinician's own counselor lane: resolved via the step-A auth_user_id link,
-    // fallback to an exact name match. null → no lane (fail-closed empty state, never full board).
-    const myCounselor = useMemo(
-        () =>
-            counselors.find(c => c.authUserId && user?.id && c.authUserId === user.id) ??
-            counselors.find(c => user?.name && c.name === user.name) ??
-            null,
-        [counselors, user?.id, user?.name],
-    );
-
-    const getEventStyle = (apt: Appointment) => {
-        // Position from the canonical time via config/time.ts. Unparseable → 9 AM slot.
-        const mins = parseTimeToMinutes(apt.startTime);
-        const startMin = Number.isNaN(mins) ? 9 * 60 : mins;
-        const startOffset = startMin - WIN_START * 60;
-        const duration = 50;
-
-        return {
-            top: `${(startOffset / (WIN_HOURS * 60)) * 100}%`,
-            height: `${(duration / (WIN_HOURS * 60)) * 100}%`,
-        };
-    };
-
-    const isToday = (date: Date) => {
-        const today = new Date();
-        return date.getDate() === today.getDate() && 
-               date.getMonth() === today.getMonth() && 
-               date.getFullYear() === today.getFullYear();
-    };
-
     if (isLoading) return <LoadingSpinner />;
 
     if (loadError) {
@@ -317,7 +287,8 @@ const SessionManagement: React.FC = () => {
             <div className="flex justify-between items-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-border dark:border-slate-700">
                 <div className="flex items-center gap-6">
                     <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-sm font-bold border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Today</button>
-                    {/* Week ↔ Day view toggle. Day = all-counselor swim-lanes (admin view). */}
+                    {/* Week ↔ Day view toggle. Both are the full all-counselor swim-lane board —
+                        step 9's distributed model (see below) opened it to every clinician. */}
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl text-sm font-bold border border-slate-300 dark:border-slate-600 shadow-sm">
                         <button onClick={() => setViewMode('week')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'week' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Week</button>
                         <button onClick={() => setViewMode('day')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'day' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Day</button>
@@ -332,154 +303,50 @@ const SessionManagement: React.FC = () => {
                             : startOfWeek.toLocaleDateString('default', { month: 'long', year: 'numeric' })}
                     </h2>
                 </div>
-                <button onClick={() => setScheduleModalOpen(true)} className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary-focus hover:shadow-primary/40 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                <button onClick={() => { setSlotPrefill(null); setScheduleModalOpen(true); }} className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary-focus hover:shadow-primary/40 hover:-translate-y-0.5 transition-all flex items-center gap-2">
                     <CalIcon size={18} /> Schedule Session
                 </button>
             </div>
 
-            {/* Day view: all-counselor swim-lanes for schedule admins (David/Jess); a single
-                own-lane for a non-admin clinician (Karen); an empty state if unresolvable.
-                Week view: the 7-day grid below (no counselor scaffold — left untouched). */}
-            {viewMode === 'day' ? (
-                isScheduleAdmin ? (
-                    <CounselorDayView
-                        date={currentDate}
-                        counselors={counselors}
-                        appointments={appointments}
-                        onSelectAppt={setSelectedAppt}
-                    />
-                ) : myCounselor ? (
-                    <CounselorDayView
-                        date={currentDate}
-                        counselors={counselors}
-                        appointments={appointments}
-                        onSelectAppt={setSelectedAppt}
-                        soloLabel={myCounselor.name}
-                    />
-                ) : (
-                    <div className="flex-1 flex items-center justify-center min-h-[600px] bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700">
-                        <div className="max-w-md text-center p-8">
-                            <CalIcon className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={40} />
-                            <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No schedule assigned</h2>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">Your account isn't linked to a counselor calendar yet, so there's no day view to show. Ask an administrator to link your account.</p>
-                        </div>
-                    </div>
-                )
+            {/* Step 9 — distributed booking model ("open the calendar, not the chart"): EVERY
+                staff role (Director/Therapist/Admin — same set as private.is_staff(), which now
+                also governs the widened appointments SELECT policy) sees the FULL all-counselor
+                board and can book onto any lane. This supersedes WS1 step C's non-admin solo-lane
+                restriction, which belonged to the prior "each clinician sees only their own
+                calendar" model. Week additionally forces fixed-width scrollable lanes and carries
+                the double-booking ring (parity with the old flat 7-day grid it replaces); Day
+                keeps its original compress-to-fit, no-ring behavior exactly as before. Clicking an
+                empty slot opens the modal prefilled with that lane's counselor + the clicked time. */}
+            {canManage ? (
+                <CounselorDayView
+                    date={currentDate}
+                    counselors={counselors}
+                    appointments={appointments}
+                    onSelectAppt={setSelectedAppt}
+                    conflictIds={viewMode === 'week' ? conflictIds : undefined}
+                    scrollable={viewMode === 'week'}
+                    onSlotClick={info => { setSlotPrefill(info); setScheduleModalOpen(true); }}
+                />
             ) : (
-            /* Calendar Grid */
-            <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
-                {/* Header Row */}
-                <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-700/60">
-                    <div className="p-4 border-r border-slate-100 dark:border-slate-700/30 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center pt-8">GMT-05</div>
-                    {weekDays.map(day => (
-                        <div key={day.toISOString()} className={`p-4 text-center border-r border-border dark:border-slate-700/50 last:border-0 ${isToday(day) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
-                            <p className={`text-[10px] font-bold uppercase mb-2 tracking-wider ${isToday(day) ? 'text-primary' : 'text-slate-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</p>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto text-xl transition-all ${isToday(day) ? 'bg-primary text-white font-bold shadow-lg shadow-primary/30 scale-110' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
-                                {day.getDate()}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Time Grid */}
-                <div className="flex-1 overflow-y-auto relative custom-scrollbar">
-                    <div className="grid grid-cols-8 h-[1200px]">
-                        {/* Time Column */}
-                        <div className="border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/20">
-                            {hours.map(hour => (
-                                <div key={hour} className="h-[75px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-3 pt-2 relative">
-                                    <span className="text-xs font-medium text-slate-400 relative -top-3">{hour > 12 ? hour - 12 : hour} {hour >= 12 ? 'PM' : 'AM'}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Day Columns */}
-                        {weekDays.map(day => {
-                            const dayEvents = appointments.filter(a => new Date(a.date).toDateString() === day.toDateString());
-                            return (
-                                <div key={day.toISOString()} className="relative border-r border-border dark:border-slate-700/50 last:border-0 group">
-                                    {/* Hour Grid Lines */}
-                                    {hours.map(h => <div key={h} className="h-[75px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
-                                    
-                                    {/* Events */}
-                                    {dayEvents.map(apt => {
-                                        const s = getAppointmentStatusStyle(apt.status);
-                                        const isConflict = conflictIds.has(apt.id);
-                                        return (
-                                        <div
-                                            key={apt.id}
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={() => setSelectedAppt(apt)}
-                                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedAppt(apt); } }}
-                                            className={`group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${s.card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
-                                            style={getEventStyle(apt)}
-                                            title={isConflict ? `${apt.title} — DOUBLE-BOOKED with another ${apt.therapist} session` : `${apt.title} — ${apt.status} (click to change status)`}
-                                        >
-                                            <div className="flex items-start gap-1">
-                                                <div className={`w-1 h-full absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
-                                                {isConflict && (
-                                                    <span className="absolute top-1 right-1 z-10" title={`Double-booked with another ${apt.therapist} session`}>
-                                                        <AlertTriangle size={12} className="text-red-600 fill-red-100" />
-                                                    </span>
-                                                )}
-                                                <div className="pl-2 overflow-hidden">
-                                                    <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
-                                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
-                                                        <Clock size={10} /> {formatTime12(apt.startTime)} - {formatTime12(apt.endTime)}
-                                                    </div>
-                                                    {apt.modality.includes('Zoom') && (
-                                                        <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold opacity-90">
-                                                            <Video size={10}/> Virtual
-                                                        </div>
-                                                    )}
-                                                    {apt.status !== 'Scheduled' && (
-                                                        <span className={`inline-flex items-center mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${s.badge}`}>
-                                                            {apt.status}
-                                                        </span>
-                                                    )}
-                                                    {apt.googleEventId && (
-                                                        <a
-                                                            href={apt.googleEventLink || '#'}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            onClick={e => e.stopPropagation()}
-                                                            title="Open in Google Calendar"
-                                                            className="flex items-center gap-1 mt-1 text-[10px] font-semibold text-green-700 dark:text-green-300 hover:underline"
-                                                        >
-                                                            <Check size={10}/> Synced to Google
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        );
-                                    })}
-                                    
-                                    {/* Current Time Indicator */}
-                                    {isToday(day) && (
-                                        <div 
-                                            className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
-                                            style={{ top: `${((new Date().getHours() - WIN_START) * 60 + new Date().getMinutes()) / (WIN_HOURS * 60) * 100}%` }}
-                                        >
-                                            <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 shadow-sm ring-2 ring-white dark:ring-slate-800"></div>
-                                            <div className="h-[2px] w-full bg-red-500 shadow-sm"></div>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                <div className="flex-1 flex items-center justify-center min-h-[600px] bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700">
+                    <div className="max-w-md text-center p-8">
+                        <CalIcon className="mx-auto text-slate-300 dark:text-slate-600 mb-4" size={40} />
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">No scheduling access</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Your account's role doesn't include scheduling. Ask an administrator if you believe this is wrong.</p>
                     </div>
                 </div>
-            </div>
             )}
 
             {isScheduleModalOpen && (
                 <ScheduleSessionModal
                     isOpen={isScheduleModalOpen}
-                    onClose={() => setScheduleModalOpen(false)}
+                    onClose={() => { setScheduleModalOpen(false); setSlotPrefill(null); }}
                     onSave={(newApt) => setAppointments(prev => [...prev, newApt])}
                     clients={clients}
+                    prefillCounselorId={slotPrefill?.counselorId}
+                    prefillCounselorName={slotPrefill?.counselorName}
+                    prefillDate={slotPrefill?.date}
+                    prefillTime={slotPrefill?.time}
                 />
             )}
 
@@ -495,6 +362,7 @@ const SessionManagement: React.FC = () => {
                 canManage={canManage}
                 client={selectedClient}
                 onSaveNotes={canManage ? handleSaveNotes : undefined}
+                onReschedule={canManage ? handleReschedule : undefined}
                 onCancelSeries={canManage && selectedAppt?.seriesId ? handleCancelSeries : undefined}
                 onDeleteSeries={canManage && selectedAppt?.seriesId ? handleDeleteSeries : undefined}
             />

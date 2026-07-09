@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Client, Appointment, AppointmentType } from '../../types';
-import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries } from '../../services/api';
+import { Client, Appointment } from '../../types';
+import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, durationForSessionType, ServiceType } from '../../config/sessionTaxonomy';
+import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
+import { counselorsForSessionType } from '../../config/sessionTaxonomy';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
-import { formatTime12, parseTimeToMinutes } from '../../config/time';
+import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { useAuth } from '../../contexts/AuthContext';
 import { MapPin, AlertTriangle, CheckCircle, Loader2, Repeat } from 'lucide-react';
 
@@ -14,31 +16,47 @@ interface ScheduleSessionModalProps {
     onSave: (newAppointment: Appointment) => void;
     clients: Client[];
     preselectedClient?: Client;
+    // Step 9 distributed booking: seeded from a calendar slot click (counselor lane + time).
+    // The modal is a fresh mount each open ({isScheduleModalOpen && <Modal/>} in the parent),
+    // so these only need to inform INITIAL state, not be watched afterward.
+    prefillCounselorId?: string;
+    prefillCounselorName?: string;
+    prefillDate?: Date;
+    prefillTime?: string;
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// WS3: two-step Session Type. A parent CATEGORY select filters the child service
-// select; the child's value stays a full AppointmentType string, so isGroup,
-// capacity, recurrence, and every downstream consumer are untouched. The parent is
-// DERIVED from the current sessionType (single source of truth) — there's no separate
-// parent state to desync — so a preselected/edited appointment opens on the correct
-// category with the right child preselected, and a fresh session keeps today's default.
-const SESSION_TYPE_CATEGORIES: { label: string; types: AppointmentType[] }[] = [
-    { label: 'Group',      types: ['SATOP Group', 'REACT Group', 'Anger Management Group', 'Gambling Group'] },
-    { label: 'Individual', types: ['Individual Counseling'] },
-    { label: 'Assessment', types: ['DOT Assessment', 'Intake Assessment'] },
-];
-const categoryForType = (t: AppointmentType): string =>
-    SESSION_TYPE_CATEGORIES.find(c => c.types.includes(t))?.label ?? SESSION_TYPE_CATEGORIES[0].label;
+// Three-level cascade (David 7/7): Service Type (OP/SATOP/Evaluation) -> Session Type,
+// both from config/sessionTaxonomy.ts. State holds only the session-type ID; the service
+// level is DERIVED from it (single source of truth — no parent state to desync). The
+// counselor level (matrix filtering) lands in the next step. NOTE: the taxonomy service
+// is NOT appointments.service_type — that column stays the WS3 accrual category
+// ('counseling'/...) and keeps its existing behavior (group-inherited or set at complete).
 
-const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onClose, onSave, clients, preselectedClient }) => {
+const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onClose, onSave, clients, preselectedClient, prefillCounselorId, prefillCounselorName, prefillDate, prefillTime }) => {
     const { user } = useAuth();
-    const [sessionType, setSessionType] = useState<AppointmentType>('SATOP Group');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [startTime, setStartTime] = useState('18:00');
-    const [endTime, setEndTime] = useState('20:00');
+    // A slot click seeds the session type to one this counselor actually qualifies for
+    // (else the matrix-driven counselor-reconciliation effect below would immediately
+    // reassign away from the prefilled counselor). 'OPEN' rows (Group) always qualify.
+    const [sessionTypeId, setSessionTypeId] = useState<string>(() => {
+        if (prefillCounselorName) {
+            const qualifies = SESSION_TYPES.find(
+                t => t.counselors !== 'OPEN' && (t.counselors as readonly string[]).includes(prefillCounselorName),
+            );
+            if (qualifies) return qualifies.id;
+            const open = SESSION_TYPES.find(t => t.counselors === 'OPEN');
+            if (open) return open.id;
+        }
+        return SESSION_TYPES[0].id;
+    });
+    const [date, setDate] = useState(() => (prefillDate ? toLocalYMD(prefillDate) : new Date().toISOString().split('T')[0]));
+    const [startTime, setStartTime] = useState(prefillTime ?? '18:00');
+    const [endTime, setEndTime] = useState('19:00');
     const [capacity, setCapacity] = useState(15);
+    // "In person" (David 7/7): every booking carries the checkbox; checked skips the
+    // ad-hoc Zoom mint and stores modality 'In-Person'.
+    const [inPerson, setInPerson] = useState(false);
     const [selectedClientId, setSelectedClientId] = useState<string | undefined>(clients[0]?.id);
 
     // Booking-dropdown TYPE funnel (status → type). The clients passed in are already
@@ -57,6 +75,9 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     const [isRecurring, setIsRecurring] = useState(false);
     const [occurrenceCount, setOccurrenceCount] = useState(6);
     const [isSaving, setIsSaving] = useState(false);
+    // Step 9: booking failures (RLS rejection, network error, ...) render inline instead of
+    // a blocking alert() — a rejected rule should read as designed, not like a crash.
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     // Smart Scheduling State
     const [travelRisk, setTravelRisk] = useState<'Low' | 'Medium' | 'High' | null>(null);
@@ -77,20 +98,61 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     const [selectedGroupId, setSelectedGroupId] = useState<string | undefined>(undefined);
     useEffect(() => { if (isOpen) getGroupsWithCounselor().then(setGroups).catch(() => setGroups([])); }, [isOpen]);
 
+    // Cascade level 3: the bookable counselor roster (active rows). Visible-empty on
+    // failure — an empty select is honest; we never fabricate a roster.
+    const [counselors, setCounselors] = useState<Counselor[]>([]);
+    const [selectedCounselorId, setSelectedCounselorId] = useState<string | undefined>(prefillCounselorId);
+    useEffect(() => { if (isOpen) getCounselors().then(setCounselors).catch(() => setCounselors([])); }, [isOpen]);
+
     useEffect(() => {
         if (preselectedClient) {
-            setSessionType('Individual Counseling');
+            setSessionTypeId('op_1on1'); // makeup flow: default to a 1:1
             setSelectedClientId(preselectedClient.id);
+        } else if (!prefillCounselorName) {
+            setSessionTypeId(SESSION_TYPES[0].id);
+            setSelectedClientId(clients[0]?.id);
         } else {
-            setSessionType('SATOP Group');
+            // Slot-click flow: the mount-time initializer already chose a session type this
+            // counselor qualifies for — don't stomp it back to the vanilla default.
             setSelectedClientId(clients[0]?.id);
         }
-    }, [preselectedClient, clients]);
-    
+    }, [preselectedClient, clients, prefillCounselorName]);
+
+    // Cascade derivation: the service level is read off the current session type so the
+    // two selects always agree; changing the service snaps to its first session type.
+    const sessionDef = sessionTypeById(sessionTypeId) ?? SESSION_TYPES[0];
+    const serviceType3 = sessionDef.service;
+    const sessionTypesForCurrentService = sessionTypesForService(serviceType3);
+    const handleServiceChange = (svc: string) => {
+        const first = sessionTypesForService(svc as ServiceType)[0];
+        if (first) setSessionTypeId(first.id);
+    };
+
+    const isGroup = sessionDef.label.toLowerCase().includes('group');
+    // Display label carries the service for the two 'Group' rows ("OP Group" reads
+    // better than "Group" on a calendar card); 1:1s/evals keep their bare label.
+    const sessionLabel = sessionDef.label === 'Group' ? `${serviceType3} Group` : sessionDef.label;
+
+    // Duration policy (David 7/7): 60m default, MRT 1:1 = 15m. End time re-derives from
+    // start + the session type's duration whenever either changes; a manual end edit
+    // holds only until the next such change.
+    useEffect(() => {
+        const s = parseTimeToMinutes(startTime);
+        if (Number.isNaN(s)) return;
+        setEndTime(minutesToTimeLabel(s + durationForSessionType(sessionTypeId)));
+    }, [sessionTypeId, startTime]);
+
+    // Cascade level 3: qualification matrix. null = OPEN row (no roster given — David) →
+    // the full active roster stays selectable. Names key against counselors.name.
+    const qualifiedNames = counselorsForSessionType(sessionTypeId);
+    const qualifiedCounselors = qualifiedNames === null
+        ? counselors
+        : counselors.filter(c => qualifiedNames.includes(c.name));
+
     // Trigger AI Risk Analysis when date/time/client changes
     useEffect(() => {
         const analyze = async () => {
-            if (selectedClientId && date && startTime && !sessionType.includes('Group')) {
+            if (selectedClientId && date && startTime && !isGroup) {
                 setIsAnalyzingRisk(true);
                 setTravelRisk(null);
                 try {
@@ -108,23 +170,33 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         };
         const debounce = setTimeout(analyze, 800);
         return () => clearTimeout(debounce);
-    }, [date, startTime, selectedClientId, sessionType]);
+    }, [date, startTime, selectedClientId, sessionTypeId]);
 
-    // WS3 parent/child derivation (see SESSION_TYPE_CATEGORIES). Parent is read off the
-    // current sessionType so it always agrees with the child; changing it snaps the child
-    // to the first service in that category.
-    const sessionCategory = categoryForType(sessionType);
-    const typesForCategory = SESSION_TYPE_CATEGORIES.find(c => c.label === sessionCategory)?.types ?? [];
-    const handleCategoryChange = (label: string) => {
-        const cat = SESSION_TYPE_CATEGORIES.find(c => c.label === label);
-        if (cat && cat.types.length) setSessionType(cat.types[0]);
-    };
-
-    const isGroup = sessionType.toLowerCase().includes('group');
     const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
-    // Therapist = the selected standing group's counselor (David/Karen/...), else the acting
-    // counselor (the logged-in user). Replaces the old hardcoded 'Bill Sunderman'.
-    const therapistName = selectedGroupObj?.counselor_name || user?.name || 'Unassigned';
+
+    // Reconcile the counselor selection: a standing group PINS its own counselor; otherwise
+    // keep the current pick while it stays qualified, else default to the logged-in user
+    // when qualified, else the first qualified counselor. Runs on any cascade change so a
+    // stale selection can never survive a session-type switch it isn't qualified for.
+    useEffect(() => {
+        if (selectedGroupObj) {
+            const pinned = counselors.find(c => c.name === selectedGroupObj.counselor_name);
+            setSelectedCounselorId(pinned?.id);
+            return;
+        }
+        setSelectedCounselorId(prev => {
+            if (prev && qualifiedCounselors.some(c => c.id === prev)) return prev;
+            if (prefillCounselorId && qualifiedCounselors.some(c => c.id === prefillCounselorId)) return prefillCounselorId;
+            const own = user?.name ? qualifiedCounselors.find(c => c.name === user.name) : undefined;
+            return (own ?? qualifiedCounselors[0])?.id;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionTypeId, counselors, selectedGroupId, prefillCounselorId]);
+
+    const selectedCounselor = counselors.find(c => c.id === selectedCounselorId);
+    // Therapist display name follows the explicit counselor pick (group-pinned or chosen);
+    // group counselor_name is the fallback while the roster is still loading.
+    const therapistName = selectedCounselor?.name || selectedGroupObj?.counselor_name || 'Unassigned';
 
     // Recurrence is a 1:1 AD-HOC affordance this round: not for group session types, and not
     // when a standing group is attached (a series doesn't carry group_id — out of scope). Either
@@ -187,6 +259,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setSaveError(null);
         // Warn-and-allow: a real overlap blocks submit until staff explicitly override.
         if (blockedByConflicts) return;
         setIsSaving(true);
@@ -206,8 +279,9 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             zoomMeetingId = selectedGroup.counselor_zoom_meeting_id || undefined;
             serviceType = (selectedGroup.service_type as Appointment['serviceType']) || undefined;
             groupId = selectedGroup.id;
-        } else if (user?.id && isZoomLinked()) {
-            // Ad-hoc (no group): auto-create a per-session Zoom meeting — unchanged path.
+        } else if (user?.id && isZoomLinked() && !inPerson) {
+            // Ad-hoc virtual (no group): auto-create a per-session Zoom meeting — unchanged
+            // path. In-person bookings skip the mint entirely.
             // Failure is non-fatal; appointment still saves without a zoom link.
             try {
                 const startIso = new Date(`${date}T${startTime}:00`).toISOString();
@@ -216,7 +290,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                     15,
                     Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000),
                 );
-                const topic = isGroup ? sessionType : `Individual Counseling - ${client?.name ?? ''}`.trim();
+                const topic = isGroup ? sessionLabel : `${sessionLabel} - ${client?.name ?? ''}`.trim();
                 const zm = await createZoomMeeting(String(user.id), {
                     topic,
                     startIso,
@@ -237,16 +311,18 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         // series (would spam N events) — single sessions keep their write-through below.
         if (recurring) {
             if (!selectedClientId || !client) {
-                alert('Choose a client before booking a recurring series.');
+                setSaveError('Choose a client before booking a recurring series.');
                 return;
             }
             const { occurrences } = await createRecurringSeries({
                 clientId: selectedClientId,
                 clientName: client.name,
                 therapistName,
-                appointmentType: sessionType,
-                modality: 'Virtual (Zoom)',
-                title: `Individual Counseling - ${client.name}`,
+                appointmentType: sessionLabel,
+                sessionTypeId: sessionDef.id,
+                counselorId: selectedCounselorId,
+                modality: inPerson ? 'In-Person' : 'Virtual (Zoom)',
+                title: `${sessionLabel} - ${client.name}`,
                 firstDate,
                 startTime,
                 endTime,
@@ -262,16 +338,18 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         }
 
         const newAppointmentData: Omit<Appointment, 'id'> = {
-            title: isGroup ? sessionType : `Individual Counseling - ${client?.name}`,
-            type: sessionType,
+            title: isGroup ? sessionLabel : `${sessionLabel} - ${client?.name}`,
+            type: sessionLabel,
+            sessionTypeId: sessionDef.id,
+            counselorId: selectedCounselorId,
             date: new Date(date + 'T00:00:00'),
             // Canonical 24-hour "HH:MM" (matches the <input type="time"> value and the
             // read-path format). NO 12-hour conversion here — that produced "06:00 PM",
             // which combineDateAndTime then mis-stored as 6 AM. See config/time.ts.
             startTime,
             endTime,
-            modality: 'Virtual (Zoom)',
-            therapist: selectedGroup?.counselor_name || user?.name || 'Unassigned',
+            modality: inPerson ? 'In-Person' : 'Virtual (Zoom)',
+            therapist: therapistName,
             zoomLink,
             status: 'Scheduled',
             serviceType,
@@ -332,7 +410,12 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         onClose();
         } catch (err) {
             console.error('[ScheduleSessionModal] save failed:', err);
-            alert('Could not create the session: ' + (err as Error).message);
+            const message = (err as Error).message || '';
+            setSaveError(
+                message.includes('row-level security')
+                    ? "This booking was blocked by a permissions rule. If you believe you should be able to book this session, contact an administrator."
+                    : `Could not create the session: ${message}`,
+            );
         } finally {
             setIsSaving(false);
         }
@@ -350,20 +433,20 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                     </header>
                     
                     <main className="p-6 space-y-4">
-                        {/* WS3 two-step: parent "Session type" category filters the child "Service"
-                            select. The child value stays a full AppointmentType, so nothing downstream
-                            (isGroup, capacity, recurrence) changes. */}
+                        {/* Three-level cascade (David 7/7): "Service type" (OP/SATOP/Evaluation)
+                            filters "Session type" (config/sessionTaxonomy.ts). Counselor filtering
+                            (level 3) lands in the next step. */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label htmlFor="sessionCategory" className="block text-sm font-medium mb-1">Session type</label>
-                                <select id="sessionCategory" value={sessionCategory} onChange={e => handleCategoryChange(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
-                                    {SESSION_TYPE_CATEGORIES.map(c => <option key={c.label} value={c.label}>{c.label}</option>)}
+                                <label htmlFor="serviceType" className="block text-sm font-medium mb-1">Service type</label>
+                                <select id="serviceType" value={serviceType3} onChange={e => handleServiceChange(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
+                                    {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label htmlFor="sessionType" className="block text-sm font-medium mb-1">Service</label>
-                                <select id="sessionType" value={sessionType} onChange={e => setSessionType(e.target.value as AppointmentType)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
-                                    {typesForCategory.map(t => <option key={t} value={t}>{t}</option>)}
+                                <label htmlFor="sessionType" className="block text-sm font-medium mb-1">Session type</label>
+                                <select id="sessionType" value={sessionTypeId} onChange={e => setSessionTypeId(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
+                                    {sessionTypesForCurrentService.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -429,6 +512,13 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 <input type="time" id="endTime" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md" />
                             </div>
                         </div>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={inPerson} onChange={e => setInPerson(e.target.checked)} className="rounded" />
+                            <MapPin size={15} className="text-slate-500" />
+                            <span className="text-sm font-medium">In person</span>
+                            <span className="text-xs text-slate-400">(no Zoom link is created)</span>
+                        </label>
 
                         {/* Recurring 1:1 series — 1:1 ad-hoc only (group recurrence out of scope). Weekly,
                             for N occurrences starting on the picked date (its weekday repeats). */}
@@ -519,9 +609,30 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                         )}
 
                          <div>
-                            <label className="block text-sm font-medium mb-1">Therapist</label>
-                            <input type="text" readOnly value={therapistName} className="w-full p-2 border border-border dark:border-slate-600 bg-gray-100 dark:bg-slate-800 rounded-md" />
+                            <label htmlFor="counselor" className="block text-sm font-medium mb-1">Counselor</label>
+                            <select
+                                id="counselor"
+                                value={selectedCounselorId ?? ''}
+                                onChange={e => setSelectedCounselorId(e.target.value || undefined)}
+                                disabled={!!selectedGroupObj}
+                                className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md disabled:bg-gray-100 dark:disabled:bg-slate-800"
+                            >
+                                {qualifiedCounselors.length === 0 && <option value="">— No counselors available —</option>}
+                                {qualifiedCounselors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            {selectedGroupObj ? (
+                                <p className="mt-1 text-xs text-slate-500">Pinned to the standing group's counselor.</p>
+                            ) : qualifiedNames === null ? (
+                                <p className="mt-1 text-xs text-slate-500">No roster defined for Group sessions — full roster shown (open item for David).</p>
+                            ) : null}
                         </div>
+
+                        {saveError && (
+                            <div className="mt-2 p-3 rounded-lg border bg-red-50 border-red-200 flex items-start gap-3">
+                                <AlertTriangle size={16} className="text-red-600 mt-0.5 shrink-0" />
+                                <p className="text-sm text-red-800">{saveError}</p>
+                            </div>
+                        )}
                     </main>
 
                     <footer className="p-4 border-t border-black/10 dark:border-white/10 flex justify-end">

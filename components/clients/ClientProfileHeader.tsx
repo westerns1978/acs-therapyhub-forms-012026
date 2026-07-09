@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Client, Appointment, CLIENT_STATUS_LABELS } from '../../types';
+import { Client, Appointment, CLIENT_STATUS_LABELS, needsStatusReview } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
 import { formatTime12 } from '../../config/time';
 import { normalizeProgram } from '../../config/programVocab';
@@ -49,8 +49,11 @@ const formatBooking = (apt: Appointment): string => {
 const getStatusColor = (status: Client['status']) => {
     switch (status) {
         case 'active': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        case 'completed': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'completed': case 'successful_dx': return 'bg-blue-100 text-blue-800 border-blue-200';
         case 'archived': return 'bg-slate-100 text-slate-600 border-slate-200';
+        case 'prospect': return 'bg-amber-100 text-amber-800 border-amber-200';
+        case 'paused': return 'bg-orange-100 text-orange-800 border-orange-200';
+        case 'unsuccessful_dx': return 'bg-rose-100 text-rose-800 border-rose-200';
         default: return 'bg-slate-100 text-slate-800 border-slate-200';
     }
 };
@@ -145,7 +148,11 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
               <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getProgramBadge(client, determinedLevel).color}`}>
                 {getProgramBadge(client, determinedLevel).label}
               </span>
-              <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getStatusColor(client.status)}`}>
+              <span
+                className={`inline-flex items-center gap-1.5 px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getStatusColor(client.status)}`}
+                title={needsStatusReview(client.status) ? 'Needs review — confirm this discharge outcome' : undefined}
+              >
+                {needsStatusReview(client.status) && <AlertTriangle size={11} className="shrink-0" />}
                 {CLIENT_STATUS_LABELS[client.status] ?? client.status}
               </span>
           </div>
@@ -154,12 +161,12 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
           </div>
 
           {/* Operational client-type chip — read-only, styled unlike the clinical program pill
-              above so the two axes don't read as duplicates. Sits with the booking glance. */}
-          {client.clientType && (
-            <div className="mt-3 flex justify-center lg:justify-start">
-              <ClientTypeBadge type={client.clientType} />
-            </div>
-          )}
+              above so the two axes don't read as duplicates. Sits with the booking glance.
+              Always rendered (sched step 11) — the badge itself surfaces a "needs review"
+              state for untagged/ambiguous-legacy client_type rather than staying invisible. */}
+          <div className="mt-3 flex justify-center lg:justify-start">
+            <ClientTypeBadge type={client.clientType} />
+          </div>
 
           {/* Booking glance — most-recent past + next upcoming appointment. Both resolve via
               appointments.client_id matched to this client's uuid (same as the contact popup). */}

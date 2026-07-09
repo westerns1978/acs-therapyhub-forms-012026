@@ -8,10 +8,10 @@ import {
     fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms,
     fetchCompletionSignoff, assessClient,
 } from '../../services/complianceEngine';
-import { Client, ClientStatus, CLIENT_STATUS_LABELS } from '../../types';
+import { Client, ClientStatus, CLIENT_STATUS_LABELS, needsStatusReview } from '../../types';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import ClientAvatar from './ClientAvatar';
-import { Search, UserPlus, LayoutGrid, List, CheckCircle2, Archive, ArrowUpDown } from 'lucide-react';
+import { Search, UserPlus, LayoutGrid, List, CheckCircle2, Archive, ArrowUpDown, AlertTriangle } from 'lucide-react';
 import { normalizeProgram, programLabel, isSatopProgram } from '../../config/programVocab';
 import ClientTypeBadge from './ClientTypeBadge';
 
@@ -28,8 +28,11 @@ const timelineTone = (status: ProgramCardState['status']) =>
 const lifecycleBadgeClass = (status: Client['status']) => {
     switch (status) {
         case 'active': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        case 'completed': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'completed': case 'successful_dx': return 'bg-blue-100 text-blue-800 border-blue-200';
         case 'archived': return 'bg-slate-100 text-slate-600 border-slate-200';
+        case 'prospect': return 'bg-amber-100 text-amber-800 border-amber-200';
+        case 'paused': return 'bg-orange-100 text-orange-800 border-orange-200';
+        case 'unsuccessful_dx': return 'bg-rose-100 text-rose-800 border-rose-200';
         default: return 'bg-slate-100 text-slate-800 border-slate-200';
     }
 };
@@ -96,7 +99,9 @@ const ClientCard: React.FC<{
             <ClientAvatar client={client} className="w-14 h-14 text-xl mb-2" />
             <h3 className="font-bold">{client.name}</h3>
             <p className="text-sm text-surface-secondary-content">{programDisplayLabel(client.program)}</p>
-            {client.clientType && <ClientTypeBadge type={client.clientType} className="mt-1.5" />}
+            {/* Always rendered (sched step 11) — surfaces a "needs review" state for
+                untagged/ambiguous-legacy client_type instead of staying invisible. */}
+            <ClientTypeBadge type={client.clientType} className="mt-1.5" />
             {isSatop ? (
                 // Started clients show the authoritative progress bar; un-started ones get a quiet
                 // muted footnote instead of an empty 0% bar + loud "Not yet established" filler.
@@ -125,7 +130,11 @@ const ClientCard: React.FC<{
                 </div>
             )}
             {client.status !== 'active' && (
-                <span className={`mt-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full border ${lifecycleBadgeClass(client.status)}`}>
+                <span
+                    className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full border ${lifecycleBadgeClass(client.status)}`}
+                    title={needsStatusReview(client.status) ? 'Needs review — confirm this discharge outcome' : undefined}
+                >
+                    {needsStatusReview(client.status) && <AlertTriangle size={9} className="shrink-0" />}
                     {CLIENT_STATUS_LABELS[client.status] ?? client.status}
                 </span>
             )}
@@ -226,7 +235,11 @@ const ClientListView: React.FC<{
                                 <td className="px-3 py-1.5 text-slate-500">{c.caseNumber || '—'}</td>
                                 <td className="px-3 py-1.5">{programDisplayLabel(c.program)}</td>
                                 <td className="px-3 py-1.5">
-                                    <span className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full border ${lifecycleBadgeClass(c.status)}`}>
+                                    <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-full border ${lifecycleBadgeClass(c.status)}`}
+                                        title={needsStatusReview(c.status) ? 'Needs review — confirm this discharge outcome' : undefined}
+                                    >
+                                        {needsStatusReview(c.status) && <AlertTriangle size={9} className="shrink-0" />}
                                         {CLIENT_STATUS_LABELS[c.status] ?? c.status}
                                     </span>
                                 </td>
@@ -247,9 +260,17 @@ const ClientListView: React.FC<{
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 type StatusChip = ClientStatus | 'all';
+// Sched step 12: David's 5-status target model (Pending/Active/Paused/Unsuccessful Dx/
+// Successful Dx) plus 'archived' RETAINED as its own admin-only 6th chip (not one of "the
+// 5" — see types.ts). 'prospect'->Pending and 'completed'->Successful Dx are label-only;
+// 'paused'/'unsuccessful_dx' are brand-new tokens with 0 rows today (see the migration
+// witness) but selectable/filterable as soon as any client takes them.
 const STATUS_CHIPS: { key: StatusChip; label: string }[] = [
+    { key: 'prospect', label: 'Pending' },
     { key: 'active', label: 'Active' },
-    { key: 'completed', label: 'Completed' },
+    { key: 'paused', label: 'Paused' },
+    { key: 'unsuccessful_dx', label: 'Unsuccessful Dx' },
+    { key: 'completed', label: 'Successful Dx' },
     { key: 'archived', label: 'Archived' },
     { key: 'all', label: 'All' },
 ];
