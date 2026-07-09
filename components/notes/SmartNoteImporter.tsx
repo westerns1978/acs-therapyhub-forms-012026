@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { generateSoapNoteFromTranscript, saveClinicalNote, getClients } from '../../services/api';
 import { Client } from '../../types';
-import { Sparkles, Loader2, Mic, MicOff, Eraser, FileText, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Loader2, Mic, MicOff, Eraser, FileText, CheckCircle, ChevronDown, ChevronUp, FileSignature } from 'lucide-react';
 
 interface SmartNoteImporterProps {
     onNoteGenerated: (note: string) => void;
@@ -18,6 +18,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
     const [formattedNote, setFormattedNote] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSigning, setIsSigning] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [noteFormat, setNoteFormat] = useState<'SOAP' | 'DAP'>('SOAP');
     // The AI-formatted pane is collapsed by default so the Raw Input gets the full
@@ -64,6 +65,25 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
             alert("Error saving note");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    // Signing is a deliberate, separate action from the plain draft Save above —
+    // it must never be the default. A signed note is permanent (clinical_notes has
+    // no unsign path) and, via saveClinicalNote's isSigned branch, writes a
+    // note.signed audit_logs row. The confirm() is the "are you sure" gate; there
+    // is no unsign affordance to fall back on if this is clicked by mistake.
+    const handleSignAndSave = async () => {
+        if (!selectedClientId) return;
+        if (!window.confirm('Sign this note now? Signed notes are permanent and cannot be edited or unsigned afterward.')) return;
+        setIsSigning(true);
+        try {
+            await saveClinicalNote(selectedClientId, formattedNote || rawText, { noteFormat, isSigned: true });
+            onNoteGenerated(formattedNote || rawText);
+        } catch (e) {
+            alert("Error signing note");
+        } finally {
+            setIsSigning(false);
         }
     };
 
@@ -172,15 +192,26 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
                 </div>
             </div>
 
-            {/* Footer — Save persists via saveClinicalNote (unchanged path & formats). */}
-            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex justify-end flex-shrink-0">
+            {/* Footer — Save persists an unsigned draft via saveClinicalNote (unchanged
+                path & formats). Sign & Save is a separate, deliberate action (confirm()
+                gated) that persists WITH isSigned: true — never the default. */}
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex flex-wrap justify-end gap-3 flex-shrink-0">
                 <button
                     onClick={handleSave}
-                    disabled={isSaving || (!formattedNote && !rawText)}
-                    className="w-full sm:w-auto justify-center bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 flex items-center gap-2 shadow-lg shadow-green-600/20 hover:shadow-green-600/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none"
+                    disabled={isSaving || isSigning || (!formattedNote && !rawText)}
+                    className="flex-1 sm:flex-none justify-center bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 flex items-center gap-2 shadow-lg shadow-green-600/20 hover:shadow-green-600/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none"
                 >
                     {isSaving ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle size={18} />}
                     {isSaving ? 'Saving to Record...' : 'Save Note'}
+                </button>
+                <button
+                    onClick={handleSignAndSave}
+                    disabled={isSaving || isSigning || (!formattedNote && !rawText)}
+                    title="Sign this note — permanent, cannot be undone"
+                    className="flex-1 sm:flex-none justify-center bg-slate-900 dark:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold hover:bg-black dark:hover:bg-indigo-800 flex items-center gap-2 shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none"
+                >
+                    {isSigning ? <Loader2 className="animate-spin" size={18}/> : <FileSignature size={18} />}
+                    {isSigning ? 'Signing...' : 'Sign & Save'}
                 </button>
             </div>
         </div>
