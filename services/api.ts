@@ -236,7 +236,10 @@ export const getClientStatusCounts = async (): Promise<Record<ClientStatus, numb
         console.error('[api] getClientStatusCounts failed:', error);
         throw new Error(error.message || 'Failed to load client counts');
     }
-    const counts: Record<ClientStatus, number> = { active: 0, completed: 0, archived: 0, prospect: 0 };
+    const counts: Record<ClientStatus, number> = {
+        active: 0, completed: 0, archived: 0, prospect: 0,
+        paused: 0, unsuccessful_dx: 0, successful_dx: 0,
+    };
     for (const r of data || []) {
         const s = (r as any).status as ClientStatus;
         if (counts[s] !== undefined) counts[s]++;
