@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Client, Appointment } from '../../types';
 import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, durationForSessionType, ServiceType } from '../../config/sessionTaxonomy';
-import { addAppointment, updateAppointment, analyzeTravelRisk, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
+import { addAppointment, updateAppointment, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
 import { counselorsForSessionType } from '../../config/sessionTaxonomy';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { useAuth } from '../../contexts/AuthContext';
-import { MapPin, AlertTriangle, CheckCircle, Loader2, Repeat } from 'lucide-react';
+import { MapPin, AlertTriangle, Loader2, Repeat } from 'lucide-react';
 
 interface ScheduleSessionModalProps {
     isOpen: boolean;
@@ -80,11 +80,6 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     // a blocking alert() — a rejected rule should read as designed, not like a crash.
     const [saveError, setSaveError] = useState<string | null>(null);
 
-    // Smart Scheduling State
-    const [travelRisk, setTravelRisk] = useState<'Low' | 'Medium' | 'High' | null>(null);
-    const [riskReason, setRiskReason] = useState<string>('');
-    const [isAnalyzingRisk, setIsAnalyzingRisk] = useState(false);
-
     // Deterministic therapist double-booking check (replaces the advisory Google free/busy).
     // A conflict is a real overlap against this therapist's existing appointments; policy is
     // warn-and-allow — staff may override with an explicit acknowledgement.
@@ -149,29 +144,6 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     const qualifiedCounselors = qualifiedNames === null
         ? counselors
         : counselors.filter(c => qualifiedNames.includes(c.name));
-
-    // Trigger AI Risk Analysis when date/time/client changes
-    useEffect(() => {
-        const analyze = async () => {
-            if (selectedClientId && date && startTime && !isGroup) {
-                setIsAnalyzingRisk(true);
-                setTravelRisk(null);
-                try {
-                    const analysis = await analyzeTravelRisk(selectedClientId, date, startTime);
-                    setTravelRisk(analysis.risk);
-                    setRiskReason(analysis.reason);
-                } catch (e) {
-                    console.error(e);
-                } finally {
-                    setIsAnalyzingRisk(false);
-                }
-            } else {
-                setTravelRisk(null);
-            }
-        };
-        const debounce = setTimeout(analyze, 800);
-        return () => clearTimeout(debounce);
-    }, [date, startTime, selectedClientId, sessionTypeId]);
 
     const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
 
@@ -560,34 +532,6 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                         )}
                                     </div>
                                 )}
-                            </div>
-                        )}
-
-                        {/* Smart Scheduling Indicator */}
-                        {!isGroup && selectedClientId && (
-                            <div className={`mt-2 p-3 rounded-lg border flex items-start gap-3 transition-colors ${
-                                isAnalyzingRisk ? 'bg-gray-100 border-gray-200' :
-                                travelRisk === 'High' ? 'bg-red-50 border-red-200' :
-                                travelRisk === 'Medium' ? 'bg-yellow-50 border-yellow-200' :
-                                'bg-green-50 border-green-200'
-                            }`}>
-                                <div className="mt-0.5">
-                                    {isAnalyzingRisk ? <Loader2 size={16} className="animate-spin text-gray-500" /> :
-                                     travelRisk === 'High' ? <AlertTriangle size={16} className="text-red-500" /> :
-                                     travelRisk === 'Medium' ? <AlertTriangle size={16} className="text-yellow-600" /> :
-                                     <CheckCircle size={16} className="text-green-600" />}
-                                </div>
-                                <div>
-                                    <p className="text-xs font-bold uppercase tracking-wider mb-0.5 text-gray-500">Commute & Care Intelligence</p>
-                                    <p className={`text-sm font-semibold ${
-                                        isAnalyzingRisk ? 'text-gray-600' :
-                                        travelRisk === 'High' ? 'text-red-800' :
-                                        travelRisk === 'Medium' ? 'text-yellow-800' :
-                                        'text-green-800'
-                                    }`}>
-                                        {isAnalyzingRisk ? "Analyzing travel conditions..." : riskReason || "Schedule looks good."}
-                                    </p>
-                                </div>
                             </div>
                         )}
 
