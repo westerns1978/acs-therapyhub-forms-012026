@@ -1099,6 +1099,7 @@ export const saveClinicalNote = async (
                 entity_type: 'clinical_notes',
                 entity_id: data.id,
                 timestamp: new Date().toISOString(),
+                details: { client_id: clientId },
             });
         });
     }

@@ -21,6 +21,10 @@ export interface LogAuditInput {
     /** ISO timestamp. Passed explicitly (rather than relying on the column default) so
      *  callers can attribute the log to the moment of the action, not the moment it's flushed. */
     timestamp: string;
+    /** Freeform context written into the details jsonb column. Always include client_id here
+     *  when the event is attributable to a client — audit_logs has no client_id column of its
+     *  own, so details.client_id is the only way to make an event per-client reportable. */
+    details?: Record<string, unknown>;
 }
 
 export const logAudit = async (input: LogAuditInput): Promise<void> => {
@@ -31,6 +35,7 @@ export const logAudit = async (input: LogAuditInput): Promise<void> => {
             entity_type: input.entity_type,
             entity_id: input.entity_id,
             created_at: input.timestamp,
+            details: input.details ?? {},
         });
         if (error) console.error('[auditLog] write failed (non-fatal):', error.message);
     } catch (err) {
