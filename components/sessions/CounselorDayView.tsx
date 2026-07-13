@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Appointment } from '../../types';
 import type { Counselor } from '../../services/api';
-import { LaneColumn, SlotClickInfo, DAY_START_HOUR, DAY_END_HOUR, WINDOW_MIN, HOURS } from './scheduleLane';
+import { LaneColumn, SlotClickInfo, DAY_START_HOUR, DAY_END_HOUR, WINDOW_MIN, HOURS, bucketByCounselor, UNASSIGNED_LANE_KEY } from './scheduleLane';
 
 // The lane column itself (gridlines + true-duration cards + double-book ring + empty-slot
 // click) lives in scheduleLane.tsx — shared verbatim with the by-counselor week board.
@@ -35,8 +35,6 @@ interface CounselorDayViewProps {
     onSlotClick?: (info: SlotClickInfo) => void;
 }
 
-const UNASSIGNED = '__unassigned__';
-
 const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt, soloLabel, conflictIds, scrollable, soloCounselorId, onSlotClick }) => {
     // Appointments on this calendar day.
     const dayEvents = useMemo(
@@ -44,33 +42,18 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
         [appointments, date],
     );
 
-    // Lanes: one per active counselor (by name), plus a trailing "Unassigned" lane that
-    // only appears when a same-day appointment's therapist matches no counselor — so the
-    // admin view never silently drops a session.
+    // Lanes: one per active counselor (matched via the shared normalize-and-bucket
+    // attribution point in scheduleLane.tsx), plus a trailing "Unassigned" lane that only
+    // appears when a same-day appointment's therapist matches no counselor — so the admin
+    // view never silently drops a session.
     const lanes = useMemo(() => {
         // Single-lane mode (non-admin clinician): every visible appointment is already this
-        // clinician's (RLS-scoped), so put them ALL in one lane — do NOT bucket by therapist_name
-        // (that mis-files "Karen Ventimiglia, LPC" into Unassigned) and show NO Unassigned lane.
+        // clinician's (RLS-scoped), so put them ALL in one lane — no bucketing, no
+        // Unassigned lane.
         if (soloLabel) {
             return [{ key: 'solo', label: soloLabel, events: dayEvents, counselorId: soloCounselorId }];
         }
-        const counselorNames = new Set(counselors.map(c => c.name));
-        const byLane = new Map<string, Appointment[]>();
-        counselors.forEach(c => byLane.set(c.name, []));
-        let hasUnassigned = false;
-        dayEvents.forEach(a => {
-            const key = a.therapist && counselorNames.has(a.therapist) ? a.therapist : UNASSIGNED;
-            if (key === UNASSIGNED) hasUnassigned = true;
-            if (!byLane.has(key)) byLane.set(key, []);
-            byLane.get(key)!.push(a);
-        });
-        const result = counselors.map(c => ({ key: c.name, label: c.name, events: byLane.get(c.name) || [], counselorId: c.id as string | undefined }));
-        if (hasUnassigned) {
-            // No resolvable counselor for this lane — a slot click here still opens the
-            // modal (via onSlotClick below), just without a counselor prefill.
-            result.push({ key: UNASSIGNED, label: 'Unassigned', events: byLane.get(UNASSIGNED) || [], counselorId: undefined });
-        }
-        return result;
+        return bucketByCounselor(dayEvents, counselors);
     }, [counselors, dayEvents, soloLabel, soloCounselorId]);
 
     const isToday = date.toDateString() === new Date().toDateString();
@@ -91,7 +74,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
             <div className="p-3 border-r border-border dark:border-slate-700/50 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center self-center">GMT-05</div>
             {lanes.map(lane => (
                 <div key={lane.key} className="p-3 text-center border-r border-border dark:border-slate-700/50 last:border-0">
-                    <p className={`text-sm font-bold truncate ${lane.key === UNASSIGNED ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>{lane.label}</p>
+                    <p className={`text-sm font-bold truncate ${lane.key === UNASSIGNED_LANE_KEY ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>{lane.label}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">{lane.events.length} {lane.events.length === 1 ? 'session' : 'sessions'}</p>
                 </div>
             ))}
@@ -117,7 +100,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
                             date={date}
                             events={lane.events}
                             counselorId={lane.counselorId}
-                            counselorName={lane.key === UNASSIGNED ? undefined : lane.label}
+                            counselorName={lane.key === UNASSIGNED_LANE_KEY ? undefined : lane.label}
                             onSelectAppt={onSelectAppt}
                             conflictIds={conflictIds}
                             onSlotClick={onSlotClick}

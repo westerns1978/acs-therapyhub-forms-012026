@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Appointment } from '../../types';
 import type { Counselor } from '../../services/api';
-import { LaneColumn, SlotClickInfo, HOURS, GRID_HEIGHT_PX } from './scheduleLane';
+import { LaneColumn, SlotClickInfo, HOURS, GRID_HEIGHT_PX, bucketByCounselor, UNASSIGNED_LANE_KEY } from './scheduleLane';
 
 // By-counselor week board — David's verbatim ask (7/7 follow-up): each counselor's WHOLE
 // WEEK is its own block, blocks laid side by side, scrolled HORIZONTALLY across counselors
@@ -15,13 +15,13 @@ import { LaneColumn, SlotClickInfo, HOURS, GRID_HEIGHT_PX } from './scheduleLane
 // double-book ring, and click-empty-slot→create all behave exactly as in Day view.
 //
 // Dividers: 2px between counselor blocks, hairline (0.5px) between days within a block.
-// Bucketing is by therapist NAME (same de-facto join the Day board uses — appointments
-// attribute via therapist_name, not counselor_id; see DEFERRED.md), with a trailing
-// amber "Unassigned" block whenever a visible appointment matches no counselor, so the
-// week board never silently drops a session.
+// Bucketing goes through scheduleLane's bucketByCounselor — the same normalize-and-match
+// attribution point the Day board uses (appointments attribute via therapist_name, not
+// counselor_id; see DEFERRED.md) — with a trailing amber "Unassigned" block whenever a
+// visible appointment matches no counselor, so the week board never silently drops a
+// session.
 
 const DAY_COL_PX = 130;   // width of one weekday column inside a counselor block
-const UNASSIGNED = '__unassigned__';
 
 interface CounselorWeekViewProps {
     /** Visible days, in order (SessionManagement passes Mon–Fri; hand it 7 to show weekends). */
@@ -38,19 +38,7 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
     const blocks = useMemo(() => {
         const dayKeys = new Set(weekDays.map(d => d.toDateString()));
         const visible = appointments.filter(a => dayKeys.has(new Date(a.date).toDateString()));
-        const counselorNames = new Set(counselors.map(c => c.name));
-        const byName = new Map<string, Appointment[]>();
-        counselors.forEach(c => byName.set(c.name, []));
-        const unassigned: Appointment[] = [];
-        visible.forEach(a => {
-            if (a.therapist && counselorNames.has(a.therapist)) byName.get(a.therapist)!.push(a);
-            else unassigned.push(a);
-        });
-        const result = counselors.map(c => ({ key: c.name, label: c.name, counselorId: c.id as string | undefined, events: byName.get(c.name) || [] }));
-        if (unassigned.length) {
-            result.push({ key: UNASSIGNED, label: 'Unassigned', counselorId: undefined, events: unassigned });
-        }
-        return result;
+        return bucketByCounselor(visible, counselors);
     }, [counselors, appointments, weekDays]);
 
     const isToday = (d: Date) => d.toDateString() === new Date().toDateString();
@@ -78,7 +66,7 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
                         {blocks.map((block, bi) => (
                             <div key={block.key} className={`shrink-0 ${blockDivider(bi)}`}>
                                 <div className="px-3 pt-2 pb-1 text-center">
-                                    <p className={`text-sm font-bold truncate ${block.key === UNASSIGNED ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>{block.label}</p>
+                                    <p className={`text-sm font-bold truncate ${block.key === UNASSIGNED_LANE_KEY ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>{block.label}</p>
                                     <p className="text-[10px] text-slate-400 mt-0.5">{block.events.length} {block.events.length === 1 ? 'session' : 'sessions'} this week</p>
                                 </div>
                                 <div className="flex">
@@ -113,7 +101,7 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
                                         date={day}
                                         events={eventsFor(block.events, day)}
                                         counselorId={block.counselorId}
-                                        counselorName={block.key === UNASSIGNED ? undefined : block.label}
+                                        counselorName={block.key === UNASSIGNED_LANE_KEY ? undefined : block.label}
                                         onSelectAppt={onSelectAppt}
                                         conflictIds={conflictIds}
                                         onSlotClick={onSlotClick}

@@ -42,6 +42,75 @@ export const blockStyle = (apt: Appointment): React.CSSProperties => {
 
 export interface SlotClickInfo { counselorId?: string; counselorName?: string; date: Date; time: string }
 
+// ---- Shared therapist-name -> counselor-lane attribution -------------------------------
+//
+// appointments.therapist_name has no counselor_id FK (see DEFERRED.md) — a session is
+// attributed to a lane by matching this free-text string against counselors.name. Staff
+// enter/import names with credential suffixes ("Karen Ventimiglia, LPC"), so an exact-string
+// match silently drops those sessions into Unassigned. This is the ONE place that match
+// happens; CounselorDayView and CounselorWeekView both call bucketByCounselor so Day and
+// Week can never disagree about whose lane a session lands in.
+//
+// Still a display-layer bandaid, not a fix — the durable fix is writing appointments a
+// real counselor_id FK at booking time and joining on that instead of a name string.
+
+export const UNASSIGNED_LANE_KEY = '__unassigned__';
+
+/** Normalizes a display name for lane-attribution matching: trims, collapses internal
+ *  whitespace, strips a trailing credential suffix (everything from the first comma on —
+ *  ", LPC" / ", MEd, LPC"), lowercases. */
+export const normalizeCounselorName = (name: string | null | undefined): string =>
+    (name ?? '').split(',')[0].trim().replace(/\s+/g, ' ').toLowerCase();
+
+export interface CounselorLaneBucket {
+    key: string;
+    label: string;
+    counselorId?: string;
+    events: Appointment[];
+}
+
+/** Buckets `events` into one lane per counselor (matched via normalizeCounselorName against
+ *  each appointment's therapist string), plus a trailing "Unassigned" lane for anything that
+ *  doesn't resolve. Throws if two DISTINCT counselors.name values normalize to the same key
+ *  — that would silently merge two counselors' lanes into one, so a collision needs a human
+ *  (rename in the roster), not a silent merge. The current roster is collision-free; this
+ *  guards a future add. */
+export const bucketByCounselor = (
+    events: Appointment[],
+    counselors: { id: string; name: string }[],
+): CounselorLaneBucket[] => {
+    const keyToName = new Map<string, string>();
+    counselors.forEach(c => {
+        const key = normalizeCounselorName(c.name);
+        const existing = keyToName.get(key);
+        if (existing && existing !== c.name) {
+            throw new Error(`[bucketByCounselor] "${existing}" and "${c.name}" both normalize to "${key}" — lane attribution would merge them. Rename one in the counselors table.`);
+        }
+        keyToName.set(key, c.name);
+    });
+
+    const byKey = new Map<string, Appointment[]>();
+    counselors.forEach(c => byKey.set(normalizeCounselorName(c.name), []));
+    const unassigned: Appointment[] = [];
+    events.forEach(a => {
+        const key = normalizeCounselorName(a.therapist);
+        const bucket = key ? byKey.get(key) : undefined;
+        if (bucket) bucket.push(a);
+        else unassigned.push(a);
+    });
+
+    const result: CounselorLaneBucket[] = counselors.map(c => ({
+        key: c.name,
+        label: c.name,
+        counselorId: c.id,
+        events: byKey.get(normalizeCounselorName(c.name)) || [],
+    }));
+    if (unassigned.length) {
+        result.push({ key: UNASSIGNED_LANE_KEY, label: 'Unassigned', counselorId: undefined, events: unassigned });
+    }
+    return result;
+};
+
 interface LaneColumnProps {
     /** Calendar day this column represents (Day board: the viewed date; Week board: the weekday). */
     date: Date;

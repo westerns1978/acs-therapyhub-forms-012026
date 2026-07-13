@@ -32,6 +32,25 @@ and NULL out the remainder. That cleanup is a present-then-apply migration with 
 
 ## 3. The FK that can't be added yet
 
+## 4. Lane-attribution name normalization is a display-layer bandaid (2026-07-12)
+
+`bucketByCounselor()` / `normalizeCounselorName()` in
+[components/sessions/scheduleLane.tsx](components/sessions/scheduleLane.tsx) — the single
+attribution point both `CounselorDayView` and `CounselorWeekView` call — now strip a trailing
+credential suffix (", LPC" / ", MEd, LPC") and lowercase/whitespace-normalize before matching
+`appointments.therapist_name` against `counselors.name`. This recovered 184 sessions that were
+exact-string-matching into "Unassigned" for no clinical reason (`Karen Ventimiglia, LPC` × 175,
+`Bill Sunderman, MEd, LPC` × 9). It does **not** touch any row — `therapist_name` values are
+unchanged in the DB, only the client-side lane match got smarter.
+
+This is still name-string matching, not the `therapist_id` FK described in items 1–3 above —
+it papers over one class of drift (credential suffixes) but not others: `Dr. Anya Sharma` (14
+rows) and `Jessica` (6 rows) aren't in `counselors` under any spelling and will keep landing in
+Unassigned until either the roster gets those names added or those rows get reassigned to a
+real counselor. The normalize function throws if a future roster edit makes two distinct
+counselor names collide under normalization — that's the one safety rail on this bandaid;
+everything else is still the durable fix in items 1–3.
+
 The audit called for `FOREIGN KEY (therapist_id) REFERENCES counselors(id) ON DELETE RESTRICT`
 on `appointments`, and the equivalent on `clients.assigned_therapist_id`. Neither constraint
 can be created against the current data — Postgres will reject the `ADD CONSTRAINT` because of
