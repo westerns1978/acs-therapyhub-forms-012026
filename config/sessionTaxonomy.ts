@@ -91,6 +91,27 @@ export const counselorsForSessionType = (id: string): readonly string[] | null =
   return def.counselors;
 };
 
+// ── CERT-GATING SEAM (David's cert-gated therapist selector) ───────────────────────────────
+// THE SINGLE place that decides which counselors may take a given session type. The booking
+// modal and any future edit/reschedule counselor picker must call THIS — do not re-derive
+// qualification inline, so there is exactly one plug-in point when the cert data lands.
+//
+// TODAY: gates on the static config matrix (counselorsForSessionType). OPEN rows and unknown
+// ids fall through to the full active roster. This is NOT a real certification source —
+// David's per-counselor cert/qualification list is NOT delivered yet. Do NOT fabricate cert
+// data; until it exists, "qualified" == "in the matrix (or matrix is OPEN)".
+//
+// WHEN THE CERT LIST ARRIVES: change ONLY this function body to intersect the active roster
+// with the counselors certified for `sessionTypeId` (likely keyed on the session's service).
+// See DEFERRED.md §5.
+export const qualifiedCounselorsFor = <C extends { name: string }>(
+  sessionTypeId: string,
+  activeRoster: readonly C[],
+): C[] => {
+  const names = counselorsForSessionType(sessionTypeId);   // null = OPEN (no roster given)
+  return names === null ? [...activeRoster] : activeRoster.filter(c => names.includes(c.name));
+};
+
 export const durationForSessionType = (id: string): number =>
   sessionTypeById(id)?.durationMinutes ?? DEFAULT_SESSION_MINUTES;
 

@@ -30,33 +30,47 @@ must be resolved: backfill from `therapist_name` where the name matches an activ
 and NULL out the remainder. That cleanup is a present-then-apply migration with the exact
 `UPDATE` SQL shown for approval — deferred here, not yet written.
 
-## 3. The FK that can't be added yet
-
-## 4. Lane-attribution name normalization is a display-layer bandaid (2026-07-12)
-
-`bucketByCounselor()` / `normalizeCounselorName()` in
-[components/sessions/scheduleLane.tsx](components/sessions/scheduleLane.tsx) — the single
-attribution point both `CounselorDayView` and `CounselorWeekView` call — now strip a trailing
-credential suffix (", LPC" / ", MEd, LPC") and lowercase/whitespace-normalize before matching
-`appointments.therapist_name` against `counselors.name`. This recovered 184 sessions that were
-exact-string-matching into "Unassigned" for no clinical reason (`Karen Ventimiglia, LPC` × 175,
-`Bill Sunderman, MEd, LPC` × 9). It does **not** touch any row — `therapist_name` values are
-unchanged in the DB, only the client-side lane match got smarter.
-
-This is still name-string matching, not the `therapist_id` FK described in items 1–3 above —
-it papers over one class of drift (credential suffixes) but not others: `Dr. Anya Sharma` (14
-rows) and `Jessica` (6 rows) aren't in `counselors` under any spelling and will keep landing in
-Unassigned until either the roster gets those names added or those rows get reassigned to a
-real counselor. The normalize function throws if a future roster edit makes two distinct
-counselor names collide under normalization — that's the one safety rail on this bandaid;
-everything else is still the durable fix in items 1–3.
+## 3. The legacy `therapist_id` RESTRICT FK (distinct from the live `counselor_id` FK)
 
 The audit called for `FOREIGN KEY (therapist_id) REFERENCES counselors(id) ON DELETE RESTRICT`
 on `appointments`, and the equivalent on `clients.assigned_therapist_id`. Neither constraint
 can be created against the current data — Postgres will reject the `ADD CONSTRAINT` because of
-the 11 + 19 orphan rows above. The FK is therefore gated on **two** prerequisites, in order:
-(a) populate `therapist_id` going forward (requires item #1, the auth→counselor link), and
-(b) clean the existing orphans (item #2). Once both are done, the FKs can be added as a
-straightforward migration. For now `appointments.group_id → groups(id)` is the only FK on the
-table, and the `service_type` CHECK (`counseling`/`education`/`rehabilitative_support`/`other`,
-nullable) remains the appointment layer's only other DB-level guard.
+the 11 + 19 orphan rows above. NOTE (2026-07-12): a SEPARATE, nullable attribution FK —
+`appointments.counselor_id → counselors(id) ON DELETE SET NULL` — now exists and is the live
+attribution path (see §4). The old `therapist_id` uuid column is unrelated leftover (11 orphan
+rows, written by nothing); it can simply be dropped in a future cleanup rather than
+constrained. `clients.assigned_therapist_id` (19 orphans) is still unconstrained.
+
+## 4. Lane attribution now rides the `counselor_id` FK — name match is fallback only (2026-07-12)
+
+**SUPERSEDES the earlier "name-normalization bandaid."** Sessions attribute to a counselor lane
+by the real `appointments.counselor_id` FK (added + backfilled in
+`20260705_schedule_identity_1`, reconciled byte-for-byte against `normalizeCounselorName` on
+2026-07-12 — 241/241 rows agree; index added in `20260712_sched_counselor_id_index`).
+`bucketByCounselor()` and the double-booking `conflictIds`
+([scheduleLane.tsx](components/sessions/scheduleLane.tsx), [SessionManagement.tsx](pages/SessionManagement.tsx))
+resolve FK-first via `laneCounselorIdFor()`, falling back to the normalized-name match ONLY for
+the legacy/NULL tail (28 rows: `Dr. Anya Sharma` 14, NULL 7, `Jessica` 6, `Karen (Demo
+Therapist)` 1 — none of which map to a real counselor). The booking modal and the reschedule/
+edit modal both write `counselor_id` + `therapist_name` together, so new rows are FK-attributed
+from creation. The name-collision assert in `bucketByCounselor` guards the fallback path.
+
+`therapist_name` is intentionally KEPT (denormalized display + the name-fallback + rollback
+path). It can be dropped in a later migration once every consumer reads `counselor_id` and the
+legacy tail is either reassigned or accepted as permanently unattributed.
+
+## 5. Cert-gating seam awaits David's certification list (2026-07-12)
+
+`qualifiedCounselorsFor(sessionTypeId, activeRoster)` in
+[config/sessionTaxonomy.ts](config/sessionTaxonomy.ts) is THE single place that decides which
+counselors may take a session type — the booking modal's counselor picker AND the reschedule/
+edit picker both call it. TODAY it gates on the static config matrix (`counselorsForSessionType`;
+OPEN/unknown types → full active roster). This is NOT a real certification source — David's
+per-counselor cert/qualification list has not been delivered. When it arrives, change ONLY this
+function's body to intersect the active roster with the certified set. No cert data is
+fabricated in the meantime.
+
+For now `appointments.counselor_id → counselors(id)` and `appointments.group_id → groups(id)`
+are the FKs on the table, and the `service_type` CHECK
+(`counseling`/`education`/`rehabilitative_support`/`other`, nullable) remains the appointment
+layer's only other DB-level guard.

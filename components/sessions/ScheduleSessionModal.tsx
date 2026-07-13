@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Client, Appointment } from '../../types';
 import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, durationForSessionType, ServiceType } from '../../config/sessionTaxonomy';
 import { addAppointment, updateAppointment, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
-import { counselorsForSessionType } from '../../config/sessionTaxonomy';
+import { counselorsForSessionType, qualifiedCounselorsFor } from '../../config/sessionTaxonomy';
 import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
@@ -138,12 +138,11 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         setEndTime(minutesToTimeLabel(s + durationForSessionType(sessionTypeId)));
     }, [sessionTypeId, startTime]);
 
-    // Cascade level 3: qualification matrix. null = OPEN row (no roster given — David) →
-    // the full active roster stays selectable. Names key against counselors.name.
+    // Cascade level 3: qualification via the cert-gating seam (config/sessionTaxonomy.ts).
+    // Today that's the static matrix; when David's cert list lands, only qualifiedCounselorsFor
+    // changes. `qualifiedNames` is kept separately only to drive the "no roster given" hint text.
     const qualifiedNames = counselorsForSessionType(sessionTypeId);
-    const qualifiedCounselors = qualifiedNames === null
-        ? counselors
-        : counselors.filter(c => qualifiedNames.includes(c.name));
+    const qualifiedCounselors = qualifiedCounselorsFor(sessionTypeId, counselors);
 
     const selectedGroupObj = selectedGroupId ? groups.find(g => g.id === selectedGroupId) : undefined;
 

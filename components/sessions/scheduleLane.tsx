@@ -42,25 +42,36 @@ export const blockStyle = (apt: Appointment): React.CSSProperties => {
 
 export interface SlotClickInfo { counselorId?: string; counselorName?: string; date: Date; time: string }
 
-// ---- Shared therapist-name -> counselor-lane attribution -------------------------------
+// ---- Shared therapist -> counselor-lane attribution ------------------------------------
 //
-// appointments.therapist_name has no counselor_id FK (see DEFERRED.md) — a session is
-// attributed to a lane by matching this free-text string against counselors.name. Staff
-// enter/import names with credential suffixes ("Karen Ventimiglia, LPC"), so an exact-string
-// match silently drops those sessions into Unassigned. This is the ONE place that match
-// happens; CounselorDayView and CounselorWeekView both call bucketByCounselor so Day and
-// Week can never disagree about whose lane a session lands in.
-//
-// Still a display-layer bandaid, not a fix — the durable fix is writing appointments a
-// real counselor_id FK at booking time and joining on that instead of a name string.
+// A session is attributed to a lane by its real counselor_id FK (appointments.counselor_id,
+// shipped 20260705 + backfilled/reconciled 2026-07-12). The therapist_name STRING match is
+// now only a fallback for the legacy/unattributed tail (counselor_id NULL, or pointing at a
+// counselor not in the active roster) — it strips credential suffixes so those rows still
+// land in a lane instead of silently dropping to Unassigned. This is the ONE place the match
+// happens; CounselorDayView and CounselorWeekView both call bucketByCounselor so Day and Week
+// can never disagree about whose lane a session lands in.
 
 export const UNASSIGNED_LANE_KEY = '__unassigned__';
 
-/** Normalizes a display name for lane-attribution matching: trims, collapses internal
+/** Normalizes a display name for the NAME-FALLBACK attribution path: trims, collapses internal
  *  whitespace, strips a trailing credential suffix (everything from the first comma on —
- *  ", LPC" / ", MEd, LPC"), lowercases. */
+ *  ", LPC" / ", MEd, LPC"), lowercases. Only used when a row has no usable counselor_id. */
 export const normalizeCounselorName = (name: string | null | undefined): string =>
     (name ?? '').split(',')[0].trim().replace(/\s+/g, ' ').toLowerCase();
+
+/** The lane an appointment attributes to, FK-first: its counselor_id when that id is in the
+ *  active roster, else the normalized-name match, else undefined (Unassigned). `nameKeyToId`
+ *  maps a normalized name to its counselor id; `knownIds` is the active roster's id set. */
+export const laneCounselorIdFor = (
+    appt: Pick<Appointment, 'counselorId' | 'therapist'>,
+    knownIds: Set<string>,
+    nameKeyToId: Map<string, string>,
+): string | undefined => {
+    if (appt.counselorId && knownIds.has(appt.counselorId)) return appt.counselorId;
+    const nk = normalizeCounselorName(appt.therapist);
+    return nk ? nameKeyToId.get(nk) : undefined;
+};
 
 export interface CounselorLaneBucket {
     key: string;
@@ -69,32 +80,34 @@ export interface CounselorLaneBucket {
     events: Appointment[];
 }
 
-/** Buckets `events` into one lane per counselor (matched via normalizeCounselorName against
- *  each appointment's therapist string), plus a trailing "Unassigned" lane for anything that
- *  doesn't resolve. Throws if two DISTINCT counselors.name values normalize to the same key
- *  — that would silently merge two counselors' lanes into one, so a collision needs a human
- *  (rename in the roster), not a silent merge. The current roster is collision-free; this
- *  guards a future add. */
+/** Buckets `events` into one lane per counselor — by counselor_id when present (the real FK),
+ *  falling back to a normalized-name match for the legacy/NULL tail — plus a trailing
+ *  "Unassigned" lane for anything that resolves to neither. Throws if two DISTINCT
+ *  counselors.name values normalize to the same key, which would make the name-FALLBACK path
+ *  ambiguous; a collision needs a human (rename in the roster), not a silent merge. The
+ *  current roster is collision-free; this guards a future add. */
 export const bucketByCounselor = (
     events: Appointment[],
     counselors: { id: string; name: string }[],
 ): CounselorLaneBucket[] => {
-    const keyToName = new Map<string, string>();
+    const nameKeyToId = new Map<string, string>();
+    const nameKeyToName = new Map<string, string>();
     counselors.forEach(c => {
         const key = normalizeCounselorName(c.name);
-        const existing = keyToName.get(key);
+        const existing = nameKeyToName.get(key);
         if (existing && existing !== c.name) {
-            throw new Error(`[bucketByCounselor] "${existing}" and "${c.name}" both normalize to "${key}" — lane attribution would merge them. Rename one in the counselors table.`);
+            throw new Error(`[bucketByCounselor] "${existing}" and "${c.name}" both normalize to "${key}" — name-fallback attribution would merge them. Rename one in the counselors table.`);
         }
-        keyToName.set(key, c.name);
+        nameKeyToName.set(key, c.name);
+        nameKeyToId.set(key, c.id);
     });
 
-    const byKey = new Map<string, Appointment[]>();
-    counselors.forEach(c => byKey.set(normalizeCounselorName(c.name), []));
+    const knownIds = new Set(counselors.map(c => c.id));
+    const eventsById = new Map<string, Appointment[]>(counselors.map(c => [c.id, []]));
     const unassigned: Appointment[] = [];
     events.forEach(a => {
-        const key = normalizeCounselorName(a.therapist);
-        const bucket = key ? byKey.get(key) : undefined;
+        const targetId = laneCounselorIdFor(a, knownIds, nameKeyToId);
+        const bucket = targetId ? eventsById.get(targetId) : undefined;
         if (bucket) bucket.push(a);
         else unassigned.push(a);
     });
@@ -103,7 +116,7 @@ export const bucketByCounselor = (
         key: c.name,
         label: c.name,
         counselorId: c.id,
-        events: byKey.get(normalizeCounselorName(c.name)) || [],
+        events: eventsById.get(c.id) || [],
     }));
     if (unassigned.length) {
         result.push({ key: UNASSIGNED_LANE_KEY, label: 'Unassigned', counselorId: undefined, events: unassigned });

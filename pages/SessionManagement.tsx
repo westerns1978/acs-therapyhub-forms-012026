@@ -7,6 +7,7 @@ import CounselorDayView from '../components/sessions/CounselorDayView';
 import CounselorWeekView from '../components/sessions/CounselorWeekView';
 import { parseTimeToMinutes, formatTime12 } from '../config/time';
 import { serviceCardClass } from '../config/sessionTaxonomy';
+import { normalizeCounselorName, laneCounselorIdFor } from '../components/sessions/scheduleLane';
 import { timeRangesOverlap } from '../services/recurrence';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
@@ -157,13 +158,18 @@ const SessionManagement: React.FC = () => {
         }
     };
 
-    // Step 10: persist a new date/time for this occurrence (the modal already ran the overlap
-    // check and got an explicit override if needed — this just writes what it decided).
-    const handleReschedule = async (date: Date, startTime: string, endTime: string) => {
+    // Step 10: persist a new date/time (and optionally a reassigned counselor) for this
+    // occurrence (the modal already ran the overlap check and got an explicit override if
+    // needed — this just writes what it decided). counselorName is present only on an actual
+    // reassignment, so we write counselor_id + therapist_name together and leave attribution
+    // untouched otherwise.
+    const handleReschedule = async (date: Date, startTime: string, endTime: string, counselorId?: string, counselorName?: string) => {
         if (!selectedAppt) return;
         setSavingStatus(true);
         try {
-            const updated = await updateAppointment(selectedAppt.id, { date, startTime, endTime });
+            const patch: Partial<Appointment> = { date, startTime, endTime };
+            if (counselorName) { patch.counselorId = counselorId; patch.therapist = counselorName; }
+            const updated = await updateAppointment(selectedAppt.id, patch);
             setAppointments(prev => prev.map(a => (a.id === updated.id ? updated : a)));
             setSelectedAppt(updated);
         } catch (err) {
@@ -282,16 +288,24 @@ const SessionManagement: React.FC = () => {
     const WIN_HOURS = 16;
     const hours = Array.from({ length: WIN_HOURS }, (_, i) => i + WIN_START);
 
-    // Live therapist double-booking detection across the loaded set. Same-therapist (by name,
-    // this round) + same day + half-open time overlap (the shared recurrence primitive). Both
-    // colliding occurrences are flagged. Canceled rows don't count. O(n²) is fine at clinic scale.
+    // Live therapist double-booking detection across the loaded set. Same COUNSELOR (resolved
+    // FK-first via counselor_id, normalized-name fallback for the legacy tail — same identity
+    // the lane bucketing uses, so the ring and the lane always agree on "whose") + same day +
+    // half-open time overlap (the shared recurrence primitive). Both colliding occurrences are
+    // flagged. Canceled rows don't count. O(n²) is fine at clinic scale.
     const conflictIds = useMemo(() => {
         const ids = new Set<string>();
-        const active = appointments.filter(a => a.status !== 'Canceled' && a.therapist);
+        const knownIds = new Set(counselors.map(c => c.id));
+        const nameKeyToId = new Map(counselors.map(c => [normalizeCounselorName(c.name), c.id]));
+        // Canonical key: the resolved counselor id, else the raw normalized name so two
+        // same-name phantoms (e.g. the unattributed "Jessica" rows) still collide with each other.
+        const keyOf = (a: Appointment) =>
+            laneCounselorIdFor(a, knownIds, nameKeyToId) || normalizeCounselorName(a.therapist);
+        const active = appointments.filter(a => a.status !== 'Canceled' && !!keyOf(a));
         for (let i = 0; i < active.length; i++) {
             for (let j = i + 1; j < active.length; j++) {
                 const a = active[i], b = active[j];
-                if (a.therapist !== b.therapist) continue;
+                if (keyOf(a) !== keyOf(b)) continue;
                 if (new Date(a.date).toDateString() !== new Date(b.date).toDateString()) continue;
                 if (timeRangesOverlap(a.startTime, a.endTime, b.startTime, b.endTime)) {
                     ids.add(a.id); ids.add(b.id);
@@ -299,7 +313,7 @@ const SessionManagement: React.FC = () => {
             }
         }
         return ids;
-    }, [appointments]);
+    }, [appointments, counselors]);
 
     // The client behind the selected appointment (for the pop-up's demographics). Matches by
     // uuid clientId; legacy text-id rows won't resolve → demographics block stays hidden.

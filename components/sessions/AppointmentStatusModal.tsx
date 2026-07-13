@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Appointment, AppointmentStatus, ServiceType, Client } from '../../types';
-import { getLastAppointment, getNextAppointment, getTherapistAppointments } from '../../services/api';
+import { getLastAppointment, getNextAppointment, getTherapistAppointments, getCounselors } from '../../services/api';
+import type { Counselor } from '../../services/api';
+import { qualifiedCounselorsFor } from '../../config/sessionTaxonomy';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { detectOverlaps } from '../../services/recurrence';
@@ -48,9 +50,11 @@ interface AppointmentStatusModalProps {
     client?: Client | null;
     /** Persist a per-occurrence note (appointments.notes). */
     onSaveNotes?: (notes: string) => void;
-    /** Step 10: persist a new date/time for this occurrence via the existing updateAppointment.
+    /** Step 10: persist a new date/time (and optionally a new counselor) for this occurrence via
+     *  the existing updateAppointment. counselorId/counselorName are supplied only when the
+     *  counselor was reassigned, so the parent can skip the counselor write otherwise.
      *  Omitted = no reschedule UI (read-only detail keeps its current behavior). */
-    onReschedule?: (date: Date, startTime: string, endTime: string) => void;
+    onReschedule?: (date: Date, startTime: string, endTime: string, counselorId?: string, counselorName?: string) => void;
     /** Recurring-series edit-scope. Offered only when the appointment carries a seriesId.
      *  These act on the WHOLE series (future/non-completed occurrences); the buttons above
      *  act on THIS occurrence only. */
@@ -80,6 +84,12 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     const [rescheduleConflicts, setRescheduleConflicts] = useState<string[]>([]);
     const [checkingReschedule, setCheckingReschedule] = useState(false);
     const [overrideRescheduleConflict, setOverrideRescheduleConflict] = useState(false);
+    // Step: reassign the counselor as part of a reschedule/edit. Synced to the appointment's
+    // current counselor_id; the picker is gated through the same cert-gating seam the booking
+    // modal uses, and writes counselor_id + therapist_name together on save.
+    const [rescheduleCounselorId, setRescheduleCounselorId] = useState<string | undefined>(undefined);
+    const [counselors, setCounselors] = useState<Counselor[]>([]);
+    useEffect(() => { if (isOpen && onReschedule) getCounselors().then(setCounselors).catch(() => setCounselors([])); }, [isOpen, onReschedule]);
     useEffect(() => {
         setServiceType((appointment?.serviceType as ServiceType) ?? '');
         setCancelPanel(false); setWaiveOpen(false); setWaiveReason('');
@@ -89,9 +99,28 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
             setRescheduleStart(appointment.startTime);
             setRescheduleEnd(appointment.endTime);
         }
+        setRescheduleCounselorId(appointment?.counselorId);
         setRescheduleConflicts([]);
         setOverrideRescheduleConflict(false);
-    }, [appointment?.id, appointment?.date, appointment?.startTime, appointment?.endTime]);
+    }, [appointment?.id, appointment?.date, appointment?.startTime, appointment?.endTime, appointment?.counselorId]);
+
+    // Reschedule counselor picker roster: the cert-gating seam's qualified set for this
+    // session type (full active roster when the type is OPEN/unknown), but ALWAYS include the
+    // appointment's CURRENT counselor even if the matrix wouldn't — reassigning must never
+    // silently drop the person it's already booked with.
+    const rescheduleRoster = (() => {
+        const qualified = appointment ? qualifiedCounselorsFor(appointment.sessionTypeId ?? '', counselors) : [];
+        if (appointment?.counselorId && !qualified.some(c => c.id === appointment.counselorId)) {
+            const cur = counselors.find(c => c.id === appointment.counselorId);
+            if (cur) return [cur, ...qualified];
+        }
+        return qualified;
+    })();
+    const selectedRescheduleCounselor = counselors.find(c => c.id === rescheduleCounselorId);
+    // The name to run the double-booking check against: the (possibly reassigned) counselor,
+    // falling back to the row's existing therapist string for legacy/unattributed rows.
+    const rescheduleTherapistName = selectedRescheduleCounselor?.name || appointment?.therapist || '';
+    const counselorReassigned = !!appointment && (rescheduleCounselorId ?? undefined) !== (appointment.counselorId ?? undefined);
 
     // Preserves the appointment's ORIGINAL duration when the user picks a new start time —
     // the end time auto-shifts with it (still hand-editable afterward if staff want a
@@ -111,6 +140,7 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
         rescheduleDate !== toLocalYMD(new Date(appointment.date))
         || rescheduleStart !== appointment.startTime
         || rescheduleEnd !== appointment.endTime
+        || counselorReassigned
     );
 
     // Debounced re-run of the SAME deterministic overlap check ScheduleSessionModal uses
@@ -119,7 +149,8 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     useEffect(() => {
         setRescheduleConflicts([]);
         setOverrideRescheduleConflict(false);
-        if (!appointment || !appointment.therapist || appointment.therapist === 'Unassigned') return;
+        // Check against the SELECTED counselor (reassignment-aware), not the row's original.
+        if (!appointment || !rescheduleTherapistName || rescheduleTherapistName === 'Unassigned') return;
         const s = parseTimeToMinutes(rescheduleStart), e = parseTimeToMinutes(rescheduleEnd);
         if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return;
         const t = setTimeout(async () => {
@@ -128,7 +159,7 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                 const day = new Date(rescheduleDate + 'T00:00:00');
                 const from = new Date(day); from.setHours(0, 0, 0, 0);
                 const to = new Date(day); to.setHours(23, 59, 59, 999);
-                const existing = await getTherapistAppointments(appointment.therapist, from.toISOString(), to.toISOString());
+                const existing = await getTherapistAppointments(rescheduleTherapistName, from.toISOString(), to.toISOString());
                 const others = existing.filter(a => a.id !== appointment.id);
                 const existingWindows = others.map(a => ({ date: new Date(a.date), startTime: a.startTime, endTime: a.endTime, _t: a.clientName || a.title }));
                 const hits = detectOverlaps([{ date: day, startTime: rescheduleStart, endTime: rescheduleEnd }], existingWindows);
@@ -141,12 +172,18 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
         }, 600);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [appointment?.id, appointment?.therapist, rescheduleDate, rescheduleStart, rescheduleEnd]);
+    }, [appointment?.id, rescheduleTherapistName, rescheduleDate, rescheduleStart, rescheduleEnd]);
 
     const rescheduleBlocked = rescheduleConflicts.length > 0 && !overrideRescheduleConflict;
     const handleReschedule = () => {
         if (!appointment || !onReschedule || rescheduleBlocked) return;
-        onReschedule(new Date(rescheduleDate + 'T00:00:00'), rescheduleStart, rescheduleEnd);
+        // Pass counselor id + name ONLY when actually reassigned, so an untouched reschedule
+        // never rewrites (or clobbers) the row's existing attribution.
+        onReschedule(
+            new Date(rescheduleDate + 'T00:00:00'), rescheduleStart, rescheduleEnd,
+            counselorReassigned ? rescheduleCounselorId : undefined,
+            counselorReassigned ? selectedRescheduleCounselor?.name : undefined,
+        );
     };
 
     // WS4 booking glance — this client's most-recent PAST and next UPCOMING appointment.
@@ -381,6 +418,24 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                         type="time" value={rescheduleEnd} onChange={e => setRescheduleEnd(e.target.value)}
                                         className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100"
                                     />
+                                </div>
+                                {/* Reassign counselor — same cert-gating seam the booking modal uses;
+                                    writes counselor_id + therapist_name together on Save. */}
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-slate-400 mb-1">Counselor</label>
+                                    <select
+                                        value={rescheduleCounselorId ?? ''}
+                                        onChange={e => setRescheduleCounselorId(e.target.value || undefined)}
+                                        className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-100"
+                                    >
+                                        {rescheduleCounselorId == null && <option value="">— Unassigned —</option>}
+                                        {rescheduleRoster.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                    {counselorReassigned && (
+                                        <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                                            Reassigning to {selectedRescheduleCounselor?.name}. Save to apply.
+                                        </p>
+                                    )}
                                 </div>
                                 {checkingReschedule && (
                                     <p className="text-xs text-slate-400 flex items-center gap-1.5">
