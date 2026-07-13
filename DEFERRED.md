@@ -74,3 +74,30 @@ For now `appointments.counselor_id → counselors(id)` and `appointments.group_i
 are the FKs on the table, and the `service_type` CHECK
 (`counseling`/`education`/`rehabilitative_support`/`other`, nullable) remains the appointment
 layer's only other DB-level guard.
+
+## 6. Clickable Session History (client record → Sessions tab) — David, walk not Tuesday (surfaced 2026-07-XX)
+
+New requirement, surfaced from a Sessions-tab screenshot review. **Not a Tuesday-demo
+blocker — do not start before the counselor_id FK branch and the by-counselor week-board
+scroll fix ship.**
+
+Each row in a client's Session History list is currently read-only. David wants rows
+clickable, opening a detail view/drawer that surfaces:
+- whether a clinical note was placed/signed for that session (note status + a link to the
+  note itself)
+- modality: Virtual (Zoom) / In-Person
+- session shape: Individual / Group
+- session type (SATOP Group, 1:1, Assessment, etc.), date, counselor, status
+
+The underlying data mostly already exists at summary level in each row — the gap is the
+click-through affordance and the detail view, not new data plumbing.
+
+The list already mixes two distinct row kinds and any click handler needs to route each to
+the right destination, not a single generic "session detail":
+- **"Session note" rows** — a clinical note record. Click → the note viewer.
+- **Appointment-derived rows** (e.g. "SATOP Group") — an appointment, not a note. Click →
+  a session detail view (the fields listed above), not the note viewer.
+
+Scope note: find/confirm which client-record component currently renders Session History
+before starting — not yet located as part of this entry (recon-first when this item is
+picked up).
