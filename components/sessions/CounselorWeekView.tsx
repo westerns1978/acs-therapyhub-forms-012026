@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
 import { Appointment } from '../../types';
 import type { Counselor } from '../../services/api';
 import { LaneColumn, SlotClickInfo, HOURS, GRID_HEIGHT_PX, bucketByCounselor, UNASSIGNED_LANE_KEY } from './scheduleLane';
@@ -14,12 +14,19 @@ import { LaneColumn, SlotClickInfo, HOURS, GRID_HEIGHT_PX, bucketByCounselor, UN
 // LaneColumn is reused verbatim, so true-duration cards, service-color fill, the
 // double-book ring, and click-empty-slot→create all behave exactly as in Day view.
 //
+// SCROLL MODEL (fixed 2026-07-12): the scroll container's height is CAPPED to the viewport
+// so it becomes its own two-axis scroll region — the horizontal scrollbar sits at the bottom
+// of the VISIBLE box (previously it rendered ~700px below the fold because the track grew to
+// its full ~1200px content height and the whole PAGE scrolled instead, leaving a mouse user
+// with no way to reach counselors off the right edge). On top of the now-visible bar:
+//   • wheel-to-horizontal over the counselor HEADER strip (vertical mouse wheel → sideways
+//     pan) so a Windows/mouse user needs no shift key; the day BODIES keep vertical wheel =
+//     time scroll.
+//   • a right-edge fade + "scroll" hint so the off-screen counselors are discoverable.
+//
 // Dividers: 2px between counselor blocks, hairline (0.5px) between days within a block.
-// Bucketing goes through scheduleLane's bucketByCounselor — the same normalize-and-match
-// attribution point the Day board uses (appointments attribute via therapist_name, not
-// counselor_id; see DEFERRED.md) — with a trailing amber "Unassigned" block whenever a
-// visible appointment matches no counselor, so the week board never silently drops a
-// session.
+// Bucketing goes through scheduleLane's bucketByCounselor (FK-first, name fallback), with a
+// trailing amber "Unassigned" block whenever a visible appointment matches no counselor.
 
 const DAY_COL_PX = 130;   // width of one weekday column inside a counselor block
 
@@ -51,14 +58,85 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
     const blockDivider = (bi: number) => (bi > 0 ? 'border-l-2 border-l-slate-300 dark:border-l-slate-600' : '');
     const dayDivider = (di: number) => (di > 0 ? 'border-l-[0.5px] border-l-slate-200 dark:border-l-slate-700/50' : '');
 
+    const scrollerRef = useRef<HTMLDivElement>(null);
+    const headerRef = useRef<HTMLDivElement>(null);
+    const rightFadeRef = useRef<HTMLDivElement>(null);
+    const leftFadeRef = useRef<HTMLDivElement>(null);
+    const pillRef = useRef<HTMLDivElement>(null);
+
+    // Cues are painted by DIRECT DOM writes from a native scroll listener rather than React
+    // state — React-state + the delegated onScroll + the Play-CDN class toggling each proved
+    // unreliable (stale reads, non-bubbling scroll, ungenerated utility values). A ref write
+    // is immune to all three.
+    const paintCues = useCallback(() => {
+        const sc = scrollerRef.current;
+        if (!sc) return;
+        const moreRight = sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1;
+        const moreLeft = sc.scrollLeft > 1;
+        if (rightFadeRef.current) rightFadeRef.current.style.opacity = moreRight ? '1' : '0';
+        if (pillRef.current) pillRef.current.style.opacity = moreRight ? '1' : '0';
+        if (leftFadeRef.current) leftFadeRef.current.style.opacity = moreLeft ? '1' : '0';
+    }, []);
+
+    // Cap the scroller to the viewport so it (not the page) owns vertical + horizontal scroll,
+    // which lands the horizontal scrollbar inside the visible box and makes the sticky header/
+    // gutter pin against real internal scroll. Re-measured live so header wrap / window resize
+    // never strands the bar off-screen again.
+    useEffect(() => {
+        const sc = scrollerRef.current;
+        if (!sc) return;
+        const fit = () => {
+            const top = sc.getBoundingClientRect().top;
+            const vh = window.innerHeight || document.documentElement.clientHeight || 800;
+            sc.style.maxHeight = `${Math.max(320, vh - top - 12)}px`;
+            paintCues();
+        };
+        fit();
+        // rAF catches the first post-layout frame — on the first synchronous run
+        // clientWidth/scrollWidth can still be 0, which would mis-hide the edge cue.
+        const raf = requestAnimationFrame(fit);
+        const onScroll = () => paintCues();
+        sc.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', fit);
+        const ro = new ResizeObserver(fit);
+        ro.observe(sc);
+        return () => {
+            cancelAnimationFrame(raf);
+            sc.removeEventListener('scroll', onScroll);
+            window.removeEventListener('resize', fit);
+            ro.disconnect();
+        };
+    }, [paintCues, blocks.length, weekDays.length]);
+
+    // Wheel-to-horizontal over the counselor header strip — a Windows/mouse user pans across
+    // counselors with the plain vertical wheel (no shift). Non-passive so preventDefault can
+    // stop the page from also scrolling. Day bodies are untouched → vertical wheel = time scroll.
+    useEffect(() => {
+        const hdr = headerRef.current;
+        if (!hdr) return;
+        const onWheel = (e: WheelEvent) => {
+            const sc = scrollerRef.current;
+            if (!sc || sc.scrollWidth <= sc.clientWidth) return;
+            const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+            if (delta === 0) return;
+            sc.scrollLeft += delta;
+            paintCues();   // repaint directly — don't depend on a scroll event following
+            e.preventDefault();
+        };
+        hdr.addEventListener('wheel', onWheel, { passive: false });
+        return () => hdr.removeEventListener('wheel', onWheel);
+    }, [paintCues]);
+
     return (
-        <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
-            {/* ONE scroll container for both axes so sticky top (header) and sticky left
-                (gutter) hold against the same scrolling content. */}
-            <div className="flex-1 overflow-auto custom-scrollbar">
+        <div className="relative flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-0">
+            {/* ONE scroll container for both axes (height capped in the effect above) so sticky
+                top (header) + sticky left (gutter) hold against real internal scroll and the
+                horizontal scrollbar stays inside the visible box. */}
+            <div ref={scrollerRef} className="flex-1 overflow-auto">
                 <div className="min-w-max">
-                    {/* Header row: counselor name over that counselor's weekday labels. */}
-                    <div className="flex sticky top-0 z-30 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/60">
+                    {/* Header row: counselor name over that counselor's weekday labels. Wheel
+                        over this strip pans horizontally (see effect). */}
+                    <div ref={headerRef} className="flex sticky top-0 z-30 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/60">
                         {/* Corner cell — sticky on BOTH axes */}
                         <div className="sticky left-0 z-40 w-16 shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700/60 flex items-end justify-center pb-2">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">GMT-05</span>
@@ -114,6 +192,31 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
                         ))}
                     </div>
                 </div>
+            </div>
+
+            {/* Discoverability cues — more counselors exist off an edge. pointer-events-none so
+                they never block a card click; the sticky left gutter sits above the left fade.
+                Opacity is an INLINE style (not a toggled Tailwind class) because the Play-CDN
+                Tailwind can fail to generate a utility value that wasn't in the initial DOM scan. */}
+            <div
+                ref={rightFadeRef}
+                className="pointer-events-none absolute top-0 right-0 bottom-0 w-14 bg-gradient-to-l from-white/95 dark:from-slate-800/95 to-transparent transition-opacity duration-200"
+                style={{ opacity: 0 }}
+                aria-hidden
+            />
+            <div
+                ref={leftFadeRef}
+                className="pointer-events-none absolute top-0 left-16 bottom-0 w-10 bg-gradient-to-r from-white/90 dark:from-slate-800/90 to-transparent transition-opacity duration-200"
+                style={{ opacity: 0 }}
+                aria-hidden
+            />
+            <div
+                ref={pillRef}
+                className="pointer-events-none absolute top-2 right-3 z-40 flex items-center gap-1 rounded-full bg-slate-800/80 dark:bg-slate-100/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white dark:text-slate-800 shadow transition-opacity duration-200"
+                style={{ opacity: 0 }}
+                aria-hidden
+            >
+                Scroll for more counselors →
             </div>
         </div>
     );
