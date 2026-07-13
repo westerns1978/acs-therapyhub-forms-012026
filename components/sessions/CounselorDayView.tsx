@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
 import { Appointment } from '../../types';
 import type { Counselor } from '../../services/api';
-import { getAppointmentStatusStyle } from './AppointmentStatusModal';
-import { parseTimeToMinutes, formatTime12, minutesToTimeLabel } from '../../config/time';
-import { serviceCardClass } from '../../config/sessionTaxonomy';
-import { Clock, Video, AlertTriangle } from 'lucide-react';
+import { LaneColumn, SlotClickInfo, DAY_START_HOUR, DAY_END_HOUR, WINDOW_MIN, HOURS } from './scheduleLane';
+
+// The lane column itself (gridlines + true-duration cards + double-book ring + empty-slot
+// click) lives in scheduleLane.tsx — shared verbatim with the by-counselor week board.
+// This file keeps what is Day-specific: bucketing the day's appointments into one lane
+// per counselor, the lane header row, the time gutter, and the all-lane now-line.
 
 interface CounselorDayViewProps {
     date: Date;
@@ -30,23 +32,8 @@ interface CounselorDayViewProps {
     /** Step 9: fires when staff click an EMPTY point in a lane (not an existing appointment
      *  card, which stops propagation). Omitted = no click affordance (neither view opts out
      *  today, but kept optional so a future read-only consumer isn't forced to wire it). */
-    onSlotClick?: (info: { counselorId?: string; counselorName?: string; date: Date; time: string }) => void;
+    onSlotClick?: (info: SlotClickInfo) => void;
 }
-
-// Visible window: 6 AM – 9 PM. Covers early individual slots through evening groups
-// (@ 18:00–20:00). The DB stores local times as 24-hour "HH:MM" (timeStrFromDate),
-// so a 6 AM session is real and must fit.
-const DAY_START_HOUR = 6;
-const DAY_END_HOUR = 21;
-const WINDOW_MIN = (DAY_END_HOUR - DAY_START_HOUR) * 60;
-const HOURS = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) => DAY_START_HOUR + i);
-
-// Time parsing/formatting comes from config/time.ts (single source of truth). Falls
-// back to 9:00 for positioning only if the label is truly unparseable.
-const parseMinutes = (t: string): number => {
-    const mins = parseTimeToMinutes(t);
-    return Number.isNaN(mins) ? 9 * 60 : mins;
-};
 
 const UNASSIGNED = '__unassigned__';
 
@@ -85,27 +72,6 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
         }
         return result;
     }, [counselors, dayEvents, soloLabel, soloCounselorId]);
-
-    const blockStyle = (apt: Appointment): React.CSSProperties => {
-        const startMin = parseMinutes(apt.startTime);
-        const endMin = Math.max(parseMinutes(apt.endTime), startMin + 20);   // floor a visible height
-        const top = ((startMin - DAY_START_HOUR * 60) / WINDOW_MIN) * 100;
-        const height = ((endMin - startMin) / WINDOW_MIN) * 100;
-        return { top: `${Math.max(0, top)}%`, height: `${Math.min(height, 100 - Math.max(0, top))}%` };
-    };
-
-    // Step 9: empty-slot click -> prefilled booking. Reads the click's vertical position
-    // within the lane, snaps to the nearest 30 min, and reports it plus the lane's counselor
-    // (if any). Appointment cards stopPropagation() so clicking one opens ITS detail, never
-    // also fires this.
-    const handleLaneClick = (counselorId: string | undefined, counselorName: string | undefined, e: React.MouseEvent<HTMLDivElement>) => {
-        if (!onSlotClick) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        const ratio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-        let minutesFromStart = Math.round((ratio * WINDOW_MIN) / 30) * 30;
-        minutesFromStart = Math.max(0, Math.min(minutesFromStart, WINDOW_MIN - 30));
-        onSlotClick({ counselorId, counselorName, date, time: minutesToTimeLabel(DAY_START_HOUR * 60 + minutesFromStart) });
-    };
 
     const isToday = date.toDateString() === new Date().toDateString();
     // Column template: a fixed time gutter + one fraction per lane. `scrollable` (week board)
@@ -146,58 +112,17 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
 
                     {/* Counselor lanes */}
                     {lanes.map(lane => (
-                        <div
+                        <LaneColumn
                             key={lane.key}
-                            className={`relative border-r border-border dark:border-slate-700/50 last:border-0 group ${onSlotClick ? 'cursor-pointer' : ''}`}
-                            onClick={onSlotClick ? e => handleLaneClick(lane.counselorId, lane.key === UNASSIGNED ? undefined : lane.label, e) : undefined}
-                        >
-                            {/* Hour gridlines */}
-                            {HOURS.map(h => <div key={h} className="h-[65px] border-b border-slate-50 dark:border-slate-800/30"></div>)}
-
-                            {/* Appointment blocks */}
-                            {lane.events.map(apt => {
-                                const s = getAppointmentStatusStyle(apt.status);
-                                // Card fill = service color; status stays on the bar + badge.
-                                // No taxonomy color → status card unchanged (see SessionManagement).
-                                const card = serviceCardClass(apt.sessionTypeId) ?? s.card;
-                                // Same double-booking overlay the old flat week grid had — carried
-                                // over so the week board is born correct (David 7/7, step 8).
-                                const isConflict = !!conflictIds?.has(apt.id);
-                                return (
-                                    <div
-                                        key={apt.id}
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={e => { e.stopPropagation(); onSelectAppt(apt); }}
-                                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelectAppt(apt); } }}
-                                        className={`group/event absolute left-1 right-1 rounded-xl p-2 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
-                                        style={blockStyle(apt)}
-                                        title={isConflict ? `${apt.title} — DOUBLE-BOOKED with another ${apt.therapist} session` : `${apt.title} — ${apt.status} (click to change status)`}
-                                    >
-                                        <div className={`w-1 absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
-                                        {isConflict && (
-                                            <span className="absolute top-1 right-1 z-10" title={`Double-booked with another ${apt.therapist} session`}>
-                                                <AlertTriangle size={12} className="text-red-600 fill-red-100" />
-                                            </span>
-                                        )}
-                                        <div className="pl-2 overflow-hidden">
-                                            <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
-                                            <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
-                                                <Clock size={10} /> {formatTime12(apt.startTime)} – {formatTime12(apt.endTime)}
-                                            </div>
-                                            {apt.modality?.includes('Zoom') && (
-                                                <div className="flex items-center gap-1 mt-1 text-[10px] font-semibold opacity-90">
-                                                    <Video size={10} /> Virtual
-                                                </div>
-                                            )}
-                                            {apt.status !== 'Scheduled' && (
-                                                <span className={`inline-flex items-center mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${s.badge}`}>{apt.status}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                            date={date}
+                            events={lane.events}
+                            counselorId={lane.counselorId}
+                            counselorName={lane.key === UNASSIGNED ? undefined : lane.label}
+                            onSelectAppt={onSelectAppt}
+                            conflictIds={conflictIds}
+                            onSlotClick={onSlotClick}
+                            className="border-r border-border dark:border-slate-700/50 last:border-0"
+                        />
                     ))}
 
                     {/* Current-time indicator — spans all lanes when viewing today */}

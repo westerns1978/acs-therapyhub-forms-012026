@@ -4,6 +4,7 @@ import type { Counselor } from '../services/api';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import CounselorDayView from '../components/sessions/CounselorDayView';
+import CounselorWeekView from '../components/sessions/CounselorWeekView';
 import { parseTimeToMinutes, formatTime12 } from '../config/time';
 import { serviceCardClass } from '../config/sessionTaxonomy';
 import { timeRangesOverlap } from '../services/recurrence';
@@ -26,6 +27,11 @@ const SessionManagement: React.FC = () => {
     const [clients, setClients] = useState<Client[]>([]);
     const [counselors, setCounselors] = useState<Counselor[]>([]);
     const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
+    // Week presentation: 'byCounselor' = David's split-view board (each counselor's whole
+    // week as a block, horizontal scroll across counselors — the fix for "the week view
+    // merges everyone"); 'merged' = the old flat 7-day grid, kept reachable for office
+    // staff who want the everyone-overlaid picture.
+    const [weekStyle, setWeekStyle] = useState<'byCounselor' | 'merged'>('byCounselor');
     const [isLoading, setIsLoading] = useState(true);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [isScheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -255,6 +261,10 @@ const SessionManagement: React.FC = () => {
         return days;
     }, [startOfWeek]);
 
+    // By-counselor week board shows the working week. Bump to 7 to include weekends.
+    const COUNSELOR_WEEK_DAYS = 5;
+    const counselorWeekDays = useMemo(() => weekDays.slice(0, COUNSELOR_WEEK_DAYS), [weekDays]);
+
     // Header honesty: Week shows the actual date RANGE, never a bare "July 2026"
     // (which read as a month view). e.g. "Jul 6 – 12, 2026" / "Dec 29 – Jan 4, 2026".
     const weekRangeLabel = useMemo(() => {
@@ -349,6 +359,13 @@ const SessionManagement: React.FC = () => {
                         <button onClick={() => setViewMode('week')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'week' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Week</button>
                         <button onClick={() => setViewMode('day')} className={`px-4 py-1.5 rounded-lg transition-all ${viewMode === 'day' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Day</button>
                     </div>
+                    {/* Week presentation sub-toggle — only meaningful in Week mode. */}
+                    {viewMode === 'week' && (
+                        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-600 shadow-sm">
+                            <button onClick={() => setWeekStyle('byCounselor')} className={`px-3 py-1.5 rounded-lg transition-all ${weekStyle === 'byCounselor' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>By counselor</button>
+                            <button onClick={() => setWeekStyle('merged')} className={`px-3 py-1.5 rounded-lg transition-all ${weekStyle === 'merged' ? 'bg-primary text-white shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-600/60'}`}>Merged</button>
+                        </div>
+                    )}
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 p-1 rounded-full">
                         <button aria-label={viewMode === 'day' ? 'Previous day' : 'Previous week'} onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - (viewMode === 'day' ? 1 : 7)); setCurrentDate(d); }} className="p-1.5 rounded-full hover:bg-white dark:hover:bg-slate-600 shadow-sm transition-all"><ChevronLeft size={18}/></button>
                         <button aria-label={viewMode === 'day' ? 'Next day' : 'Next week'} onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() + (viewMode === 'day' ? 1 : 7)); setCurrentDate(d); }} className="p-1.5 rounded-full hover:bg-white dark:hover:bg-slate-600 shadow-sm transition-all"><ChevronRight size={18}/></button>
@@ -369,11 +386,15 @@ const SessionManagement: React.FC = () => {
                 private.is_staff(), which also governs the widened appointments SELECT policy)
                 sees the FULL all-counselor lane board and can book onto any lane by clicking an
                 empty slot (modal opens prefilled with that lane's counselor + the clicked time).
-                Week view — the restored flat 7-day grid (recovered from pre-step-8 history):
-                days as columns, cards placed by real start/end time, service-color fill +
-                double-booking ring ported forward, counselor name labelled on each card.
-                DISPLAY-ONLY this pass: no empty-slot click-to-book on the week grid (clicking a
-                CARD still opens its status pop-up); booking clicks live in Day view. */}
+                Week view has TWO presentations behind the "By counselor | Merged" sub-toggle:
+                — By counselor (default; David's verbatim ask): each counselor's whole Mon–Fri
+                  as its own block, blocks side by side with horizontal scroll (Outlook
+                  split-view). Reuses the Day view's LaneColumn atom, so service-color fill,
+                  double-book ring, true-duration cards AND empty-slot click-to-book all work.
+                — Merged: the restored flat 7-day grid (recovered from pre-step-8 history):
+                  days as columns, everyone overlaid, counselor name labelled on each card.
+                  DISPLAY-ONLY: no empty-slot click-to-book here (clicking a CARD still opens
+                  its status pop-up); booking clicks live in Day view + the by-counselor board. */}
             {canManage ? (
                 viewMode === 'day' ? (
                 <CounselorDayView
@@ -381,6 +402,15 @@ const SessionManagement: React.FC = () => {
                     counselors={counselors}
                     appointments={appointments}
                     onSelectAppt={setSelectedAppt}
+                    onSlotClick={info => { setSlotPrefill(info); setScheduleModalOpen(true); }}
+                />
+                ) : weekStyle === 'byCounselor' ? (
+                <CounselorWeekView
+                    weekDays={counselorWeekDays}
+                    counselors={counselors}
+                    appointments={appointments}
+                    onSelectAppt={setSelectedAppt}
+                    conflictIds={conflictIds}
                     onSlotClick={info => { setSlotPrefill(info); setScheduleModalOpen(true); }}
                 />
                 ) : (
