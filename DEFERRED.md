@@ -101,3 +101,20 @@ the right destination, not a single generic "session detail":
 Scope note: find/confirm which client-record component currently renders Session History
 before starting — not yet located as part of this entry (recon-first when this item is
 picked up).
+
+## 7. Demo-seed cleanup log (revertible — not prod data)
+
+Direct DB edits made to clean up the demo picture, logged here so they're traceable and
+reversible. None of this is real clinical/scheduling data — it's the `dee0…`-namespace demo
+seed described in [[project_sched_cascade_build]].
+
+- **2026-07-12** — appointment `40134284-f0e7-474e-b955-6c2154a05cf2` (client James West,
+  Individual Counseling, Virtual (Zoom), Tue 2026-07-07 6–8 PM local): `therapist_name`
+  changed from **`Jessica`** (not a `counselors` row under any spelling — the last
+  genuinely-unattributed row inside the Jul 6–12 demo week) to **`John Burns`**, with
+  `counselor_id` set to John Burns's row together in the same write (so this row reads via
+  the FK path, not the name-fallback). Chosen because John Burns was free at that exact
+  slot (David Yoder already had a session in that window) and qualifies for general 1:1
+  counseling with the lightest load of the free options (4 sessions pre-change). To revert:
+  `update appointments set therapist_name = 'Jessica', counselor_id = null where id =
+  '40134284-f0e7-474e-b955-6c2154a05cf2';`
