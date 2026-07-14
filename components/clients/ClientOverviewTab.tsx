@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Client, SROPProgress, ClientActivity, ComplianceEvent } from '../../types';
 import Card from '../ui/Card';
-import { FileText, CheckCircle, CheckCircle2, Award, Calendar, AlertTriangle, Clock, CreditCard, FileSignature, Target, HelpCircle, ShieldCheck } from 'lucide-react';
+import { FileText, CheckCircle, CheckCircle2, Award, Calendar, AlertTriangle, Clock, CreditCard, Target, HelpCircle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 import { getComplianceEvents } from '../../services/api';
 import { type ClientProgress } from '../../services/displayProgress';
 import { type PacketReadiness, type ReadinessRow, type ReadinessState } from '../../services/packetReadiness';
+import ClinicalNoteView from './ClinicalNoteView';
 
 interface ClientOverviewTabProps {
   client: Client;
@@ -18,14 +19,6 @@ interface ClientOverviewTabProps {
    *  ClientWorkspace from the same engine assessment the certificate gate uses. */
   readiness: PacketReadiness;
 }
-
-// Therapist UUID -> display name for clinical_note signatures. Kept inline because
-// the demo Supabase doesn't have a dedicated therapists table; broaden this when
-// post-demo we add proper therapist records.
-const THERAPIST_NAMES: Record<string, string> = {
-    '44444444-4444-4444-4444-444444444444': 'Karen Ventimiglia, LPC',
-    '22222222-2222-2222-2222-222222222222': 'Dr. Anya Sharma',
-};
 
 interface PaymentRow {
     id: string;
@@ -351,55 +344,9 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                 {notes.length > 0 && (
                     <Card title="Clinical Notes">
                         <div className="space-y-4">
-                            {notes.map(n => {
-                                const therapist = THERAPIST_NAMES[n.therapist_id || ''] || 'Clinician';
-                                const noteLabel = (n.note_type || 'Note').toUpperCase();
-                                // Format is encoded in note_type (a "(DAP)" marker — see saveClinicalNote).
-                                // DAP notes render Data/Assessment/Plan with NO Objective; SOAP notes are
-                                // unchanged (subjective + objective shown together under "Data:").
-                                const isDap = noteLabel.includes('DAP');
-                                return (
-                                    <div key={n.id} className="p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-2xl">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-2">
-                                                <FileSignature className="w-4 h-4 text-primary" />
-                                                <span className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">{noteLabel} Note</span>
-                                                {n.is_signed && (
-                                                    <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                                                        Approved
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className="text-xs text-slate-500">
-                                                {n.created_at ? new Date(n.created_at).toLocaleDateString() : ''}
-                                            </span>
-                                        </div>
-                                        <div className="space-y-2 text-sm">
-                                            {n.subjective && (
-                                                <div>
-                                                    <span className="font-bold text-slate-700 dark:text-slate-200">Data: </span>
-                                                    <span className="text-slate-600 dark:text-slate-300">{n.subjective}{!isDap && n.objective ? ` ${n.objective}` : ''}</span>
-                                                </div>
-                                            )}
-                                            {n.assessment && (
-                                                <div>
-                                                    <span className="font-bold text-slate-700 dark:text-slate-200">Assessment: </span>
-                                                    <span className="text-slate-600 dark:text-slate-300">{n.assessment}</span>
-                                                </div>
-                                            )}
-                                            {n.plan && (
-                                                <div>
-                                                    <span className="font-bold text-slate-700 dark:text-slate-200">Plan: </span>
-                                                    <span className="text-slate-600 dark:text-slate-300">{n.plan}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-500 italic">
-                                            Signed by {therapist}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {notes.map(n => (
+                                <ClinicalNoteView key={n.id} note={n} />
+                            ))}
                         </div>
                     </Card>
                 )}
