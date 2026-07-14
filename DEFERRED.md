@@ -8,6 +8,12 @@ The items below are about moving from name-based to a structured, referentially-
 
 ## 1. `user.id → counselors.id` gap (why id-attribution isn't wired)
 
+**STATUS (2026-07-14): STALE.** The identity link now exists — `counselors.auth_user_id`
+(uuid, FK → `auth.users`, backfilled by exact full_name for staff accounts) was added in
+`20260705_schedule_identity_1_counselor_auth_link`. Live attribution rides the explicit
+`counselor_id` FK (see §4), so the text-only constraint this item described no longer holds.
+Kept for history.
+
 The booking flows ([components/sessions/ScheduleSessionModal.tsx](components/sessions/ScheduleSessionModal.tsx),
 [components/sessions/SessionWrapUpModal.tsx](components/sessions/SessionWrapUpModal.tsx)) resolve the
 therapist from the logged-in session as a display **name** (`user?.name`, or the standing
@@ -43,6 +49,9 @@ constrained. `clients.assigned_therapist_id` (19 orphans) is still unconstrained
 
 ## 4. Lane attribution now rides the `counselor_id` FK — name match is fallback only (2026-07-12)
 
+**STATUS (2026-07-14): DONE.** The live `counselor_id` FK attribution path is in place and
+is the primary lane resolver; this entry documents the shipped design, not pending work.
+
 **SUPERSEDES the earlier "name-normalization bandaid."** Sessions attribute to a counselor lane
 by the real `appointments.counselor_id` FK (added + backfilled in
 `20260705_schedule_identity_1`, reconciled byte-for-byte against `normalizeCounselorName` on
@@ -76,6 +85,13 @@ are the FKs on the table, and the `service_type` CHECK
 layer's only other DB-level guard.
 
 ## 6. Clickable Session History (client record → Sessions tab) — David, walk not Tuesday (surfaced 2026-07-XX)
+
+**STATUS (2026-07-14): DONE.** Shipped in commit `773d98b`, deployed to `acs-therapyhub`
+2026-07-14. Rows in `components/clients/ClientSessionsTab.tsx` are now clickable and route by
+kind: appointment-derived rows → an `AppointmentDetail` drawer (date, time + derived duration,
+modality, status, therapist, service/session type, Zoom link, Group-session chip, plus the
+linked note if one exists); "Session note" rows → the shared `ClinicalNoteView`. The note card
+was extracted to `components/clients/ClinicalNoteView.tsx` and is reused by the Overview tab.
 
 New requirement, surfaced from a Sessions-tab screenshot review. **Not a Tuesday-demo
 blocker — do not start before the counselor_id FK branch and the by-counselor week-board
@@ -118,3 +134,30 @@ seed described in [[project_sched_cascade_build]].
   counseling with the lightest load of the free options (4 sessions pre-change). To revert:
   `update appointments set therapist_name = 'Jessica', counselor_id = null where id =
   '40134284-f0e7-474e-b955-6c2154a05cf2';`
+
+# Surfaced 2026-07-14
+
+Follow-ups that fell out of the clickable Session-History drill-in (§6). Both are net-new,
+low-risk, and NOT started.
+
+## 8. Real signer name on notes
+
+The `THERAPIST_NAMES` mock map (a 2-entry hardcoded UUID→name lookup) was deleted with the
+drill-in work — it was a demo fiction, not a data source. Note footers now render the honest
+role label **"Clinician"** ([components/clients/ClinicalNoteView.tsx](components/clients/ClinicalNoteView.tsx)).
+
+Follow-up: resolve `clinical_notes.therapist_id → counselors.name` so the note footer shows the
+REAL signer instead of the generic role. The roster already exists (the `counselors` table,
+used by the demo seed) — this is a join/lookup, not new plumbing. Small, low-risk. NOT started.
+
+## 9. Group-note authoring UI
+
+`distributeGroupNote` already fans a single note out to one `clinical_notes` row per enrolled
+member of a group occurrence, idempotently (per-seat `appointment_id` + `note_type='Group
+Session'` unique marker) — [services/api.ts](services/api.ts) (function at 1134-1193). The
+Session-History drill-in now also labels group sessions (Group-session chip / `note_type='Group
+Session'`).
+
+Missing: the clinician-facing "write once → post to group" screen that CALLS
+`distributeGroupNote`. The distribution primitive is done; the authoring surface is not.
+Fast-follow, net-new UI. NOT started.
