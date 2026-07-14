@@ -9,7 +9,7 @@
 //      ceiling than camera/upload files.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, ScanLine, Loader2, Camera, AlertCircle, WifiOff } from 'lucide-react';
+import { X, ScanLine, Loader2, Camera, AlertCircle, WifiOff, Download } from 'lucide-react';
 import { ScannerClient, type Scanner, type ScannerProtocol } from '../services/scannerClient';
 
 interface ScannerPickerModalProps {
@@ -33,6 +33,11 @@ const PROTOCOL_LABEL: Record<ScannerProtocol, string> = {
   eSCL: 'eSCL',
   twainDirect: 'TWAIN Direct',
 };
+
+// FlowHub Bridge (Gemynd Scan) Windows installer. 0.1.4 HTTP-default build.
+// Single-line change when the bridge version bumps.
+const BRIDGE_INSTALLER_URL =
+  'https://storage.googleapis.com/gemynd-public/projects/flowhub/gemynd-scan-client-setup-0.1.4.exe';
 
 const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
   isOpen,
@@ -69,7 +74,9 @@ const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
       const result = await client.discover();
       if (cancelled) return;
       if (!result.bridgeUrl) {
-        setErrorMessage(result.error);
+        // First open: keep the install panel clean. The errorMessage slot is
+        // reserved for the Test Connection failure hint.
+        setErrorMessage(null);
         setPhase('bridge_offline');
       } else if (result.scanners.length === 0) {
         setErrorMessage(result.error);
@@ -119,6 +126,31 @@ const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
     } else if (result.scanners.length === 0) {
       setPhase('no_scanners');
     } else {
+      setScanners(result.scanners);
+      setPhase('ready');
+    }
+  };
+
+  // Test Connection button (bridge-down install panel). Re-runs the SAME
+  // probe as discovery — no parallel detector. On success routes straight
+  // into the bridge-UP scanner list ('ready'); on failure stays on the
+  // install panel and surfaces an inline hint instead of a full reload.
+  const handleTestConnection = async () => {
+    setPhase('discovering');
+    setErrorMessage(null);
+    setActiveScanner(null);
+    const client = clientRef.current ?? new ScannerClient();
+    clientRef.current = client;
+    const result = await client.discover();
+    if (!result.bridgeUrl) {
+      setErrorMessage(
+        'Still not detected — make sure the Gemynd Scan tray icon is running',
+      );
+      setPhase('bridge_offline');
+    } else if (result.scanners.length === 0) {
+      setPhase('no_scanners');
+    } else {
+      setErrorMessage(null);
       setScanners(result.scanners);
       setPhase('ready');
     }
@@ -228,14 +260,64 @@ const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
           )}
 
           {phase === 'bridge_offline' && (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <WifiOff size={32} className="text-slate-400 mb-3" />
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                FlowHub Bridge not running on this machine
-              </p>
-              <p className="text-xs text-slate-500 mt-1 max-w-xs">
-                Start the bridge service or use your camera instead.
-              </p>
+            <div className="flex flex-col gap-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-primary/10 rounded-xl text-primary border border-primary/20">
+                  <ScanLine size={22} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 dark:text-slate-100">
+                    FlowHub Bridge required
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Scanning needs a small local helper running on this machine.
+                  </p>
+                </div>
+              </div>
+
+              <ol className="space-y-3 text-xs text-slate-700 dark:text-slate-200">
+                <li className="flex items-start gap-3">
+                  <span className="flex-none w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center mt-0.5">
+                    1
+                  </span>
+                  <div className="flex-1">
+                    <p className="font-semibold mb-1.5">Install the FlowHub Bridge</p>
+                    <a
+                      href={BRIDGE_INSTALLER_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-white font-bold text-[10px] uppercase tracking-widest shadow-sm hover:brightness-110 transition-all"
+                    >
+                      <Download size={12} /> Download Installer
+                    </a>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex-none w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center mt-0.5">
+                    2
+                  </span>
+                  <div className="flex-1">
+                    <p className="font-semibold mb-1">Test the connection</p>
+                    <p className="text-slate-500 dark:text-slate-400 leading-relaxed mb-2">
+                      Once the installer is running, click below.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleTestConnection}
+                      className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-200 hover:border-primary hover:text-primary transition-all"
+                    >
+                      Test Connection
+                    </button>
+                  </div>
+                </li>
+              </ol>
+
+              {errorMessage && (
+                <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertCircle size={14} className="flex-none mt-0.5" />
+                  <p>{errorMessage}</p>
+                </div>
+              )}
             </div>
           )}
 
