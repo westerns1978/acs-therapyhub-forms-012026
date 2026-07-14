@@ -267,8 +267,9 @@ const SessionManagement: React.FC = () => {
         return days;
     }, [startOfWeek]);
 
-    // By-counselor week board shows the working week. Bump to 7 to include weekends.
-    const COUNSELOR_WEEK_DAYS = 5;
+    // By-counselor week board shows the FULL week Mon–Sun (7) so Sat/Sun columns and any
+    // weekend sessions render — matching the Merged grid and the demo seed's 7-day spread.
+    const COUNSELOR_WEEK_DAYS = 7;
     const counselorWeekDays = useMemo(() => weekDays.slice(0, COUNSELOR_WEEK_DAYS), [weekDays]);
 
     // Header honesty: Week shows the actual date RANGE, never a bare "July 2026"

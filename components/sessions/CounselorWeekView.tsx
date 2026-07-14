@@ -212,7 +212,7 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
             />
             <div
                 ref={pillRef}
-                className="pointer-events-none absolute top-2 right-3 z-40 flex items-center gap-1 rounded-full bg-slate-800/80 dark:bg-slate-100/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white dark:text-slate-800 shadow transition-opacity duration-200"
+                className="pointer-events-none absolute bottom-3 right-3 z-40 flex items-center gap-1 rounded-full bg-slate-800/80 dark:bg-slate-100/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white dark:text-slate-800 shadow transition-opacity duration-200"
                 style={{ opacity: 0 }}
                 aria-hidden
             >
