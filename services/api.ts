@@ -598,7 +598,8 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
     if ('notes' in patch) row.notes = patch.notes ?? null;
     if ('googleEventId' in patch) row.google_event_id = patch.googleEventId ?? null;
     if ('googleEventLink' in patch) row.google_event_link = patch.googleEventLink ?? null;
-    if ('date' in patch || 'startTime' in patch || 'endTime' in patch) {
+    const isReschedule = 'date' in patch || 'startTime' in patch || 'endTime' in patch;
+    if (isReschedule) {
         const dateObj = patch.date instanceof Date ? patch.date : (patch.date ? new Date(patch.date) : new Date());
         if (patch.startTime) {
             const start = combineDateAndTime(dateObj, patch.startTime);
@@ -611,6 +612,20 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
         }
     }
 
+    // Audit foundation only (DEFERRED #4/#28) — capture the prior start/end BEFORE the
+    // write so a future reschedule-history reader has a from/to, not just a bare event.
+    // Scoped to date/time changes only (not every updateAppointment call, e.g. status
+    // changes) since "reschedule audit" is the only event approved for this batch.
+    let previous: { start_time: string | null; end_time: string | null; client_id: string | null } | null = null;
+    if (isReschedule) {
+        const { data: prevRow } = await supabase
+            .from('appointments')
+            .select('start_time, end_time, client_id')
+            .eq('id', id)
+            .single();
+        previous = prevRow ?? null;
+    }
+
     const { data, error } = await supabase
         .from('appointments')
         .update(row)
@@ -621,6 +636,30 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
         console.error('[api] updateAppointment failed:', error);
         throw new Error(error.message || 'Failed to update appointment');
     }
+
+    // Fire-and-forget, same pattern as saveClinicalNote's note.signed write — never
+    // blocks or fails the reschedule itself. No reader exists yet: this is the write
+    // side only (DEFERRED note on this item — a "view reschedule history" UI is a
+    // separate, unbuilt task on top of this).
+    if (isReschedule) {
+        supabase.auth.getUser().then(({ data: auth }) => {
+            const actor = auth?.user?.id;
+            if (!actor) return;
+            void logAudit({
+                actor,
+                action: 'appointment.rescheduled',
+                entity_type: 'appointments',
+                entity_id: id,
+                timestamp: new Date().toISOString(),
+                details: {
+                    client_id: previous?.client_id ?? (data as any)?.client_id ?? null,
+                    from: { start_time: previous?.start_time ?? null, end_time: previous?.end_time ?? null },
+                    to: { start_time: row.start_time ?? null, end_time: row.end_time ?? null },
+                },
+            });
+        });
+    }
+
     return mapAppointmentRowToApp(data);
 };
 
