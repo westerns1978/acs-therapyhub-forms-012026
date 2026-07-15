@@ -1131,7 +1131,28 @@ export const saveClinicalNote = async (
         created_at: new Date().toISOString(),
         ...(format === 'DAP' ? splitDapNote(note) : splitSoapNote(note)),
     };
-    if (opts.appointmentId) row.appointment_id = opts.appointmentId;
+    if (opts.appointmentId) {
+        // Trust boundary: appointmentId can arrive via a URL query param (ActiveSession
+        // reads ?appointmentId= off the route) — a stale tab or a hand-edited URL could
+        // hand this function an appointment that belongs to a DIFFERENT client. Verify
+        // before linking rather than trusting the caller; a wrong link is a records
+        // defect, an unlinked note is just honest. Never blocks the save either way.
+        const { data: apptRow, error: apptErr } = await supabase
+            .from('appointments')
+            .select('client_id')
+            .eq('id', opts.appointmentId)
+            .maybeSingle();
+        if (!apptErr && apptRow && apptRow.client_id === clientId) {
+            row.appointment_id = opts.appointmentId;
+        } else {
+            console.warn('[api] saveClinicalNote: appointmentId did not match clientId (or was not found) — saving unlinked', {
+                appointmentId: opts.appointmentId,
+                clientId,
+                apptClientId: apptRow?.client_id ?? null,
+                apptErr: apptErr?.message,
+            });
+        }
+    }
     if (opts.therapistId) row.therapist_id = opts.therapistId;
 
     const { data, error } = await supabase
