@@ -327,7 +327,7 @@ const ClientWorkspace: React.FC = () => {
         // document; two tabs for one concept was two places to look. Holds the old Documents
         // position. The underlying facts stay two lanes (SIGNATURE vs DOCUMENT) — see DEFERRED #17.
         { id: 'records', label: 'Records', icon: FileText },
-        { id: 'sessions', label: 'Sessions', icon: Video },
+        { id: 'sessions', label: 'Services', icon: Video },
         // Assessment (placement engine) — all staff (is_staff), mirrors assessment_inputs RLS.
         ...(canAssess ? [{ id: 'assessment', label: 'Assessment', icon: Gauge }] : []),
         // Billing is a staff surface — all staff (is_staff: Director/Therapist/Admin), mirrors the
