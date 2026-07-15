@@ -408,7 +408,7 @@ export interface SessionAttendanceData {
   sessionNotes: string;
 }
 
-export type AppointmentStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Canceled' | 'No Show';
+export type AppointmentStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Canceled' | 'No Show' | 'No Call No Show';
 // Session-type labels now come from config/sessionTaxonomy.ts (three-level booking
 // cascade, David 7/7). Legacy literals ('SATOP Group', 'Individual Counseling', ...)
 // remain valid stored data, so this is a string alias rather than a closed union.
