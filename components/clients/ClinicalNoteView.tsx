@@ -55,19 +55,19 @@ const ClinicalNoteView: React.FC<{ note: ClinicalNote }> = ({ note }) => {
         {note.subjective && (
           <div>
             <span className="font-bold text-slate-700 dark:text-slate-200">Data: </span>
-            <span className="text-slate-600 dark:text-slate-300">{note.subjective}{!isDap && note.objective ? ` ${note.objective}` : ''}</span>
+            <span className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{note.subjective}{!isDap && note.objective ? ` ${note.objective}` : ''}</span>
           </div>
         )}
         {note.assessment && (
           <div>
             <span className="font-bold text-slate-700 dark:text-slate-200">Assessment: </span>
-            <span className="text-slate-600 dark:text-slate-300">{note.assessment}</span>
+            <span className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{note.assessment}</span>
           </div>
         )}
         {note.plan && (
           <div>
             <span className="font-bold text-slate-700 dark:text-slate-200">Plan: </span>
-            <span className="text-slate-600 dark:text-slate-300">{note.plan}</span>
+            <span className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{note.plan}</span>
           </div>
         )}
       </div>

@@ -991,26 +991,46 @@ export const getClientActivityFeed = async (id: string) => (dbClientActivityFeed
 const SOAP_KEYS = ['subjective', 'objective', 'assessment', 'plan'] as const;
 type SoapKey = (typeof SOAP_KEYS)[number];
 
-const splitSoapNote = (note: string): Partial<Record<SoapKey, string>> => {
-    const headerRe = /(?:^|\n)[ \t]*[*#>\-]*[ \t]*(subjective|objective|assessment|plan)\b[ \t]*[:\-–]?[ \t]*\*{0,2}/gi;
-    const matches = [...note.matchAll(headerRe)];
-    const keysFound = matches.map(m => m[1].toLowerCase());
-    // Only trust the split when it's an unambiguous, canonical S→O→A→P note;
-    // otherwise a stray heading-like line could scatter clinical text into the
-    // wrong sections. When unsure, keep the whole note intact in `subjective`.
-    const isCanonical = keysFound.length === 4 && SOAP_KEYS.every((k, i) => keysFound[i] === k);
-    if (!isCanonical) return { subjective: note.trim() };
-
-    const sections: Partial<Record<SoapKey, string>> = {};
+// Shared slicer: cuts `note` into sections at each header match, then folds any
+// text BEFORE the first match into that first section (never dropped). Used for
+// both the canonical (all headers, in order) and partial (some headers found)
+// cases — the slicing math is identical either way.
+const sliceByHeaderMatches = <K extends string>(note: string, matches: RegExpMatchArray[]): Partial<Record<K, string>> => {
+    const sections: Partial<Record<K, string>> = {};
     for (let i = 0; i < matches.length; i++) {
-        const key = matches[i][1].toLowerCase() as SoapKey;
+        const key = matches[i][1].toLowerCase() as K;
         const start = (matches[i].index ?? 0) + matches[i][0].length;
         const end = i + 1 < matches.length ? (matches[i + 1].index ?? note.length) : note.length;
         sections[key] = note.slice(start, end).trim();
     }
     const preamble = note.slice(0, matches[0].index ?? 0).trim();
-    if (preamble) sections.subjective = `${preamble}\n\n${sections.subjective ?? ''}`.trim();
+    if (preamble) {
+        const firstKey = matches[0][1].toLowerCase() as K;
+        sections[firstKey] = `${preamble}\n\n${sections[firstKey] ?? ''}`.trim();
+    }
     return sections;
+};
+
+const splitSoapNote = (note: string): Partial<Record<SoapKey, string>> => {
+    const headerRe = /(?:^|\n)[ \t]*[*#>\-]*[ \t]*(subjective|objective|assessment|plan)\b[ \t]*[:\-–]?[ \t]*\*{0,2}/gi;
+    const matches = [...note.matchAll(headerRe)];
+    const keysFound = matches.map(m => m[1].toLowerCase());
+    const isCanonical = keysFound.length === 4 && SOAP_KEYS.every((k, i) => keysFound[i] === k);
+    if (isCanonical) return sliceByHeaderMatches<SoapKey>(note, matches);
+
+    // Partial-match fallback: AI drift (or a hand-typed note) rarely produces all
+    // four headers in exact S→O→A→P order, but often produces 2 or 3 of them
+    // cleanly. Split on whatever was found rather than collapsing everything into
+    // `subjective` — still never scatters text into the WRONG section, since each
+    // slice only ever contains what actually followed its own header. Anything
+    // genuinely ambiguous (0-1 headers, duplicates, or all 4 out of order) keeps
+    // the old, safe whole-note-in-`subjective` behavior — when unsure, preserving
+    // the whole note in one field is the correct failure, not a guessed split.
+    const uniqueKeys = new Set(keysFound);
+    const isPartial = (matches.length === 2 || matches.length === 3) && uniqueKeys.size === matches.length;
+    if (isPartial) return sliceByHeaderMatches<SoapKey>(note, matches);
+
+    return { subjective: note.trim() };
 };
 
 // DAP (Data / Assessment / Plan) is stored LOSSLESSLY in the existing SOAP
@@ -1022,24 +1042,21 @@ const splitSoapNote = (note: string): Partial<Record<SoapKey, string>> => {
 // column to clinical_notes so DAP is stored natively, instead of reusing the
 // SOAP `subjective` column and encoding the format in `note_type`.
 const DAP_KEYS = ['data', 'assessment', 'plan'] as const;
+type DapKey = (typeof DAP_KEYS)[number];
 const splitDapNote = (note: string): Partial<Record<SoapKey, string>> => {
     const headerRe = /(?:^|\n)[ \t]*[*#>\-]*[ \t]*(data|assessment|plan)\b[ \t]*[:\-–]?[ \t]*\*{0,2}/gi;
     const matches = [...note.matchAll(headerRe)];
     const keysFound = matches.map(m => m[1].toLowerCase());
     const isCanonical = keysFound.length === 3 && DAP_KEYS.every((k, i) => keysFound[i] === k);
-    if (!isCanonical) return { subjective: note.trim() };
+    // Partial-match fallback (mirrors splitSoapNote): 2 of the 3 DAP headers found
+    // cleanly still gets split on those, rather than collapsing to `subjective`.
+    const uniqueKeys = new Set(keysFound);
+    const isPartial = matches.length === 2 && uniqueKeys.size === 2;
+    if (!isCanonical && !isPartial) return { subjective: note.trim() };
 
-    const sections: Record<string, string> = {};
-    for (let i = 0; i < matches.length; i++) {
-        const key = matches[i][1].toLowerCase();
-        const start = (matches[i].index ?? 0) + matches[i][0].length;
-        const end = i + 1 < matches.length ? (matches[i + 1].index ?? note.length) : note.length;
-        sections[key] = note.slice(start, end).trim();
-    }
-    const preamble = note.slice(0, matches[0].index ?? 0).trim();
-    const data = preamble ? `${preamble}\n\n${sections.data ?? ''}`.trim() : (sections.data ?? '');
+    const sections = sliceByHeaderMatches<DapKey>(note, matches);
     // Data -> subjective; Assessment/Plan keep their names; objective stays empty.
-    return { subjective: data, assessment: sections.assessment, plan: sections.plan };
+    return { subjective: sections.data ?? '', assessment: sections.assessment, plan: sections.plan };
 };
 
 export interface SaveClinicalNoteOptions {
