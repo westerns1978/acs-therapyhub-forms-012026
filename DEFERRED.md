@@ -261,10 +261,11 @@ dev database**. Consequences:
 - Dev and prod are the SAME database. There is no environment to rehearse a schema change in
   — the billable-units migration could not be smoke-tested against a real column anywhere but
   prod (the gate logic was proven with a standalone in-memory test instead).
-- Any app run, any manual test write, hits **real client records**. During this deploy, an
-  out-of-range test write (`billable_units=13`) was correctly rejected by the CHECK — but the
-  Postgres error `DETAIL` echoed a real client's row (name + session), i.e. PHI surfaced in an
-  error path. This is a **HIPAA-bound** product on a **shared** multi-app DB with no BAA
+- Any app run, any manual test write, hits **the shared DB**; contents are **demo data today**.
+  It becomes a PHI concern the day real client records exist. During this deploy, an out-of-range
+  test write (`billable_units=13`) was correctly rejected by the CHECK — but the Postgres error
+  `DETAIL` echoed a demo client's row (name + session), which would be a PHI leak against real
+  records. This is a **HIPAA-bound** product on a **shared** multi-app DB with no BAA
   (see [[project_compliance_recon_day30]]).
 
 Discovered during the billable-units deploy. **Not scoped, not scheduled** — written down so it
@@ -298,10 +299,11 @@ recon (which surfaces should read null-program as "unknown/ineligible" vs. "SATO
 ## 16. PHI IN CONSTRAINT-ERROR DETAIL (observed 2026-07-15)
 
 Postgres emits the FULL failing row in a CHECK violation's `DETAIL`. Observed live during this
-deploy: a rejected `billable_units = 13` write echoed a real client's name and session in the
-error detail. This applies to **every CHECK on every clinical table**, not just this one. Risk
-path: Supabase logs, Postgres logs, browser console, error toasts — any of which could carry
-PHI off a rejected write, on a HIPAA-bound product (see [[project_compliance_recon_day30]]).
+deploy: a rejected `billable_units = 13` write echoed a **demo** client's name and session in the
+error detail. The mechanism is real and applies to **every CHECK on every clinical table**, not
+just this one — it becomes a PHI leak when real records exist. Risk path: Supabase logs, Postgres
+logs, browser console, error toasts — any of which could carry PHI off a rejected write, on a
+HIPAA-bound product (see [[project_compliance_recon_day30]]).
 
 **Design rule for when the units picker goes live:** validate/clamp the unit count CLIENT-SIDE
 so the DB CHECK is a backstop that never fires in normal use, and NEVER surface a raw Supabase
