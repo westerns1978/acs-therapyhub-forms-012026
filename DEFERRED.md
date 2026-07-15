@@ -244,3 +244,21 @@ field, on purpose — `clients.billing_type` is not fit to gate on today:
 
 Before any logic (billing eligibility, payer routing) may key on `billing_type`, it needs a
 cleanup pass + a CHECK constraint reconciled with the TS union. Not this sprint.
+
+## 14. NO ENVIRONMENT SEPARATION — dev and prod are the same DB (discovered 2026-07-15)
+
+[services/supabase.ts:3](services/supabase.ts:3) is **hardcoded** to the shared remote
+`ldzzlndsspkyohvzfiiu.supabase.co`; there is **no `supabase/config.toml`** and **no local or
+dev database**. Consequences:
+- Dev and prod are the SAME database. There is no environment to rehearse a schema change in
+  — the billable-units migration could not be smoke-tested against a real column anywhere but
+  prod (the gate logic was proven with a standalone in-memory test instead).
+- Any app run, any manual test write, hits **real client records**. During this deploy, an
+  out-of-range test write (`billable_units=13`) was correctly rejected by the CHECK — but the
+  Postgres error `DETAIL` echoed a real client's row (name + session), i.e. PHI surfaced in an
+  error path. This is a **HIPAA-bound** product on a **shared** multi-app DB with no BAA
+  (see [[project_compliance_recon_day30]]).
+
+Discovered during the billable-units deploy. **Not scoped, not scheduled** — written down so it
+stops being invisible. Real fix is a separate dev/staging Supabase project (or local stack) so
+schema and data changes never rehearse against production PHI.
