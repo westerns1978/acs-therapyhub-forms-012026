@@ -1,6 +1,10 @@
 # ACS TherapyHub — working notes
 
 Terse, read every session. See ROADMAP.md for SHIPPED / IN-FLIGHT / ROADMAP.
+See [docs/DOMAIN-MODEL-2026-07-15.md](docs/DOMAIN-MODEL-2026-07-15.md) before touching the
+group/note domain — notes are 1:1 not 1:N, appointment fields (not notes) are the source of
+truth today, and there are 5 competing service/program vocabularies. Facts only, cited, do not
+re-derive.
 
 ## Two distinct client axes — do NOT conflate
 - **`program_type`** = CLINICAL placement (SATOP / OEP / WIP / CIP / SROP / OPIOID_RECOVERY /

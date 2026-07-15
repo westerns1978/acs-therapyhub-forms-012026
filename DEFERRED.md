@@ -434,3 +434,109 @@ Fix is likely a **single theme addition** (define `on-surface`/`on-surface-secon
 it needs its own verification pass** — a wrong global swap could shift contrast in surfaces that
 were relying on the inherited fallback. Found 2026-07-15 during the units-display DetailRow fix
 (that one component was moved to the correct `text-surface-secondary` token). Not scoped here.
+
+# Surfaced 2026-07-15 — David 7/15 packet recon (docs/DOMAIN-MODEL-2026-07-15.md)
+
+## 25. GROUP NOTE INTEGRITY DEFECT — N duplicate rows, no correlating identifier
+
+**This is a records-integrity DEFECT, not a roadmap gap.** `distributeGroupNote()`
+([services/api.ts:1143-1202](services/api.ts:1143)) writes N independent `clinical_notes` rows —
+one per attendee — via a loop over `saveClinicalNote()` (line 1179). Each row is stamped with
+that attendee's own `appointment_id` and `note_type='Group Session'`, and the partial unique
+index `ux_clinical_notes_group_seat`
+([20260705_group_checkin_1_clinical_notes_group_seat_unique.sql:32-34](supabase/migrations/20260705_group_checkin_1_clinical_notes_group_seat_unique.sql))
+makes a re-post for the SAME seat idempotent (Postgres 23505 → classified `alreadyPosted`,
+line 1196 — no duplicate chart entry).
+
+**What the idempotency guard does NOT do: correlate the N rows across DIFFERENT clients as one
+clinical event.** Nothing links attendee A's row to attendee B's row from the same occurrence —
+no shared `occurrence_id`, no `group_note_id`, nothing beyond `note_type` plus each attendee's
+own seat coincidentally sharing `group_id`+`start_time`. Each of the N rows is independently
+editable after posting — there is no fan-out on edit, so amending one client's copy does not
+touch the others. **Amending a group note after the fact silently diverges the attendees'
+records: up to 12 versions of what should be one clinical event, with no mechanism to detect
+or reconcile drift.**
+
+Pre-production, no real client data exists yet, so this is not urgent — but it is a
+records-integrity defect in a compliance product and **must not survive into production**.
+
+**Fix shape (fact, not a plan):** either (a) a `note_attendees` join table so one
+`clinical_notes` row structurally covers N clients, replacing the per-seat write; or (b) keep
+the per-seat write pattern but add a shared `occurrence_id`/`group_note_id` column so the N rows
+are provably one event and an edit can be fanned out (or at minimum drift can be detected).
+
+Witnessed 2026-07-15 recon; full context in [[project_domain_model_2026_07_15]].
+
+## 26. GROUP ROSTER SCAFFOLDING IS UNUSED
+
+`group_enrollments` (the real client↔group many-to-many table,
+[20260606_ws6_1_standing_groups.sql:61-69](supabase/migrations/20260606_ws6_1_standing_groups.sql:61))
+has **zero application-code readers** — grep for `group_enrollments` across the repo hits only
+migration/seed files. Live row count: 4, all from seed SQL.
+
+In its place, "who's in a group occurrence" is reconstructed at runtime from whichever
+`appointments` rows happen to share `group_id`+`start_time`
+([services/greenRoom.ts:134-151](services/greenRoom.ts:134)), and "who showed up"
+(present/absent) is **ephemeral client-side state only** —
+[pages/GreenRoom.tsx:232-233](pages/GreenRoom.tsx:232), a `useState<Set<string>>` defaulting
+everyone present, never persisted. The UI itself admits the gap: *"Live attendance isn't
+available yet... We show the enrolled roster from the schedule"*
+([pages/GreenRoom.tsx:469-470](pages/GreenRoom.tsx:469)) — though that "enrolled roster" claim
+is itself inaccurate, since `group_enrollments` (the actual enrollment table) is never queried.
+
+Net effect: the roster David describes ("add or remove clients... without effecting the static
+group assignment") has no durable place to live today — there's a real M:N table for the static
+assignment, unused, and no table at all for a per-occurrence override.
+
+## 27. NOTE PROVENANCE FIELDS ARE INCOMPLETE FOR A COMPLIANCE SURFACE
+
+Three related gaps, all on `clinical_notes` or its neighbor `treatment_plans`:
+- `clinical_notes.appointment_id` is null in practice for BOTH individual-note save paths
+  (`SmartNoteImporter.tsx`'s `handleSave`, `SessionWrapUpModal.tsx`'s `handleNext`) — neither
+  passes `appointmentId` to `saveClinicalNote()`. Only `distributeGroupNote()` populates it (see
+  #25). The appointment↔note link Session History relies on
+  ([components/clients/ClientSessionsTab.tsx:216-217](components/clients/ClientSessionsTab.tsx:216))
+  is therefore only ever populated for group notes today.
+- `clinical_notes.is_signed` is a boolean only — no `signed_by`/`signed_at` column exists.
+  [components/clients/ClinicalNoteView.tsx:8-14](components/clients/ClinicalNoteView.tsx:8)
+  documents this explicitly and renders the generic role "Clinician" instead of a name, and
+  "Recorded" (created_at) instead of "Signed at", because neither exists.
+- `treatment_plans.content` (jsonb) problems have no stable id/ordinal —
+  [components/clients/TreatmentPlanTab.tsx:176-179](components/clients/TreatmentPlanTab.tsx:176)
+  numbers them from array position at render time, which shifts on reorder/edit.
+
+All three block a reliable "who signed this, when, referencing which problem" trail — the
+honesty guards already in the code are working as intended; the underlying data just isn't
+there yet.
+
+## 28. CALENDAR STATE ISN'T SCHEMA-ENFORCED OR FULLY WIRED
+
+`appointments.status` has no DB CHECK constraint — plain `text` (confirmed live), enforced only
+by the TS union `AppointmentStatus` ([types.ts:411](types.ts:411)); live data already shows
+case-drift (`completed`:182 vs `Completed`:3, a stray `no_show`:1), confirming nothing enforces
+it at the DB layer.
+
+Separately, `appointments` carries `reschedule_reason`, `rescheduled_at`, `cancellation_reason`,
+`cancelled_at` columns (confirmed live) that no code anywhere writes to or reads — a repo-wide
+grep for these four column names returns zero matches outside `information_schema`. They look
+purpose-built for reschedule/cancellation history but are vestigial.
+
+Neither is urgent alone; together they mean "what happened to this appointment and when" has no
+enforced vocabulary and no populated audit trail today (reschedule/cancel actions also don't
+reach `audit_logs` — same 2026-07-15 recon).
+
+## 29. SIGNATURE CAPTURE EXISTS BUT ISN'T CONNECTED TO ANY LIVE CONSENT FORM
+
+The only real canvas/stroke signature component in the app,
+[components/ui/SignaturePad.tsx](components/ui/SignaturePad.tsx) (`canvas.toDataURL('image/png')`
+→ base64 PNG), is wired to exactly two places: session-attendance sign-in
+(`ManageAttendeesModal.tsx`) and a trial-hidden, unreachable route
+(`pages/portal/RecoveryPlanForm.tsx` — see `App.tsx:173-174`'s own "phantom twin" comment).
+**None of the 15 live FORM_REGISTRY entries use it.** Every "signature" field on a live
+client-facing consent form (`consent-treatment`, `hipaa-ack`, `authorization-release`,
+`telehealth-consent`, `satop-checklist`, `emergency-contact`, etc.) is a plain typed-text
+`FormField`, not a captured stroke.
+
+Relevant to B5 (signed-copy portal prerequisite, 7/15 packet): whether a typed name satisfies
+"signed" for the pilot, or whether real capture needs wiring into `BaseFormTemplate` first, is a
+scope-defining decision, not a technical gap — the component to wire already exists.
