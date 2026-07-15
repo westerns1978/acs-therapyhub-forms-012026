@@ -499,7 +499,7 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                 disabled={isSaving}
                                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-700 text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                <Play size={16} /> Start Session
+                                <Play size={16} /> Start transcribed session
                             </button>
                         )}
                         {/* WS3: session category — REQUIRED to mark complete; drives categorized hours accrual. */}

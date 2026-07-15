@@ -226,7 +226,7 @@ const Settings: React.FC = () => {
                                         onChange={(e) => setZoomPMI(e.target.value)}
                                         className="w-full p-2 border rounded-md text-sm bg-white dark:bg-slate-700"
                                     />
-                                    <p className="text-[10px] text-gray-500 mt-1">Used for "Start Session" buttons when OAuth is unavailable.</p>
+                                    <p className="text-[10px] text-gray-500 mt-1">Used for "Start transcribed session" buttons when OAuth is unavailable.</p>
                                 </div>
 
                                 <button onClick={saveSettings} className="w-full py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-sm hover:bg-primary-focus transition">

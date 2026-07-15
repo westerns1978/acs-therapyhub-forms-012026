@@ -230,7 +230,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                         onClick={() => navigate(`/session/${client.id}`)}
                         className="flex items-center gap-3 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 hover:scale-105 transition-all shadow-xl shadow-indigo-600/20 active:scale-95"
                     >
-                        <Play size={16} /> Start Session
+                        <Play size={16} /> Start transcribed session
                     </button>
                 )}
                 {/* Opens Smart Note Studio (owned by MainLayout) pre-scoped to THIS
@@ -239,7 +239,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                     onClick={() => window.dispatchEvent(new CustomEvent('open-note-modal', { detail: { clientId: client.id } }))}
                     className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10 active:scale-95"
                 >
-                    <FilePlus size={16} /> Session Note
+                    <FilePlus size={16} /> Start typed or dictated note
                 </button>
                 {/* Opens the existing ScheduleSessionModal pre-scoped to this client
                     (its preselectedClient prop → "Schedule Makeup for {name}"). */}
