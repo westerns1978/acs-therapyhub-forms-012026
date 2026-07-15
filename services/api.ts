@@ -1873,7 +1873,7 @@ export const archiveTreatmentPlan = async (id: string): Promise<TreatmentPlan> =
 export const analyzeTravelRisk = async (id: string, date: string, time: string) => ({ risk: 'Low' as const, reason: 'Commute cleared by GeMyndFlow Dispatcher.' });
 export const getSessionRecords = async (id: string) => (dbSessionRecords || []).filter(r => r.clientId === id);
 
-export const processDocument = async (file: File, apiKey: string, clientId: string, clientName: string, onProgress: (p: number) => void): Promise<DocumentFile> => {
+export const processDocument = async (file: File, clientId: string, clientName: string, onProgress: (p: number) => void): Promise<DocumentFile> => {
     onProgress(30);
     const dna = await storageService.extractDocumentDNA(file);
     onProgress(100);
