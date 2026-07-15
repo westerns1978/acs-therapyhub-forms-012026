@@ -170,10 +170,14 @@ Fast-follow, net-new UI. NOT started.
 (grain) — a completion-time picker in
 [components/sessions/AppointmentStatusModal.tsx](components/sessions/AppointmentStatusModal.tsx),
 and a read-only DetailRow in [components/clients/ClientSessionsTab.tsx](components/clients/ClientSessionsTab.tsx).
-It records a COUNT only — no dollars, no DMH/CIMOR submission. **The picker renders for
-NOTHING today** — every grain is unset on purpose (see #11); the mechanism/schema/gate ship,
-the grain table stays empty until David's codes land. Four gaps were left open ON PURPOSE;
-none is a code bug.
+It records a COUNT only — no dollars, no DMH/CIMOR submission.
+
+**UPDATE 2026-07-15 (feat/units-on):** the `counseling` grain is **ON** — 15-minute units,
+1–12, group and individual alike, per David's direct confirmation on the ACS Updates call
+(2026-07-14, 00:20:44 / 00:26:51). The picker now renders for SATOP-family clients on
+`counseling` sessions, and the drill-in shows "N units · M min" (asserted) or "N units
+suggested · M min" (prefill, not asserted). education/rehabilitative_support grains stay
+unset (transcript doesn't cover them). See the revised #11.
 
 ## 10. UNITS ↔ HOURS RECONCILIATION (blocked on David + Missouri billing rules)
 
@@ -194,39 +198,37 @@ program-completion (and whether they must ever be forced to agree) is a David + 
 billing-rules question, NOT a code question. Do NOT wire `billable_units` into the accrual
 view or the compliance engine until that decision lands.
 
-## 11. SERVICE_TYPE CANNOT EXPRESS INDIVIDUAL vs GROUP — no grain assertable (blocked on David's DMH contract)
+**UPDATE 2026-07-15 — the 7/14 transcript raises the stakes (00:26:51).** David: "We still
+have to put those in for the state so they get their completion. So whether they're
+reimbursed or not, we need to do our part." → Units are NOT a parallel billing-only number:
+they feed the **COMPLETION CERTIFICATE** as well as state billing, and **self-pay clients
+still need units recorded for completion**. The reconciliation between `billable_units`
+(clinician-dictated) and `client_accrued_hours` (reads `duration_minutes`) is therefore
+**load-bearing, not cosmetic** — two different numbers feeding the same completion story.
+Still not built. Still David's call on the rule (which number the gate trusts, or how they
+must agree).
 
-This is no longer "the grain table is unpopulated." It is a NAMED VOCABULARY GAP:
-- The GRAIN axis of the units gate ([config/billableUnits.ts](config/billableUnits.ts)) is
-  `service_type` (the WS3 accrual category: counseling / education / rehabilitative_support
-  / other). That vocabulary **cannot express individual vs group**. `counseling` carries
-  BOTH — and unit billing needs the split, because individual counseling bills per 15-min
-  unit (H0004) while group bills per 45-min unit (H0005), a different grain and a different
-  cap.
-- **Live proof:** Karen Ventimiglia's SATOP Group sessions are stored with
-  `service_type = 'counseling'` at 120–180 min (verified against `public.appointments`,
-  `group_id` set). Under a 15-min counseling grain they would prefill ~8–12 units where the
-  H0005 group answer is ~3–4 — a ~3× overstatement on the practice's dominant session type.
-  That is why `counseling.unitMinutes` is now UNSET, alongside education and
-  rehabilitative_support.
-- **Consequence:** no grain can be asserted for any category today, so the units control
-  **renders for nothing**. Eligibility (program = SATOP-family) works; there is simply no
-  honest grain to pair with it. This is intended, not a regression.
-- **Render is now silent (2026-07-15).** The two user-visible strings the groundwork shipped —
-  the modal's "Unit billing not configured for this service type." line and the drill-in's
-  "Billable units —" row — were **removed rather than fixed**, because a status line about
-  unfinished plumbing does not belong on the clinician's daily close-out path. When David's
-  procedure codes land and a grain is set, BOTH surfaces begin rendering **on their own**: the
-  modal picker appears once `unitGrainFor` returns non-null, and the drill-in row appears the
-  first time a real `billable_units` value is written. There is **no un-hiding step** — nothing
-  was left commented-out or feature-flagged to re-enable.
-- **Two candidate resolutions — DO NOT pick one here:** (a) David's procedure-code table
-  supplies the individual/group grain split per code; (b) a new individual-vs-group axis is
-  added on the appointment (the service_type vocabulary is extended or a sibling field is
-  introduced) so the grain can be selected without guessing.
-- Blocked on David's DMH contract, **not on code**. `procedureCode` stays null everywhere;
-  no UI claims a real HCPCS code, submission, or DMH/CIMOR acceptance. When it resolves,
-  populate this ONE module — no other file should need to change.
+## 11. UNIT GRAIN — RESOLVED 2026-07-15 (was: "service_type can't express individual vs group")
+
+**STATUS: RESOLVED — grain turned on 2026-07-15 (feat/units-on).** This entry previously
+claimed a vocabulary gap: that `counseling` bundling individual AND group blocked any honest
+grain, because individual bills per 15-min unit (H0004) while group bills per 45-min unit
+(H0005). **That theory came from an out-of-state regulation, not from ACS, and David's own
+words overrule it.** ACS Updates call, 2026-07-14 (00:20:44): units "from 1 to 12 …
+dictated in each note", confirmed on **15-minute intervals**, on "the **group and** session
+notes" — **one grain for both group and individual**. No procedure-code table, no per-code
+caps, no HCPCS (00:26:51: "what we need … is to be able to show the number of units").
+
+Consequences of the resolution:
+- `counseling` = `{ unitMinutes: 15, maxUnits: 12 }` in [config/billableUnits.ts](config/billableUnits.ts).
+  Karen's 120–180-min SATOP Groups prefilling 8–12 units is very likely **CORRECT**, not a
+  misfire — the earlier "~3× overstatement" claim in this entry is retracted.
+- The picker and the drill-in row render on their own (no un-hiding step was needed —
+  exactly as designed when the render was made silent).
+- `education` and `rehabilitative_support` grains stay **unset** — the transcript doesn't
+  cover them; still no guessing. `procedureCode` stays null (David specified none).
+- Kept for history: the individual/group vocabulary limitation in `service_type` is still
+  factually true — it just no longer matters for unit grain, since both share 15 min.
 
 ## 12. DEAD LEGACY BILLING COLUMNS (decide later)
 
@@ -380,3 +382,12 @@ it requires a **human-labeled sample**, not a model-vs-model comparison. **Not s
 
 (For the record: the flash-lite → gemini-2.5-flash switch was evaluated 2026-07-15 and **CANCELLED**
 — `'other'` was measuring test junk, not classifier weakness. Stay on `gemini-2.5-flash-lite`.)
+
+## 21. UNIT CAP VS "FOUR HOURS" — one-line question for Tuesday's call (2026-07-15)
+
+On the 7/14 ACS Updates call David specified units **"from 1 to 12"** (00:20:44) — a 3-hour
+ceiling at 15 min/unit — but separately described billing **"four hours of individual session
+on this date"** (00:21:37), which is **16 units** and exceeds that cap. Probably loose speech,
+but the DB CHECK (`appointments_billable_units_range`) and the picker both enforce **1–12**,
+so a genuine 4-hour session could not be recorded as 16 units today. Ask David Tuesday: is 12
+a hard per-session cap, or can a single session exceed 3 billable hours?

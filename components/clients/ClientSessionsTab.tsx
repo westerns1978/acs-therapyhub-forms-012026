@@ -3,7 +3,7 @@ import type { Client, Appointment } from '../../types';
 import { supabase } from '../../services/supabase';
 import { getClientAppointments } from '../../services/api';
 import { sessionTypeById } from '../../config/sessionTaxonomy';
-import { formatUnits } from '../../config/billableUnits';
+import { unitGrainFor, suggestedUnits } from '../../config/billableUnits';
 import Card from '../ui/Card';
 import Modal from '../ui/Modal';
 import ClinicalNoteView, { type ClinicalNote } from './ClinicalNoteView';
@@ -68,10 +68,32 @@ const DetailRow: React.FC<{ label: string; children: React.ReactNode }> = ({ lab
 
 // Appointment drill-in. Every field shown is real appointment data; the only
 // signature signal lives on the linked note (rendered via ClinicalNoteView) — the
-// appointment itself carries no signer/signature.
-const AppointmentDetail: React.FC<{ item: SessionItem }> = ({ item }) => {
+// appointment itself carries no signer/signature. `program` = the client's canonical
+// program_type, for the billable-units eligibility gate.
+const AppointmentDetail: React.FC<{ item: SessionItem; program?: string }> = ({ item, program }) => {
   const a = item.appt!;
   const dur = derivedDuration(a);
+  // Billable units — David's 7/14 ask: display the unit count on the session view.
+  // Asserted value always shows. When NOT asserted, show the software-computed prefill
+  // with the word "suggested" — load-bearing: it separates what the software computed
+  // from what a clinician dictated. Gate = the same two-axis unitGrainFor (SATOP program
+  // × configured service_type grain); ineligible/no-grain renders no row at all.
+  const grain = unitGrainFor(program, a.serviceType);
+  const durMin = (() => {
+    const s = parseHHMM(a.startTime), e = parseHHMM(a.endTime);
+    return s !== null && e !== null && e > s ? e - s : null;
+  })();
+  const unitsRow = (() => {
+    const withDur = (label: string) => (dur ? `${label} · ${dur}` : label);
+    if (typeof a.billableUnits === 'number') {
+      return withDur(`${a.billableUnits} unit${a.billableUnits === 1 ? '' : 's'}`);
+    }
+    if (grain && durMin !== null) {
+      const s = suggestedUnits(durMin, grain);
+      return withDur(`${s} unit${s === 1 ? '' : 's'} suggested`);
+    }
+    return null;
+  })();
   const sessionLabel = sessionTypeById(a.sessionTypeId)?.label;
   const isGroup = !!a.groupId || item.note?.note_type === 'Group Session';
   const serviceParts = [a.serviceType, sessionLabel].filter(Boolean) as string[];
@@ -101,8 +123,8 @@ const AppointmentDetail: React.FC<{ item: SessionItem }> = ({ item }) => {
         {serviceParts.length > 0 && (
           <DetailRow label="Service / session">{serviceParts.join(' · ')}</DetailRow>
         )}
-        {typeof a.billableUnits === 'number' && (
-          <DetailRow label="Billable units">{formatUnits(a.billableUnits, a.serviceType)}</DetailRow>
+        {unitsRow && (
+          <DetailRow label="Billable units">{unitsRow}</DetailRow>
         )}
         {a.zoomLink && (
           <DetailRow label="Zoom">
@@ -240,7 +262,7 @@ const ClientSessionsTab: React.FC<{ client: Client }> = ({ client }) => {
       >
         <div className="p-5">
           {selected?.kind === 'appointment' && selected.appt ? (
-            <AppointmentDetail item={selected} />
+            <AppointmentDetail item={selected} program={client.program} />
           ) : selected?.note ? (
             <ClinicalNoteView note={selected.note} />
           ) : null}

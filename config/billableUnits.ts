@@ -7,18 +7,19 @@
  * and the units control does not render. Eligibility reuses the existing isSatopProgram()
  * (config/programVocab.ts) — there is no parallel SATOP test here.
  *
- * GRAIN is the service_type (the WS3 accrual category). Unit-based behavioral-health
- * billing does NOT use one grain: individual counseling bills per 15-minute unit (HCPCS
- * H0004), group counseling per 45-minute unit (H0005), each with its own max-units cap.
+ * GRAIN is the service_type (the WS3 accrual category). The `counseling` grain is ON:
+ * David confirmed 15-minute units, 1–12, on group AND session notes alike, dictated by
+ * the clinician in each note (ACS Updates call, 2026-07-14, 00:20:44 — "if this view
+ * right here had the number of units … from 1 to 12"; Dan: "based on 15 minute time
+ * intervals?" David: "Yes."; 00:26:51 "we need … to be able to show the number of
+ * units"). One grain for both group and individual — the earlier 45-minute-group
+ * (H0005) theory came from an out-of-state regulation, not from ACS, and was wrong.
  *
- * TODAY EVERY GRAIN IS UNSET. `counseling` is deliberately null alongside education and
- * rehabilitative_support: live data (a SATOP Group session, 120–180 min, service_type=
- * 'counseling') proves the vocabulary cannot tell individual from group, so no honest
- * grain can be asserted for it. NET EFFECT: the picker renders for NOTHING today — the
- * mechanism, schema, and gate ship, but the grain table stays empty until David supplies
- * the procedure codes (or a real individual/group axis exists). This is intended and
- * correct; do NOT invent a service_type to make something render. `procedureCode` is null
- * everywhere until the DMH contract table lands. See DEFERRED.md #11. Count only — no dollars.
+ * education and rehabilitative_support stay UNSET — the transcript doesn't cover them;
+ * no grain is guessed. `procedureCode` stays null: David specified no procedure-code
+ * table, no per-code caps, no HCPCS. The 1–12 range is his, mirrored by the DB CHECK
+ * (20260715_billable_units.sql). The prefill is a SUGGESTION — the clinician dictates
+ * the real number at completion. Count only — no dollars live anywhere in this feature.
  */
 import type { ServiceType } from '../types';
 import { isSatopProgram } from './programVocab';
@@ -29,25 +30,22 @@ export interface UnitGrain {
   /** Max units billable on a single session (per-session cap). Never exceeds the DB
    *  CHECK ceiling of 12 (see 20260715_billable_units.sql). */
   maxUnits: number;
-  /** HCPCS / procedure code for this service type — null until David supplies ACS's
-   *  DMH contract table. UI must never present this as a submitted/accepted code. */
+  /** Reserved: no procedure-code table exists — David specified none (7/14). Stays null. */
   procedureCode: string | null;
 }
 
 /**
- * Grain by service_type. EVERY entry's `unitMinutes` is UNSET today (see module header):
- * `counseling` bundles individual AND group, live data proves it, so no grain is asserted
- * for any category until the individual/group split exists. Keyed off the SAME service_type
- * vocabulary the completion gate requires (the "Session category" select).
+ * Grain by service_type. Keyed off the SAME service_type vocabulary the completion gate
+ * requires (the "Session category" select in AppointmentStatusModal).
  */
 export const UNIT_GRAIN_BY_SERVICE_TYPE: Record<ServiceType, UnitGrain> = {
-  // UNSET: counseling bundles individual and group; live data (SATOP Group, 120–180 min,
-  // service_type=counseling) proves the vocabulary cannot split them. No grain is
-  // asserted until the individual/group split exists.
-  counseling:             { unitMinutes: null, maxUnits: 12, procedureCode: null },
-  // Group education (OEP + group education) — group grain unconfirmed, unset. No guess.
+  // ON — 15-minute units, 1–12, group and individual alike. David, ACS Updates
+  // 2026-07-14 00:20:44: units "from 1 to 12 … dictated in each note", confirmed
+  // 15-minute intervals, on "the group and session notes" — one grain for both.
+  counseling:             { unitMinutes: 15,   maxUnits: 12, procedureCode: null },
+  // Group education (OEP + group education) — not covered by the 7/14 transcript; unset.
   education:              { unitMinutes: null, maxUnits: 12, procedureCode: null },
-  // Group rehabilitative support (CIP group) — group grain unconfirmed, unset. No guess.
+  // Group rehabilitative support (CIP group) — not covered by the 7/14 transcript; unset.
   rehabilitative_support: { unitMinutes: null, maxUnits: 12, procedureCode: null },
   // Non-program — never billed as a unit.
   other:                  { unitMinutes: null, maxUnits: 12, procedureCode: null },
@@ -55,9 +53,9 @@ export const UNIT_GRAIN_BY_SERVICE_TYPE: Record<ServiceType, UnitGrain> = {
 
 /**
  * Grain for a service_type ONLY — the GRAIN axis in isolation, no eligibility check. The
- * display path (formatUnits) needs the grain to compute minutes without re-deciding
- * eligibility. Returns null when the service type has no entry OR its `unitMinutes` is
- * unset (which, today, is all of them). Never guesses a grain.
+ * display path needs the grain to compute minutes without re-deciding eligibility.
+ * Returns null when the service type has no entry OR its `unitMinutes` is unset.
+ * Never guesses a grain.
  */
 function grainForServiceType(serviceType: ServiceType | '' | undefined | null): UnitGrain | null {
   if (!serviceType) return null;
@@ -72,7 +70,7 @@ function grainForServiceType(serviceType: ServiceType | '' | undefined | null): 
  *      normalizes internally; non-SATOP, null/'' program, and an unresolved client
  *      (`undefined` — the modal passes client?.program, so a null client fails closed
  *      right here) all return false. This is the single eligibility test — no parallel one.
- *   2) GRAIN — the `service_type` has a configured grain (none do today → always null).
+ *   2) GRAIN — the `service_type` has a configured grain (counseling = 15 min today).
  * A null return means the control does not render. It never guesses on either axis.
  */
 export function unitGrainFor(
@@ -85,9 +83,9 @@ export function unitGrainFor(
 
 /**
  * Suggested unit count from a session's duration: round(duration / grain), clamped to
- * [1, maxUnits]. A PREFILL suggestion, not an assertion — the clinician can change it.
- * Callers pass a grain whose `unitMinutes` is non-null (from unitGrainFor); the guard is
- * belt-and-suspenders.
+ * [1, maxUnits]. A PREFILL suggestion, not an assertion — the clinician dictates the
+ * real number in the note (David, 7/14). Callers pass a grain whose `unitMinutes` is
+ * non-null (from unitGrainFor); the guard is belt-and-suspenders.
  */
 export function suggestedUnits(durationMinutes: number, grain: UnitGrain): number {
   if (!grain.unitMinutes) return 1;
