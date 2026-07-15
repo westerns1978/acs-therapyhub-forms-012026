@@ -439,6 +439,18 @@ were relying on the inherited fallback. Found 2026-07-15 during the units-displa
 
 ## 30. APPOINTMENT↔NOTE LINK — FIXED for the wrap-up path, left honestly unlinked for the other
 
+**Note-attached star on the calendar grid — assessed and SKIPPED, same commit batch.** Now that
+0d verifies, this was back in scope conditionally: reuse the existing `noteByAppt` Map, skip if
+it's not trivially reusable. It isn't. `noteByAppt` is built inside
+[ClientSessionsTab.tsx:207-217](components/clients/ClientSessionsTab.tsx:207) from a
+`clinical_notes` query hard-scoped `.eq('client_id', client.id)` — one client's notes only.
+[components/sessions/scheduleLane.tsx](components/sessions/scheduleLane.tsx) (the calendar grid)
+has no `clinical_notes` fetch at all and renders appointments across every client and counselor
+for a whole week simultaneously — there is no single `client_id` to scope a reused query to.
+Making the star work would mean a NEW query (all visible appointments' notes) and a NEW Map at
+the grid level — exactly the "second resolution path" this item said not to build. Skipped;
+revisit only as its own scoped task, not a reuse of `noteByAppt`.
+
 **STATUS: FIXED (partial) 2026-07-15, branch `feat/crawl-batch-1`.** The 7/14 Session History
 drill-in's join ([ClientSessionsTab.tsx:216-217](components/clients/ClientSessionsTab.tsx:216),
 `noteByAppt.get(a.id)` keyed on `appointment_id`) was always correct — but it had never linked
