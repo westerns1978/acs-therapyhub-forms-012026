@@ -47,11 +47,14 @@ const SessionManagement: React.FC = () => {
 
     // Opens the live session (ActiveSession → wrap-up → saved note) for this
     // appointment's client. Only reachable when the appointment carries a clientId.
+    // Threads the real appointment id through as a query param so the note saved
+    // at wrap-up links via clinical_notes.appointment_id (Session History drill-in).
     const handleStartSession = () => {
         const cid = selectedAppt?.clientId;
         if (!cid) return;
+        const apptId = selectedAppt?.id;
         setSelectedAppt(null);
-        navigate(`/session/${cid}`);
+        navigate(`/session/${cid}${apptId ? `?appointmentId=${apptId}` : ''}`);
     };
 
     // Real Supabase persistence: updateAppointmentStatus writes appointments.status,

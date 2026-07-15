@@ -437,6 +437,53 @@ were relying on the inherited fallback. Found 2026-07-15 during the units-displa
 
 # Surfaced 2026-07-15 — David 7/15 packet recon (docs/DOMAIN-MODEL-2026-07-15.md)
 
+## 30. APPOINTMENT↔NOTE LINK — FIXED for the wrap-up path, left honestly unlinked for the other
+
+**STATUS: FIXED (partial) 2026-07-15, branch `feat/crawl-batch-1`.** The 7/14 Session History
+drill-in's join ([ClientSessionsTab.tsx:216-217](components/clients/ClientSessionsTab.tsx:216),
+`noteByAppt.get(a.id)` keyed on `appointment_id`) was always correct — but it had never linked
+a single real, app-written individual note. `saveClinicalNote()` only sets `appointment_id`
+when the caller passes one ([services/api.ts:1078](services/api.ts:1078)), and neither
+individual-note save site did. Live before the fix: 21 total `clinical_notes` rows, 3 linked,
+and all 3 were hand-seeded directly via SQL migration (`20260518_demo_data_marcus_pat.sql`,
+`20260605_demo_data_completed_oep.sql`), not written by the app at all.
+
+**`SessionWrapUpModal.tsx` (the wrap-up path) — fixed.** It does NOT itself have an appointment
+in scope (the earlier recon's premise that it did was imprecise), but two of its trigger paths
+do: `SessionManagement.tsx`'s `handleStartSession` holds a real `selectedAppt` (an `Appointment`)
+at the moment it navigates, and now threads `selectedAppt.id` through as a `?appointmentId=`
+query param on `/session/:clientId`. `ActiveSession.tsx` reads it via `useSearchParams` and
+passes it down as a new optional `appointmentId` prop into `SessionWrapUpModal`, which now
+passes it into `saveClinicalNote(..., { appointmentId })`. Verified live: booked a real dev
+session from `SessionManagement` → Jessica Marie's Anger Evaluation appointment → confirmed the
+URL carried `?appointmentId=72768937-...` → wrote a note via `saveClinicalNote` with that id →
+`clinical_notes.appointment_id` populated → the Session History tab rendered "NOTE ON FILE" on
+the real appointment row. Test row deleted after verification.
+
+Two entry points stay deliberately unlinked, honestly:
+- **`ClientProfileHeader.tsx`'s direct "Start Session" button** (`navigate('/session/${client.id}')`,
+  no query param) — this is a client-initiated "start a session with this client" affordance,
+  not triggered from any specific scheduled appointment. There is no real appointment id to
+  thread here; inventing one (e.g. "today's next appointment") would be exactly the
+  date/client-proximity guess this item was told not to make. Left unlinked.
+- **`pages/VideoSessions.tsx`'s wrap-up** — `sessionToWrapUp` is a `VideoSession` (`types.ts:541`),
+  a distinct mock entity with no `appointments.id` field at all, and this whole surface is
+  already a known MOCK (TRIAL_HIDDEN). Left unlinked; no fake id passed.
+
+**`SmartNoteImporter.tsx` (the typed/dictated note path) — genuinely does not know its
+appointment, left unchanged.** Traced its only entry points: the `open-note-modal` window event
+(`MainLayout.tsx`) and `NoteStudioDock.tsx` both carry only a `clientId`, never an appointment
+reference — this is a free-floating "write a note for this client right now" surface, not tied
+to any specific scheduled session (it can be opened from the client header at any time, session
+or not). No appointment id exists anywhere in this call chain to pass through. Per the
+no-heuristic-backfill rule, `saveClinicalNote` calls here (`SmartNoteImporter.tsx:62,81`) are
+unchanged — these notes stay unlinked, shown as their own standalone rows in Session History
+(the existing, correct behavior for notes with no `appointment_id`).
+
+**The 18 pre-existing orphaned demo notes were left as-is, deliberately** — demo data, and a
+heuristic backfill (matching by date/client proximity) is exactly the kind of guess that becomes
+a wrong clinical record. Not touched.
+
 ## 25. GROUP NOTE INTEGRITY DEFECT — N duplicate rows, no correlating identifier
 
 **This is a records-integrity DEFECT, not a roadmap gap.** `distributeGroupNote()`

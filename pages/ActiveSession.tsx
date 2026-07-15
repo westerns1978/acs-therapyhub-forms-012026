@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { getClient, generateSoapNoteFromTranscript } from '../services/api';
 import Card from '../components/ui/Card';
 import SessionWrapUpModal from '../components/sessions/SessionWrapUpModal';
@@ -10,6 +10,12 @@ import { TRIAL_MODE } from '../config/trialMode';
 
 const ActiveSession: React.FC = () => {
     const { clientId } = useParams<{clientId: string}>();
+    // Present only when Start Session was launched from a specific scheduled
+    // appointment (SessionManagement's handleStartSession threads it through);
+    // absent when launched directly from the client header — left unlinked
+    // rather than guessed, per docs/DOMAIN-MODEL-2026-07-15.md.
+    const [searchParams] = useSearchParams();
+    const appointmentId = searchParams.get('appointmentId');
     const [client, setClient] = useState<Client | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isRecording, setIsRecording] = useState(false);
@@ -233,12 +239,13 @@ const ActiveSession: React.FC = () => {
             </div>
 
             {isWrapUpModalOpen && (
-                <SessionWrapUpModal 
+                <SessionWrapUpModal
                     isOpen={isWrapUpModalOpen}
                     onClose={() => setWrapUpModalOpen(false)}
                     client={client}
                     noteContent={note || ''}
                     sessionDuration={50}
+                    appointmentId={appointmentId}
                 />
             )}
 

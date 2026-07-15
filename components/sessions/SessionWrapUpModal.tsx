@@ -25,6 +25,11 @@ interface SessionWrapUpModalProps {
     client: Client;
     noteContent: string;
     sessionDuration: number;
+    /** The appointment this session belongs to, when known — links the saved note
+     *  via clinical_notes.appointment_id so it resolves in Session History. Left
+     *  undefined (not guessed) when the caller has no real appointment in scope,
+     *  e.g. Start Session launched directly from the client header. */
+    appointmentId?: string | null;
 }
 
 const steps = [
@@ -34,7 +39,7 @@ const steps = [
     { title: 'Assign Tasks', icon: ClipboardCheckIcon }
 ];
 
-const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose, client, noteContent, sessionDuration }) => {
+const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose, client, noteContent, sessionDuration, appointmentId }) => {
     const [currentStep, setCurrentStep] = useState(0);
     const [editedNote, setEditedNote] = useState(noteContent);
     const [isSigned, setIsSigned] = useState(false);
@@ -56,7 +61,7 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
             if (noteText) {
                 setIsSavingNote(true);
                 try {
-                    await saveClinicalNote(client.id, noteText, { isSigned, noteType: 'Session' });
+                    await saveClinicalNote(client.id, noteText, { isSigned, noteType: 'Session', appointmentId });
                 } catch (e) {
                     setIsSavingNote(false);
                     alert('Could not save the clinical note: ' + (e as Error).message);
