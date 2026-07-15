@@ -57,11 +57,11 @@ const SessionManagement: React.FC = () => {
     // Real Supabase persistence: updateAppointmentStatus writes appointments.status,
     // then we patch local state with the mapped row so the card re-colors immediately
     // and the new status survives a refresh.
-    const handleSetStatus = async (status: AppointmentStatus, serviceType?: ServiceType) => {
+    const handleSetStatus = async (status: AppointmentStatus, serviceType?: ServiceType, billableUnits?: number) => {
         if (!selectedAppt) return;
         setSavingStatus(true);
         try {
-            const updated = await updateAppointmentStatus(selectedAppt.id, status, serviceType);
+            const updated = await updateAppointmentStatus(selectedAppt.id, status, serviceType, billableUnits);
             setAppointments(prev => prev.map(a => (a.id === updated.id ? updated : a)));
             setSelectedAppt(updated);
         } catch (err) {

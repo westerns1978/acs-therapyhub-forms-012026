@@ -4,6 +4,7 @@ import { getLastAppointment, getNextAppointment, getTherapistAppointments, getCo
 import type { Counselor } from '../../services/api';
 import { qualifiedCounselorsFor } from '../../config/sessionTaxonomy';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
+import { unitGrainFor, suggestedUnits } from '../../config/billableUnits';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { detectOverlaps } from '../../services/recurrence';
 import Modal from '../ui/Modal';
@@ -34,7 +35,10 @@ interface AppointmentStatusModalProps {
     appointment: Appointment | null;
     isOpen: boolean;
     onClose: () => void;
-    onSetStatus: (status: AppointmentStatus, serviceType?: ServiceType) => void;
+    /** billableUnits is passed ONLY when the chosen service_type has a configured unit
+     *  grain (config/billableUnits.ts) — the clinician-asserted count at Mark-Complete.
+     *  undefined for unconfigured service types (the column is left untouched). */
+    onSetStatus: (status: AppointmentStatus, serviceType?: ServiceType, billableUnits?: number) => void;
     /** Cancel path. Split from onSetStatus because a cancel inside 24h carries a fee
      *  decision (assess / waive-with-reason); the parent does the status write + the charge. */
     onCancel: (decision: CancelFeeDecision) => void;
@@ -68,6 +72,10 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
 }) => {
     // WS3: a session category is REQUIRED before completion (drives categorized accrual).
     const [serviceType, setServiceType] = useState<ServiceType | ''>('');
+    // Billable units — a clinician-asserted COUNT at Mark-Complete, per the service type's
+    // grain (config/billableUnits.ts). Only meaningful when the category has a configured
+    // grain; the picker is hidden otherwise. '' = untouched.
+    const [billableUnits, setBillableUnits] = useState<number | ''>('');
     // Late-cancel fee panel — shown only when a cancel falls inside the 24h window.
     const [cancelPanel, setCancelPanel] = useState(false);
     const [waiveOpen, setWaiveOpen] = useState(false);
@@ -135,6 +143,24 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
         const s = parseTimeToMinutes(val);
         if (!Number.isNaN(s)) setRescheduleEnd(minutesToTimeLabel(s + originalDurationMin));
     };
+
+    // Billable-units grain for the currently-selected category. null = this service type has
+    // NO configured grain (config/billableUnits.ts) → the units control does not render and
+    // nothing is guessed. Recomputed as the clinician changes the category select.
+    const unitGrain = unitGrainFor(serviceType);
+    // Prefill the units count when the category has a grain: reuse an already-asserted value
+    // from the row if present, else suggest round(duration / grain) clamped to the cap. The
+    // prefill is a SUGGESTION — the clinician can override it. When the grain is null (no
+    // config), clear the field so a stale count from another category can't leak through.
+    useEffect(() => {
+        if (!unitGrain) { setBillableUnits(''); return; }
+        setBillableUnits(
+            typeof appointment?.billableUnits === 'number'
+                ? appointment.billableUnits
+                : suggestedUnits(originalDurationMin, unitGrain),
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [serviceType, appointment?.id, appointment?.billableUnits, originalDurationMin]);
 
     const rescheduleDirty = !!appointment && (
         rescheduleDate !== toLocalYMD(new Date(appointment.date))
@@ -489,10 +515,34 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                 <option value="other">Other (non-program — does not accrue)</option>
                             </select>
                         </div>
+                        {/* Billable units — records a COUNT only (no dollars, not submitted to
+                            DMH/CIMOR). Rendered ONLY when the chosen category has a configured
+                            grain; unconfigured categories show a plain line and no picker. */}
+                        {serviceType && (
+                            unitGrain ? (
+                                <div>
+                                    <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                                        Billable units <span className="normal-case font-bold text-slate-400">({unitGrain.unitMinutes} min each)</span>
+                                    </label>
+                                    <select
+                                        value={billableUnits === '' ? '' : String(billableUnits)}
+                                        onChange={(e) => setBillableUnits(e.target.value === '' ? '' : Number(e.target.value))}
+                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-100"
+                                    >
+                                        {Array.from({ length: unitGrain.maxUnits }, (_, i) => i + 1).map(n => (
+                                            <option key={n} value={n}>{n} unit{n === 1 ? '' : 's'} ({n * (unitGrain.unitMinutes as number)} min)</option>
+                                        ))}
+                                    </select>
+                                    <p className="mt-1 text-[11px] text-slate-400">Prefilled from the scheduled length — adjust to the units actually delivered.</p>
+                                </div>
+                            ) : (
+                                <p className="text-[11px] text-slate-400">Unit billing not configured for this service type.</p>
+                            )
+                        )}
                         <div className="grid grid-cols-1 gap-2">
                             <button
                                 type="button"
-                                onClick={() => serviceType && onSetStatus('Completed', serviceType as ServiceType)}
+                                onClick={() => serviceType && onSetStatus('Completed', serviceType as ServiceType, unitGrain && typeof billableUnits === 'number' ? billableUnits : undefined)}
                                 disabled={isSaving || appointment.status === 'Completed' || !serviceType}
                                 title={!serviceType ? 'Choose a session category first' : undefined}
                                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed bg-emerald-600 hover:bg-emerald-700 text-white"

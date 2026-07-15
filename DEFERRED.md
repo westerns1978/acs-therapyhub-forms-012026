@@ -161,3 +161,58 @@ Session'`).
 Missing: the clinician-facing "write once → post to group" screen that CALLS
 `distributeGroupNote`. The distribution primitive is done; the authoring surface is not.
 Fast-follow, net-new UI. NOT started.
+
+# Surfaced 2026-07-15 — billable-units groundwork (feat/billable-units)
+
+15-minute billable units shipped as GROUNDWORK for the Aug 1 testing phase (David 7/14):
+`appointments.billable_units` (nullable int, CHECK 1–12), a service-type grain table
+([config/billableUnits.ts](config/billableUnits.ts)), a completion-time picker in
+[components/sessions/AppointmentStatusModal.tsx](components/sessions/AppointmentStatusModal.tsx),
+and a read-only DetailRow in [components/clients/ClientSessionsTab.tsx](components/clients/ClientSessionsTab.tsx).
+It records a COUNT only — no dollars, no DMH/CIMOR submission. Three gaps were left open
+ON PURPOSE; none is a code bug.
+
+## 10. UNITS ↔ HOURS RECONCILIATION (blocked on David + Missouri billing rules)
+
+There are now TWO time quantities on a session row, and they are NOT reconciled:
+- `duration_minutes` (writer-derived from start/end, [services/api.ts:425](services/api.ts:425)) feeds
+  the `client_accrued_hours` view ([20260606_ws3_1_session_hours_accrual.sql:55](supabase/migrations/20260606_ws3_1_session_hours_accrual.sql:55)),
+  which is THE source the SATOP HOURS completion gate reads
+  ([services/complianceEngine.ts:304](services/complianceEngine.ts:304)). **Unchanged — the gate
+  still reads duration_minutes.**
+- `billable_units` is a second, HUMAN-asserted time quantity that will disagree with it
+  routinely. Concrete example: a session **booked for 60 minutes** where the clinician
+  bills **3 units = 45 minutes billed to the State**, while the SATOP gate still credits
+  **1.0 hour** toward the required total. Both numbers are "correct" for their own purpose;
+  they simply don't agree.
+
+Deliberately unreconciled for now. Which quantity is authoritative for billing vs. for
+program-completion (and whether they must ever be forced to agree) is a David + Missouri
+billing-rules question, NOT a code question. Do NOT wire `billable_units` into the accrual
+view or the compliance engine until that decision lands.
+
+## 11. PROCEDURE CODE TABLE (blocked on David's DMH contract)
+
+[config/billableUnits.ts](config/billableUnits.ts) is the MECHANISM; the DATA is a
+conservative placeholder. `unitMinutes`/`maxUnits`/`procedureCode` per `service_type` is
+unpopulated for real:
+- `counseling` → 15-min grain (individual H0004 pattern) as the conservative default. This
+  category bundles BOTH individual and group counseling; group counseling bills on a
+  different grain (H0005 ≈ 45 min) and rides the 15-min grain UNRECONCILED until the table
+  splits it.
+- `education` and `rehabilitative_support` (both group) → `unitMinutes` **deliberately
+  UNSET** (null). No guess of 15 vs 45; the units control simply does not render for them.
+- `procedureCode` is **null everywhere**. No UI claims a real HCPCS code, submission, or
+  DMH/CIMOR acceptance.
+
+When David delivers ACS's actual procedure-code table, populate this ONE module (grain +
+cap + code per service type). No other file should need to change.
+
+## 12. DEAD LEGACY BILLING COLUMNS (decide later)
+
+`appointments` still carries pre-app billing columns that this feature did NOT reuse and
+that have **zero code references** (confirmed at 47c0535): `session_rate` (default 125.00),
+`payment_status` (default 'unbilled'), `notes_complete`, `date_time`, `is_court_mandated`.
+They were intentionally left untouched — the new work uses the new `billable_units` column,
+not these. A future cleanup can drop them after confirming no out-of-repo consumer reads
+them; not this sprint.

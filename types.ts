@@ -446,6 +446,11 @@ export interface Appointment {
    *  the DB trigger self-attributes the acting clinician (NULL-only fill). */
   counselorId?: string;
   groupId?: string; // WS6: standing-group instance (null/undefined = ad-hoc session)
+  /** Clinician-asserted billable unit count (appointments.billable_units). Asserted at
+   *  Mark-Complete time per the service type's grain (config/billableUnits.ts); NULL =
+   *  not asserted (never zero). Records a COUNT only — no dollars, no CIMOR submission.
+   *  Lives BESIDE duration_minutes, unreconciled (see DEFERRED.md). */
+  billableUnits?: number;
   capacity?: number;
   attendees?: Attendee[];
   clientId?: string;

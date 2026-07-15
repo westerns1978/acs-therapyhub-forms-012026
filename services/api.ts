@@ -398,6 +398,7 @@ const mapAppointmentRowToApp = (row: any): Appointment => {
         sessionTypeId: row.session_type || undefined,
         counselorId: row.counselor_id || undefined,
         groupId: row.group_id || undefined,
+        billableUnits: row.billable_units ?? undefined,
         capacity: row.capacity ?? undefined,
         // NOTE: appointments.client_id is TEXT in the DB, while every other
         // client_id column is uuid (SECURITY_BACKLOG.md #7). It maps fine to a
@@ -588,6 +589,7 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
     if ('serviceType' in patch) row.service_type = patch.serviceType ?? null;
     if ('sessionTypeId' in patch) row.session_type = patch.sessionTypeId ?? null;
     if ('counselorId' in patch) row.counselor_id = patch.counselorId ?? null;
+    if ('billableUnits' in patch) row.billable_units = patch.billableUnits ?? null;
     if ('capacity' in patch) row.capacity = patch.capacity ?? null;
     if ('clientId' in patch) row.client_id = patch.clientId ?? null;
     if ('clientName' in patch) row.client_name = patch.clientName ?? null;
@@ -631,8 +633,15 @@ export const updateAppointmentStatus = async (
     appointmentId: string,
     status: Appointment['status'],
     serviceType?: Appointment['serviceType'],
-): Promise<Appointment> =>
-    updateAppointment(appointmentId, serviceType ? { status, serviceType } : { status });
+    billableUnits?: number | null,
+): Promise<Appointment> => {
+    const patch: Partial<Appointment> = { status };
+    if (serviceType) patch.serviceType = serviceType;
+    // Only carry units when the caller passed a value (a configured service type at
+    // Mark-Complete). `undefined` = don't touch the column; an explicit `null` clears it.
+    if (billableUnits !== undefined) patch.billableUnits = billableUnits ?? undefined;
+    return updateAppointment(appointmentId, patch);
+};
 
 export const deleteAppointment = async (id: string): Promise<void> => {
     const { error } = await supabase.from('appointments').delete().eq('id', id);

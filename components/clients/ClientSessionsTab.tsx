@@ -3,6 +3,7 @@ import type { Client, Appointment } from '../../types';
 import { supabase } from '../../services/supabase';
 import { getClientAppointments } from '../../services/api';
 import { sessionTypeById } from '../../config/sessionTaxonomy';
+import { formatUnits } from '../../config/billableUnits';
 import Card from '../ui/Card';
 import Modal from '../ui/Modal';
 import ClinicalNoteView, { type ClinicalNote } from './ClinicalNoteView';
@@ -100,6 +101,7 @@ const AppointmentDetail: React.FC<{ item: SessionItem }> = ({ item }) => {
         {serviceParts.length > 0 && (
           <DetailRow label="Service / session">{serviceParts.join(' · ')}</DetailRow>
         )}
+        <DetailRow label="Billable units">{formatUnits(a.billableUnits, a.serviceType) ?? '—'}</DetailRow>
         {a.zoomLink && (
           <DetailRow label="Zoom">
             <a href={a.zoomLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">Join link</a>
