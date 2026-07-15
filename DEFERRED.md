@@ -27,6 +27,10 @@ stays text-based by necessity, not by preference.
 
 ## 2. Orphan rows blocking referential integrity
 
+**Escalated 2026-07-15 — see #31.** The `clients.assigned_therapist_id` half of this finding is
+no longer just tech debt: it's now blocking David's 7/15 "Primary Counselor" ask on the client
+header.
+
 The structured id columns already exist but are effectively unused and partly dirty.
 `appointments.therapist_id` (uuid) is set on only **11 of 215** rows, and **all 11** point
 at no `counselors` row (orphans). `clients.assigned_therapist_id` (uuid) has **19** values
@@ -599,3 +603,24 @@ client-facing consent form (`consent-treatment`, `hipaa-ack`, `authorization-rel
 Relevant to B5 (signed-copy portal prerequisite, 7/15 packet): whether a typed name satisfies
 "signed" for the pilot, or whether real capture needs wiring into `BaseFormTemplate` first, is a
 scope-defining decision, not a technical gap — the component to wire already exists.
+
+## 31. "PRIMARY COUNSELOR" ON THE CLIENT HEADER IS NOT A MISSING FIELD — IT'S #2, ESCALATED
+
+**Same debt as [#2](#2-orphan-rows-blocking-referential-integrity), not a new one.** David's
+7/15 doc asks for "Primary Counselor" in the client header (crawl-batch-1, item 4). The only
+candidate column, `clients.assigned_therapist_id` (uuid), exists but is **100% orphaned live —
+19 of 19 non-null rows point to no `counselors` row** (re-witnessed 2026-07-15, matches #2's
+original June count exactly: nothing has written to or cleaned this column since). This was
+tech debt in June; as of this ask it's on David's critical path.
+
+**Fix shape (same as #2/#3, not a new mechanism):** resolve the 19 orphans (backfill from a
+reliable source or NULL them out — #2's original "present-then-apply migration, exact UPDATE
+SQL shown for approval" plan still applies), then add the FK
+(`clients.assigned_therapist_id → counselors(id)`, the constraint #3 already specifies but
+couldn't apply against dirty data). Once that lands, the header field itself is trivial — a
+straight join, no new mechanism needed.
+
+**Do not parse a name out of `appointments.therapist_name` as a workaround** — free text, no
+guarantee it matches a `counselors` row, and "primary" implies one stable answer per client, not
+whatever the most recent appointment's text happened to say. Not built here; this entry exists
+so it's not re-discovered as if new.
