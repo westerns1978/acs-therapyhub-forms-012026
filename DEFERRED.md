@@ -307,3 +307,21 @@ PHI off a rejected write, on a HIPAA-bound product (see [[project_compliance_rec
 so the DB CHECK is a backstop that never fires in normal use, and NEVER surface a raw Supabase
 error to the UI on this app (map to a generic message; log the detail server-side only).
 Belongs in the hardening track alongside audit_logs, note immutability, and documents RLS.
+
+## 17. RECORDS TAB merges the Documents and Forms surfaces (2026-07-15)
+
+The client record's former `Documents` and `Forms` tabs were merged into one `Records` tab
+([pages/ClientWorkspace.tsx](pages/ClientWorkspace.tsx)) — a form is a document, and two tabs
+for one concept was two places to look. **Surface merge ONLY:** the Records tab reuses the two
+existing components verbatim (`ClientFormsTab` over `Forms`, `ClientDocumentsGrid` over
+`Uploaded documents`), stacked under plain headings. No merged list, no schema change, no data
+movement.
+
+The underlying **facts remain separate primitives by design** — `signedFormIds` (SIGNATURE,
+from `form_submissions`, `client_id` uuid FK) vs `document_type` (DOCUMENT, from `uploaded_files`,
+associated by `metadata.clientId` filtered in memory at [services/storageService.ts:229](services/storageService.ts:229)).
+The surface unions; the truth stays two lanes.
+
+**Open (not decided):** whether `composePacketReadiness` (the green-check/amber-gap readiness
+checklist) moves from the Overview tab to Records once document rules join the checklist. It was
+deliberately left on Overview here — moving it is a separate decision.

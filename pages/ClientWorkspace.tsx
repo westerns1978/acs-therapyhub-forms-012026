@@ -12,7 +12,7 @@ import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
 import ClientSessionsTab from '../components/clients/ClientSessionsTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import Card from '../components/ui/Card';
-import { FileText, ClipboardList, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
+import { FileText, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
@@ -323,8 +323,10 @@ const ClientWorkspace: React.FC = () => {
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },
-        { id: 'documents', label: 'Documents', icon: FileText },
-        { id: 'forms', label: 'Forms', icon: ClipboardList },
+        // Records = the former Documents + Forms tabs merged at the view layer. A form is a
+        // document; two tabs for one concept was two places to look. Holds the old Documents
+        // position. The underlying facts stay two lanes (SIGNATURE vs DOCUMENT) — see DEFERRED #17.
+        { id: 'records', label: 'Records', icon: FileText },
         { id: 'sessions', label: 'Sessions', icon: Video },
         // Assessment (placement engine) — all staff (is_staff), mirrors assessment_inputs RLS.
         ...(canAssess ? [{ id: 'assessment', label: 'Assessment', icon: Gauge }] : []),
@@ -350,12 +352,26 @@ const ClientWorkspace: React.FC = () => {
                 // to the overview while the trial flag is on.
                 if (TRIAL_HIDE_CLIENT_SCHEDULING_TAB) return null;
                 return <DispatcherChat clientId={client.id} clientName={client.name} supabase={supabase as any} onAppointmentChanged={() => loadClientData(clientId)} />;
-            case 'documents':
-                if (loadErrors.documents) return <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />;
-                return <ClientDocumentsGrid client={client} initialDocuments={documents || []} onDocumentsChanged={() => loadClientData(clientId)} />;
-            case 'forms': 
-                if (loadErrors.forms) return <ErrorFallback message="Failed to load forms." onRetry={() => loadClientData(clientId)} />;
-                return <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>;
+            case 'records':
+                // Surface merge only: the two existing components are reused verbatim, stacked
+                // under plain section headings. No merged list, no shared facts — Forms reads
+                // form_submissions (SIGNATURE), Uploaded documents reads uploaded_files (DOCUMENT).
+                return (
+                    <div className="space-y-8">
+                        <section>
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3">Forms</h3>
+                            {loadErrors.forms
+                                ? <ErrorFallback message="Failed to load forms." onRetry={() => loadClientData(clientId)} />
+                                : <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>}
+                        </section>
+                        <section>
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3">Uploaded documents</h3>
+                            {loadErrors.documents
+                                ? <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />
+                                : <ClientDocumentsGrid client={client} initialDocuments={documents || []} onDocumentsChanged={() => loadClientData(clientId)} />}
+                        </section>
+                    </div>
+                );
             case 'sessions':
                 return <ClientSessionsTab client={client} />;
             case 'assessment':
