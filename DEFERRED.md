@@ -421,3 +421,16 @@ ROIs are indistinguishable in the list (it shows only the form name). Witnessed 
 2026-07-15**: two `authorization-release` rows, assigned 6/9 and 6/30, different due dates, both
 valid. **Do not "fix" with a constraint** — the fix is to capture the party/context per
 assignment so the list can tell them apart. Pending the packet-status rebuild (#22).
+
+## 24. UNDEFINED SECONDARY-TEXT TOKEN — washed-out labels app-wide (2026-07-15)
+
+`text-on-surface-secondary` is referenced **431×** across the app but is **UNDEFINED** in the
+index.html Tailwind theme config — it resolves to nothing (no color emitted), which is the root
+cause of washed-out/near-invisible secondary labels app-wide. The defined token is
+**`surface.secondary` (#64748B, dark #94A3B8)** → `text-surface-secondary`, used 174×.
+
+Fix is likely a **single theme addition** (define `on-surface`/`on-surface-secondary` in the
+`colors` block, or codemod the 431 sites to `text-surface-secondary`), but **431 call sites means
+it needs its own verification pass** — a wrong global swap could shift contrast in surfaces that
+were relying on the inherited fallback. Found 2026-07-15 during the units-display DetailRow fix
+(that one component was moved to the correct `text-surface-secondary` token). Not scoped here.
