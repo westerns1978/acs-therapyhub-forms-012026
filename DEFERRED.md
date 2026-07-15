@@ -342,3 +342,39 @@ not see any of them for up to an hour after each.
 **Candidate fix:** set a `no-cache` / `max-age=0` header on `index.html` in `firebase.json`
 (hashed `assets/*` stay long-cached — their names change per build, so they're safe to cache
 forever). **Not scoped, not applied.**
+
+## 19. PDS-GEMINI-PROXY IS AN OPEN RELAY (discovered 2026-07-15)
+
+The `pds-gemini-proxy` Supabase edge function (project `ldzzlndsspkyohvzfiiu`, version 17, ACTIVE)
+gates on `verify_jwt: true` — but that verifies the Supabase **anon** key, which is **public by
+design and ships in every client bundle**. The function has **no model allowlist, no rate limit,
+and no tenant check**; it is a transparent passthrough that strips any client-supplied `?key=` and
+injects the server-side `GEMINI_API_KEY`, forwarding to `https://generativelanguage.googleapis.com`.
+
+**Consequence:** anyone who reads the bundle can call any Gemini model at any volume, billed to
+that key. Compounds the known **Tier-1 quota cap** (hit 4/21–22) shared with FieldFlow, AIVA, and
+Story Scribe.
+
+**Related exposure:** the same shared anon key sits in plaintext on disk at
+`Aiva\031926\utils\pdfStamper.ts:19` and `Aiva\032226\utils\pdfStamper.ts:19`.
+
+**Candidate fixes:** reject `role='anon'` and require an authenticated user JWT; or add an
+app/tenant check; or add a model allowlist + rate limit.
+
+**Billing project UNRESOLVED** — the `GEMINI_API_KEY` value is write-only via the Management API.
+To resolve: AI Studio → API keys → find the key and read its owning GCP project. A personal Gmail
+project vs `gen-lang-client-0121881478` changes the urgency. **Not scoped, not fixed.**
+
+## 20. DOC-TYPE ACCURACY IS UNMEASURED — and the 'other' rate is not the evidence (2026-07-15)
+
+20 of 33 rows in `therapyhub-patient-files` carry `document_type='other'`. Investigated 2026-07-15:
+**most are non-clinical test material** scanned in during development (marketing PDFs, an
+AI-generated image, a downloaded `.jfif`, another app's collateral) — `'other'` is the **correct**
+label for those. **This rate says nothing about classifier quality**; the classifier is working.
+
+Separately and still true: the labels in `uploaded_files` were produced **by `gemini-2.5-flash-lite`
+itself**, so there is **no ground truth** in the table. If label accuracy ever needs to be known,
+it requires a **human-labeled sample**, not a model-vs-model comparison. **Not scoped.**
+
+(For the record: the flash-lite → gemini-2.5-flash switch was evaluated 2026-07-15 and **CANCELLED**
+— `'other'` was measuring test junk, not classifier weakness. Stay on `gemini-2.5-flash-lite`.)
