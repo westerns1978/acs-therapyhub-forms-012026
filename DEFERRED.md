@@ -325,3 +325,20 @@ The surface unions; the truth stays two lanes.
 **Open (not decided):** whether `composePacketReadiness` (the green-check/amber-gap readiness
 checklist) moves from the Overview tab to Records once document rules join the checklist. It was
 deliberately left on Overview here — moving it is a separate decision.
+
+## 18. STALE BUNDLE AFTER DEPLOY — index.html cached for an hour (observed 2026-07-15)
+
+Firebase Hosting serves `index.html` with `cache-control: max-age=3600`, so a returning user's
+browser can serve the **PREVIOUS** app for up to an hour after a deploy — the cached `index.html`
+keeps pointing at the old hashed JS bundle even though the server already returns the new one.
+
+**Observed live 2026-07-15** during the Records-tab post-deploy verify: the server returned
+`index-m5wKCmFN.js` while a cached `index.html` still pointed at `index-DRqQJeLL.js` (the pre-deploy
+bundle); a cache-busted reload was required to load the new app. **Four deploys shipped 2026-07-15**
+(billable-units groundwork, units re-gate, units render-quiet, Records tab) — a returning user may
+not see any of them for up to an hour after each.
+
+**Consequence:** David may report shipped work as missing (he'd be looking at a cached old app).
+**Candidate fix:** set a `no-cache` / `max-age=0` header on `index.html` in `firebase.json`
+(hashed `assets/*` stay long-cached — their names change per build, so they're safe to cache
+forever). **Not scoped, not applied.**
