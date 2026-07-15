@@ -9,7 +9,7 @@ import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import ClientTypeBadge from './ClientTypeBadge';
-import { CalendarPlus, FilePlus, BrainCircuit, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock } from 'lucide-react';
+import { CalendarPlus, FilePlus, BrainCircuit, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock, Phone, Mail } from 'lucide-react';
 import { placeAndActivate } from '../../services/api';
 import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
 
@@ -158,6 +158,16 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
           </div>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm font-bold text-slate-500 uppercase tracking-widest">
               <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> ID: {client.caseNumber}</span>
+              {client.phone && (
+                <a href={`tel:${client.phone}`} className="flex items-center gap-1.5 normal-case tracking-normal font-medium text-slate-500 hover:text-primary transition-colors">
+                  <Phone size={13} className="shrink-0" /> {client.phone}
+                </a>
+              )}
+              {client.email && (
+                <a href={`mailto:${client.email}`} className="flex items-center gap-1.5 normal-case tracking-normal font-medium text-slate-500 hover:text-primary transition-colors">
+                  <Mail size={13} className="shrink-0" /> {client.email}
+                </a>
+              )}
           </div>
 
           {/* Operational client-type chip — read-only, styled unlike the clinical program pill
