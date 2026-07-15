@@ -144,10 +144,12 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
         if (!Number.isNaN(s)) setRescheduleEnd(minutesToTimeLabel(s + originalDurationMin));
     };
 
-    // Billable-units grain for the currently-selected category. null = this service type has
-    // NO configured grain (config/billableUnits.ts) → the units control does not render and
-    // nothing is guessed. Recomputed as the clinician changes the category select.
-    const unitGrain = unitGrainFor(serviceType);
+    // Billable-units gate — TWO axes (config/billableUnits.ts): ELIGIBILITY = the client's
+    // program (SATOP-family only; client?.program is the canonical program_type, and a null
+    // client → undefined → fails closed here), GRAIN = the selected service_type. null = do
+    // not render the control. Today every grain is unset, so this is null for everything —
+    // intended: the mechanism ships, the grain table stays empty until David's codes land.
+    const unitGrain = unitGrainFor(client?.program, serviceType);
     // Prefill the units count when the category has a grain: reuse an already-asserted value
     // from the row if present, else suggest round(duration / grain) clamped to the cap. The
     // prefill is a SUGGESTION — the clinician can override it. When the grain is null (no

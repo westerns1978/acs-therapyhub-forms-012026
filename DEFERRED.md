@@ -165,12 +165,15 @@ Fast-follow, net-new UI. NOT started.
 # Surfaced 2026-07-15 — billable-units groundwork (feat/billable-units)
 
 15-minute billable units shipped as GROUNDWORK for the Aug 1 testing phase (David 7/14):
-`appointments.billable_units` (nullable int, CHECK 1–12), a service-type grain table
-([config/billableUnits.ts](config/billableUnits.ts)), a completion-time picker in
+`appointments.billable_units` (nullable int, CHECK 1–12), a TWO-AXIS gate
+([config/billableUnits.ts](config/billableUnits.ts)) — program (eligibility) × service_type
+(grain) — a completion-time picker in
 [components/sessions/AppointmentStatusModal.tsx](components/sessions/AppointmentStatusModal.tsx),
 and a read-only DetailRow in [components/clients/ClientSessionsTab.tsx](components/clients/ClientSessionsTab.tsx).
-It records a COUNT only — no dollars, no DMH/CIMOR submission. Three gaps were left open
-ON PURPOSE; none is a code bug.
+It records a COUNT only — no dollars, no DMH/CIMOR submission. **The picker renders for
+NOTHING today** — every grain is unset on purpose (see #11); the mechanism/schema/gate ship,
+the grain table stays empty until David's codes land. Four gaps were left open ON PURPOSE;
+none is a code bug.
 
 ## 10. UNITS ↔ HOURS RECONCILIATION (blocked on David + Missouri billing rules)
 
@@ -191,22 +194,31 @@ program-completion (and whether they must ever be forced to agree) is a David + 
 billing-rules question, NOT a code question. Do NOT wire `billable_units` into the accrual
 view or the compliance engine until that decision lands.
 
-## 11. PROCEDURE CODE TABLE (blocked on David's DMH contract)
+## 11. SERVICE_TYPE CANNOT EXPRESS INDIVIDUAL vs GROUP — no grain assertable (blocked on David's DMH contract)
 
-[config/billableUnits.ts](config/billableUnits.ts) is the MECHANISM; the DATA is a
-conservative placeholder. `unitMinutes`/`maxUnits`/`procedureCode` per `service_type` is
-unpopulated for real:
-- `counseling` → 15-min grain (individual H0004 pattern) as the conservative default. This
-  category bundles BOTH individual and group counseling; group counseling bills on a
-  different grain (H0005 ≈ 45 min) and rides the 15-min grain UNRECONCILED until the table
-  splits it.
-- `education` and `rehabilitative_support` (both group) → `unitMinutes` **deliberately
-  UNSET** (null). No guess of 15 vs 45; the units control simply does not render for them.
-- `procedureCode` is **null everywhere**. No UI claims a real HCPCS code, submission, or
-  DMH/CIMOR acceptance.
-
-When David delivers ACS's actual procedure-code table, populate this ONE module (grain +
-cap + code per service type). No other file should need to change.
+This is no longer "the grain table is unpopulated." It is a NAMED VOCABULARY GAP:
+- The GRAIN axis of the units gate ([config/billableUnits.ts](config/billableUnits.ts)) is
+  `service_type` (the WS3 accrual category: counseling / education / rehabilitative_support
+  / other). That vocabulary **cannot express individual vs group**. `counseling` carries
+  BOTH — and unit billing needs the split, because individual counseling bills per 15-min
+  unit (H0004) while group bills per 45-min unit (H0005), a different grain and a different
+  cap.
+- **Live proof:** Karen Ventimiglia's SATOP Group sessions are stored with
+  `service_type = 'counseling'` at 120–180 min (verified against `public.appointments`,
+  `group_id` set). Under a 15-min counseling grain they would prefill ~8–12 units where the
+  H0005 group answer is ~3–4 — a ~3× overstatement on the practice's dominant session type.
+  That is why `counseling.unitMinutes` is now UNSET, alongside education and
+  rehabilitative_support.
+- **Consequence:** no grain can be asserted for any category today, so the units control
+  **renders for nothing**. Eligibility (program = SATOP-family) works; there is simply no
+  honest grain to pair with it. This is intended, not a regression.
+- **Two candidate resolutions — DO NOT pick one here:** (a) David's procedure-code table
+  supplies the individual/group grain split per code; (b) a new individual-vs-group axis is
+  added on the appointment (the service_type vocabulary is extended or a sibling field is
+  introduced) so the grain can be selected without guessing.
+- Blocked on David's DMH contract, **not on code**. `procedureCode` stays null everywhere;
+  no UI claims a real HCPCS code, submission, or DMH/CIMOR acceptance. When it resolves,
+  populate this ONE module — no other file should need to change.
 
 ## 12. DEAD LEGACY BILLING COLUMNS (decide later)
 
@@ -216,3 +228,19 @@ that have **zero code references** (confirmed at 47c0535): `session_rate` (defau
 They were intentionally left untouched — the new work uses the new `billable_units` column,
 not these. A future cleanup can drop them after confirming no out-of-repo consumer reads
 them; not this sprint.
+
+## 13. `billing_type` IS NOT A TRUSTWORTHY PAYER FIELD (cleanup + CHECK before anything gates on it)
+
+The units gate keys ELIGIBILITY off `program_type` (via `isSatopProgram`), NOT off any payer
+field, on purpose — `clients.billing_type` is not fit to gate on today:
+- **No CHECK constraint** (added free-text in
+  [20260522_clients_add_intake_fields.sql:6](supabase/migrations/20260522_clients_add_intake_fields.sql:6));
+  every other client axis (`program_type`, `client_type`) is CHECK-enforced.
+- **22 of 34 live clients are NULL**; only Self-Pay (10) and Court Mandate (2) are populated.
+- The TS union ([types.ts:103](types.ts:103)) lists `Court Mandate | Employer Mandate |
+  State Funded | Insurance | Sliding Scale` — it **omits `Self-Pay`, which is the modal
+  default** ([components/clients/EditClientModal.tsx:198](components/clients/EditClientModal.tsx:198)),
+  so the type and the data already disagree.
+
+Before any logic (billing eligibility, payer routing) may key on `billing_type`, it needs a
+cleanup pass + a CHECK constraint reconciled with the TS union. Not this sprint.
