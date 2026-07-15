@@ -212,6 +212,14 @@ This is no longer "the grain table is unpopulated." It is a NAMED VOCABULARY GAP
 - **Consequence:** no grain can be asserted for any category today, so the units control
   **renders for nothing**. Eligibility (program = SATOP-family) works; there is simply no
   honest grain to pair with it. This is intended, not a regression.
+- **Render is now silent (2026-07-15).** The two user-visible strings the groundwork shipped —
+  the modal's "Unit billing not configured for this service type." line and the drill-in's
+  "Billable units —" row — were **removed rather than fixed**, because a status line about
+  unfinished plumbing does not belong on the clinician's daily close-out path. When David's
+  procedure codes land and a grain is set, BOTH surfaces begin rendering **on their own**: the
+  modal picker appears once `unitGrainFor` returns non-null, and the drill-in row appears the
+  first time a real `billable_units` value is written. There is **no un-hiding step** — nothing
+  was left commented-out or feature-flagged to re-enable.
 - **Two candidate resolutions — DO NOT pick one here:** (a) David's procedure-code table
   supplies the individual/group grain split per code; (b) a new individual-vs-group axis is
   added on the appointment (the service_type vocabulary is extended or a sibling field is

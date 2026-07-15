@@ -519,27 +519,26 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                         </div>
                         {/* Billable units — records a COUNT only (no dollars, not submitted to
                             DMH/CIMOR). Rendered ONLY when the chosen category has a configured
-                            grain; unconfigured categories show a plain line and no picker. */}
-                        {serviceType && (
-                            unitGrain ? (
-                                <div>
-                                    <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
-                                        Billable units <span className="normal-case font-bold text-slate-400">({unitGrain.unitMinutes} min each)</span>
-                                    </label>
-                                    <select
-                                        value={billableUnits === '' ? '' : String(billableUnits)}
-                                        onChange={(e) => setBillableUnits(e.target.value === '' ? '' : Number(e.target.value))}
-                                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-100"
-                                    >
-                                        {Array.from({ length: unitGrain.maxUnits }, (_, i) => i + 1).map(n => (
-                                            <option key={n} value={n}>{n} unit{n === 1 ? '' : 's'} ({n * (unitGrain.unitMinutes as number)} min)</option>
-                                        ))}
-                                    </select>
-                                    <p className="mt-1 text-[11px] text-slate-400">Prefilled from the scheduled length — adjust to the units actually delivered.</p>
-                                </div>
-                            ) : (
-                                <p className="text-[11px] text-slate-400">Unit billing not configured for this service type.</p>
-                            )
+                            grain (unitGrainFor: SATOP-eligible program × configured service_type).
+                            When it returns null — no grain today — render NOTHING: no line, no
+                            placeholder, no empty div. The picker appears on its own the day a grain
+                            is configured. */}
+                        {serviceType && unitGrain && (
+                            <div>
+                                <label className="block text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                                    Billable units <span className="normal-case font-bold text-slate-400">({unitGrain.unitMinutes} min each)</span>
+                                </label>
+                                <select
+                                    value={billableUnits === '' ? '' : String(billableUnits)}
+                                    onChange={(e) => setBillableUnits(e.target.value === '' ? '' : Number(e.target.value))}
+                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-100"
+                                >
+                                    {Array.from({ length: unitGrain.maxUnits }, (_, i) => i + 1).map(n => (
+                                        <option key={n} value={n}>{n} unit{n === 1 ? '' : 's'} ({n * (unitGrain.unitMinutes as number)} min)</option>
+                                    ))}
+                                </select>
+                                <p className="mt-1 text-[11px] text-slate-400">Prefilled from the scheduled length — adjust to the units actually delivered.</p>
+                            </div>
                         )}
                         <div className="grid grid-cols-1 gap-2">
                             <button
