@@ -3,9 +3,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client, FormSubmission, Form, RecoveryPlanData } from '../../types';
 import Card from '../ui/Card';
-import AssignFormModal from '../forms/AssignFormModal';
 import { SignedFileLink, SignedFileFrame } from '../ui/SignedFile';
-import { PlusCircle, Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, Bell, PencilLine } from 'lucide-react';
+import { Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, Bell, PencilLine } from 'lucide-react';
 import { dbForms } from '../../data/database'; // Using mock forms for now
 import { approveFormSubmission } from '../../services/api';
 
@@ -160,7 +159,6 @@ const ViewSubmissionModal: React.FC<{ submission: FormSubmission, clientName: st
 
 const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions, onFormAssigned }) => {
     const navigate = useNavigate();
-    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
     const [reviewingSubmission, setReviewingSubmission] = useState<FormSubmission | null>(null);
     const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
@@ -175,11 +173,8 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
 
     return (
         <Card>
-             <div className="flex justify-between items-center mb-4">
+             <div className="mb-4">
                 <h3 className="text-xl font-bold">Assigned Forms</h3>
-                <button onClick={() => setIsAssignModalOpen(true)} className="flex items-center gap-2 bg-primary text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-primary-focus">
-                    <PlusCircle size={16} /> Assign New Form
-                </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -262,14 +257,6 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                 </table>
             </div>
 
-            {isAssignModalOpen && (
-                <AssignFormModal
-                    isOpen={isAssignModalOpen}
-                    onClose={() => setIsAssignModalOpen(false)}
-                    onFormAssigned={onFormAssigned}
-                    clients={[client]}
-                />
-            )}
             {selectedSubmission && (
                 <ViewSubmissionModal 
                     submission={selectedSubmission}

@@ -383,11 +383,41 @@ it requires a **human-labeled sample**, not a model-vs-model comparison. **Not s
 (For the record: the flash-lite → gemini-2.5-flash switch was evaluated 2026-07-15 and **CANCELLED**
 — `'other'` was measuring test junk, not classifier weakness. Stay on `gemini-2.5-flash-lite`.)
 
-## 21. UNIT CAP VS "FOUR HOURS" — one-line question for Tuesday's call (2026-07-15)
+## 21. UNIT CAP — RESOLVED 2026-07-15 (cap is 12)
 
-On the 7/14 ACS Updates call David specified units **"from 1 to 12"** (00:20:44) — a 3-hour
-ceiling at 15 min/unit — but separately described billing **"four hours of individual session
-on this date"** (00:21:37), which is **16 units** and exceeds that cap. Probably loose speech,
-but the DB CHECK (`appointments_billable_units_range`) and the picker both enforce **1–12**,
-so a genuine 4-hour session could not be recorded as 16 units today. Ask David Tuesday: is 12
-a hard per-session cap, or can a single session exceed 3 billable hours?
+Earlier open question: David said "1 to 12" (00:20:44) but separately described "four hours of
+individual session" (00:21:37 = 16 units). **RESOLVED — the cap is 12**, confirmed twice:
+David 7/15 ("Units entered by staff based on group length, 1 to 12") and the paper Individual
+Note (2:00–3:15pm = 75 min = Units: 5, confirming the 15-min grain; a 3-hour group ÷ 15 = 12).
+The "four hours" was loose speech. The DB CHECK (`appointments_billable_units_range`) and the
+picker both enforce 1–12 correctly — no change needed.
+
+## 22. FORM-ASSIGNMENT MODEL IS WRONG FOR THIS PRACTICE (client-side removed 2026-07-15)
+
+Admin/intake documents are a **pre-scheduling gate** (complete / incomplete), not a task queue
+with due dates. The client-side "Assign New Form" button was **removed 2026-07-15** — it was
+already inert (opened `AssignFormModal` with no `forms` prop → empty template dropdown →
+no-op submit). Rebuild as **packet-status**, pending David's answer to "what paperwork must be
+done before you can schedule a client?"
+
+The pre-scheduling packet **may already be derivable** from the registry, pending David:
+- `requiredForCompletion: true` + `audience: 'client'` = **consent-treatment, hipaa-ack,
+  authorization-release, telehealth-consent, satop-checklist, emergency-contact** — near-identical
+  to David's admin examples (HIPAA, consent to treatment).
+- `audience: 'staff'` (**treatment-plan, discharge-summary, chart-checklist, session-attendance**)
+  is a clinical signal.
+- **Unresolved:** `satop-checklist` and `satop-intake` (which side?). **Missing tokens:**
+  a *demographic sheet* (admin) and an *OMU* (clinical) have no registry entry at all.
+- **Do NOT build on this** — pending David. Admin-side Forms library assign flow
+  (FormsLibraryTab, FormLibrary) is untouched and still works.
+
+## 23. FORM ASSIGNMENTS CARRY NO PARTY/CONTEXT — legitimate duplicates are indistinguishable (2026-07-15)
+
+`assignForm` ([services/api.ts:1421-1448](services/api.ts:1421)) has no uniqueness guard — but a
+**constraint on `(client_id, form_id)` would be WRONG**: multiple Authorizations for Release of
+Information to **different parties** (one to the court, one to an employer) is a legitimate
+clinical case. The real gap is that assignments carry **no party/context field**, so two valid
+ROIs are indistinguishable in the list (it shows only the form name). Witnessed on **Derek Stone
+2026-07-15**: two `authorization-release` rows, assigned 6/9 and 6/30, different due dates, both
+valid. **Do not "fix" with a constraint** — the fix is to capture the party/context per
+assignment so the list can tell them apart. Pending the packet-status rebuild (#22).

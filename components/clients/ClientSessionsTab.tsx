@@ -7,7 +7,7 @@ import { unitGrainFor, suggestedUnits } from '../../config/billableUnits';
 import Card from '../ui/Card';
 import Modal from '../ui/Modal';
 import ClinicalNoteView, { type ClinicalNote } from './ClinicalNoteView';
-import { Calendar, FileText, ShieldCheck, Users } from 'lucide-react';
+import { Calendar, FileText } from 'lucide-react';
 
 // Real session history for a client, composed from existing tables only:
 //   - appointments (the client's scheduled/past sessions)
@@ -59,12 +59,82 @@ const derivedDuration = (a: Appointment): string | null => {
   return d > 0 ? `${d} min` : null;
 };
 
+// Secondary-text token (index.html theme: surface.secondary #64748B / dark #94A3B8),
+// not a raw slate. One place for every drill-in label.
 const DetailRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div>
-    <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</dt>
+    <dt className="text-[11px] font-bold uppercase text-surface-secondary dark:text-dark-surface-secondary">{label}</dt>
     <dd className="text-sm text-slate-700 dark:text-slate-200 mt-0.5">{children}</dd>
   </div>
 );
+
+/** Billable units — David's 7/14 ask, promoted from a grey cell to the hero of the
+ *  session view. The suggested/asserted split is encoded VISUALLY, never on the word alone:
+ *    ASSERTED (a clinician dictated it)  → solid ACS-red fill, confident weight.
+ *    SUGGESTED (the software computed it) → dashed hairline outline, muted ink.
+ *  A guess must never read as a fact. `compact` is the right-aligned session-history badge;
+ *  `hero` is the modal block. */
+interface UnitsInfo { units: number; grainMinutes: number; minutes: number | null; asserted: boolean; }
+
+// Same two-axis gate as everywhere: SATOP-family program × configured service_type grain.
+// Non-SATOP / null / prospect → grain null → returns null → nothing renders.
+const computeUnits = (a: Appointment, program?: string): UnitsInfo | null => {
+  const grain = unitGrainFor(program, a.serviceType);
+  if (!grain) return null;
+  const s = parseHHMM(a.startTime), e = parseHHMM(a.endTime);
+  const minutes = s !== null && e !== null && e > s ? e - s : null;
+  const grainMinutes = grain.unitMinutes as number;
+  if (typeof a.billableUnits === 'number') {
+    return { units: a.billableUnits, grainMinutes, minutes, asserted: true };
+  }
+  if (minutes !== null) {
+    return { units: suggestedUnits(minutes, grain), grainMinutes, minutes, asserted: false };
+  }
+  return null;
+};
+
+const UnitsBadge: React.FC<{ info: UnitsInfo; variant: 'hero' | 'compact' }> = ({ info, variant }) => {
+  const { units, grainMinutes, minutes, asserted } = info;
+  const plural = units === 1 ? '' : 's';
+  if (variant === 'compact') {
+    return (
+      <span
+        title={asserted ? 'Recorded by clinician' : 'Suggested from scheduled length'}
+        className={`inline-flex items-baseline gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ${
+          asserted
+            ? 'bg-primary text-white'
+            : 'border border-dashed border-slate-300 dark:border-slate-600 text-surface-secondary dark:text-dark-surface-secondary'
+        }`}
+      >
+        <span className="font-black tabular-nums leading-none">{units}</span>
+        unit{plural}{asserted ? '' : ' · suggested'}
+      </span>
+    );
+  }
+  const support = asserted
+    ? `${grainMinutes} min each · ${units * grainMinutes} min`
+    : `${grainMinutes} min each${minutes != null ? ` · ${minutes} min scheduled` : ''}`;
+  return (
+    <div
+      className={`rounded-2xl px-5 py-4 flex items-center gap-4 ${
+        asserted
+          ? 'bg-primary text-white shadow-sm'
+          : 'border border-dashed border-slate-300 dark:border-slate-600 bg-transparent'
+      }`}
+    >
+      <div className="flex items-baseline gap-1.5">
+        <span className={`text-4xl font-black leading-none tabular-nums ${asserted ? 'text-white' : 'text-surface-secondary dark:text-dark-surface-secondary'}`}>{units}</span>
+        <span className={`text-sm font-bold ${asserted ? 'text-white/80' : 'text-surface-secondary dark:text-dark-surface-secondary'}`}>unit{plural}</span>
+      </div>
+      <div className="min-w-0">
+        <p className={`text-[11px] font-black uppercase ${asserted ? 'text-white/90' : 'text-surface-secondary dark:text-dark-surface-secondary'}`}>
+          {asserted ? 'Recorded' : 'Suggested'}
+        </p>
+        <p className={`text-xs mt-0.5 ${asserted ? 'text-white/75' : 'text-surface-secondary dark:text-dark-surface-secondary'}`}>{support}</p>
+      </div>
+    </div>
+  );
+};
 
 // Appointment drill-in. Every field shown is real appointment data; the only
 // signature signal lives on the linked note (rendered via ClinicalNoteView) — the
@@ -73,27 +143,7 @@ const DetailRow: React.FC<{ label: string; children: React.ReactNode }> = ({ lab
 const AppointmentDetail: React.FC<{ item: SessionItem; program?: string }> = ({ item, program }) => {
   const a = item.appt!;
   const dur = derivedDuration(a);
-  // Billable units — David's 7/14 ask: display the unit count on the session view.
-  // Asserted value always shows. When NOT asserted, show the software-computed prefill
-  // with the word "suggested" — load-bearing: it separates what the software computed
-  // from what a clinician dictated. Gate = the same two-axis unitGrainFor (SATOP program
-  // × configured service_type grain); ineligible/no-grain renders no row at all.
-  const grain = unitGrainFor(program, a.serviceType);
-  const durMin = (() => {
-    const s = parseHHMM(a.startTime), e = parseHHMM(a.endTime);
-    return s !== null && e !== null && e > s ? e - s : null;
-  })();
-  const unitsRow = (() => {
-    const withDur = (label: string) => (dur ? `${label} · ${dur}` : label);
-    if (typeof a.billableUnits === 'number') {
-      return withDur(`${a.billableUnits} unit${a.billableUnits === 1 ? '' : 's'}`);
-    }
-    if (grain && durMin !== null) {
-      const s = suggestedUnits(durMin, grain);
-      return withDur(`${s} unit${s === 1 ? '' : 's'} suggested`);
-    }
-    return null;
-  })();
+  const unitsInfo = computeUnits(a, program);
   const sessionLabel = sessionTypeById(a.sessionTypeId)?.label;
   const isGroup = !!a.groupId || item.note?.note_type === 'Group Session';
   const serviceParts = [a.serviceType, sessionLabel].filter(Boolean) as string[];
@@ -107,11 +157,14 @@ const AppointmentDetail: React.FC<{ item: SessionItem; program?: string }> = ({ 
           </p>
         </div>
         {isGroup && (
-          <span className="inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-            <Users size={11} /> Group session
+          <span className="inline-flex items-center shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+            Group session
           </span>
         )}
       </div>
+
+      {/* Billable units — the hero (David 7/14). Rendered only when the SATOP × grain gate passes. */}
+      {unitsInfo && <UnitsBadge info={unitsInfo} variant="hero" />}
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
         <DetailRow label="Time">
@@ -122,9 +175,6 @@ const AppointmentDetail: React.FC<{ item: SessionItem; program?: string }> = ({ 
         <DetailRow label="Therapist">{a.therapist || '—'}</DetailRow>
         {serviceParts.length > 0 && (
           <DetailRow label="Service / session">{serviceParts.join(' · ')}</DetailRow>
-        )}
-        {unitsRow && (
-          <DetailRow label="Billable units">{unitsRow}</DetailRow>
         )}
         {a.zoomLink && (
           <DetailRow label="Zoom">
@@ -242,11 +292,15 @@ const ClientSessionsTab: React.FC<{ client: Client }> = ({ client }) => {
                 <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{it.title}</p>
                 <p className={`text-xs ${it.kind === 'appointment' ? statusTone(it.subtitle) : 'text-slate-500'}`}>{it.subtitle}</p>
               </div>
-              <div className="text-right shrink-0">
-                <p className="text-xs font-bold text-slate-500">{it.date.getTime() ? it.date.toLocaleDateString() : '—'}</p>
+              <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                <p className="text-xs font-bold text-surface-secondary dark:text-dark-surface-secondary">{it.date.getTime() ? it.date.toLocaleDateString() : '—'}</p>
+                {it.kind === 'appointment' && it.appt && (() => {
+                  const info = computeUnits(it.appt, client.program);
+                  return info ? <UnitsBadge info={info} variant="compact" /> : null;
+                })()}
                 {it.kind === 'appointment' && it.hasNote && (
-                  <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest mt-0.5 ${it.signed ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    <ShieldCheck size={10} /> {it.signed ? 'Signed note' : 'Note on file'}
+                  <span className={`text-[10px] font-black uppercase tracking-wide ${it.signed ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {it.signed ? 'Signed note' : 'Note on file'}
                   </span>
                 )}
               </div>
