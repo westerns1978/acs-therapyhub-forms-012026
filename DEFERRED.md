@@ -262,3 +262,40 @@ dev database**. Consequences:
 Discovered during the billable-units deploy. **Not scoped, not scheduled** — written down so it
 stops being invisible. Real fix is a separate dev/staging Supabase project (or local stack) so
 schema and data changes never rehearse against production PHI.
+
+## 15. PROGRAM FALLBACK FAILS OPEN for the billing gate (discovered 2026-07-15)
+
+[services/api.ts:154](services/api.ts:154) defaults a **non-prospect** client with a null
+`program_type` to `'SATOP'`:
+```ts
+const program = c.program ?? c.program_type ?? (status === 'prospect' ? '' : 'SATOP');
+```
+This was written when `program` only drove **compliance rule selection**, where defaulting an
+unknown client INTO the regulated program is the conservative (fail-closed) error. It is now
+ALSO the **billing eligibility gate** (config/billableUnits.ts → `isSatopProgram`), where the
+same default is the DANGEROUS (fail-OPEN) error: an unknown client reads as DMH-billable.
+
+- **Harmless today**: every grain is unset, so nothing renders regardless of eligibility.
+- **Live the day David's procedure codes land**: a non-prospect null-program client would then
+  render a units picker and be billable.
+- **The only guarantee is a data-fact comment dated 2026-06-17.** Re-checked live 2026-07-15:
+  `SELECT status, count(*) FROM public.clients WHERE program_type IS NULL GROUP BY status`
+  → `[{"status":"prospect","count":5}]`. All 5 null-program clients are prospects (→ `''` →
+  not eligible), so the fallback is fail-closed **in current data only**. Nothing in the schema
+  enforces it — no CHECK forbids a non-prospect null `program_type`.
+
+Not fixed here — changing the default also touches compliance rule selection and needs its own
+recon (which surfaces should read null-program as "unknown/ineligible" vs. "SATOP").
+
+## 16. PHI IN CONSTRAINT-ERROR DETAIL (observed 2026-07-15)
+
+Postgres emits the FULL failing row in a CHECK violation's `DETAIL`. Observed live during this
+deploy: a rejected `billable_units = 13` write echoed a real client's name and session in the
+error detail. This applies to **every CHECK on every clinical table**, not just this one. Risk
+path: Supabase logs, Postgres logs, browser console, error toasts — any of which could carry
+PHI off a rejected write, on a HIPAA-bound product (see [[project_compliance_recon_day30]]).
+
+**Design rule for when the units picker goes live:** validate/clamp the unit count CLIENT-SIDE
+so the DB CHECK is a backstop that never fires in normal use, and NEVER surface a raw Supabase
+error to the UI on this app (map to a generic message; log the detail server-side only).
+Belongs in the hardening track alongside audit_logs, note immutability, and documents RLS.
