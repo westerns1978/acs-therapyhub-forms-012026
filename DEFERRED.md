@@ -783,3 +783,57 @@ split lives in whichever file genuinely renders each surface. Not decided here.
 
 **Not built. No files touched.** `#35`'s two removals (`chart-checklist`, `session-attendance`)
 are on hold pending this decision, not pending David.
+
+## 37. `public.uploaded_files` IS WORLD-READABLE/WRITABLE — SCOPE WIDER THAN THE KNOWN AIVA GAP (witnessed 2026-07-16, read-only)
+
+Witnessed 2026-07-16 during Attesta's bucket/table recovery work (read-only introspection —
+`select`/`information_schema` only, no writes). `public.uploaded_files` carries **18 accumulated
+RLS policies**, including `"Allow public read/insert/update/delete"` (role `PUBLIC`) plus several
+redundant `anon_*` policies — permissive-everything, not scoped by `is_staff()`/ownership/anything.
+
+**Scope is wider than the already-flagged AIVA gap (June 2026), and wider than assumed when this
+was first raised tonight.** `bucket_id`/`app_id` default to `'project-aiva-afridroids'`/`'aiva'` —
+this table is AIVA's hiring-document vault. ACS's own clinical document pipeline
+(`services/storageService.ts` — `ingestDocument`/`uploadToVault`/`fetchVault`, the exact file in
+THIS repo) writes into the SAME table under the SAME policies, distinguishing rows only by
+`hire_id`/`metadata.clientId`, never by RLS. Checked directly (read-only) 2026-07-16:
+
+- **104 total rows**, not a handful.
+- **71 rows have `hire_id` set** — i.e., look ACS-shaped (client-id-keyed), not AIVA-shaped.
+
+**Correction to how this was first framed tonight:** the "pre-production, ~3 rows, must not
+survive first real client documents" framing does not match what's actually in the table — 71
+ACS-shaped rows already exist. This may already be live clinical documents from David Yoder's
+pilot, not pre-production data. Did not read row *content* (`extracted_text`,
+`clinical_significance`, etc.) — that would be reading live PHI beyond what recon needs — but the
+row count alone means this should be treated as **higher urgency than "pre-production,"** not
+lower. Re-scope before acting on this entry.
+
+Reference implementation for the fix: Attesta repo,
+`supabase/migrations/20260716_uploaded_files_and_bucket_recovery.sql` — recreates the table with
+`private.is_staff()`/`private.my_client_ids()` RLS instead of copying the permissive stack. Not a
+drop-in for this repo (check this repo's own RLS-helper naming/shape before reusing the pattern),
+but the model — staff full access, client sees/inserts own rows only (keyed on `hire_id`), zero
+policy for anon — is the reference.
+
+**Do NOT fix tonight. Do NOT touch westflow-platform directly from a session scoped to another
+repo** — this is a live shared table serving multiple apps (AIVA's own access needs must keep
+working through any RLS change), and given the row-count correction above, any fix needs to be
+planned with real urgency, not treated as routine cleanup.
+
+## 38. OPERATIONAL FALLBACKS LAND IN `clinical_notes` WHEN `outreach_log`/`tasks` ARE MISSING (low priority, report only)
+
+Found 2026-07-16 alongside #37, during the same recon (diffing every `.from()` call in the
+Attesta fork against its own `list_tables`). `services/alertsService.ts` (`logOutreach`,
+`createTask`) tries a dedicated `outreach_log`/`tasks` table first, and on error falls back to
+inserting a `clinical_notes` row with `note_type: 'Outreach'`/`'Task'`. Same file, same fallback
+code, exists in this repo too.
+
+Checked directly (read-only) on westflow-platform: **neither `outreach_log` nor `tasks` exists
+here either** — this repo IS westflow-platform, so if this code path has ever run in production,
+every outreach call and every task has landed as a `clinical_notes` row, not in its own table.
+
+Not obviously right for a compliance product: operational records (a phone call log, a follow-up
+task) blurring into the clinical record blurs what's supposed to be clean clinical documentation.
+Not fixed, not urgent — report only, worth a look next time `alertsService.ts` or the
+`clinical_notes` shape is touched.
