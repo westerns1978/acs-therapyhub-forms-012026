@@ -212,6 +212,43 @@ still need units recorded for completion**. The reconciliation between `billable
 Still not built. Still David's call on the rule (which number the gate trusts, or how they
 must agree).
 
+**STATUS (2026-07-16): RESOLVED — David answered directly.** Margin notes on the 7/16 review:
+*"Units calculated on their actual time entered NOT on scheduled time"* + *"Counselor must
+enter time start and end of services"* + *"Counselor entered time rules."* A THIRD answer,
+distinct from both "clock" and "typed unit count": the counselor enters the session's actual
+start/end time, and units COMPUTE from that — matching the paper Individual Note ("Time
+2:00-3:15pm → Units: 5"). Program hours are meant to come from counselor-entered actual time,
+not the schedule.
+
+Confirmed wrong as feared. `client_accrued_hours` sums `duration_minutes`
+(`20260606_ws3_1_session_hours_accrual.sql:51-63`), and `duration_minutes` has exactly two
+write paths, both schedule-derived: booking insert (`services/api.ts:417-426`, from the chosen
+scheduled slot) and reschedule update (`services/api.ts:601-611`, from the new scheduled slot).
+Mark-Complete (`AppointmentStatusModal.tsx`'s `onSetStatus`, line 547) never touches
+`duration_minutes`. So today: program hours (the SATOP completion gate,
+`services/complianceEngine.ts:304`) run entirely on SCHEDULED time — exactly the mechanism
+David just said is wrong. Live spot-check 2026-07-16: 20 sampled Completed appointments all
+show `duration_minutes` exactly equal to scheduled `end_time - start_time`, and
+`billable_units` is NULL on all 20 — the gate is running on pure schedule-derived hours with
+zero counselor correction in live data today.
+
+`clinical_notes` (11 columns, confirmed live 2026-07-16, unchanged since the 7/15 domain-model
+recon — see `docs/DOMAIN-MODEL-2026-07-15.md` §5) has **no time-of-service field** — adding
+counselor-entered start/end requires a migration. The units picker
+(`AppointmentStatusModal.tsx:527-543`) is a unit-COUNT select prefilled from scheduled duration
+(`:137-141,158-166`), not a time-range input — David wants counselors entering TIME, not
+adjusting a count. `suggestedUnits()`/`unitGrainFor()` (`config/billableUnits.ts:76-94`) are
+pure arithmetic on a minutes number and need no change; `computeUnits()`'s `asserted`/
+`suggested` split (`components/clients/ClientSessionsTab.tsx:81-94`) today distinguishes
+"human-entered count" vs. "schedule-derived suggestion," not "actual time" vs. "scheduled
+time" — it would need restructuring so a future actual-time-derived suggestion isn't
+indistinguishable from today's schedule-derived one.
+
+Scope: BOTH schema (a new time-of-service field, likely on `clinical_notes`; `duration_minutes`
+and/or `client_accrued_hours` need to point at the new source or be redefined) AND UI
+(`AppointmentStatusModal.tsx`'s Mark-Complete panel needs a time-range control, not just a
+count select). Fix pending — not built here, this entry records what's now confirmed true.
+
 ## 11. UNIT GRAIN — RESOLVED 2026-07-15 (was: "service_type can't express individual vs group")
 
 **STATUS: RESOLVED — grain turned on 2026-07-15 (feat/units-on).** This entry previously
@@ -624,3 +661,69 @@ straight join, no new mechanism needed.
 guarantee it matches a `counselors` row, and "primary" implies one stable answer per client, not
 whatever the most recent appointment's text happened to say. Not built here; this entry exists
 so it's not re-discovered as if new.
+
+# Surfaced 2026-07-16 — David 7/16 review answers
+
+## 34. NO GUARD ON CLIENT CREATION — accidental duplicate confirmed live
+
+No uniqueness check, DB constraint, or client-side warning exists anywhere in the client-
+creation path. `components/clients/CreateClientModal.tsx:26-62` validates only that `name` and
+`phone` are non-empty; `services/api.ts:1747-1759`'s `addClient()` does a plain insert with no
+pre-check. The only DB constraints on `public.clients` are three CHECKs (`client_type`,
+`program_vocab`, `status_lifecycle`) plus the primary key — no unique index on `name`, `dob`,
+`case_number`, `email`, or `primary_phone`.
+
+**Live-witnessed 2026-07-16**: two "Jessica Marie" rows (`df2e0d21-8363-4cf5-944a-14627980cb87`,
+`6cbbf0d6-2d26-4c95-842b-cb68cf0c54a6`), created 12 minutes apart on 2026-07-15, every field
+identical (`dob`, `case_number`, `email`, `primary_phone`, `program_type=ANGER_MANAGEMENT`) — an
+exact resubmit, consistent with Jess's reported duplicate-create incident.
+
+Unlike [#23](#23-form-assignments-carry-no-partycontext--legitimate-duplicates-are-indistinguishable-2026-07-15)
+(two ROIs to different parties is legitimate — a constraint there would be WRONG), duplicate
+client records are never legitimate — same class of gap, opposite correct fix. The only two
+fields populated on every live row are the practical match candidates: `name` (34/34) and
+`primary_phone` (34/34); `email` is ~71% populated, `case_number` ~56%, `dob` only ~29% (too
+sparse to require). A soft "a client named X already exists — continue?" pre-insert check is
+the shape that fits: a client-side lookup-then-confirm in `CreateClientModal.tsx` before the
+`addClient()` call, matching on name (+ phone/email/dob when populated) — UI-only, no schema/
+migration needed, no hard DB constraint (name alone isn't unique-safe — common names and
+legitimate re-registrations exist).
+
+A second name collision, "Derek Flower" (`7286f2a2-...` active with full data, `8f2c1747-...`
+prospect with mostly-null fields, created a day apart), looks like a separate prospect-intake
+shell rather than the same accidental-duplicate bug class — noted, not conflated.
+
+Reported by ACS staff (Jess), 2026-07-16.
+
+## 35. THREE FORM_REGISTRY ENTRIES UNRECOGNIZED BY DAVID — two are scaffolding, one is a real gate under the wrong name
+
+David Yoder (clinical director) circled `chart-checklist`, `session-attendance`,
+`satop-checklist` in the 7/15 packet and wrote "Don't know what these are." All three trace to
+the same origin commit, `5abcf27` "Initial commit: ACS TherapyHub with 11 Clinical Forms"
+(2026-01-20, AI-scaffolded bootstrap) — not a transcription pass against a specific ACS
+document set.
+
+**`session-attendance`** (`config/formRegistry.ts:48`) — zero live `form_submissions` rows, not
+in `CORE_REQUIRED_FORM_IDS`/any gate, and its only same-named neighbor
+(`ManageAttendeesModal.tsx`'s sign-in `SignaturePad`) is structurally unrelated code. **Ours —
+safe to remove pending David's explicit confirm.**
+
+**`chart-checklist`** (`config/formRegistry.ts:47`) — not gated, exactly one live row and it's
+on the demo witness client (Marcus Reyes, `aaaaaaaa-...`), not a real client. **Ours — safe to
+remove pending David's explicit confirm.**
+
+**`satop-checklist`** (`config/formRegistry.ts:32`) — DIFFERENT. It carries
+`requiredForCompletion: true`, is one of 6 ids in `CORE_REQUIRED_FORM_IDS`
+(`config/formRegistry.ts:64-67`) feeding `REQUIRED_FORMS_BY_LEVEL`, and its gate
+(`services/complianceEngine.ts:725-743`) fails the "Required forms signed" gate — and therefore
+blocks `eligible` (the completion certificate) — if unsigned, citing 9 CSR 30-3.206(13)(F).
+Staff-facing UI (`services/packetReadiness.ts:93-111`) never shows the raw id — only its title,
+"Orientation Checklist." Its field content (Client Bill of Rights, grievance procedure,
+confidentiality/HIPAA, program rules, "I agree to begin treatment") is exactly the shape of a
+real SATOP intake-orientation acknowledgment, distinct from the separate `satop-intake` entry.
+The two live rows are empty-data 2026-06-05 seed inserts, not organic submissions — that
+reflects no real client has been run through the live gate yet, not that the form is fake.
+**Likely theirs in substance, ours only in the technical id/label — moderate-to-high
+confidence. Do not remove without re-confirming with David using the title "Orientation
+Checklist," not the id — removing it would silently break the completion-certificate gate for
+every SATOP level.**
