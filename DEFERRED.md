@@ -727,3 +727,59 @@ reflects no real client has been run through the live gate yet, not that the for
 confidence. Do not remove without re-confirming with David using the title "Orientation
 Checklist," not the id — removing it would silently break the completion-certificate gate for
 every SATOP level.**
+
+**#35's removal is now BLOCKED on #36 below, not on David.** Discovered while scoping the
+removal: `FORM_REGISTRY` does not gate what staff can assign or fill, so deleting the two
+entries would not achieve "no longer assignable" — see #36.
+
+## 36. THREE INDEPENDENT "FORM CATALOG" SOURCES, NOT ONE — FORM_REGISTRY GATES COMPLIANCE, NOT ASSIGN/FILL
+
+Found 2026-07-16 while scoping removal of `chart-checklist`/`session-attendance` (#35). There
+is no single source of truth for "what forms exist" — three completely independent lists coexist,
+disagree in places, and are consumed by different code paths:
+
+1. **`config/formRegistry.ts`'s `FORM_REGISTRY`** (15 entries) — feeds
+   `REQUIRED_FORMS_BY_LEVEL`/the completion-cert gate (`services/complianceEngine.ts:725-743`,
+   9 CSR 30-3.206(13)(F)) and `CLIENT_REGISTRY_FORMS` (the client-portal list,
+   `pages/portal/PortalDocuments.tsx:18`). **This is load-bearing for compliance.**
+2. **`components/FormLibrary.tsx`'s own hardcoded `allForms` array** (14 entries, imports each
+   form component's own `*_DEFINITION` object directly, `FormLibrary.tsx:33-48`) — this is what
+   actually renders the "Assign" and "Start" buttons staff use. Fully decoupled from
+   `FORM_REGISTRY`; `assignForm()` (`services/api.ts:1498-1526`) documents itself explicitly:
+   *"NOT a hard allowlist — assignForm still inserts whatever formId it's given"* — it only
+   looks up `FORM_REGISTRY`/`getFormTemplates()` for a title/category label on the inserted row,
+   never to block.
+3. **`components/clients/ClientFormsTab.tsx`** — reads `dbForms` from `data/database.ts`
+   (`ClientFormsTab.tsx:8`, explicitly commented *"Using mock forms for now"*) — a THIRD,
+   disconnected list, mock data, consulted by neither of the other two.
+
+**The three disagree.** `FORM_REGISTRY` has 15 ids; `FormLibrary.tsx`'s `allForms` and
+`pages/Forms.tsx`'s router `switch` (`pages/Forms.tsx:76-103`) both have the SAME 14 — missing
+`treatment-plan` entirely. `treatment-plan` exists only in `FORM_REGISTRY`; there is no `View`
+value, no switch case, no FormLibrary card for it — a staff member can never see or fill it
+through any live UI path. Two titles also disagree between `FORM_REGISTRY` and the component
+that actually renders (`FormCard` renders `definition.title` off the imported component object,
+`FormLibrary.tsx:86-88`, NOT `FORM_REGISTRY`'s title):
+
+| id | FORM_REGISTRY title | component (rendered) title |
+|---|---|---|
+| `meeting-report` | "AA/NA Group Meeting Report" | "Support Group Meeting Report" (`MeetingReportForm.tsx:50`) |
+| `telehealth-feedback` | "Telehealth Session Feedback" | "Telehealth Experience Feedback" (`TelehealthFeedbackForm.tsx:53`) |
+
+Separately, two ORPHAN definition files exist that neither `FormLibrary.tsx` nor
+`pages/Forms.tsx` import at all: `components/forms/ConsentTreatmentFormDef.tsx`
+(`CONSENT_TREATMENT_DEFINITION`, duplicate of `ConsentForTreatmentForm.tsx`'s
+`CONSENT_FORM_DEFINITION`) and `components/forms/RecoveryPlanFormDef.tsx`
+(`RECOVERY_PLAN_DEFINITION`, duplicate of `ContinuingRecoveryPlanForm.tsx`'s own
+`RECOVERY_PLAN_DEFINITION` — same export name, different file, neither one wired to the other).
+Dead scaffolding, not currently reachable from any route.
+
+**Consequence for the pending admin/clinical split** (David unblocked 11 of 15 on 2026-07-16):
+the split was scoped as "add a designation field to `FORM_REGISTRY`." That field alone would
+render nothing, since `FormLibrary.tsx` (the actual staff-facing forms surface) doesn't read
+`FORM_REGISTRY` at all. Before that work starts, a source-of-truth decision is needed:
+consolidate onto one registry `FormLibrary.tsx`/`pages/Forms.tsx` actually read, or accept the
+split lives in whichever file genuinely renders each surface. Not decided here.
+
+**Not built. No files touched.** `#35`'s two removals (`chart-checklist`, `session-attendance`)
+are on hold pending this decision, not pending David.
