@@ -29,3 +29,19 @@ re-derive.
 - Supabase `ldzzlndsspkyohvzfiiu` (westflow-platform) is multi-app. Scope every data write to ACS
   rows only. `clients` is ACS-owned (ACS-specific CHECK constraints); messaging shares
   `client_communications`. Demo seeds use the `dee0…` id namespace (idempotent + revertible).
+
+## Attesta fork exists — DIVERGED, not synced (2026-07-16)
+- **Attesta** is a separate repo, forked from this one 2026-07-16, on its OWN Supabase project
+  ("attesta", us-east-1), live at attesta-demo.web.app. This repo (ACS TherapyHub) is David
+  Yoder's live pilot and stays that. No upstream/downstream relationship has been decided — a
+  fix made here does NOT automatically exist there, and vice versa. See
+  `C:\Users\dlwes\Documents\WestFlow\WESTFLOW_CONTEXT.md` for the full topology note. Never
+  deploy to `attesta-demo` from this repo, or to `acs-therapyhub` from that one.
+
+## When asking David about anything in a registry (forms, ids, config tokens)
+- Show him the string his UI actually RENDERS (the `title` field), never a prettified internal
+  `id`. 2026-07-15: the brief showed David the id `satop-checklist` dressed up as "SATOP
+  Checklist" — he didn't recognize it and it was nearly deleted. The app actually renders it as
+  "Orientation Checklist" (`config/formRegistry.ts`'s `title` field), and it gates the completion
+  certificate under 9 CSR 30-3.206(13)(F). An internal id is not a name — always resolve to the
+  rendered title before asking a clinical question about it.
