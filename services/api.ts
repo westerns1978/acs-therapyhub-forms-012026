@@ -1744,6 +1744,48 @@ export const generateMilestoneCelebration = async (clientName: string, milestone
     return operation.response?.generatedVideos?.[0]?.video?.uri || '';
 };
 
+// DEFERRED #34: digit-only compare so phone formatting differences
+// ("(555) 123-4567" vs "5551234567") don't cause false negatives.
+const digitsOnly = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
+
+export interface DuplicateClientMatch {
+    id: string;
+    name: string;
+    phone: string;
+    email: string | null;
+    caseNumber: string | null;
+    createdAt: string | null;
+}
+
+/** Pre-insert duplicate-client check for CreateClientModal (DEFERRED #34). Matches
+ *  on name + phone only — the two fields populated on every live client row; email/
+ *  case_number are returned as secondary context to show in the warning, not matched
+ *  on. A soft speed bump, not a constraint: the caller decides whether to proceed.
+ *  Fails open (returns []) on query error so a broken check never becomes a wall. */
+export const findDuplicateClients = async (name: string, phone: string): Promise<DuplicateClientMatch[]> => {
+    const trimmedName = name.trim();
+    const wantPhone = digitsOnly(phone);
+    if (!trimmedName || !wantPhone) return [];
+    const { data, error } = await supabase
+        .from('clients')
+        .select('id, name, primary_phone, email, case_number, created_at')
+        .ilike('name', trimmedName);
+    if (error) {
+        console.error('[api] findDuplicateClients failed:', error);
+        return [];
+    }
+    return (data || [])
+        .filter((r: any) => digitsOnly(r.primary_phone) === wantPhone)
+        .map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            phone: r.primary_phone,
+            email: r.email ?? null,
+            caseNumber: r.case_number ?? null,
+            createdAt: r.created_at ?? null,
+        }));
+};
+
 export const addClient = async (clientData: any): Promise<Client> => {
     const row = mapAppToClientRow(clientData);
     if (!row.name || !row.primary_phone) {

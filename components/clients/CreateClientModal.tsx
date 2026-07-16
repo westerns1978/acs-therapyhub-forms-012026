@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addClient } from '../../services/api';
+import { addClient, findDuplicateClients, DuplicateClientMatch } from '../../services/api';
 import { X, User, Shield, CreditCard, CheckCircle, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
 
 interface CreateClientModalProps {
@@ -13,6 +13,7 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
     const [step, setStep] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [duplicateMatches, setDuplicateMatches] = useState<DuplicateClientMatch[] | null>(null);
     const [formData, setFormData] = useState({
         firstName: '', lastName: '', email: '', phone: '', dob: '',
         program: 'SROP', caseNumber: '', county: 'St. Louis', probationOfficer: '',
@@ -23,19 +24,9 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleSubmit = async () => {
-        setError(null);
-        const name = `${formData.firstName} ${formData.lastName}`.trim();
-        if (!name) {
-            setError('First and last name are required.');
-            setStep(1);
-            return;
-        }
-        if (!formData.phone) {
-            setError('Phone number is required.');
-            setStep(1);
-            return;
-        }
+    // The actual insert — called directly on a clean submit, or after the
+    // duplicate warning is dismissed with "Continue Anyway".
+    const createClient = async (name: string) => {
         setIsLoading(true);
         try {
             const newClient = await addClient({
@@ -59,6 +50,37 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleSubmit = async () => {
+        setError(null);
+        const name = `${formData.firstName} ${formData.lastName}`.trim();
+        if (!name) {
+            setError('First and last name are required.');
+            setStep(1);
+            return;
+        }
+        if (!formData.phone) {
+            setError('Phone number is required.');
+            setStep(1);
+            return;
+        }
+        // DEFERRED #34: soft pre-insert duplicate check — a speed bump, not a
+        // wall. Never blocks; only asks staff to confirm before proceeding.
+        setIsLoading(true);
+        const matches = await findDuplicateClients(name, formData.phone);
+        if (matches.length > 0) {
+            setIsLoading(false);
+            setDuplicateMatches(matches);
+            return;
+        }
+        await createClient(name);
+    };
+
+    const handleContinueAnyway = () => {
+        const name = `${formData.firstName} ${formData.lastName}`.trim();
+        setDuplicateMatches(null);
+        createClient(name);
     };
 
     // Lock body scroll while the modal is open so the page underneath doesn't
@@ -121,6 +143,23 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                         <div className="mb-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl flex items-start gap-2 text-red-700 dark:text-red-300">
                             <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                             <p className="text-xs font-medium leading-relaxed">{error}</p>
+                        </div>
+                    )}
+                    {duplicateMatches && (
+                        <div className="mb-6 p-5 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-2xl flex items-start gap-3">
+                            <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <h4 className="font-bold text-amber-800 dark:text-amber-300">Possible duplicate client</h4>
+                                {duplicateMatches.map(m => (
+                                    <p key={m.id} className="text-sm text-amber-700 dark:text-amber-400/90 mt-2 leading-relaxed">
+                                        A client named <strong>{m.name}</strong> with phone <strong>{m.phone}</strong> already
+                                        exists — created {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'an unknown date'}
+                                        {m.email ? `, email ${m.email}` : ''}
+                                        {m.caseNumber ? `, case #${m.caseNumber}` : ''}.
+                                    </p>
+                                ))}
+                                <p className="text-xs text-amber-600 dark:text-amber-500/80 mt-3">Continue if this is a different person.</p>
+                            </div>
                         </div>
                     )}
                     {step === 1 && (
@@ -224,21 +263,38 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
 
                 {/* Footer — pinned. */}
                 <div className="flex-shrink-0 p-6 bg-gray-50/80 dark:bg-slate-800/80 backdrop-blur-md border-t border-gray-200 dark:border-slate-700 flex justify-between items-center">
-                    {step > 1 ? (
-                        <button onClick={() => setStep(s => s - 1)} className="px-5 py-2.5 text-gray-600 hover:text-gray-900 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-slate-700 rounded-xl transition-colors flex items-center gap-2">
-                            <ArrowLeft size={18}/> Back
-                        </button>
-                    ) : <div></div>}
-
-                    {step < 3 ? (
-                        <button onClick={() => setStep(s => s + 1)} className="px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-focus font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all transform hover:-translate-y-0.5">
-                            Next <ArrowRight size={18}/>
-                        </button>
+                    {duplicateMatches ? (
+                        <>
+                            {/* Cancel is the default action — autoFocus so Enter dismisses the
+                                warning rather than creating the duplicate. This is a speed
+                                bump, not a wall: Continue Anyway always remains available. */}
+                            <button autoFocus onClick={() => setDuplicateMatches(null)} className="px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all transform hover:-translate-y-0.5">
+                                Cancel
+                            </button>
+                            <button onClick={handleContinueAnyway} disabled={isLoading} className="px-6 py-2.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-gray-200 dark:border-slate-700 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all disabled:opacity-70">
+                                {isLoading ? <Loader2 className="animate-spin" size={18}/> : null}
+                                {isLoading ? 'Creating...' : 'Continue Anyway'}
+                            </button>
+                        </>
                     ) : (
-                        <button onClick={handleSubmit} disabled={isLoading} className="px-8 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold flex items-center gap-2 shadow-lg shadow-green-600/20 hover:shadow-green-600/40 transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none">
-                            {isLoading ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle size={18} />}
-                            {isLoading ? 'Creating...' : 'Create Client File'}
-                        </button>
+                        <>
+                            {step > 1 ? (
+                                <button onClick={() => setStep(s => s - 1)} className="px-5 py-2.5 text-gray-600 hover:text-gray-900 dark:text-gray-300 font-medium hover:bg-gray-200 dark:hover:bg-slate-700 rounded-xl transition-colors flex items-center gap-2">
+                                    <ArrowLeft size={18}/> Back
+                                </button>
+                            ) : <div></div>}
+
+                            {step < 3 ? (
+                                <button onClick={() => setStep(s => s + 1)} className="px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-focus font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all transform hover:-translate-y-0.5">
+                                    Next <ArrowRight size={18}/>
+                                </button>
+                            ) : (
+                                <button onClick={handleSubmit} disabled={isLoading} className="px-8 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold flex items-center gap-2 shadow-lg shadow-green-600/20 hover:shadow-green-600/40 transition-all transform hover:-translate-y-0.5 disabled:opacity-70 disabled:transform-none">
+                                    {isLoading ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle size={18} />}
+                                    {isLoading ? 'Creating...' : 'Create Client File'}
+                                </button>
+                            )}
+                        </>
                     )}
                 </div>
             </div>
