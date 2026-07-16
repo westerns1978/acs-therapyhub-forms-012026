@@ -784,42 +784,29 @@ split lives in whichever file genuinely renders each surface. Not decided here.
 **Not built. No files touched.** `#35`'s two removals (`chart-checklist`, `session-attendance`)
 are on hold pending this decision, not pending David.
 
-## 37. `public.uploaded_files` IS WORLD-READABLE/WRITABLE — SCOPE WIDER THAN THE KNOWN AIVA GAP (witnessed 2026-07-16, read-only)
+## 37. `public.uploaded_files` IS WORLD-READABLE/WRITABLE — ACS CLINICAL DOCUMENTS ARE EXPOSED (witnessed 2026-07-16, read-only)
 
 Witnessed 2026-07-16 during Attesta's bucket/table recovery work (read-only introspection —
 `select`/`information_schema` only, no writes). `public.uploaded_files` carries **18 accumulated
 RLS policies**, including `"Allow public read/insert/update/delete"` (role `PUBLIC`) plus several
 redundant `anon_*` policies — permissive-everything, not scoped by `is_staff()`/ownership/anything.
 
-**Scope is wider than the already-flagged AIVA gap (June 2026), and wider than assumed when this
-was first raised tonight.** `bucket_id`/`app_id` default to `'project-aiva-afridroids'`/`'aiva'` —
-this table is AIVA's hiring-document vault. ACS's own clinical document pipeline
-(`services/storageService.ts` — `ingestDocument`/`uploadToVault`/`fetchVault`, the exact file in
-THIS repo) writes into the SAME table under the SAME policies, distinguishing rows only by
-`hire_id`/`metadata.clientId`, never by RLS. Checked directly (read-only) 2026-07-16:
+ACS's own clinical document pipeline (`services/storageService.ts` —
+`ingestDocument`/`uploadToVault`/`fetchVault`, the exact file in THIS repo) writes into this table
+under these same policies. Checked directly (read-only) 2026-07-16: **104 total rows; 33 lack
+`hire_id`**. `hire_id` set = AIVA (see #39) — the 33 without it may be ACS or another app entirely;
+**composition unverified, not guessed at here**. ACS's pilot with David Yoder is live, so any of
+those 33 could be real client clinical documents (`extracted_text`, `extracted_entities`,
+`clinical_significance`, `risk_flags` columns all exposed by the same policies) — did not read row
+content to check, that's a separate step from this recon.
 
-- **104 total rows**, not a handful.
-- **71 rows have `hire_id` set** — i.e., look ACS-shaped (client-id-keyed), not AIVA-shaped.
+Fix reference: Attesta repo, `supabase/migrations/20260716_uploaded_files_and_bucket_recovery.sql`
+— recreates the table with `private.is_staff()`/`private.my_client_ids()` RLS instead of copying
+the permissive stack. Not a drop-in for this repo (check this repo's own RLS-helper naming/shape
+before reusing the pattern), but the model — staff full access, client sees/inserts own rows only,
+zero policy for anon — is the reference.
 
-**Correction to how this was first framed tonight:** the "pre-production, ~3 rows, must not
-survive first real client documents" framing does not match what's actually in the table — 71
-ACS-shaped rows already exist. This may already be live clinical documents from David Yoder's
-pilot, not pre-production data. Did not read row *content* (`extracted_text`,
-`clinical_significance`, etc.) — that would be reading live PHI beyond what recon needs — but the
-row count alone means this should be treated as **higher urgency than "pre-production,"** not
-lower. Re-scope before acting on this entry.
-
-Reference implementation for the fix: Attesta repo,
-`supabase/migrations/20260716_uploaded_files_and_bucket_recovery.sql` — recreates the table with
-`private.is_staff()`/`private.my_client_ids()` RLS instead of copying the permissive stack. Not a
-drop-in for this repo (check this repo's own RLS-helper naming/shape before reusing the pattern),
-but the model — staff full access, client sees/inserts own rows only (keyed on `hire_id`), zero
-policy for anon — is the reference.
-
-**Do NOT fix tonight. Do NOT touch westflow-platform directly from a session scoped to another
-repo** — this is a live shared table serving multiple apps (AIVA's own access needs must keep
-working through any RLS change), and given the row-count correction above, any fix needs to be
-planned with real urgency, not treated as routine cleanup.
+**Do NOT fix tonight. Do NOT touch westflow-platform.**
 
 ## 38. OPERATIONAL FALLBACKS LAND IN `clinical_notes` WHEN `outreach_log`/`tasks` ARE MISSING (low priority, report only)
 
@@ -837,3 +824,24 @@ Not obviously right for a compliance product: operational records (a phone call 
 task) blurring into the clinical record blurs what's supposed to be clean clinical documentation.
 Not fixed, not urgent — report only, worth a look next time `alertsService.ts` or the
 `clinical_notes` shape is touched.
+
+## 39. AIVA HIRING DOCUMENTS EXPOSED BY THE SAME `uploaded_files` RLS — HIGHER URGENCY THAN #37 (witnessed 2026-07-16, read-only — flag for the AIVA repo, recorded here for now)
+
+Same table, same read-only check, same date as #37 — split out because this is a different
+app's data and a different urgency level. `public.uploaded_files` — AIVA's own hiring-document
+vault (`bucket_id`/`app_id` default to `'project-aiva-afridroids'`/`'aiva'`) — has **71 rows with
+`hire_id` set**. A "hire" is an employee being onboarded; ACS has clients, not hires, so these 71
+are AIVA's, not ACS's (see #37 for the 33 that aren't AIVA-shaped).
+
+**A June 2026 note recorded this exact RLS gap as "hardening required BEFORE real hire data
+flows."** 71 hire-keyed rows existing now means that gate was already passed, unnoticed. AIVA is
+live, with Deon Boshoff / Nashua Paarl as the anchor client — these 71 rows are real employees'
+onboarding documents in South Africa, sitting behind `"Allow public read/insert/update/delete"`.
+Dillon Jenner (Deon's son) is onboarding as a developer on this repo, for what it's worth as
+context, not as a cause.
+
+Witnessed read-only 2026-07-16 — row counts only, no row content read.
+
+**Recorded here because this session is scoped to the ACS/Attesta side and this repo is what's
+open — this is AIVA's problem, not ACS's or Attesta's. Flag for Dan to carry to the AIVA repo's
+own tracker.** Do not fix. Do not touch westflow-platform.
