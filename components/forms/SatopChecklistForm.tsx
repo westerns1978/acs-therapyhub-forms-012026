@@ -67,9 +67,14 @@ export const SATOP_CHECKLIST_DEFINITION: FormDefinition<SatopChecklistData> = {
     const errs: FormErrors<SatopChecklistData> = {};
     if (!data.clientName) errs.clientName = 'Required.';
     if (!data.clientSignature) errs.clientSignature = 'Signature is required.';
+    // Error keys MUST match the fieldDefinitions ids ('checklist.clientRights',
+    // not 'clientRights') — BaseFormTemplate renders errors[field.id] and scrolls
+    // to getElementById(firstErrorKey). The old bare keys matched nothing, so the
+    // 8 errors were invisible and this cert-gate form was silently unsubmittable.
+    // These are must-be-TRUE acknowledgements (not just "answered") by design.
     Object.keys(data.checklist).forEach(key => {
       if (!data.checklist[key as keyof typeof data.checklist]) {
-        errs[key as keyof SatopChecklistData] = 'All items must be checked.';
+        (errs as Record<string, string>)[`checklist.${key}`] = 'All items must be checked.';
       }
     });
     return errs;

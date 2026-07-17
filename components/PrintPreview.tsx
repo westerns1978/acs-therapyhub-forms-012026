@@ -1,5 +1,6 @@
 import React from 'react';
 import { FormDefinition } from '../types';
+import { resolveFieldValue } from '../config/fieldPath';
 
 interface PrintPreviewProps {
   formData: any;
@@ -52,7 +53,11 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
       <div className="space-y-6">
         {formDefinition.fieldDefinitions.map(field => {
           if (field.id === 'clientName' || field.id === 'clientEmail') return null;
-          return <PrintField key={field.id} label={field.label} value={formData[field.id as keyof typeof formData]} type={field.type} />
+          {/* SAME resolver as the live renderer (config/fieldPath.ts) — if these
+              ever diverge, a committed record can render differently from what
+              the client saw and signed. Literal-first keeps legacy flat-dotted
+              rows byte-identical; nested rows written post-1a fall through. */}
+          return <PrintField key={field.id} label={field.label} value={resolveFieldValue(formData, field.id)} type={field.type} />
         })}
       </div>
 
