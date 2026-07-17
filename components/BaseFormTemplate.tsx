@@ -164,7 +164,11 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
         form_id: formDefinition.id,
         form_type: formDefinition.category,
         form_name: formDefinition.title,
-        status: 'completed',
+        // Canonical capitalized vocabulary (types.ts FormSubmission['status']).
+        // This was the one lowercase writer — the source of the 'completed' /
+        // 'Completed' casing split; readers normalize via
+        // config/formSubmissionStatus.ts regardless.
+        status: 'Completed',
         data: formData,
         submitted_at: new Date().toISOString(),
       };
