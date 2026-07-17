@@ -4,6 +4,7 @@ import Card from '../ui/Card';
 import { supabase } from '../../services/supabase';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import Modal from '../ui/Modal';
+import { normalizeSubmissionStatus, SUBMISSION_STATUS_LABELS, NormalizedSubmissionStatus } from '../../config/formSubmissionStatus';
 import { Eye, CheckCircle2, Clock, AlertTriangle, Search, RefreshCw, User, FileText, Calendar } from 'lucide-react';
 
 interface Submission {
@@ -64,20 +65,32 @@ const ClientSubmissionsPanel: React.FC = () => {
     setSelectedSubmission(null);
   };
 
+  // Status comparisons go through normalizeSubmissionStatus — the DB carries both
+  // 'completed' and 'Completed' (mixed writers), so raw literals miss half the rows.
+  // The 'pending' filter bucket = assigned-but-unsubmitted: the assignment writer
+  // (assignForm) emits 'Not Started', which normalizes to 'not_started'; a draft
+  // in flight is 'in_progress'. Both belong to "Awaiting Client".
+  const isAwaitingClient = (s: NormalizedSubmissionStatus) =>
+    s === 'not_started' || s === 'in_progress';
+
   const filtered = submissions.filter(s => {
-    const matchesSearch = searchTerm === '' || 
+    const matchesSearch = searchTerm === '' ||
       (s.client_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.form_name || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || s.status === filterStatus;
+    const status = normalizeSubmissionStatus(s.status);
+    const matchesStatus =
+      filterStatus === 'all' ||
+      (filterStatus === 'pending' ? isAwaitingClient(status) : status === filterStatus);
     return matchesSearch && matchesStatus;
   });
 
-  const pendingCount = submissions.filter(s => s.status === 'pending').length;
-  const completedCount = submissions.filter(s => s.status === 'completed').length;
+  const pendingCount = submissions.filter(s => isAwaitingClient(normalizeSubmissionStatus(s.status))).length;
+  const completedCount = submissions.filter(s => normalizeSubmissionStatus(s.status) === 'completed').length;
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
+    switch (normalizeSubmissionStatus(status)) {
+      case 'not_started':
+      case 'in_progress': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
       case 'completed': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
       case 'reviewed': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
       default: return 'bg-slate-100 text-slate-600';
@@ -85,8 +98,9 @@ const ClientSubmissionsPanel: React.FC = () => {
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending': return <Clock size={12} />;
+    switch (normalizeSubmissionStatus(status)) {
+      case 'not_started':
+      case 'in_progress': return <Clock size={12} />;
       case 'completed': return <AlertTriangle size={12} />;
       case 'reviewed': return <CheckCircle2 size={12} />;
       default: return null;
@@ -121,7 +135,7 @@ const ClientSubmissionsPanel: React.FC = () => {
           <div className="flex items-center gap-3">
             <CheckCircle2 className="text-green-600" size={20} />
             <div>
-              <p className="text-2xl font-black text-green-800 dark:text-green-200">{submissions.filter(s => s.status === 'reviewed').length}</p>
+              <p className="text-2xl font-black text-green-800 dark:text-green-200">{submissions.filter(s => normalizeSubmissionStatus(s.status) === 'reviewed').length}</p>
               <p className="text-[10px] font-black uppercase tracking-widest text-green-600">Reviewed</p>
             </div>
           </div>
@@ -174,7 +188,9 @@ const ClientSubmissionsPanel: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-              {filtered.map(sub => (
+              {filtered.map(sub => {
+                const status = normalizeSubmissionStatus(sub.status);
+                return (
                 <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -194,11 +210,11 @@ const ClientSubmissionsPanel: React.FC = () => {
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg ${getStatusBadge(sub.status)}`}>
                       {getStatusIcon(sub.status)}
-                      {sub.status}
+                      {SUBMISSION_STATUS_LABELS[status]}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    {sub.status === 'completed' && (
+                    {status === 'completed' && (
                       <button
                         onClick={() => setSelectedSubmission(sub)}
                         className="inline-flex items-center gap-2 text-sm bg-primary/10 text-primary px-3 py-1.5 rounded-lg font-bold hover:bg-primary/20 transition-colors"
@@ -206,7 +222,7 @@ const ClientSubmissionsPanel: React.FC = () => {
                         <Eye size={14} /> Review
                       </button>
                     )}
-                    {sub.status === 'reviewed' && (
+                    {status === 'reviewed' && (
                       <button
                         onClick={() => setSelectedSubmission(sub)}
                         className="inline-flex items-center gap-2 text-sm bg-slate-100 dark:bg-slate-800 text-slate-500 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-200 transition-colors"
@@ -214,12 +230,13 @@ const ClientSubmissionsPanel: React.FC = () => {
                         <Eye size={14} /> View
                       </button>
                     )}
-                    {sub.status === 'pending' && (
+                    {isAwaitingClient(status) && (
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Awaiting Client</span>
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-slate-500 italic">
@@ -247,7 +264,7 @@ const ClientSubmissionsPanel: React.FC = () => {
                 </span>
               </div>
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg ${getStatusBadge(selectedSubmission.status)}`}>
-                {selectedSubmission.status}
+                {SUBMISSION_STATUS_LABELS[normalizeSubmissionStatus(selectedSubmission.status)]}
               </span>
             </div>
 
@@ -280,7 +297,7 @@ const ClientSubmissionsPanel: React.FC = () => {
               >
                 Close
               </button>
-              {selectedSubmission.status === 'completed' && (
+              {normalizeSubmissionStatus(selectedSubmission.status) === 'completed' && (
                 <button
                   onClick={() => handleMarkReviewed(selectedSubmission)}
                   className="px-6 py-2 bg-green-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-green-500/20 hover:bg-green-600 transition-all flex items-center gap-2"

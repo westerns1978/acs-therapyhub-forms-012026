@@ -7,6 +7,7 @@ import { SignedFileLink, SignedFileFrame } from '../ui/SignedFile';
 import { Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, Bell, PencilLine } from 'lucide-react';
 import { dbForms } from '../../data/database'; // Using mock forms for now
 import { approveFormSubmission } from '../../services/api';
+import { normalizeSubmissionStatus, SUBMISSION_STATUS_LABELS } from '../../config/formSubmissionStatus';
 
 interface ClientFormsTabProps {
   client: Client;
@@ -14,19 +15,22 @@ interface ClientFormsTabProps {
   onFormAssigned: () => void;
 }
 
+// Status comparisons go through normalizeSubmissionStatus — the DB carries both
+// 'completed' and 'Completed' (mixed writers), so raw literals misrender half the rows.
 const getStatusPill = (status: FormSubmission['status'], data?: any, dueDate?: Date) => {
-    const isOverdue = dueDate && new Date(dueDate) < new Date() && status !== 'Completed' && status !== 'Reviewed';
+    const s = normalizeSubmissionStatus(status);
+    const isOverdue = dueDate && new Date(dueDate) < new Date() && s !== 'completed' && s !== 'reviewed';
     if (isOverdue) return 'bg-red-100 text-red-800';
-    
-    if (status === 'Completed' && data?.requires_review) {
+
+    if (s === 'completed' && data?.requires_review) {
         return 'bg-blue-100 text-blue-800 border border-blue-200';
     }
-    
-    switch(status) {
-        case 'Reviewed': return 'bg-emerald-100 text-emerald-800';
-        case 'Completed': return 'bg-green-100 text-green-800';
-        case 'In Progress': return 'bg-yellow-100 text-yellow-800';
-        case 'Not Started': return 'bg-gray-100 text-gray-800';
+
+    switch(s) {
+        case 'reviewed': return 'bg-emerald-100 text-emerald-800';
+        case 'completed': return 'bg-green-100 text-green-800';
+        case 'in_progress': return 'bg-yellow-100 text-yellow-800';
+        case 'not_started': return 'bg-gray-100 text-gray-800';
     }
 };
 
@@ -191,7 +195,8 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                     <tbody className="bg-background divide-y divide-border">
                         {formSubmissions.map(sub => {
                             const form = dbForms.find(f => f.id === sub.formId);
-                            const isOverdue = sub.dueDate && new Date(sub.dueDate) < new Date() && sub.status !== 'Completed' && sub.status !== 'Reviewed';
+                            const status = normalizeSubmissionStatus(sub.status);
+                            const isOverdue = sub.dueDate && new Date(sub.dueDate) < new Date() && status !== 'completed' && status !== 'reviewed';
                             const needsReview = sub.data?.requires_review;
 
                             return (
@@ -206,14 +211,14 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                                     <td className="px-6 py-4">
                                         <span className={`flex items-center gap-1.5 px-2.5 py-1 w-fit text-[10px] leading-5 font-black uppercase tracking-widest rounded-lg ${getStatusPill(sub.status, sub.data, sub.dueDate)}`}>
                                             {isOverdue && <AlertTriangle size={12}/>}
-                                            {sub.status === 'Completed' && sub.data?.requires_review ? 'Requires Review' : (isOverdue ? 'Overdue' : sub.status)}
+                                            {status === 'completed' && sub.data?.requires_review ? 'Requires Review' : (isOverdue ? 'Overdue' : SUBMISSION_STATUS_LABELS[status])}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-xs font-medium text-slate-500">{sub.assignedAt ? new Date(sub.assignedAt).toLocaleDateString() : 'N/A'}</td>
                                     <td className="px-6 py-4 text-xs font-medium text-slate-500">{sub.dueDate ? new Date(sub.dueDate).toLocaleDateString() : 'N/A'}</td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
-                                            {(sub.status === 'Not Started' || sub.status === 'In Progress' || isOverdue) && (
+                                            {(status === 'not_started' || status === 'in_progress' || isOverdue) && (
                                                 <>
                                                     <button
                                                         onClick={() => navigate(`/forms?clientId=${client.id}&open=${sub.formId}`)}
@@ -240,7 +245,7 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                                                     <ShieldCheck size={14} /> Review
                                                 </button>
                                             )}
-                                            {(sub.status === 'Completed' || sub.status === 'Reviewed') && !needsReview && (
+                                            {(status === 'completed' || status === 'reviewed') && !needsReview && (
                                                 <button 
                                                     onClick={() => setSelectedSubmission(sub)} 
                                                     className="flex items-center gap-2 text-[10px] uppercase tracking-widest bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-3 py-2 rounded-lg font-black hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
