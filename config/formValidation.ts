@@ -41,11 +41,21 @@ export const requiredFieldErrors = (
       case 'number':
         empty = v == null || v === '' || (typeof v === 'number' && Number.isNaN(v));
         break;
+      case 'select':
+        // Stores option.value as a string; ''/null = unanswered.
+        empty = String(v ?? '').trim() === '';
+        break;
+      case 'checkbox-group':
       case 'object': {
+        // Shared boolean-map rule: a required multi-select needs >= 1 selection.
+        // 'checkbox-group' is the explicit new type; 'object' is the legacy map
+        // type (groupDays / meetingType / reasonForDischarge) with identical
+        // stored shape. Without the explicit case, 'checkbox-group' would fall
+        // to the default text rule where String(map) = '[object Object]' is
+        // never empty — a required group with zero selections would pass.
         if (v == null) { empty = true; break; }
         if (typeof v !== 'object') { empty = String(v).trim() === ''; break; }
         const vals = Object.values(v);
-        // Boolean-map (CheckboxGroup shape) → at least one selection.
         empty = vals.length > 0 && vals.every((x) => typeof x === 'boolean')
           ? !vals.some(Boolean)
           : vals.every((x) => x == null || x === '');

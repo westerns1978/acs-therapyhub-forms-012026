@@ -127,7 +127,13 @@ export interface FormSectionProps<T> {
 export type FieldDefinition = {
   id: string;
   label: string;
-  type: 'text' | 'number' | 'textarea' | 'tel' | 'date' | 'rating' | 'boolean' | 'object' | 'email' | 'password';
+  // 'select' = single-select string from options (RadioGroupString); stores option.value.
+  // 'checkbox-group' = multi-select from options (CheckboxGroup); stores a {value: boolean}
+  //   map as a LEAF value — the path machinery (config/fieldPath.ts) locates the map,
+  //   never traverses into it. 'object' is the legacy map type: renders as a derived
+  //   checkbox group when the value is a boolean map, read-only otherwise — NEVER as a
+  //   text input (that clobbered the map with prose; see consent row 9d440526).
+  type: 'text' | 'number' | 'textarea' | 'tel' | 'date' | 'rating' | 'boolean' | 'object' | 'email' | 'password' | 'select' | 'checkbox-group';
   min?: number;
   max?: number;
   placeholder?: string;
