@@ -161,6 +161,11 @@ const Compliance: React.FC = () => {
                         </div>
                     </Card>
                     <Card title="Staff Certifications">
+                        {staffCerts.length === 0 ? (
+                            <p className="py-8 text-center text-sm text-slate-500 italic">
+                                Staff certification tracking isn't set up yet — awaiting counselor credentials.
+                            </p>
+                        ) : (
                         <ul className="space-y-3 text-sm">
                             {staffCerts.map(cert => {
                                 const renewalDate = new Date(cert.renewalDate);
@@ -180,6 +185,7 @@ const Compliance: React.FC = () => {
                                 )
                             })}
                         </ul>
+                        )}
                     </Card>
                 </div>
                 <div className="lg:col-span-2">

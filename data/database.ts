@@ -291,10 +291,13 @@ export const initializeDatabase = () => {
         }
     };
     
-    dbStaffCertifications = [
-      { id: 'cert1', staffName: 'Dr. Anya Sharma', credential: 'LPC', renewalDate: getRelativeDate(365) },
-      { id: 'cert2', staffName: 'David Yoder', credential: 'CADC', renewalDate: getRelativeDate(-30) }, // Expired
-    ];
+    // No fabricated clinician credentials on a compliance product. There is no
+    // real staff-certification source yet (the `counselors` table has no
+    // credential/renewal column; awaiting David's counselor-credential list —
+    // same dependency as the booking guardrail). The Compliance page's "Staff
+    // Certifications" card renders an honest empty state until that lands. The
+    // card + StaffCertification type + render loop stay as the scaffolding.
+    dbStaffCertifications = [];
     
     dbIntegrations = [
         { id: 'google_calendar', name: 'Google Calendar Sync', status: 'Connected', description: 'Sync your TherapyHub schedule with Google Calendar.' },
