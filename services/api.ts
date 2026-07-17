@@ -1464,21 +1464,33 @@ export const submitPaperForm = async (
 };
 
 export const approveFormSubmission = async (submissionId: string, reviewerName: string) => {
+    // MERGE into the data JSONB, never replace it. The previous whole-object
+    // `data:` payload wiped the submission's form responses / file_path /
+    // ai_summary at the exact moment of approval. Supabase .update() replaces
+    // a jsonb column wholesale, so read-then-merge (single-staff approval flow;
+    // the read-write window is acceptable at this scale). Only requires_review
+    // is kept inside data (ClientFormsTab's "Requires Review" pill/button reads
+    // it); the approval timestamp/reviewer live in the reviewed_at/reviewed_by
+    // COLUMNS — the old data.approved_at duplicate had no readers and is dropped.
+    const { data: existing, error: readError } = await supabase
+        .from('form_submissions')
+        .select('data')
+        .eq('id', submissionId)
+        .single();
+    if (readError) throw readError;
+
     const { data, error } = await supabase
         .from('form_submissions')
         .update({
             status: 'Reviewed',
             reviewed_at: new Date().toISOString(),
             reviewed_by: reviewerName,
-            data: {
-                requires_review: false,
-                approved_at: new Date().toISOString()
-            }
+            data: { ...(existing?.data ?? {}), requires_review: false },
         })
         .eq('id', submissionId)
         .select()
         .single();
-        
+
     if (error) throw error;
     return data;
 };
