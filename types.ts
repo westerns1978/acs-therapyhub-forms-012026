@@ -288,20 +288,21 @@ export interface EmergencyContactData {
 
 export interface DischargeSummaryData {
   clientName: string;
-  clientEmail: string;
   admissionDate: string;
   dischargeDate: string;
   referralSource: string;
   diagnosis: string;
   reasonForAdmission: string;
-  servicesProvided: string;
+  // Boolean-map -> single-select string (David's 7/16 markup). Zero rows existed
+  // at the time of this change (verified live) — no stored-data migration.
+  servicesProvided: { [key: string]: boolean };
   problem1_plan: string;
   problem1_outcome: string;
   problem2_plan: string;
   problem2_outcome: string;
   problem3_plan: string;
   problem3_outcome: string;
-  reasonForDischarge: { completed: boolean; clientRequest: boolean; nonCompliance: boolean; other: boolean; };
+  reasonForDischarge: string;
   otherReason: string;
   prognosis: string;
   medicalStatus: string;
