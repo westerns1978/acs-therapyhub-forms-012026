@@ -274,13 +274,19 @@ export interface MeetingReportData {
 
 export interface EmergencyContactData {
   clientName: string;
-  clientEmail: string;
   contactName: string;
   relationship: string;
   primaryPhone: string;
   secondaryPhone: string;
   permissionToContact: boolean;
-  disclosureChoice: 'accept' | 'deny' | null;
+  // Single acknowledgment checkbox (David's 7/16 markup — he X'd the old
+  // accept/deny construct). The 3 existing renderer rows store this as a
+  // free-text STRING (people typed their name; the widget that would have
+  // rendered accept/deny — RadioGroupString — was never actually wired to
+  // BaseFormTemplate, only to the dead EmergencyContactSection, so 'text' just
+  // rendered a plain input). Legacy string values stay truthy under this type
+  // change — no migration, no replay regression (see fieldDefinitions comment).
+  disclosureChoice: boolean;
   clientSignature: string;
   witnessSignature: string;
   date: string;
