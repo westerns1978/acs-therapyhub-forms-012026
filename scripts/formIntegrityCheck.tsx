@@ -33,6 +33,7 @@
 import React from 'react';
 import { requiredFieldErrors } from '../config/formValidation';
 import { resolveFieldValue, setByPath } from '../config/fieldPath';
+import { editorKindFor, coerceTextInput, isBooleanMap } from '../config/fieldInput';
 import type { FieldDefinition } from '../types';
 import { CONSENT_FORM_DEFINITION } from '../components/forms/ConsentForTreatmentForm';
 import { HIPAA_ACK_DEFINITION } from '../components/forms/HipaaAckForm';
@@ -61,38 +62,37 @@ const ALL: any[] = [
 let failures = 0;
 const fail = (msg: string) => { failures++; console.error('FAIL  ' + msg); };
 
-const isBooleanMap = (v: any): v is Record<string, boolean> =>
-  v != null && typeof v === 'object' && !Array.isArray(v) &&
-  Object.values(v).length > 0 && Object.values(v).every((x) => typeof x === 'boolean');
-
 const compose = (def: any, data: any): Record<string, string> => ({
   ...requiredFieldErrors(def.fieldDefinitions, data),
   ...def.validateStep(data),
 });
 
 /**
- * Values the RENDERED EDITOR for this field type can actually emit. Must
- * mirror BaseFormTemplate's branch selection + onChange coercion exactly —
- * if the renderer changes what an editor emits, change this WITH it.
+ * Values the RENDERED EDITOR for this field can actually emit — DERIVED from the
+ * shared emission source config/fieldInput.ts (editorKindFor + coerceTextInput),
+ * the SAME functions BaseFormTemplate's render/onChange path uses. This is what
+ * makes the invariant honest: it is not a hand-mirror of the renderer, it runs
+ * the renderer's own emission code. A change to what the renderer emits changes
+ * this automatically. The text/numeric candidates run through coerceTextInput
+ * exactly as the <input>'s onChange does — the rating bug (string emission) is
+ * caught here because coerceTextInput is the one place that coercion lives.
  */
 const producibleValues = (field: FieldDefinition, initialValue: any): any[] => {
-  switch (field.type) {
-    case 'boolean': return [true, false];                    // checkbox
-    case 'number': return [42];                              // number input, parseInt
-    case 'rating': return [field.min ?? 1, field.max ?? 5];  // number input, parseInt
-    case 'date': return ['2026-01-01'];
-    case 'select': return (field.options ?? []).map((o) => o.value);
-    case 'checkbox-group': {
+  const kind = editorKindFor(field, initialValue);
+  switch (kind) {
+    case 'boolean': return [true, false];                                        // checkbox emits e.target.checked
+    case 'numeric': return [                                                      // number input → coerceTextInput
+      coerceTextInput(kind, String(field.min ?? 1)),
+      coerceTextInput(kind, String(field.max ?? 5)),
+    ];
+    case 'select': return (field.options ?? []).map((o) => o.value);             // RadioGroupString emits option.value
+    case 'checkbox-group': {                                                      // toggle merge, one key → true
       const opts = field.options?.map((o) => o.value)
         ?? (isBooleanMap(initialValue) ? Object.keys(initialValue) : []);
       return opts.map((k) => ({ ...(isBooleanMap(initialValue) ? initialValue : {}), [k]: true }));
     }
-    case 'object':
-      // Derived checkbox group over the map's own keys; non-map = read-only, NOTHING producible.
-      return isBooleanMap(initialValue)
-        ? Object.keys(initialValue).map((k) => ({ ...initialValue, [k]: true }))
-        : [];
-    default: return ['test value 1234'];                     // text/textarea/tel/email/password
+    case 'readonly': return [];                                                   // no editor — nothing producible
+    default: return [coerceTextInput(kind, 'test value 1234')];                   // text family → coerceTextInput
   }
 };
 
