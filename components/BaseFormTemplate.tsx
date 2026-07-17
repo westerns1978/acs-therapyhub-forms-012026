@@ -7,6 +7,7 @@ import { SuccessScreen } from './SuccessScreen';
 import { PrintPreview } from './PrintPreview';
 import { supabase } from '../services/supabase';
 import { usePortalClient } from '../hooks/usePortalClient';
+import { resolveFieldValue, setByPath } from '../config/fieldPath';
 import { ChevronLeft, Save, Send, AlertTriangle, Loader2, X } from 'lucide-react';
 
 interface BaseFormTemplateProps<T> {
@@ -77,8 +78,10 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
 
     let filledFields = 0;
     formDefinition.fieldDefinitions.forEach(field => {
-      const value = formData[field.id as keyof T];
-      const initialValue = formDefinition.initialState[field.id as keyof T];
+      // Dotted ids (checklist.clientRights, courtInfo.name) resolve through the
+      // shared path helper — a flat lookup misses nested values entirely.
+      const value = resolveFieldValue(formData, field.id);
+      const initialValue = resolveFieldValue(formDefinition.initialState, field.id);
       
       if (JSON.stringify(value) !== JSON.stringify(initialValue)) {
         if (typeof value === 'object' && value !== null) {
@@ -229,7 +232,14 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                 
                 <div className="mt-16 relative min-h-[400px] space-y-6">
                     {formDefinition.fieldDefinitions.map(field => {
-                        const displayValue = safeFieldValue((formData as any)[field.id]);
+                        // Reads resolve via the shared path helper (literal key first —
+                        // legacy rows stored dotted ids FLAT; see config/fieldPath.ts).
+                        // Writes go NESTED via setByPath, so a dotted id like
+                        // checklist.clientRights updates the real nested object the
+                        // form's validateStep reads — previously it created a flat
+                        // 'checklist.clientRights' key and satop-checklist could never
+                        // validate (unsubmittable since it shipped).
+                        const displayValue = safeFieldValue(resolveFieldValue(formData, field.id));
                         const isBoolean = field.type === 'boolean';
                         const inputType = field.type === 'object' ? 'text' : field.type;
                         return (
@@ -243,8 +253,8 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                                         <input
                                             type="checkbox"
                                             id={field.id}
-                                            checked={!!(formData as any)[field.id]}
-                                            onChange={(e) => setFormData({ ...formData, [field.id]: e.target.checked })}
+                                            checked={!!resolveFieldValue(formData, field.id)}
+                                            onChange={(e) => setFormData(setByPath(formData, field.id, e.target.checked))}
                                             className="h-4 w-4 rounded border border-gray-300 dark:border-gray-600 text-primary focus:ring-primary"
                                         />
                                         <span className="text-sm text-slate-700 dark:text-slate-300">I acknowledge / agree</span>
@@ -253,7 +263,7 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                                     <textarea
                                         id={field.id}
                                         value={displayValue}
-                                        onChange={(e) => setFormData({ ...formData, [field.id]: e.target.value })}
+                                        onChange={(e) => setFormData(setByPath(formData, field.id, e.target.value))}
                                         className={INPUT_BASE_CLASSES}
                                         rows={4}
                                     />
@@ -262,7 +272,7 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                                         type={inputType}
                                         id={field.id}
                                         value={displayValue}
-                                        onChange={(e) => setFormData({ ...formData, [field.id]: field.type === 'number' ? parseInt(e.target.value) : e.target.value })}
+                                        onChange={(e) => setFormData(setByPath(formData, field.id, field.type === 'number' ? parseInt(e.target.value) : e.target.value))}
                                         min={field.min}
                                         max={field.max}
                                         className={INPUT_BASE_CLASSES}
