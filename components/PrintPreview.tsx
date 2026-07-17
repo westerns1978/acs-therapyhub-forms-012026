@@ -7,9 +7,18 @@ interface PrintPreviewProps {
   formDefinition: FormDefinition<any>;
 }
 
-const PrintField: React.FC<{ label: string; value: any, type?: string }> = ({ label, value, type }) => {
+const PrintField: React.FC<{ label: string; value: any, type?: string, options?: { value: string; label: string }[] }> = ({ label, value, type, options }) => {
   let displayValue: string;
-  if (type === 'rating' && typeof value === 'number') {
+  // Options-aware label mapping for the NEW types only ('select' /
+  // 'checkbox-group') — committed records should print human labels
+  // ("Group Counseling"), not machine tokens ("groupCounseling"). Gated so
+  // every legacy field's output stays byte-identical (witnessed against
+  // auth row 47431370).
+  if (type === 'select' && options) {
+    displayValue = options.find(o => o.value === value)?.label ?? (value || 'N/A');
+  } else if (type === 'checkbox-group' && options && value && typeof value === 'object') {
+    displayValue = Object.keys(value).filter(k => value[k]).map(k => options.find(o => o.value === k)?.label ?? k).join(', ') || 'N/A';
+  } else if (type === 'rating' && typeof value === 'number') {
     displayValue = `${value}/5`;
   } else if (typeof value === 'boolean') {
     displayValue = value ? 'Yes' : 'No';
@@ -57,7 +66,7 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
               ever diverge, a committed record can render differently from what
               the client saw and signed. Literal-first keeps legacy flat-dotted
               rows byte-identical; nested rows written post-1a fall through. */}
-          return <PrintField key={field.id} label={field.label} value={resolveFieldValue(formData, field.id)} type={field.type} />
+          return <PrintField key={field.id} label={field.label} value={resolveFieldValue(formData, field.id)} type={field.type} options={(field.type === 'select' || field.type === 'checkbox-group') ? field.options : undefined} />
         })}
       </div>
 

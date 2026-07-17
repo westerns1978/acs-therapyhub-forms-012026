@@ -9,6 +9,8 @@ import { supabase } from '../services/supabase';
 import { usePortalClient } from '../hooks/usePortalClient';
 import { resolveFieldValue, setByPath } from '../config/fieldPath';
 import { requiredFieldErrors } from '../config/formValidation';
+import { CheckboxGroup } from './CheckboxGroup';
+import { RadioGroupString } from './RadioGroupString';
 import { ChevronLeft, Save, Send, AlertTriangle, Loader2, X } from 'lucide-react';
 
 interface BaseFormTemplateProps<T> {
@@ -42,6 +44,19 @@ const INPUT_BASE_CLASSES =
     "mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-600 " +
     "px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white " +
     "shadow-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors";
+
+/** Is this value the {key: boolean} map a CheckboxGroup stores? */
+const isBooleanMap = (v: any): v is Record<string, boolean> =>
+    v != null && typeof v === 'object' && !Array.isArray(v) &&
+    Object.values(v).length > 0 && Object.values(v).every((x) => typeof x === 'boolean');
+
+/** 'clientRequest' → 'Client Request'; 2-letter lowercase keys ('aa') → 'AA'. */
+const humanizeKey = (key: string): string =>
+    key
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .split(' ')
+        .map((w) => (w.length <= 2 && w === w.toLowerCase() ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+        .join(' ');
 
 export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLibrary, clientId }: BaseFormTemplateProps<T>) => {
   // Portal client comes from the real Supabase session (null in the counselor
@@ -247,16 +262,65 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                         // form's validateStep reads — previously it created a flat
                         // 'checklist.clientRights' key and satop-checklist could never
                         // validate (unsubmittable since it shipped).
-                        const displayValue = safeFieldValue(resolveFieldValue(formData, field.id));
+                        const rawValue = resolveFieldValue(formData, field.id);
+                        const displayValue = safeFieldValue(rawValue);
                         const isBoolean = field.type === 'boolean';
-                        const inputType = field.type === 'object' ? 'text' : field.type;
+                        // 'select' + 'checkbox-group' read field.options; legacy 'object'
+                        // with a boolean-map value renders as a DERIVED checkbox group
+                        // (options from the map's own keys) — never a text input, which
+                        // used to overwrite the map with prose (consent row 9d440526),
+                        // and post-1b made required maps like meetingType unsatisfiable
+                        // except by that clobber.
+                        const isSelect = field.type === 'select';
+                        const isCheckboxGroup =
+                            field.type === 'checkbox-group' ||
+                            (field.type === 'object' && isBooleanMap(rawValue));
+                        const isReadOnlyObject = field.type === 'object' && !isBooleanMap(rawValue);
+                        const groupOptions = isCheckboxGroup
+                            ? (field.options?.map((o) => ({ id: o.value, label: o.label }))
+                                ?? Object.keys(rawValue ?? {}).map((k) => ({ id: k, label: humanizeKey(k) })))
+                            : [];
+                        const mapValue: Record<string, boolean> = isBooleanMap(rawValue) ? rawValue : {};
+                        // Ratings and numbers must STORE numbers — the validation rule is
+                        // strictly typeof === 'number' (deliberately: ratings get
+                        // aggregated), and <input type="rating"> is not a real input type
+                        // so it degrades to text; render it as a number input instead.
+                        // DRIFT GUARD: if you change what ANY editor branch emits, update
+                        // producibleValues in scripts/formIntegrityCheck.tsx to match —
+                        // the submittability invariant is only as honest as that model.
+                        const isNumeric = field.type === 'number' || field.type === 'rating';
+                        const inputType = field.type === 'rating' ? 'number' : field.type;
                         return (
                             <div key={field.id}>
                                 <label htmlFor={field.id} className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                     {field.label}
                                     {field.required && <span className="text-red-500 ml-0.5">*</span>}
                                 </label>
-                                {isBoolean ? (
+                                {isSelect ? (
+                                    <RadioGroupString
+                                        id={field.id}
+                                        label=""
+                                        required={false}
+                                        options={field.options ?? []}
+                                        value={(rawValue ?? null) as string | null}
+                                        onChange={(val) => setFormData(setByPath(formData, field.id, val))}
+                                    />
+                                ) : isCheckboxGroup ? (
+                                    <CheckboxGroup
+                                        id={field.id}
+                                        label=""
+                                        required={false}
+                                        options={groupOptions}
+                                        values={mapValue}
+                                        onChange={(key) => setFormData(setByPath(formData, field.id, { ...mapValue, [key]: !mapValue[key] }))}
+                                    />
+                                ) : isReadOnlyObject ? (
+                                    // Non-map object value (or a legacy clobbered string):
+                                    // display-only. No input = no way to corrupt the shape.
+                                    <p id={field.id} className="mt-1 px-3 py-2 text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-md border border-dashed border-gray-300 dark:border-gray-600">
+                                        {displayValue || '—'}
+                                    </p>
+                                ) : isBoolean ? (
                                     <label className="mt-1 inline-flex items-center gap-2 cursor-pointer">
                                         <input
                                             type="checkbox"
@@ -280,7 +344,7 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                                         type={inputType}
                                         id={field.id}
                                         value={displayValue}
-                                        onChange={(e) => setFormData(setByPath(formData, field.id, field.type === 'number' ? parseInt(e.target.value) : e.target.value))}
+                                        onChange={(e) => setFormData(setByPath(formData, field.id, isNumeric ? (e.target.value === '' ? '' : parseInt(e.target.value)) : e.target.value))}
                                         min={field.min}
                                         max={field.max}
                                         className={INPUT_BASE_CLASSES}
