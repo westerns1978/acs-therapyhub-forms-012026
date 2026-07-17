@@ -34,6 +34,7 @@ import React from 'react';
 import { requiredFieldErrors } from '../config/formValidation';
 import { resolveFieldValue, setByPath } from '../config/fieldPath';
 import { editorKindFor, coerceTextInput, isBooleanMap } from '../config/fieldInput';
+import { isFieldVisible, visibilityCapViolations } from '../config/fieldVisibility';
 import type { FieldDefinition } from '../types';
 import { CONSENT_FORM_DEFINITION } from '../components/forms/ConsentForTreatmentForm';
 import { HIPAA_ACK_DEFINITION } from '../components/forms/HipaaAckForm';
@@ -96,23 +97,77 @@ const producibleValues = (field: FieldDefinition, initialValue: any): any[] => {
   }
 };
 
+// Can SOME producible value of `field` clear its own error, given base state `st`?
+const clearable = (def: any, st: any, field: FieldDefinition): boolean => {
+  if (!(field.id in compose(def, st))) return true; // not erroring here
+  const candidates = producibleValues(field, resolveFieldValue(st, field.id));
+  return candidates.some((v) => !(field.id in compose(def, setByPath(st, field.id, v))));
+};
+
 console.log('=== 1) SUBMITTABILITY INVARIANT (all 14 forms) ===');
 for (const def of ALL) {
   const init = JSON.parse(JSON.stringify(def.initialState));
-  const requiredFields = def.fieldDefinitions.filter((f: FieldDefinition) => f.required);
   let formOk = true;
+
+  // CAP (enforced, not hoped): chains + dangling controllers are unsupported.
+  for (const v of visibilityCapViolations(def.fieldDefinitions)) {
+    formOk = false;
+    fail(`${def.id} :: visibility cap — ${v}`);
+  }
+
+  const requiredFields = def.fieldDefinitions.filter((f: FieldDefinition) => f.required);
   for (const field of requiredFields) {
-    const initialValue = resolveFieldValue(init, field.id);
-    // Not erroring at initial state = submittable without touching it.
-    if (!(field.id in compose(def, init))) continue;
-    const candidates = producibleValues(field, initialValue);
-    const cleared = candidates.some((v) => !(field.id in compose(def, setByPath(init, field.id, v))));
-    if (!cleared) {
+    if (field.visibleWhen) {
+      // CONDITIONAL: a form is submittable if SOME reachable visibility state is
+      // satisfiable. Two branches over the controller's editor.
+      const ctrl = def.fieldDefinitions.find((f: FieldDefinition) => f.id === field.visibleWhen!.field)!;
+      const ctrlKind = editorKindFor(ctrl, resolveFieldValue(init, ctrl.id));
+      const ctrlVals = producibleValues(ctrl, resolveFieldValue(init, ctrl.id));
+      const trigger = field.visibleWhen!.equals;
+      // Can the user get the controller INTO the trigger state? A free-text /
+      // numeric controller produces any value of its kind (types it); an
+      // enumerated controller (select/checkbox-group/boolean) only its options.
+      const triggerProducible =
+        ctrlKind === 'text' ? typeof trigger === 'string'
+        : ctrlKind === 'numeric' ? typeof trigger === 'number'
+        : ctrlVals.some((cv) => cv === trigger);
+      if (!triggerProducible) {
+        formOk = false;
+        fail(`${def.id} :: ${field.id} — visibleWhen trigger ${JSON.stringify(trigger)} not producible by controller '${ctrl.id}' [${ctrl.type}] — field unreachable`);
+        continue;
+      }
+      // A value that makes the field HIDDEN (controller != trigger), or undefined
+      // if the controller can only ever equal the trigger (field always visible).
+      const hiddenVal =
+        ctrlKind === 'text' ? (trigger === '' ? 'x' : '')
+        : ctrlKind === 'numeric' ? (trigger === 0 ? 1 : 0)
+        : ctrlVals.find((cv) => cv !== trigger);
+      // Branch A (visible): controller at trigger → field must be clearable.
+      const visSt = setByPath(init, ctrl.id, trigger);
+      if (!isFieldVisible(field, visSt) || !clearable(def, visSt, field)) {
+        formOk = false;
+        fail(`${def.id} :: ${field.id} [${field.type}] — required & visible (${ctrl.id}=${JSON.stringify(trigger)}) but NO editor-producible value clears it`);
+      }
+      // Branch B (hidden): controller in a non-trigger state → NOT enforced.
+      if (hiddenVal !== undefined) {
+        const hidSt = setByPath(init, ctrl.id, hiddenVal);
+        if (isFieldVisible(field, hidSt) || field.id in compose(def, hidSt)) {
+          formOk = false;
+          fail(`${def.id} :: ${field.id} — hidden (${ctrl.id}=${JSON.stringify(hiddenVal)}) but STILL enforced (a validateStep rule ignores visibility?) — unsubmittable dead-end`);
+        }
+      }
+      continue;
+    }
+    // Unpredicated: erroring at initial state must be clearable by some editor value.
+    if (!clearable(def, init, field)) {
       formOk = false;
-      fail(`${def.id} :: ${field.id} [${field.type}] — required, erroring, and NO editor-producible value clears it (candidates tried: ${JSON.stringify(candidates)})`);
+      fail(`${def.id} :: ${field.id} [${field.type}] — required, erroring, and NO editor-producible value clears it (candidates: ${JSON.stringify(producibleValues(field, resolveFieldValue(init, field.id)))})`);
     }
   }
-  if (formOk) console.log(`ok    ${def.id} (${requiredFields.length} required fields all clearable)`);
+  if (formOk) {
+    const nCond = requiredFields.filter((f: FieldDefinition) => f.visibleWhen).length;
+    console.log(`ok    ${def.id} (${requiredFields.length} required fields all clearable${nCond ? `, ${nCond} conditional` : ''})`);
+  }
 }
 
 console.log('\n=== 2) GROUND-TRUTH REPLAY (17 rows, 2026-07-16 snapshot) ===');
