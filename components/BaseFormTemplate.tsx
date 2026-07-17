@@ -281,7 +281,15 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                                 ?? Object.keys(rawValue ?? {}).map((k) => ({ id: k, label: humanizeKey(k) })))
                             : [];
                         const mapValue: Record<string, boolean> = isBooleanMap(rawValue) ? rawValue : {};
-                        const inputType = field.type;
+                        // Ratings and numbers must STORE numbers — the validation rule is
+                        // strictly typeof === 'number' (deliberately: ratings get
+                        // aggregated), and <input type="rating"> is not a real input type
+                        // so it degrades to text; render it as a number input instead.
+                        // DRIFT GUARD: if you change what ANY editor branch emits, update
+                        // producibleValues in scripts/formIntegrityCheck.tsx to match —
+                        // the submittability invariant is only as honest as that model.
+                        const isNumeric = field.type === 'number' || field.type === 'rating';
+                        const inputType = field.type === 'rating' ? 'number' : field.type;
                         return (
                             <div key={field.id}>
                                 <label htmlFor={field.id} className="block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -336,7 +344,7 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                                         type={inputType}
                                         id={field.id}
                                         value={displayValue}
-                                        onChange={(e) => setFormData(setByPath(formData, field.id, field.type === 'number' ? parseInt(e.target.value) : e.target.value))}
+                                        onChange={(e) => setFormData(setByPath(formData, field.id, isNumeric ? (e.target.value === '' ? '' : parseInt(e.target.value)) : e.target.value))}
                                         min={field.min}
                                         max={field.max}
                                         className={INPUT_BASE_CLASSES}

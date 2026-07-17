@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "build:guide": "node scripts/build-user-guide.mjs"
+    "build:guide": "node scripts/build-user-guide.mjs",
+    "check:forms": "esbuild scripts/formIntegrityCheck.tsx --bundle --format=cjs --platform=node --external:fs --external:path --loader:.tsx=tsx --loader:.json=json --outfile=node_modules/.cache/formIntegrityCheck.cjs --log-level=error && node node_modules/.cache/formIntegrityCheck.cjs"
   },
   "dependencies": {
     "@google/genai": "^1.16.0",
