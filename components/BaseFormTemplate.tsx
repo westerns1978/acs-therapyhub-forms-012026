@@ -8,6 +8,7 @@ import { PrintPreview } from './PrintPreview';
 import { supabase } from '../services/supabase';
 import { usePortalClient } from '../hooks/usePortalClient';
 import { resolveFieldValue, setByPath } from '../config/fieldPath';
+import { requiredFieldErrors } from '../config/formValidation';
 import { ChevronLeft, Save, Send, AlertTriangle, Loader2, X } from 'lucide-react';
 
 interface BaseFormTemplateProps<T> {
@@ -118,7 +119,14 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
   }, [saveDraft, formDefinition.id]);
 
   const handleSubmit = async () => {
-    const allErrors = formDefinition.validateStep(formData);
+    // Generic required-ness from fieldDefinitions[].required (config/formValidation.ts)
+    // composed with the form's own validateStep. validateStep ADDS rules (format,
+    // must-be-true, cross-field) and WINS on message; it is no longer the only
+    // source of required-ness. Boolean rule: required = ANSWERED, not true.
+    const allErrors = {
+      ...requiredFieldErrors(formDefinition.fieldDefinitions, formData),
+      ...formDefinition.validateStep(formData),
+    } as FormErrors<T>;
     setErrors(allErrors);
 
     if (Object.keys(allErrors).length > 0) {
