@@ -5,6 +5,8 @@ import { supabase } from '../../services/supabase';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import Modal from '../ui/Modal';
 import { normalizeSubmissionStatus, SUBMISSION_STATUS_LABELS, NormalizedSubmissionStatus } from '../../config/formSubmissionStatus';
+import { approveFormSubmission } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { Eye, CheckCircle2, Clock, AlertTriangle, Search, RefreshCw, User, FileText, Calendar } from 'lucide-react';
 
 interface Submission {
@@ -20,11 +22,13 @@ interface Submission {
 }
 
 const ClientSubmissionsPanel: React.FC = () => {
+  const { user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed' | 'reviewed'>('all');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const fetchSubmissions = async () => {
     setIsLoading(true);
@@ -56,13 +60,21 @@ const ClientSubmissionsPanel: React.FC = () => {
 
   useEffect(() => { fetchSubmissions(); }, []);
 
+  // Converged onto approveFormSubmission (the single approve path): it stamps
+  // reviewed_at + reviewed_by (acting user's auth uuid) and merges — never
+  // replaces — the data JSONB. The previous inline writer here wrote lowercase
+  // 'reviewed', status only, recording no reviewer at all. On failure the modal
+  // stays OPEN with the error shown — never assert success the DB doesn't hold.
   const handleMarkReviewed = async (sub: Submission) => {
-    await supabase
-      .from('form_submissions')
-      .update({ status: 'reviewed' })
-      .eq('id', sub.id);
-    fetchSubmissions();
-    setSelectedSubmission(null);
+    setReviewError(null);
+    try {
+      await approveFormSubmission(sub.id, user?.id ?? null);
+      await fetchSubmissions();
+      setSelectedSubmission(null);
+    } catch (err: any) {
+      console.error('Failed to mark reviewed:', err);
+      setReviewError(err?.message || 'Review failed — the record was NOT updated. Please try again.');
+    }
   };
 
   // Status comparisons go through normalizeSubmissionStatus — the DB carries both
@@ -251,7 +263,7 @@ const ClientSubmissionsPanel: React.FC = () => {
 
       {/* Review Modal */}
       {selectedSubmission && (
-        <Modal isOpen={true} onClose={() => setSelectedSubmission(null)} title={`${selectedSubmission.form_name} — ${selectedSubmission.client_name}`}>
+        <Modal isOpen={true} onClose={() => { setSelectedSubmission(null); setReviewError(null); }} title={`${selectedSubmission.form_name} — ${selectedSubmission.client_name}`}>
           <div className="p-6 space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -289,10 +301,17 @@ const ClientSubmissionsPanel: React.FC = () => {
               <p className="text-slate-500 italic text-center py-8">No form data available yet.</p>
             )}
 
+            {reviewError && (
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-600 dark:text-red-400">
+                <AlertTriangle size={18} className="shrink-0" />
+                <span className="text-xs font-bold leading-relaxed">{reviewError}</span>
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
-                onClick={() => setSelectedSubmission(null)}
+                onClick={() => { setSelectedSubmission(null); setReviewError(null); }}
                 className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
               >
                 Close

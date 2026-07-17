@@ -1463,7 +1463,7 @@ export const submitPaperForm = async (
     return data;
 };
 
-export const approveFormSubmission = async (submissionId: string, reviewerName: string) => {
+export const approveFormSubmission = async (submissionId: string, reviewerId?: string | null) => {
     // MERGE into the data JSONB, never replace it. The previous whole-object
     // `data:` payload wiped the submission's form responses / file_path /
     // ai_summary at the exact moment of approval. Supabase .update() replaces
@@ -1472,6 +1472,12 @@ export const approveFormSubmission = async (submissionId: string, reviewerName: 
     // is kept inside data (ClientFormsTab's "Requires Review" pill/button reads
     // it); the approval timestamp/reviewer live in the reviewed_at/reviewed_by
     // COLUMNS — the old data.approved_at duplicate had no readers and is dropped.
+    //
+    // reviewerId = the acting staff user's AUTH UUID (useAuth().user.id) —
+    // reviewed_by is a uuid column, and the previous hardcoded name string
+    // ('Dan Western') was rejected by Postgres on every call, so the approve
+    // path had NEVER successfully written. Omitted (NULL) when no user is
+    // resolved: a blank attestation is honest, a wrong one is a defect.
     const { data: existing, error: readError } = await supabase
         .from('form_submissions')
         .select('data')
@@ -1484,7 +1490,7 @@ export const approveFormSubmission = async (submissionId: string, reviewerName: 
         .update({
             status: 'Reviewed',
             reviewed_at: new Date().toISOString(),
-            reviewed_by: reviewerName,
+            reviewed_by: reviewerId || null,
             data: { ...(existing?.data ?? {}), requires_review: false },
         })
         .eq('id', submissionId)

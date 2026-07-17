@@ -8,6 +8,7 @@ import { Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink
 import { dbForms } from '../../data/database'; // Using mock forms for now
 import { approveFormSubmission } from '../../services/api';
 import { normalizeSubmissionStatus, SUBMISSION_STATUS_LABELS } from '../../config/formSubmissionStatus';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ClientFormsTabProps {
   client: Client;
@@ -40,18 +41,28 @@ const ReviewSubmissionModal: React.FC<{
     onClose: () => void,
     onApproved: () => void
 }> = ({ submission, clientName, onClose, onApproved }) => {
+    const { user } = useAuth();
     const [isApproving, setIsApproving] = useState(false);
+    const [approveError, setApproveError] = useState<string | null>(null);
     const form = dbForms.find(f => f.id === submission.formId);
     const data = submission.data || {};
 
     const handleApprove = async () => {
         setIsApproving(true);
+        setApproveError(null);
         try {
-            await approveFormSubmission(submission.id, 'Dan Western'); // Mocking current user
+            // reviewed_by = the acting user's auth uuid. The old hardcoded
+            // 'Dan Western' string was rejected by the uuid column on every
+            // click and the catch below swallowed it — the modal closed as if
+            // approved while nothing was written. On failure we now keep the
+            // modal OPEN and show the error; success is only asserted when
+            // the write actually happened.
+            await approveFormSubmission(submission.id, user?.id ?? null);
             onApproved();
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to approve:', err);
+            setApproveError(err?.message || 'Approval failed — the record was NOT updated. Please try again.');
         } finally {
             setIsApproving(false);
         }
@@ -116,6 +127,12 @@ const ReviewSubmissionModal: React.FC<{
                     </div>
                 </main>
 
+                {approveError && (
+                    <div className="mx-6 mb-2 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-600 dark:text-red-400">
+                        <AlertTriangle size={18} className="shrink-0" />
+                        <span className="text-xs font-bold leading-relaxed">{approveError}</span>
+                    </div>
+                )}
                 <footer className="p-6 border-t bg-slate-50 dark:bg-slate-900/50 flex gap-4">
                     <button 
                         onClick={onClose}
