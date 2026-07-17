@@ -139,6 +139,13 @@ export type FieldDefinition = {
   placeholder?: string;
   options?: { value: string; label: string }[];
   required?: boolean;
+  // Conditional visibility: this field renders (and is required-enforced) ONLY
+  // when the sibling `field` currently equals `equals`. Single-sibling strict
+  // equality by design — NOT a rules engine. One level only: a field named as a
+  // `visibleWhen.field` controller may not itself carry a visibleWhen (the
+  // integrity gate fails RED on a chain or a dangling controller). See
+  // config/fieldVisibility.ts.
+  visibleWhen?: { field: string; equals: string | number | boolean };
 };
 
 export type FormDefinition<T> = {

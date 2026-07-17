@@ -1,6 +1,7 @@
 import React from 'react';
 import { FormDefinition } from '../types';
 import { resolveFieldValue } from '../config/fieldPath';
+import { shouldPrintField } from '../config/fieldVisibility';
 
 interface PrintPreviewProps {
   formData: any;
@@ -65,7 +66,12 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
           {/* SAME resolver as the live renderer (config/fieldPath.ts) — if these
               ever diverge, a committed record can render differently from what
               the client saw and signed. Literal-first keeps legacy flat-dotted
-              rows byte-identical; nested rows written post-1a fall through. */}
+              rows byte-identical; nested rows written post-1a fall through.
+              shouldPrintField hides a conditional field UNLESS a (legacy) stored
+              value is present — new records never store hidden values (submit
+              strips them), so a non-empty hidden value is a pre-predicate row and
+              the record must show it. config/fieldVisibility.ts. */}
+          if (!shouldPrintField(field, formData)) return null;
           return <PrintField key={field.id} label={field.label} value={resolveFieldValue(formData, field.id)} type={field.type} options={(field.type === 'select' || field.type === 'checkbox-group') ? field.options : undefined} />
         })}
       </div>

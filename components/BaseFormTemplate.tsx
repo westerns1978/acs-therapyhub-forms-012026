@@ -10,6 +10,7 @@ import { usePortalClient } from '../hooks/usePortalClient';
 import { resolveFieldValue, setByPath } from '../config/fieldPath';
 import { requiredFieldErrors } from '../config/formValidation';
 import { editorKindFor, coerceTextInput, inputTypeFor, isBooleanMap } from '../config/fieldInput';
+import { isFieldVisible, stripHiddenValues } from '../config/fieldVisibility';
 import { CheckboxGroup } from './CheckboxGroup';
 import { RadioGroupString } from './RadioGroupString';
 import { ChevronLeft, Save, Send, AlertTriangle, Loader2, X } from 'lucide-react';
@@ -191,7 +192,11 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
         // 'Completed' casing split; readers normalize via
         // config/formSubmissionStatus.ts regardless.
         status: 'Completed',
-        data: formData,
+        // THE one orphan-exclusion point: a value typed into a conditional field
+        // that was then hidden (counselor picks "Other", types a reason, switches
+        // to "Successful") must NOT land in the committed record. Retained in
+        // formData/draft, stripped exactly here at write. config/fieldVisibility.ts.
+        data: stripHiddenValues(formDefinition.fieldDefinitions, formData),
         submitted_at: new Date().toISOString(),
       };
 
@@ -251,6 +256,11 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                 
                 <div className="mt-16 relative min-h-[400px] space-y-6">
                     {formDefinition.fieldDefinitions.map(field => {
+                        // Conditional visibility (config/fieldVisibility.ts) — same predicate
+                        // requiredFieldErrors uses, so a hidden field is neither shown nor
+                        // enforced. Its typed value stays in formData (and the draft) and is
+                        // stripped only at submit/print, never mid-edit.
+                        if (!isFieldVisible(field, formData)) return null;
                         // Reads resolve via the shared path helper (literal key first —
                         // legacy rows stored dotted ids FLAT; see config/fieldPath.ts).
                         // Writes go NESTED via setByPath, so a dotted id like
@@ -375,7 +385,11 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
             </div>
       )} 
       <div className="hidden print:block">
-        <PrintPreview formData={formData} formDefinition={formDefinition} />
+        {/* In-session print renders the SAME stripped data the payload writes, so
+            a printed-before-submit copy can never carry an orphaned hidden value
+            (counselor types "Other" reason, switches to "Successful", prints).
+            Live print == stored print by construction. config/fieldVisibility.ts. */}
+        <PrintPreview formData={stripHiddenValues(formDefinition.fieldDefinitions, formData)} formDefinition={formDefinition} />
       </div>
     </div>
   );

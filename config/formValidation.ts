@@ -19,6 +19,7 @@
  */
 import type { FieldDefinition } from '../types';
 import { resolveFieldValue } from './fieldPath';
+import { isFieldVisible } from './fieldVisibility';
 
 export const requiredFieldErrors = (
   fieldDefinitions: FieldDefinition[],
@@ -26,7 +27,10 @@ export const requiredFieldErrors = (
 ): Record<string, string> => {
   const errs: Record<string, string> = {};
   for (const field of fieldDefinitions) {
-    if (!field.required) continue;
+    // A hidden field is not enforced — the renderer and this validator consult
+    // the SAME isFieldVisible() on the same data (config/fieldVisibility.ts), so
+    // "required but invisible + unresolvable" cannot happen.
+    if (!field.required || !isFieldVisible(field, data)) continue;
     const v = resolveFieldValue(data, field.id);
     let empty: boolean;
     switch (field.type) {
