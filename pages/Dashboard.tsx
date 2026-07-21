@@ -10,7 +10,7 @@ import { fetchAlerts, summarizeAlerts, type AlertsSummary, type ClientAlert } fr
 import { fetchComplianceGuardrails, type GuardrailVerdict } from '../services/complianceEngine';
 import { buildGuardrailExplainPrompt, CLARA_AVATAR_URL } from '../services/claraPrompts';
 import { Appointment } from '../types';
-import { Video, Calendar, AlertTriangle, Activity, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus, Sparkles } from 'lucide-react';
+import { Video, Calendar, AlertTriangle, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus, Sparkles } from 'lucide-react';
 
 const greetingFor = (h: number) => (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening');
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
@@ -153,7 +153,7 @@ const Dashboard: React.FC = () => {
 
     const ScheduleCard = (
         <Card title="Today's Schedule" subtitle={isAdmin ? 'Appointments on the books for today.' : 'Today’s clinical sessions.'}>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="divide-y divide-hairline dark:divide-slate-800">
                 {appointments.length > 0 ? appointments.map(apt => (
                     <button
                         key={apt.id}
@@ -176,7 +176,7 @@ const Dashboard: React.FC = () => {
                                 </div>
                             </div>
                         </div>
-                        <span className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                        <span className="w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-hairline dark:border-slate-700 text-slate-400 flex items-center justify-center group-hover:bg-primary group-hover:border-primary group-hover:text-white transition-all">
                             <ArrowUpRight size={16}/>
                         </span>
                     </button>
@@ -252,23 +252,31 @@ const Dashboard: React.FC = () => {
             title={`Intake Queue${prospects.length ? ` · ${prospects.length}` : ''}`}
             subtitle="New self-serve intakes awaiting placement. Click to review and place."
         >
-            <div className="space-y-3">
+            <div className="space-y-2.5">
                 {prospects.length > 0 ? prospects.map(p => (
                     <button
                         key={p.id}
                         onClick={() => navigate(`/clients/${p.id}`)}
-                        className="w-full text-left flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                        className="relative w-full text-left flex items-start gap-3 p-3.5 pl-4 border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors cursor-pointer overflow-hidden"
                     >
+                        {/* Neutral/maroon accent — this is a queue awaiting a decision, not a violation. */}
+                        <span className="absolute left-0 top-0 bottom-0 w-1 bg-primary/70"></span>
                         <UserPlus className="text-primary shrink-0 mt-0.5" size={18} />
                         <div className="min-w-0 flex-1">
                             <div className="flex justify-between items-baseline gap-2">
                                 <p className="text-sm font-black text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
-                                <span className="text-[10px] text-slate-400 shrink-0">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : ''}</span>
+                                <span className="text-[10px] font-mono text-slate-400 shrink-0">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : ''}</span>
                             </div>
-                            {p.intakeInterest && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5 leading-relaxed">{p.intakeInterest}</p>}
-                            <span className={`inline-flex items-center gap-1 mt-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${p.intakeFeePaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
-                                {p.intakeFeePaid ? <><ShieldCheck size={11} /> Intake fee paid</> : 'Fee pending'}
-                            </span>
+                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                {p.intakeInterest && (
+                                    <span className="inline-flex items-center max-w-[60%] truncate text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300">
+                                        {p.intakeInterest}
+                                    </span>
+                                )}
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${p.intakeFeePaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                                    {p.intakeFeePaid ? <><ShieldCheck size={11} /> Intake fee paid</> : 'Fee pending'}
+                                </span>
+                            </div>
                         </div>
                     </button>
                 )) : (
@@ -283,7 +291,7 @@ const Dashboard: React.FC = () => {
             {/* Briefing line — inline text, no popup. Attributed to Clara (her voice,
                 unprompted) with a subtle avatar + tag — never a banner, never auto-open. */}
             <div>
-                <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">{hello}</h1>
+                <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">{hello}</h1>
                 <div className="flex items-start gap-2.5 mt-3 max-w-3xl">
                     <img src={CLARA_AVATAR_URL} alt="Clara" className="w-6 h-6 rounded-full object-cover mt-0.5 ring-1 ring-primary/20 shrink-0" />
                     <div>
@@ -301,22 +309,39 @@ const Dashboard: React.FC = () => {
                 )}
             </div>
 
-            {/* Director-only aggregate stats — a thin inline strip, not oversized tiles. Clara's
-                line above already carries these; this is a quiet at-a-glance echo, same counts.
-                Monthly Revenue intentionally omitted. */}
+            {/* Director-only stat strip — four compact, severity-tinted stat cards replacing the
+                old plain inline line (kills the duplicate treatment). Alerts/Guardrails are
+                clickable jump-offs; sessions/active-clients are quiet counts. Clara's prose above
+                stays the narrative register — a number appearing once there and once here is fine.
+                Monthly Revenue intentionally omitted (billing not wired). */}
             {isDirector && (
-                <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-slate-500 dark:text-slate-400">
-                    <span className="inline-flex items-center gap-2">
-                        <AlertTriangle size={14} className="text-amber-500/80 shrink-0" />
-                        <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{guardrails.length}</span>
-                        open guardrail {guardrails.length === 1 ? 'flag' : 'flags'}
-                    </span>
-                    <span className="text-slate-300 dark:text-slate-600">·</span>
-                    <span className="inline-flex items-center gap-2">
-                        <Activity size={14} className="text-primary/80 shrink-0" />
-                        <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{metrics.activeClients === null ? '—' : metrics.activeClients}</span>
-                        active clients
-                    </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {/* Sessions today — neutral */}
+                    <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{todayCount}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Sessions today</div>
+                    </div>
+                    {/* Open alerts — red, second entry point to the same honest place as the pill */}
+                    <button
+                        onClick={() => navigate('/risk-monitor')}
+                        className="text-left rounded-2xl border border-red-100 dark:border-red-900/40 bg-red-50/60 dark:bg-red-900/10 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-red-600 leading-none">{alertSummary.total}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Open alerts</div>
+                    </button>
+                    {/* Guardrail flags — amber, scrolls to the Guardrails card on this page */}
+                    <button
+                        onClick={() => document.getElementById('dashboard-guardrails')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="text-left rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                    >
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-amber-600 leading-none">{guardrails.length}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Guardrail {guardrails.length === 1 ? 'flag' : 'flags'}</div>
+                    </button>
+                    {/* Active clients — neutral */}
+                    <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{metrics.activeClients === null ? '—' : metrics.activeClients}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Active clients</div>
+                    </div>
                 </div>
             )}
 
@@ -405,7 +430,7 @@ const Dashboard: React.FC = () => {
                             </button>
                         </Card>
                     </div>
-                    <div className="lg:col-span-1">{GuardrailsCard}</div>
+                    <div id="dashboard-guardrails" className="lg:col-span-1 scroll-mt-6">{GuardrailsCard}</div>
                 </div>
             )}
         </div>

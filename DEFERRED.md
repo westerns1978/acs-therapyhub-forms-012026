@@ -881,3 +881,14 @@ upload surface (e.g. a generic "securedocs" host that doesn't name the program);
 expiry (already 7d, tightened from FlowVault's 14d); and the consent line already on the
 page. Flag for David — a product/domain decision, not a code fix. The link should still
 be sent privately (the modal tells staff "text or WhatsApp it · private to them").
+
+## 43. SHARED CHIP/TONE PRIMITIVE NOT EXTRACTED (P-dashboard, 2026-07-21)
+
+The `toneOf` / `TONE_TEXT` / `TONE_CHIP` / `StatusChip` classification lives module-private in
+`components/clients/ClientSessionsTab.tsx:41-76`, the amber "Needs review" chip is inline in
+`components/clients/ClientDocumentsGrid.tsx:99-104`, and the dashboard-facelift pass added a
+fourth de-facto copy (the severity-tinted stat cards + intake reason tag in `pages/Dashboard.tsx`).
+That is THREE-to-FOUR independent copies of the same red/amber/emerald/slate tone grammar. The
+facelift deliberately local-copied rather than extract (styling-only scope). Worth a later refactor:
+lift a single `ui/StatusChip` + `toneOf` primitive and converge the call sites. Not urgent — purely
+DRY debt, no behavior change.
