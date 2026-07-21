@@ -96,8 +96,11 @@ const DocumentGridCard: React.FC<{ document: DocumentFile; onClick: () => void }
         </span>
         <div className="flex items-center gap-2">
           {document.needsReview && (
-            <span className="flex items-center gap-1 text-[10px] font-bold text-amber-600" title="Flagged for clinician review">
-              <AlertCircle size={10} /> REVIEW
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+              title="A client-submitted or unverified document — needs clinician review"
+            >
+              <AlertCircle size={10} /> Needs review
             </span>
           )}
           <span className="flex items-center gap-1 text-[10px] font-bold text-green-500">

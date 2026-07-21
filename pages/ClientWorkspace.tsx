@@ -13,8 +13,9 @@ import ClientSessionsTab from '../components/clients/ClientSessionsTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
 import ScannerPickerModal from '../components/ScannerPickerModal';
 import MobileDocumentUpload from '../components/portal/MobileDocumentUpload';
+import RequestUploadLinkModal from '../components/clients/RequestUploadLinkModal';
 import Card from '../components/ui/Card';
-import { FileText, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Camera, ScanLine, ChevronDown, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
+import { FileText, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Camera, ScanLine, Send, ChevronDown, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
@@ -185,6 +186,8 @@ const ClientWorkspace: React.FC = () => {
     const [captureFlow, setCaptureFlow] = useState<
         { stage: 'closed' } | { stage: 'scanner' } | { stage: 'mobile'; initialImage?: { base64: string; mimeType: 'image/jpeg' | 'image/png' | 'image/webp' } }
     >({ stage: 'closed' });
+    // "Request from client" — mints a no-login upload link (the inbound twin of capture).
+    const [requestLinkOpen, setRequestLinkOpen] = useState(false);
     const captureMenuRef = React.useRef<HTMLDivElement>(null);
     const [isCompiling, setIsCompiling] = useState(false);
     // Completion sign-off is a separate clinical_notes event (note_type=
@@ -296,6 +299,8 @@ const ClientWorkspace: React.FC = () => {
     const openUploadCapture = () => { setCaptureMenuOpen(false); setUploadInitialFile(null); setIsUploadOpen(true); };
     const openScanCapture = () => { setCaptureMenuOpen(false); setCaptureFlow({ stage: 'scanner' }); };
     const openPhotoCapture = () => { setCaptureMenuOpen(false); setCaptureFlow({ stage: 'mobile' }); };
+    // The one item that sends a link instead of capturing a file here.
+    const openRequestLink = () => { setCaptureMenuOpen(false); setRequestLinkOpen(true); };
     // Grid drag-drop: route the dropped file through the same StaffDocumentUpload
     // category step (nothing enters uncategorized).
     const handleDropCapture = (file: File) => { setUploadInitialFile(file); setIsUploadOpen(true); };
@@ -398,7 +403,17 @@ const ClientWorkspace: React.FC = () => {
                                 : <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>}
                         </section>
                         <section>
-                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3">Uploaded documents</h3>
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                                Uploaded documents
+                                {(() => {
+                                    const n = (documents || []).filter(d => d.needsReview).length;
+                                    return n > 0 ? (
+                                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                                            {n} need{n === 1 ? 's' : ''} review
+                                        </span>
+                                    ) : null;
+                                })()}
+                            </h3>
                             {loadErrors.documents
                                 ? <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />
                                 : <ClientDocumentsGrid client={client} initialDocuments={documents || []} onCapture={handleDropCapture} />}
@@ -511,6 +526,15 @@ const ClientWorkspace: React.FC = () => {
                                     <div className="p-2 bg-primary/10 text-primary rounded-xl"><Camera size={16} /></div>
                                     <span className="font-bold text-sm text-slate-800 dark:text-slate-100">Take photo</span>
                                 </button>
+                                {/* The first three capture a file here; this one sends the client a link. */}
+                                <div className="my-1 border-t border-hairline dark:border-white/10"></div>
+                                <button role="menuitem" onClick={openRequestLink} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors focus:outline-none focus:bg-slate-50 dark:focus:bg-slate-800">
+                                    <div className="p-2 bg-primary/10 text-primary rounded-xl"><Send size={16} /></div>
+                                    <div>
+                                        <p className="font-bold text-sm text-slate-800 dark:text-slate-100">Request from client</p>
+                                        <p className="text-[11px] text-slate-500">Send a no-login upload link</p>
+                                    </div>
+                                </button>
                             </div>
                         )}
                     </div>
@@ -562,6 +586,14 @@ const ClientWorkspace: React.FC = () => {
                     onClose={() => setCaptureFlow({ stage: 'closed' })}
                 />
             )}
+
+            {/* Request-from-client — mints the no-login upload link (Phase A backend). */}
+            <RequestUploadLinkModal
+                isOpen={requestLinkOpen}
+                onClose={() => setRequestLinkOpen(false)}
+                clientId={client.id}
+                clientName={client.name}
+            />
         </div>
     );
 };

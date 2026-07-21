@@ -15,9 +15,12 @@ import PageLoader from './components/ui/PageLoader';
 import PortalLayout from './layouts/PortalLayout';
 import { isTrialHidden } from './config/trialMode';
 import { FINANCIAL_ROLES } from './types';
+import { uploadTokenFromPath } from './services/clientUploadLink';
 
 // Lazy-loaded Page imports
 const Login = lazy(() => import('./pages/Login'));
+// Public, login-free client upload page. Standalone — mounted BEFORE the router/auth.
+const ClientUploadPage = lazy(() => import('./pages/ClientUploadPage'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const ClientWorkspace = lazy(() => import('./pages/ClientWorkspace'));
 const CommunicationCenter = lazy(() => import('./pages/CommunicationCenter'));
@@ -68,6 +71,22 @@ const HelpHome = lazy(() => import('./pages/help/HelpHome'));
 const HelpPage = lazy(() => import('./pages/help/HelpPage'));
 
 function App() {
+  // Public client-upload page: a nameless, login-free route touching Part 2 records.
+  // Intercept the /upload/<token> PATH before the router mounts — no AuthProvider, no
+  // HashRouter, no staff shell (mirrors FlowVault's /family/<token> mount). Wrapped in
+  // ErrorBoundary + Suspense only. The theme class is unset here → light (cream), which
+  // is what we want for this page regardless of any prior staff dark preference.
+  const uploadToken = typeof window !== 'undefined' ? uploadTokenFromPath() : null;
+  if (uploadToken) {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <ClientUploadPage token={uploadToken} />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <HashRouter>
       <ErrorBoundary>

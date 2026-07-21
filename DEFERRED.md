@@ -865,3 +865,19 @@ is surface-don't-guess). But there is no in-grid affordance to RE-categorize an 
 doc; a user can only set the category at capture time. If David wants old docs re-filed, add a
 "change category" action on the doc card (writes `document_type` through the same existing column).
 App-only when it comes; deferred from P2 to keep scope to capture + grouping.
+
+## 42. UPLOAD LINK: THE DOMAIN ITSELF DISCLOSES PROGRAM AFFILIATION (Part 2, 2026-07-21)
+
+The client upload link is `https://acs-therapyhub.web.app/upload/<token>`. The public
+page carries NO client identity (no name/program/level — enforced in the resolve
+response and the page). But the DOMAIN — "acs-therapyhub" — tells anyone who sees the
+link (over a shoulder, in a text thread, in a browser history) that the recipient is
+connected to a substance-use treatment provider. Under 42 CFR Part 2 (2.13), the fact
+that an identified person is a patient at a SUD program is itself protected. This is
+INHERENT to shipping the feature on this domain and is NOT solvable in-page.
+
+Options for David (out of scope here): a neutral vanity domain / path for the public
+upload surface (e.g. a generic "securedocs" host that doesn't name the program); short
+expiry (already 7d, tightened from FlowVault's 14d); and the consent line already on the
+page. Flag for David — a product/domain decision, not a code fix. The link should still
+be sent privately (the modal tells staff "text or WhatsApp it · private to them").
