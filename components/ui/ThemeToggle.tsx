@@ -17,10 +17,11 @@ const ThemeToggle: React.FC<{ isCollapsed?: boolean; className?: string }> = ({ 
      const Icon = theme === 'light' ? Sun : (theme === 'dark' ? Moon : Monitor);
      
      return (
-        <button 
+        <button
             onClick={toggleCycle}
-            className={`flex items-center justify-center p-3 rounded-xl transition-all duration-200 text-surface-secondary hover:bg-surface hover:text-primary dark:hover:bg-slate-800 ${className}`}
-            title="Cycle Theme"
+            className={`flex items-center justify-center p-2 rounded-full transition-all duration-200 text-slate-500 hover:bg-slate-100 hover:text-primary dark:hover:bg-slate-800 ${className}`}
+            title="Cycle theme"
+            aria-label={`Theme: ${theme}. Click to cycle light, dark, system.`}
         >
             <Icon size={20} />
         </button>

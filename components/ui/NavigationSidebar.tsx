@@ -1,7 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import ThemeToggle from './ThemeToggle';
 import GemyndFlowLogo from './GemyndFlowLogo';
 import {
     Home, Users, MessageSquare, Calendar, Shield,
@@ -103,8 +102,9 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
         })()}
       </nav>
 
+      {/* Theme control moved to the header (ui-elevate-p1) — this footer now holds
+          Sign Out only. Mobile keeps its own control in MobileDrawer. */}
       <div className="p-4 border-t border-black/5 dark:border-white/10 bg-slate-50/50 dark:bg-black/20">
-        <ThemeToggle isCollapsed={isCollapsed} className="mb-3" />
         <button onClick={() => { logout(); navigate('/login'); }} className="w-full flex items-center justify-center p-3 rounded-xl text-primary hover:bg-red-50 dark:hover:bg-red-900/20 transition-all font-bold text-sm">
           <LogOut size={18} />
           {!isCollapsed && <span className="ml-2">Sign Out</span>}

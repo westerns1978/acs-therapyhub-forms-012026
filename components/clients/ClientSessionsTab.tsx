@@ -35,12 +35,44 @@ interface SessionItem {
   note?: NoteRow;
 }
 
-const statusTone = (s: string): string => {
+// Single tone source (ui-elevate-p1). One classification of a status string into a
+// severity tone, feeding BOTH the text-tint use (mixed "Modality · Status" subtitle)
+// and the discrete-status chip. Completed uses the AA green #1F7A4D per the brief.
+type StatusTone = 'complete' | 'negative' | 'progress' | 'neutral';
+const toneOf = (s: string): StatusTone => {
   const t = s.toLowerCase();
-  if (t.includes('complete')) return 'text-emerald-600';
-  if (t.includes('no show') || t.includes('cancel')) return 'text-red-600';
-  if (t.includes('progress')) return 'text-amber-600';
-  return 'text-slate-500';
+  if (t.includes('complete')) return 'complete';
+  if (t.includes('no show') || t.includes('cancel')) return 'negative';
+  if (t.includes('progress')) return 'progress';
+  return 'neutral';
+};
+
+const TONE_TEXT: Record<StatusTone, string> = {
+  complete: 'text-[#1F7A4D]',
+  negative: 'text-red-600',
+  progress: 'text-amber-600',
+  neutral: 'text-slate-500',
+};
+
+// Tinted pill per tone — light bg + AA text. Used for the discrete Status field.
+const TONE_CHIP: Record<StatusTone, string> = {
+  complete: 'bg-[#1F7A4D]/10 text-[#1F7A4D]',
+  negative: 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300',
+  progress: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+  neutral: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+};
+
+// Text-tint only — for the combined "Modality · Status" subtitle, which is not a bare status.
+const statusTone = (s: string): string => TONE_TEXT[toneOf(s)];
+
+// Discrete status → chip. Renders a dash plainly (no pill) when there's no status.
+const StatusChip: React.FC<{ status: string }> = ({ status }) => {
+  if (!status) return <span className="text-sm text-slate-500">—</span>;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${TONE_CHIP[toneOf(status)]}`}>
+      {status}
+    </span>
+  );
 };
 
 // startTime/endTime are stored 24-hour "HH:MM" strings (see mapAppointmentRowToApp).
@@ -62,7 +94,7 @@ const derivedDuration = (a: Appointment): string | null => {
 // Secondary-text token (index.html theme: surface.secondary #64748B / dark #94A3B8),
 // not a raw slate. One place for every drill-in label.
 const DetailRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div>
+  <div className="border-b border-hairline dark:border-white/5 pb-2">
     <dt className="text-[11px] font-bold uppercase text-surface-secondary dark:text-dark-surface-secondary">{label}</dt>
     <dd className="text-sm text-slate-700 dark:text-slate-200 mt-0.5">{children}</dd>
   </div>
@@ -171,7 +203,7 @@ const AppointmentDetail: React.FC<{ item: SessionItem; program?: string }> = ({ 
           {a.startTime && a.endTime ? `${a.startTime}–${a.endTime}` : '—'}{dur ? ` · ${dur}` : ''}
         </DetailRow>
         <DetailRow label="Modality">{a.modality || '—'}</DetailRow>
-        <DetailRow label="Status"><span className={statusTone(a.status || '')}>{a.status || '—'}</span></DetailRow>
+        <DetailRow label="Status"><StatusChip status={a.status || ''} /></DetailRow>
         <DetailRow label="Therapist">{a.therapist || '—'}</DetailRow>
         {serviceParts.length > 0 && (
           <DetailRow label="Service / session">{serviceParts.join(' · ')}</DetailRow>
@@ -275,7 +307,7 @@ const ClientSessionsTab: React.FC<{ client: Client }> = ({ client }) => {
   return (
     <>
       <Card title="Session History" subtitle={`${items.length} record${items.length === 1 ? '' : 's'} from appointments and clinical notes.`}>
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+        <div className="divide-y divide-hairline dark:divide-slate-800">
           {items.map(it => (
             <div
               key={it.id}

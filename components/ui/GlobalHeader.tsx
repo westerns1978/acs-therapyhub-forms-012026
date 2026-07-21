@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import GemyndFlowLogo from './GemyndFlowLogo';
+import ThemeToggle from './ThemeToggle';
 import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
 
 // Clara's avatar — same image the portal floating bubble uses, for one identity across surfaces.
@@ -129,6 +130,12 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                         <Bell size={20} />
                         <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-primary rounded-full border-2 border-white dark:border-slate-900"></span>
                     </button>
+
+                    {/* Theme control — moved here from the sidebar footer (ui-elevate-p1),
+                        matching the app-family header pattern (Katie/FlowView/AIVA). The
+                        compact `isCollapsed` cycle button keeps the cluster tight; it reuses
+                        ThemeContext + the 'theme' localStorage key. Focus ring added for kbd. */}
+                    <ThemeToggle isCollapsed className="focus:outline-none focus:ring-2 focus:ring-primary/40" />
 
                     <div className="relative ml-1">
                         <button onClick={() => setProfileOpen(prev => !prev)} className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 p-1.5 rounded-2xl transition-colors">

@@ -148,8 +148,8 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     // Billable-units gate — TWO axes (config/billableUnits.ts): ELIGIBILITY = the client's
     // program (SATOP-family only; client?.program is the canonical program_type, and a null
     // client → undefined → fails closed here), GRAIN = the selected service_type. null = do
-    // not render the control. Today every grain is unset, so this is null for everything —
-    // intended: the mechanism ships, the grain table stays empty until David's codes land.
+    // not render the control. The `counseling` grain is ON (15 min, per David 7/14), so this
+    // renders today for a SATOP client whose session category is counseling.
     const unitGrain = unitGrainFor(client?.program, serviceType);
     // Prefill the units count when the category has a grain: reuse an already-asserted value
     // from the row if present, else suggest round(duration / grain) clamped to the cap. The

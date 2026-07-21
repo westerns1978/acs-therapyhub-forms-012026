@@ -30,6 +30,23 @@
               'h1': ['2.25rem', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
             },
             colors: {
+              // Label-contrast fix (ui-elevate-p1, 2026-07-21): darken the two grays the
+              // uppercase meta labels (TIME/MODALITY/STATUS, section headings) actually use.
+              // Overridden at the token so the ~625 raw text-slate-400/500 sites move at once
+              // WITHOUT a per-component sweep. Both clear AA (≥4.5:1) on cream #F8F7F4.
+              // Value text stays on slate-700/800 (already ~7:1) — untouched by design.
+              slate: {
+                // #647487 (the first pass) cleared AA on white cards but measured 4.47:1 on
+                // the cream page bg where section headings sit — just under the 4.5 bar. Nudged
+                // to #627082 (4.71:1 on cream, 5.05:1 on white), still clearly the secondary tone.
+                400: '#627082',
+                500: '#475569',
+              },
+              // In-card / between-row hairline (ui-elevate-p1). Warm tan-gray that reads as
+              // structure without competing with the Card border (#D6CFC2, left alone).
+              hairline: {
+                DEFAULT: '#E7E1D8',
+              },
               primary: {
                 DEFAULT: '#8B1E24',
                 focus: '#70181D',
@@ -47,10 +64,12 @@
               background: {
                 DEFAULT: '#F8F7F4',
               },
-              surface: { 
+              surface: {
                 DEFAULT: 'rgba(255, 255, 255, 0.8)',
                 content: '#0F172A',
-                secondary: '#64748B'
+                // Darkened from #64748B (ui-elevate-p1) — the drill-in label token
+                // (text-surface-secondary, ~44 sites) failed AA on cream at the old value.
+                secondary: '#475569'
               },
               border: {
                 DEFAULT: '#D6CFC2',

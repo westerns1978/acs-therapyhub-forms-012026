@@ -25,7 +25,7 @@ const Card: React.FC<CardProps> = ({ children, className = '', title, subtitle, 
       ${className}`
     }>
       {(title || actions) && (
-        <div className={`px-6 py-4 border-b border-black/5 dark:border-white/5 flex justify-between items-center gap-4`}>
+        <div className={`px-6 py-4 border-b border-hairline dark:border-white/5 flex justify-between items-center gap-4`}>
           <div>
             {title && <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 leading-tight tracking-tight">{title}</h3>}
             {subtitle && <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
