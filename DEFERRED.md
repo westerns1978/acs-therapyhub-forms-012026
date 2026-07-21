@@ -845,3 +845,23 @@ Witnessed read-only 2026-07-16 — row counts only, no row content read.
 **Recorded here because this session is scoped to the ACS/Attesta side and this repo is what's
 open — this is AIVA's problem, not ACS's or Attesta's. Flag for Dan to carry to the AIVA repo's
 own tracker.** Do not fix. Do not touch westflow-platform.
+
+## 40. CAPTURE: DRAG-DROP IS NOW ONE FILE AT A TIME (P2 consolidation, 2026-07-21)
+
+Before P2 the grid dropzone ingested MULTIPLE dropped files in a loop (auto-classified, no
+category step). P2 routes the dropzone through the shared capture flow (StaffDocumentUpload →
+classify → Admin/Clinical category → ingest) so nothing enters uncategorized — but that flow is
+single-document (the category is chosen per file). So a multi-file drop now takes the FIRST file
+only. Fine for the common case (one doc at a time); if batch capture becomes common, add a
+per-file category queue. Not urgent — flagged so the narrowing is on record, not silent.
+
+## 41. RECORDS: EXISTING UNMAPPED DOCS LIVE ONLY UNDER "ALL" (P2, 2026-07-21)
+
+The Admin/Clinical segmented filter is a DERIVE over the existing `document_type` via
+`config/recordCategory.ts` — no backfill. Rows whose type is unmapped (`verification_slip`,
+`completion_certificate`, `other`, `profile`, `null`, and the shared-table HR values) are never
+bucketed into Admin or Clinical — they show under "All" with their type chip, correctly (the rule
+is surface-don't-guess). But there is no in-grid affordance to RE-categorize an already-stored
+doc; a user can only set the category at capture time. If David wants old docs re-filed, add a
+"change category" action on the doc card (writes `document_type` through the same existing column).
+App-only when it comes; deferred from P2 to keep scope to capture + grouping.

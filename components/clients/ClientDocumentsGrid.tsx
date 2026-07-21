@@ -1,26 +1,25 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Client, DocumentFile } from '../../types';
-import { FileText, UploadCloud, Shield, Zap, ScanLine, FolderOpen, AlertCircle } from 'lucide-react';
+import { FileText, UploadCloud, Shield, FolderOpen, AlertCircle } from 'lucide-react';
 import Modal from '../ui/Modal';
 import DocumentViewer from '../documents/DocumentViewer';
-import ScannerPickerModal from '../ScannerPickerModal';
-import MobileDocumentUpload from '../portal/MobileDocumentUpload';
-import { useAuth } from '../../contexts/AuthContext';
-import { getDocumentFilesForClient, saveDocumentFile, checkSupabaseConnection } from '../../services/api';
-
-type SupportedMime = 'image/jpeg' | 'image/png' | 'image/webp';
-
-type ScanFlow =
-  | { stage: 'closed' }
-  | { stage: 'picker' }
-  | { stage: 'upload'; initialImage?: { base64: string; mimeType: SupportedMime } };
+import { checkSupabaseConnection } from '../../services/api';
+import { recordCategoryOf, RECORD_CATEGORY_ORDER, type RecordCategory } from '../../config/recordCategory';
 
 interface ClientDocumentsGridProps {
   client: Client;
   initialDocuments: DocumentFile[];
-  onDocumentsChanged?: () => void;
+  /**
+   * Hand a dropped file up to the shared capture flow (StaffDocumentUpload), so the
+   * dropzone routes through the same classify → category → ingest path as the
+   * Capture menu — nothing enters uncategorized. Owned by ClientWorkspace (P2).
+   */
+  onCapture?: (file: File) => void;
 }
+
+// The segmented Admin/Clinical filter. 'All' shows everything (including unmapped).
+type RecordFilter = 'All' | RecordCategory;
 
 const UNCATEGORIZED = 'Uncategorized';
 
@@ -110,16 +109,11 @@ const DocumentGridCard: React.FC<{ document: DocumentFile; onClick: () => void }
   );
 };
 
-const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initialDocuments, onDocumentsChanged }) => {
+const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initialDocuments, onCapture }) => {
   const [documents, setDocuments] = useState<DocumentFile[]>(initialDocuments || []);
-  const [filter, setFilter] = useState<string>('All');
+  const [filter, setFilter] = useState<RecordFilter>('All');
   const [selectedDocument, setSelectedDocument] = useState<DocumentFile | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [transmissionLogs, setTransmissionLogs] = useState<string[]>([]);
   const [uplinkStatus, setUplinkStatus] = useState<'connected' | 'error' | 'checking'>('checking');
-  const [scanFlow, setScanFlow] = useState<ScanFlow>({ stage: 'closed' });
-
-  const { user } = useAuth();
 
   useEffect(() => {
     const check = async () => {
@@ -133,33 +127,17 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
     if (initialDocuments) setDocuments(initialDocuments);
   }, [initialDocuments]);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!client || !user) return;
-    setIsUploading(true);
-    setTransmissionLogs(['Connecting to storage...']);
-
-    for (const file of acceptedFiles) {
-      try {
-        setTransmissionLogs(prev => [...prev, `Uploading: ${file.name}`]);
-        const savedDoc = await saveDocumentFile({ clientId: client.id } as any, file, user?.name);
-        setTransmissionLogs(prev => [...prev, `Upload complete: ${savedDoc.id}`]);
-        setDocuments(prev => [savedDoc, ...prev]);
-      } catch (error: any) {
-        setTransmissionLogs(prev => [...prev, `Upload failed: ${error.message}`]);
-        break;
-      }
-    }
-
-    setTimeout(() => {
-      setIsUploading(false);
-      setTransmissionLogs([]);
-    }, 2000);
-  }, [client, user]);
+  // Dropzone is now a secondary affordance: hand the file to the shared capture flow
+  // (StaffDocumentUpload via onCapture) so it goes through the same classify →
+  // category → ingest path. One file at a time (the category step is per-document).
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (!acceptedFiles.length || !onCapture) return;
+    onCapture(acceptedFiles[0]);
+  }, [onCapture]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    disabled: isUploading,
-    multiple: true,
+    multiple: false,
     onDragEnter: () => {},
     onDragOver: () => {},
     onDragLeave: () => {},
@@ -167,16 +145,19 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
 
   const docs = documents || [];
 
-  // Real categories actually present, in display order.
-  const categories = useMemo(() => sortCategories(Array.from(new Set(docs.map(docCategory)))), [docs]);
-  const countByCategory = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const d of docs) m[docCategory(d)] = (m[docCategory(d)] || 0) + 1;
+  // Segmented Admin/Clinical filter, derived from the raw document_type via the P2 map.
+  // 'All' keeps everything (unmapped docs live here so they are never hidden).
+  const countByBucket = useMemo(() => {
+    const m: Record<RecordFilter, number> = { All: docs.length, Admin: 0, Clinical: 0 };
+    for (const d of docs) {
+      const c = recordCategoryOf(d.documentTypeRaw);
+      if (c) m[c] += 1;
+    }
     return m;
   }, [docs]);
 
   const filteredDocuments = useMemo(
-    () => (filter === 'All' ? docs : docs.filter(d => docCategory(d) === filter)),
+    () => (filter === 'All' ? docs : docs.filter(d => recordCategoryOf(d.documentTypeRaw) === filter)),
     [docs, filter],
   );
 
@@ -196,51 +177,39 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
             Storage: {uplinkStatus === 'connected' ? 'Connected' : 'Offline'} • {docs.length} file{docs.length === 1 ? '' : 's'}
           </p>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setScanFlow({ stage: 'picker' })}
-            className="flex items-center gap-2 px-4 py-2.5 bg-red-700 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
-          >
-            <ScanLine size={16} /> Scan Document
-          </button>
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="bg-white/70 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold p-2 rounded-xl focus:ring-0 outline-none"
-          >
-            <option value="All">All Categories ({docs.length})</option>
-            {categories.map(c => (
-              <option key={c} value={c}>{c} ({countByCategory[c]})</option>
-            ))}
-          </select>
+        {/* Segmented Admin / Clinical filter (P2). Fine-grained document_type stays
+            visible as the per-row chip, so nothing is lost. */}
+        <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800 p-0.5" role="tablist" aria-label="Filter records by category">
+          {(['All', ...RECORD_CATEGORY_ORDER] as RecordFilter[]).map(key => {
+            const active = filter === key;
+            return (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setFilter(key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                  active ? 'bg-primary text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                {key} ({countByBucket[key]})
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Upload ingestion node */}
+      {/* Upload ingestion node — a secondary affordance; the drop routes through the
+          Capture category step (onCapture). */}
       <div
         {...getRootProps()}
         className={`relative min-h-[120px] border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all duration-500 cursor-pointer overflow-hidden ${isDragActive ? 'border-primary bg-primary/5 scale-[0.99]' : 'border-slate-300 dark:border-white/10 hover:border-primary/40'}`}
       >
         <input {...getInputProps()} />
-        {isUploading ? (
-          <div className="p-4 w-full h-full bg-slate-900/80 backdrop-blur-md absolute inset-0 z-20 flex flex-col justify-center">
-            <div className="space-y-1">
-              {transmissionLogs.map((log, i) => (
-                <div key={i} className="flex items-center gap-2 text-[9px] font-mono text-primary">
-                  <Zap size={8} className="animate-pulse" /> {log}
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 h-1 w-full bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full bg-primary animate-aurora" style={{ width: '100%', backgroundSize: '200% 200%' }}></div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 text-slate-500">
-            <div className="p-3 bg-primary/10 rounded-2xl text-primary"><UploadCloud size={26} /></div>
-            <span className="text-[11px] font-black uppercase tracking-widest">Drag &amp; drop, or click to upload</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3 text-slate-500">
+          <div className="p-3 bg-primary/10 rounded-2xl text-primary"><UploadCloud size={26} /></div>
+          <span className="text-[11px] font-black uppercase tracking-widest">Drag &amp; drop, or click to upload</span>
+        </div>
       </div>
 
       {/* File cabinet: grouped sections by real category */}
@@ -277,27 +246,8 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
           </div>
         </Modal>
       )}
-
-      <ScannerPickerModal
-        isOpen={scanFlow.stage === 'picker'}
-        onClose={() => setScanFlow({ stage: 'closed' })}
-        onScanComplete={(base64, mimeType) =>
-          setScanFlow({ stage: 'upload', initialImage: { base64, mimeType: mimeType as SupportedMime } })
-        }
-        onCameraFallback={() => setScanFlow({ stage: 'upload' })}
-      />
-
-      {scanFlow.stage === 'upload' && (
-        <MobileDocumentUpload
-          clientId={client.id}
-          initialImage={scanFlow.initialImage}
-          onComplete={() => {
-            onDocumentsChanged?.();
-            setScanFlow({ stage: 'closed' });
-          }}
-          onClose={() => setScanFlow({ stage: 'closed' })}
-        />
-      )}
+      {/* Scan / Photo capture modals moved up to ClientWorkspace (P2 Capture menu),
+          so a single owner drives all three capture paths. */}
     </div>
   );
 };

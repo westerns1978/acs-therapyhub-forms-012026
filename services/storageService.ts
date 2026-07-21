@@ -20,7 +20,7 @@ export async function getSignedUrl(filePath?: string | null, ttl = SIGNED_URL_TT
 // Map the OCR pipeline's freeform form-type label onto the document_type
 // taxonomy used for categorization. Returns undefined for unknown/blank labels
 // so the caller falls back to a full classification (extractFromFile).
-function ocrFormTypeToDocType(label?: string): string | undefined {
+export function ocrFormTypeToDocType(label?: string): string | undefined {
   const s = (label || '').toLowerCase().trim();
   if (!s || s === 'unknown' || s === 'unreadable') return undefined;
   if (/(court|influence|order|dwi|disposition)/.test(s)) return 'court_order';

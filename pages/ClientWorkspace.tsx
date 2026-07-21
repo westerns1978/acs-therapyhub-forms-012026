@@ -11,8 +11,10 @@ import ClientFormsTab from '../components/clients/ClientFormsTab';
 import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
 import ClientSessionsTab from '../components/clients/ClientSessionsTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
+import ScannerPickerModal from '../components/ScannerPickerModal';
+import MobileDocumentUpload from '../components/portal/MobileDocumentUpload';
 import Card from '../components/ui/Card';
-import { FileText, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
+import { FileText, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Camera, ScanLine, ChevronDown, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
@@ -174,6 +176,16 @@ const ClientWorkspace: React.FC = () => {
     const [loadErrors, setLoadErrors] = useState<Record<string, boolean>>({});
 
     const [isUploadOpen, setIsUploadOpen] = useState(false);
+    // Capture ▾ menu + the file it hands to StaffDocumentUpload (null = normal
+    // pick-a-file flow; a File = a drag-drop routed through the same category step).
+    const [captureMenuOpen, setCaptureMenuOpen] = useState(false);
+    const [uploadInitialFile, setUploadInitialFile] = useState<File | null>(null);
+    // Scan / Photo flow, owned here so one place drives all three capture paths.
+    // 'scanner' = FlowHub bridge picker; 'mobile' = camera/photo (+ scan result image).
+    const [captureFlow, setCaptureFlow] = useState<
+        { stage: 'closed' } | { stage: 'scanner' } | { stage: 'mobile'; initialImage?: { base64: string; mimeType: 'image/jpeg' | 'image/png' | 'image/webp' } }
+    >({ stage: 'closed' });
+    const captureMenuRef = React.useRef<HTMLDivElement>(null);
     const [isCompiling, setIsCompiling] = useState(false);
     // Completion sign-off is a separate clinical_notes event (note_type=
     // 'completion_signoff'); it's one of the three real certificate gates.
@@ -266,6 +278,27 @@ const ClientWorkspace: React.FC = () => {
     }, [clientId, loadClientData]);
 
     const handleFormAssigned = () => { if(clientId) loadClientData(clientId); }
+
+    // Capture ▾ menu: close on outside-click / Esc (mirrors the header's + Schedule menu).
+    useEffect(() => {
+        if (!captureMenuOpen) return;
+        const onDown = (e: MouseEvent) => {
+            if (captureMenuRef.current && !captureMenuRef.current.contains(e.target as Node)) setCaptureMenuOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCaptureMenuOpen(false); };
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('keydown', onKey);
+        return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+    }, [captureMenuOpen]);
+
+    // Capture menu actions. Upload opens the pick-a-file modal; Scan opens the bridge
+    // picker; Photo opens the camera capture directly. Each closes the menu first.
+    const openUploadCapture = () => { setCaptureMenuOpen(false); setUploadInitialFile(null); setIsUploadOpen(true); };
+    const openScanCapture = () => { setCaptureMenuOpen(false); setCaptureFlow({ stage: 'scanner' }); };
+    const openPhotoCapture = () => { setCaptureMenuOpen(false); setCaptureFlow({ stage: 'mobile' }); };
+    // Grid drag-drop: route the dropped file through the same StaffDocumentUpload
+    // category step (nothing enters uncategorized).
+    const handleDropCapture = (file: File) => { setUploadInitialFile(file); setIsUploadOpen(true); };
 
     if (!clientId) return <ClientSelectionGrid />;
     if (isLoading) return <LoadingSpinner />;
@@ -368,7 +401,7 @@ const ClientWorkspace: React.FC = () => {
                             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3">Uploaded documents</h3>
                             {loadErrors.documents
                                 ? <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />
-                                : <ClientDocumentsGrid client={client} initialDocuments={documents || []} onDocumentsChanged={() => loadClientData(clientId)} />}
+                                : <ClientDocumentsGrid client={client} initialDocuments={documents || []} onCapture={handleDropCapture} />}
                         </section>
                     </div>
                 );
@@ -448,12 +481,39 @@ const ClientWorkspace: React.FC = () => {
                     >
                         <Archive size={14} /> {isCompiling ? 'Compiling…' : 'Record Packet'}
                     </button>
-                    <button
-                        onClick={() => setIsUploadOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-focus text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
-                    >
-                        <Upload size={14} /> Upload Document
-                    </button>
+                    {/* Capture ▾ — single input control (P2), grouped apart from the
+                        output actions above by a hairline divider. Consolidates Upload /
+                        Scan / Photo, each wired to its existing path. Hand-rolled off the
+                        header's + Schedule pattern: useState(open) + absolute div. */}
+                    <div className="relative pl-2 ml-1 border-l border-hairline dark:border-white/10" ref={captureMenuRef}>
+                        <button
+                            onClick={() => setCaptureMenuOpen(o => !o)}
+                            aria-haspopup="menu"
+                            aria-expanded={captureMenuOpen}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-focus text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        >
+                            <Upload size={14} /> Capture <ChevronDown size={14} className={`transition-transform ${captureMenuOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {captureMenuOpen && (
+                            <div
+                                role="menu"
+                                className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-border dark:border-slate-800 py-2 z-50 animate-fade-in-up"
+                            >
+                                <button role="menuitem" onClick={openUploadCapture} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors focus:outline-none focus:bg-slate-50 dark:focus:bg-slate-800">
+                                    <div className="p-2 bg-primary/10 text-primary rounded-xl"><Upload size={16} /></div>
+                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-100">Upload file</span>
+                                </button>
+                                <button role="menuitem" onClick={openScanCapture} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors focus:outline-none focus:bg-slate-50 dark:focus:bg-slate-800">
+                                    <div className="p-2 bg-primary/10 text-primary rounded-xl"><ScanLine size={16} /></div>
+                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-100">Scan document</span>
+                                </button>
+                                <button role="menuitem" onClick={openPhotoCapture} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors focus:outline-none focus:bg-slate-50 dark:focus:bg-slate-800">
+                                    <div className="p-2 bg-primary/10 text-primary rounded-xl"><Camera size={16} /></div>
+                                    <span className="font-bold text-sm text-slate-800 dark:text-slate-100">Take photo</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
             <div>{renderTabContent()}</div>
@@ -472,11 +532,36 @@ const ClientWorkspace: React.FC = () => {
 
             <StaffDocumentUpload
                 isOpen={isUploadOpen}
-                onClose={() => setIsUploadOpen(false)}
+                onClose={() => { setIsUploadOpen(false); setUploadInitialFile(null); }}
                 onComplete={() => clientId && loadClientData(clientId)}
                 presetClientId={client.id}
                 presetClientName={client.name}
+                initialFile={uploadInitialFile}
             />
+
+            {/* Scan → FlowHub bridge picker (unchanged: offline → installer → camera
+                fallback). On a bridge scan it hands the image to the photo/review flow;
+                the camera fallback opens the same review with no initial image. */}
+            <ScannerPickerModal
+                isOpen={captureFlow.stage === 'scanner'}
+                onClose={() => setCaptureFlow({ stage: 'closed' })}
+                onScanComplete={(base64, mimeType) =>
+                    setCaptureFlow({ stage: 'mobile', initialImage: { base64, mimeType: mimeType as 'image/jpeg' | 'image/png' | 'image/webp' } })
+                }
+                onCameraFallback={() => setCaptureFlow({ stage: 'mobile' })}
+            />
+
+            {/* Photo / scan review — staff capture, so the Admin/Clinical category
+                picker is on (selectCategory). */}
+            {captureFlow.stage === 'mobile' && (
+                <MobileDocumentUpload
+                    clientId={client.id}
+                    selectCategory
+                    initialImage={captureFlow.initialImage}
+                    onComplete={() => clientId && loadClientData(clientId)}
+                    onClose={() => setCaptureFlow({ stage: 'closed' })}
+                />
+            )}
         </div>
     );
 };

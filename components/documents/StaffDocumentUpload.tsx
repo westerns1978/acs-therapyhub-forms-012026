@@ -13,6 +13,8 @@ import { supabase } from "../../services/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 import { extractFromFile, fileSizeError, isSupportedFile, ACCEPT_ATTRIBUTE } from "../../services/documentExtraction";
 import { storageService } from "../../services/storageService";
+import CategoryPicker from "./CategoryPicker";
+import { isCategorizable } from "../../config/recordCategory";
 
 interface Client {
   id: string;
@@ -25,6 +27,9 @@ interface StaffDocumentUploadProps {
   onComplete: () => void;
   presetClientId?: string;
   presetClientName?: string;
+  /** Pre-supplied file (e.g. a drag-drop from the grid) — auto-classified on open so
+   *  the dropzone routes through the same classify → category → ingest flow (P2). */
+  initialFile?: File | null;
 }
 
 type Phase =
@@ -32,12 +37,22 @@ type Phase =
   | "pick_file"
   | "uploading"
   | "extracting"
+  | "confirm_category"
   | "saving"
   | "done"
   | "error";
 
+// Extraction carried between the AI pass and the category-confirm step.
+interface PendingExtraction {
+  documentType: string;
+  summary?: string;
+  extractedText?: string;
+  fields?: any[];
+  ok: boolean;
+}
+
 const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
-  isOpen, onClose, onComplete, presetClientId, presetClientName,
+  isOpen, onClose, onComplete, presetClientId, presetClientName, initialFile,
 }) => {
   const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
@@ -46,12 +61,28 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
   const [phase, setPhase] = useState<Phase>(presetClientId ? "pick_file" : "pick_client");
   const [error, setError] = useState<string | null>(null);
   const [activeFile, setActiveFile] = useState<File | null>(null);
+  // Category-on-capture: the AI's inferred classification, and the user's chosen
+  // document_type (pre-filled from the inference when it maps to a category).
+  const [pending, setPending] = useState<PendingExtraction | null>(null);
+  const [chosenType, setChosenType] = useState<string>("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const selectedClient = useMemo(
     () => clients.find(c => c.id === selectedClientId),
     [clients, selectedClientId]
   );
+
+  // Auto-run classification when a file is handed in (grid drag-drop), so it flows
+  // straight into the category-confirm step instead of the pick-a-file screen.
+  const initialFileProcessed = React.useRef(false);
+  useEffect(() => {
+    if (!isOpen) { initialFileProcessed.current = false; return; }
+    if (initialFile && !initialFileProcessed.current && (presetClientId || selectedClientId)) {
+      initialFileProcessed.current = true;
+      handleFile(initialFile);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialFile, presetClientId, selectedClientId]);
 
   const effectiveClientName = selectedClientName || selectedClient?.name || "their";
 
@@ -60,6 +91,8 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
     if (!isOpen) return;
     setError(null);
     setActiveFile(null);
+    setPending(null);
+    setChosenType("");
     setSelectedClientId(presetClientId || "");
     setSelectedClientName(presetClientName || "");
     setPhase(presetClientId ? "pick_file" : "pick_client");
@@ -114,33 +147,54 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
     if (!clientId) { setError("Pick a client first."); setPhase("pick_client"); return; }
 
     try {
-      // 1. Gemini classification (via pds-gemini-proxy).
+      // 1. Gemini classification (via pds-gemini-proxy). The type is now a
+      //    SUGGESTION the user confirms — we stop at the category step, not ingest.
       setPhase("extracting");
       const extraction = await extractFromFile(file);
+      setPending({
+        documentType: extraction.documentType,
+        summary: extraction.summary,
+        extractedText: extraction.extractedText,
+        fields: extraction.fields,
+        ok: extraction.ok,
+      });
+      // Pre-fill only when the inference maps to an offered category; otherwise the
+      // picker starts empty and the user must choose (never silently bucketed).
+      setChosenType(isCategorizable(extraction.documentType) ? extraction.documentType : "");
+      setPhase("confirm_category");
+    } catch (e: any) {
+      console.error("[StaffDocumentUpload] classify failed:", e);
+      setError(e?.message || "Something went wrong while reading the document.");
+      setPhase("error");
+    }
+  };
 
-      // 2. Unified ingest core — one bucket, document_type set, real uploader.
+  // Category confirmed → ingest with the chosen document_type threaded through.
+  const handleConfirmCategory = async () => {
+    if (!activeFile || !pending || !chosenType) return;
+    const clientId = presetClientId || selectedClientId;
+    if (!clientId) { setError("Pick a client first."); setPhase("pick_client"); return; }
+    try {
       setPhase("saving");
-      await storageService.ingestDocument(file, {
+      await storageService.ingestDocument(activeFile, {
         clientId,
         source: 'upload',
         uploadedBy: user?.name,
         analysis: {
-          documentType: extraction.documentType,
-          summary: extraction.summary,
-          extractedText: extraction.extractedText,
-          fields: extraction.fields,
-          needsReview: !extraction.ok,
+          documentType: chosenType, // user's choice — the core stores it as-is
+          summary: pending.summary,
+          extractedText: pending.extractedText,
+          fields: pending.fields,
+          needsReview: !pending.ok,
         },
       });
-
-      // 3. Done
       setPhase("done");
       setTimeout(() => {
         onComplete();
         onClose();
       }, 2200);
     } catch (e: any) {
-      console.error("[StaffDocumentUpload] failed:", e);
+      console.error("[StaffDocumentUpload] save failed:", e);
       setError(e?.message || "Something went wrong while saving the document.");
       setPhase("error");
     }
@@ -240,6 +294,32 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
                   <span>{error}</span>
                 </div>
               )}
+            </div>
+          )}
+
+          {phase === "confirm_category" && (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/40 rounded-2xl flex items-center justify-center shrink-0">
+                  <FileText size={20} className="text-amber-700" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-slate-900 dark:text-white truncate">{activeFile?.name}</p>
+                  <p className="text-xs text-slate-500">Choose where this document files.</p>
+                </div>
+              </div>
+              <CategoryPicker
+                value={chosenType}
+                onChange={setChosenType}
+                inferred={!!pending && isCategorizable(pending.documentType)}
+              />
+              <button
+                onClick={handleConfirmCategory}
+                disabled={!chosenType}
+                className="w-full px-5 py-3 bg-primary text-white font-black text-sm rounded-2xl shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-focus transition-all"
+              >
+                Save to {effectiveClientName}'s folder
+              </button>
             </div>
           )}
 

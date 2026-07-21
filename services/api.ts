@@ -82,6 +82,10 @@ const mapVaultDocToApp = (vDoc: any): DocumentFile => ({
     // Real category from the uploaded_files.document_type column (previously
     // dropped here, which is why every doc displayed the hardcoded "Intake").
     category: categorizeDocType(vDoc.document_type),
+    // Raw document_type carried through for the Admin/Clinical derive
+    // (config/recordCategory.ts). `category` above is the humanized label; this is
+    // the underlying value the grouping map is keyed on.
+    documentTypeRaw: vDoc.document_type ?? undefined,
     needsReview: !!vDoc.needs_review,
     complianceStatus: 'Approved',
     auditTrail: []

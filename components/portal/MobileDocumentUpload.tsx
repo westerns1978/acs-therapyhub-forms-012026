@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Loader2, CheckCircle2, AlertTriangle, RotateCcw, X, Eye, ChevronDown, ChevronUp } from 'lucide-react';
 import { extractHandwrittenForm, type OcrExtractionResult, type ExtractedFormField } from '../../services/ocrService';
-import { storageService } from '../../services/storageService';
+import { storageService, ocrFormTypeToDocType } from '../../services/storageService';
 import { useAuth } from '../../contexts/AuthContext';
+import CategoryPicker from '../documents/CategoryPicker';
+import { isCategorizable } from '../../config/recordCategory';
 
 type SupportedMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
@@ -11,6 +13,12 @@ interface MobileDocumentUploadProps {
   onComplete: () => void;
   onClose: () => void;
   initialImage?: { base64: string; mimeType: SupportedMime };
+  /**
+   * Staff capture only (P2): when true, the review step shows the Admin/Clinical
+   * category picker and the chosen document_type is stored. The client portal omits
+   * this, so its behavior is unchanged (type still derived from the OCR form-type).
+   */
+  selectCategory?: boolean;
 }
 
 const MIME_EXT: Record<SupportedMime, string> = {
@@ -35,13 +43,16 @@ const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; label: strin
   low:    { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Low' },
 };
 
-export default function MobileDocumentUpload({ clientId, onComplete, onClose, initialImage }: MobileDocumentUploadProps) {
+export default function MobileDocumentUpload({ clientId, onComplete, onClose, initialImage, selectCategory }: MobileDocumentUploadProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<Step>('capture');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [ocrResult, setOcrResult] = useState<OcrExtractionResult | null>(null);
   const [editedFields, setEditedFields] = useState<ExtractedFormField[]>([]);
+  // Staff category-on-capture (P2). Pre-filled from the OCR form-type inference when
+  // it maps to an offered category; else empty so the user must choose.
+  const [chosenType, setChosenType] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [expandedFlags, setExpandedFlags] = useState(false);
@@ -91,6 +102,10 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose, in
       const result = await extractHandwrittenForm(base64, mimeType);
       setOcrResult(result);
       setEditedFields(result.fields.map(f => ({ ...f })));
+      if (selectCategory) {
+        const inferred = ocrFormTypeToDocType(result.formType);
+        setChosenType(isCategorizable(inferred) ? (inferred as string) : '');
+      }
       setStep('review');
     } catch (err: any) {
       console.error('OCR failed:', err);
@@ -115,6 +130,7 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose, in
 
   const handleConfirmAndSave = async () => {
     if (!imageFile || !ocrResult) return;
+    if (selectCategory && !chosenType) return; // must choose a category first
     setStep('saving');
     try {
       // Unified ingest core: one bucket, document_type carried from the OCR
@@ -125,6 +141,9 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose, in
         source: 'scan',
         uploadedBy: user?.name,
         analysis: {
+          // Staff capture: the user's chosen category wins. Portal (no selectCategory):
+          // documentType stays undefined and the core derives it from ocrFormType.
+          documentType: selectCategory && chosenType ? chosenType : undefined,
           ocrFormType: ocrResult.formType,
           ocrCompletionScore: ocrResult.completionScore,
           ocrExtractedJson: buildFieldMap(editedFields),
@@ -165,6 +184,7 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose, in
     setImagePreview(null);
     setOcrResult(null);
     setEditedFields([]);
+    setChosenType('');
     setError(null);
   };
 
@@ -442,6 +462,18 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose, in
           </div>
         )}
 
+        {/* Category-on-capture (staff only) */}
+        {selectCategory && (
+          <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Category</p>
+            <CategoryPicker
+              value={chosenType}
+              onChange={setChosenType}
+              inferred={isCategorizable(ocrFormTypeToDocType(ocrResult?.formType))}
+            />
+          </div>
+        )}
+
         {/* Editable fields */}
         <div className="space-y-3">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Extracted Fields</p>
@@ -482,7 +514,9 @@ export default function MobileDocumentUpload({ clientId, onComplete, onClose, in
       <div className="px-4 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 space-y-3">
         <button
           onClick={handleConfirmAndSave}
-          className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+          disabled={selectCategory && !chosenType}
+          className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+          title={selectCategory && !chosenType ? 'Choose a category first' : undefined}
         >
           <CheckCircle2 size={18} />
           Confirm & Save
