@@ -516,7 +516,6 @@ export const getNextAppointment = async (clientId: string): Promise<Appointment 
     }
 };
 export const getPayments = async () => (mockPayments || []).map(p => ({...p, id: p.id.toString(), date: new Date(p.date), amount: p.amount, method: 'Stripe', status: 'Completed'}));
-export const getPracticeMetrics = async () => ({ incomeMTD: 15400, unbilledAmount: 1200, missingNotesCount: 3, outstandingInvoicesCount: 2, totalActiveClients: (dbClients || []).length });
 
 export const addAppointment = async (data: Partial<Appointment>): Promise<Appointment> => {
     const row = mapAppToAppointmentRow(data);
@@ -1304,7 +1303,6 @@ export const distributeGroupNote = async (
     return { posted, alreadyPosted, failed };
 };
 
-export const getMessages = async () => dbMessages || [];
 export const getStaffMessages = async () => (dbMessages || []).filter(m => m.sender === 'counselor' || m.sender === 'system');
 export const getConversation = async (clientId?: string) => dbMessages || [];
 
@@ -1559,11 +1557,7 @@ export const approveFormSubmission = async (submissionId: string, reviewerId?: s
 // WS5: the assignable template catalog is the single FORM_REGISTRY (replaces the old
 // 5-entry mock whose ids didn't match the components). NOT a hard allowlist — assignForm
 // still inserts whatever formId it's given, so non-SATOP program intakes keep persisting.
-export const getFormTemplates = async () =>
-    FORM_REGISTRY.map(f => ({ id: f.id, name: f.title, title: f.title, category: f.category, description: f.description || '', audience: f.audience, requiredForCompletion: f.requiredForCompletion }));
-export const getBillingSummary = async (id: string) => dbBillingSummaries[id];
 export const getClientDocuments = async (id: string) => (dbClientDocuments || []).filter(d => d.clientId === id);
-export const getClientAssignments = async (id: string) => (dbClientAssignments || []).filter(a => a.clientId === id);
 /**
  * NOT IMPLEMENTED — hard guard (2026-07-28).
  *
@@ -1587,13 +1581,15 @@ export const assignForm = async (formId: string, clientIds: string[], dueDate: D
     // Looks up template metadata so form_name/form_type are set — the portal filters
     // pending forms by matching on these, so they can't be left blank.
     if (!formId || !clientIds?.length) throw new Error('formId and clientIds are required');
-    const templates = await getFormTemplates();
-    const template = templates.find(t => t.id === formId);
+    // Metadata from FORM_REGISTRY — the real catalog. This LIVE writer was
+    // resolving form_name/form_type through the mock getFormTemplates()
+    // (deleted in the J7 sweep); the registry is the WS5 source of truth.
+    const template = FORM_REGISTRY.find(t => t.id === formId);
     const now = new Date().toISOString();
     const due = dueDate instanceof Date ? dueDate.toISOString() : new Date(dueDate).toISOString();
     const rows = clientIds.map(clientId => ({
         form_id: formId,
-        form_name: template?.title || template?.name || formId,
+        form_name: template?.title || formId,
         form_type: template?.category || null,
         client_id: clientId,
         status: 'Not Started',
@@ -1621,7 +1617,6 @@ export const getProgressData = async () => [];
 // The real session spine is `appointments` (+ the Zoom edge fns).
 // DO NOT re-point these at mock data.
 export const getVideoSessions = async (): Promise<VideoSession[]> => [];
-export const getVideoSessionById = async (_id: string): Promise<VideoSession | undefined> => undefined;
 export const addVideoSession = async (_s: any): Promise<never> => {
     throw new Error('Video sessions are not implemented — nothing was saved. Book on the Calendar instead.');
 };
@@ -1709,7 +1704,6 @@ export const getAuditLogs = async (filters: AuditLogFilters = {}): Promise<Audit
         return [];
     }
 };
-export const updateDocumentComplianceStatus = async (ids: string[], status: string, user: any) => [];
 /**
  * NOT IMPLEMENTED — hard guard (2026-07-28).
  *
@@ -1726,10 +1720,6 @@ export const updateDocumentComplianceStatus = async (ids: string[], status: stri
 export const addSessionRecord = async (_record: any): Promise<never> => {
     throw new Error('Session charges are not implemented here — nothing was billed. (The real ledger is the charges table; see BillingLedger.)');
 };
-export const getComplianceAnalysis = async (client: any, sropData: any) => "Analysis";
-export const generateFormSuggestions = async (field: string, context: string) => "Suggestion";
-export const getDailyBriefingData = async () => ({ therapistStats: { reportingStreak: 10, caseloadSize: (dbClients || []).length, thisWeekCompletions: 2 }, todaysAppointments: (mockAppointments || []).slice(0,3), highPriorityAlerts: [], complianceRisks: [], clientMilestones: [] });
-export const getWestFlowExecutiveSummary = async () => "Executive summary data";
 
 // getRevenueData / getComplianceTrendData REMOVED 2026-07-28. They returned hardcoded
 // literals ($12,500 SATOP revenue; an 88→98% "compliance trend") that /reporting charted
@@ -1737,6 +1727,19 @@ export const getWestFlowExecutiveSummary = async () => "Executive summary data";
 // must come from the acs_report_* RPCs (see pages/Financials.tsx). /reporting now renders
 // an honest not-wired notice and stays TRIAL_MODE-hidden until that wiring exists.
 
+// ── MOCK-HELPER GRAVEYARD (J7 sweep, 2026-07-28) ─────────────────────────────
+// Deleted here, with the same do-not-reintroduce discipline as the Reporting
+// feeds: every one returned fabricated data while looking like an API —
+// getDailyBriefingData (fake streaks/caseload/appointments; fed only the orphan
+// AIBriefingModal, deleted with it), getWestFlowExecutiveSummary ("Executive
+// summary data"), getComplianceAnalysis ("Analysis"), generateFormSuggestions
+// ("Suggestion" — the phantom recovery-plan wizard's AI), getPracticeMetrics
+// (invented $15,400 MTD income), analyzeTravelRisk ("Commute cleared by
+// GeMyndFlow Dispatcher" — also a vendor-brand leak), getVideoSessionById,
+// updateDocumentComplianceStatus (empty array claiming success), getMessages,
+// getBillingSummary, getClientAssignments, getFormTemplates (the 5-entry mock
+// catalog FORM_REGISTRY replaced). DO NOT re-add mock feeds to this module —
+// real data or a thrown error, nothing in between.
 export const resetDemoData = async () => {
     initializeDatabase();
 };
@@ -2109,7 +2112,6 @@ export const updateTreatmentPlan = async (
 export const archiveTreatmentPlan = async (id: string): Promise<TreatmentPlan> =>
     updateTreatmentPlan(id, { status: 'Archived' });
 
-export const analyzeTravelRisk = async (id: string, date: string, time: string) => ({ risk: 'Low' as const, reason: 'Commute cleared by GeMyndFlow Dispatcher.' });
 export const getSessionRecords = async (id: string) => (dbSessionRecords || []).filter(r => r.clientId === id);
 
 export const processDocument = async (file: File, clientId: string, clientName: string, onProgress: (p: number) => void): Promise<DocumentFile> => {
