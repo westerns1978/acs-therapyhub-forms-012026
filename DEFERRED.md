@@ -892,3 +892,33 @@ That is THREE-to-FOUR independent copies of the same red/amber/emerald/slate ton
 facelift deliberately local-copied rather than extract (styling-only scope). Worth a later refactor:
 lift a single `ui/StatusChip` + `toneOf` primitive and converge the call sites. Not urgent — purely
 DRY debt, no behavior change.
+
+---
+
+## 44. A NOTE WRITTEN FROM THE CLIENT HEADER NEVER LINKS TO ITS SESSION (2026-07-28)
+
+Found while witnessing the individual session path end to end on production (Dan's ask; the
+group path had been witnessed, this one never had). Schedule → Mark Completed (counseling,
+4 units) → accrual 69→70h → guardrail 70/75 all worked. But the note written afterwards via the
+client header's **"Start typed or dictated note"** saved with **`appointment_id = NULL`**.
+
+Cause: that button dispatches `open-note-modal` with only `{ clientId }` — there is no
+appointment in scope, so `saveClinicalNote` has no id to link (and correctly refuses to guess;
+its trust-boundary check only *verifies* a supplied id, it never infers one).
+
+Observable consequences, all confirmed live:
+- The Services tab lists the same clinical hour as **two separate rows** — `OP 1:1 · Completed ·
+  4 units` (the appointment) and `Session note · Signed` (the orphan note). Units render once,
+  on the appointment, so **nothing double-counts**; but the note does not document the session
+  it belongs to, and a reader sees two line items for one hour.
+- The L1 **calendar note-star never lights** for such a note: `getNotedAppointmentIds` keys on
+  `clinical_notes.appointment_id`, so a header-written note leaves its session unmarked.
+- The L4 "units pulled from the note" precedence can't apply either — it joins on
+  `appointment_id`, so the appointment's own `billable_units` is what shows.
+
+NOT a regression (this entry point never linked) and NOT a data-integrity fault (no wrong link,
+no double count) — it is a missing connection. Fix shape: when the header note button is used on
+a client with a recent/same-day completed appointment, offer to attach the note to it (pick from
+that client's recent sessions), defaulting to unlinked rather than guessing. The
+appointment-scoped entry points (`AppointmentStatusModal` → Start transcribed session, and the
+group note) already link correctly and are unaffected.
