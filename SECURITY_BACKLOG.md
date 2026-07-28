@@ -740,3 +740,28 @@ attributed to the wrong person is worse than one attributed to nobody. The hones
 already exists — ClinicalNoteView shows the role "Clinician" when no signer name is on the row.
 Disposition of the 12 authorless SIGNED notes (re-attest by their real authors vs. leave as-is
 with a known-gap memo) is a David/compliance decision, not a code fix.
+
+### REAL vs DEMO split (2026-07-28, Dan's ask — the fact that scopes David's decision)
+
+| Cohort | Signed | Notes | Distinct clients | Date range |
+|---|---|---|---|---|
+| `clients.is_demo = TRUE` | yes | **12** | 8 | 2026-06-03 → 2026-07-28 |
+| `clients.is_demo = TRUE` | no | 7 | 7 | 2026-06-03 → 2026-07-15 |
+| `clients.is_demo = FALSE` (real charts) | — | **0** | 0 | — |
+| Orphan (no `clients` row) | — | 0 | 0 | — |
+
+**Every authorless note — all 19, including all 12 signed — belongs to a DEMO client row. Zero
+real charts are affected.** Verified by joining `clinical_notes.client_id → clients.is_demo`;
+the orphan check (`clients.id IS NULL`) returns 0, so no note escapes the split.
+
+This lowers the item from a records-integrity problem to **test-data hygiene**. Recommended
+disposition for David: no re-attestation is owed to any person, because no person's chart is
+involved. Either leave the demo rows as-is (they render honestly as "Clinician") or clear them
+with the rest of the demo-row cleanup (see the demo-row stop-list work). The authorship *defect*
+is already closed forward by the L3 build — this backlog item now tracks only whether the 19
+demo rows get swept.
+
+Caveat for whoever sweeps: one 2026-07-28 signed row has `narrative IS NULL` (written through
+the pre-L3 code path earlier that day, not by the L2/L3 build); the L2 group-note witness
+artifacts from that session were fully reverted and are **not** in these counts
+(`group_session_id IS NOT NULL` returns 0).

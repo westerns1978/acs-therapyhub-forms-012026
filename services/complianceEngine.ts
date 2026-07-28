@@ -337,29 +337,71 @@ export async function fetchClientAccrual(clientId: string): Promise<AccruedHours
   };
 }
 
-/** WS-program-aware — ONE client's treatment-plan execution anchor (latest plan's created_at).
- *  Null when the client has no treatment plan (⇒ plan-review rule stays not_enforceable). */
+/**
+ * ANCHOR ELIGIBILITY — which treatment-plan row may re-anchor the 90/180-day
+ * review clock (2026-07-28 defect fix, Dan).
+ *
+ * THE DEFECT: the anchor was "newest row's created_at, whatever it is". So the
+ * archive-and-replace path (apply a template over an existing plan) minted a new
+ * row with ZERO signatures and silently reset the clock — an open compliance
+ * warning could be cleared without anyone reviewing anything. An unsigned plan
+ * is a draft; a draft must not discharge a review obligation.
+ *
+ * THE LEGACY BOUNDARY (why this is dated, not absolute): treatment_plans had NO
+ * signature columns until migration 20260728_l5_treatment_plan_updates. Every
+ * plan written before that is unsigned *because the app could not capture a
+ * signature*, not because anyone skipped one. Disqualifying those would flip
+ * every existing client to "no plan on file" and thereby ERASE real overdue
+ * violations — strictly worse than the defect. So:
+ *
+ *   - written BEFORE the signature capability  → eligible (unchanged behavior)
+ *   - written AFTER, carrying both signatures  → eligible
+ *   - written AFTER, unsigned                  → NOT eligible (the fix)
+ *
+ * The anchor is the newest ELIGIBLE plan, so an unsigned draft written today
+ * leaves the previously-anchoring plan in force rather than blanking the rule.
+ *
+ * NOT changed here: whether a SIGNED update should re-anchor at all. That is a
+ * policy question for David (ROADMAP: explicit-review-event proposal). This fix
+ * only closes the unsigned path.
+ */
+const PLAN_SIGNATURE_CAPABILITY_ISO = '2026-07-28T00:00:00Z';
+
+interface PlanAnchorRow { client_id?: string; created_at: string | null; clinician_signature: string | null; client_signature: string | null; }
+
+const canAnchorReviewClock = (r: PlanAnchorRow): boolean => {
+  if (!r.created_at) return false;
+  if (r.created_at < PLAN_SIGNATURE_CAPABILITY_ISO) return true;   // pre-capability legacy plan
+  return !!(r.clinician_signature && r.client_signature);          // post-capability: both signatures
+};
+
+/** WS-program-aware — ONE client's treatment-plan execution anchor (newest ELIGIBLE
+ *  plan's created_at). Null when the client has no eligible plan (⇒ plan-review rule
+ *  stays not_enforceable). */
 export async function fetchClientPlan(clientId: string): Promise<string | null> {
   const { data, error } = await supabase
-    .from('treatment_plans').select('created_at').eq('client_id', clientId)
-    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    .from('treatment_plans').select('created_at, clinician_signature, client_signature').eq('client_id', clientId)
+    .order('created_at', { ascending: false });
   if (error || !data) {
     if (error) console.warn('[complianceEngine] plan query failed:', error.message);
     return null;
   }
-  return data.created_at ?? null;
+  const eligible = (data as PlanAnchorRow[]).find(canAnchorReviewClock);   // desc → first eligible = newest
+  return eligible?.created_at ?? null;
 }
 
-/** Batch — latest plan execution date keyed by client_id (for the practice-wide fetchers). */
+/** Batch — newest ELIGIBLE plan execution date keyed by client_id (practice-wide fetchers). */
 async function fetchAllPlans(): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const { data, error } = await supabase
-    .from('treatment_plans').select('client_id, created_at').order('created_at', { ascending: false });
+    .from('treatment_plans').select('client_id, created_at, clinician_signature, client_signature').order('created_at', { ascending: false });
   if (error || !data) {
     if (error) console.warn('[complianceEngine] batch plan query failed:', error.message);
     return out;
   }
-  for (const r of data) if (r.client_id && r.created_at && !out.has(r.client_id)) out.set(r.client_id, r.created_at); // first = latest (desc)
+  for (const r of data as PlanAnchorRow[]) {
+    if (r.client_id && r.created_at && !out.has(r.client_id) && canAnchorReviewClock(r)) out.set(r.client_id, r.created_at); // first eligible = newest
+  }
   return out;
 }
 
