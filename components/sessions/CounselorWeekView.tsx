@@ -37,10 +37,12 @@ interface CounselorWeekViewProps {
     appointments: Appointment[];          // ALL appointments; filtered to weekDays here
     onSelectAppt: (appt: Appointment) => void;
     conflictIds?: Set<string>;
+    /** L1: appointments with a clinical note on file — the note-star marker. */
+    notedApptIds?: Set<string>;
     onSlotClick?: (info: SlotClickInfo) => void;
 }
 
-const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counselors, appointments, onSelectAppt, conflictIds, onSlotClick }) => {
+const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counselors, appointments, onSelectAppt, conflictIds, notedApptIds, onSlotClick }) => {
     // Appointments falling on a visible day, pre-bucketed per counselor block.
     const blocks = useMemo(() => {
         const dayKeys = new Set(weekDays.map(d => d.toDateString()));
@@ -189,6 +191,7 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
                                         counselorName={block.key === UNASSIGNED_LANE_KEY ? undefined : block.label}
                                         onSelectAppt={onSelectAppt}
                                         conflictIds={conflictIds}
+                                        notedApptIds={notedApptIds}
                                         onSlotClick={onSlotClick}
                                         showNowLine={isToday(day)}
                                         className={`shrink-0 ${dayDivider(di)} ${isToday(day) ? todayTint : ''}`}

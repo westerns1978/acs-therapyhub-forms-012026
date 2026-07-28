@@ -2,8 +2,8 @@ import React from 'react';
 import { Appointment } from '../../types';
 import { getAppointmentStatusStyle } from './AppointmentStatusModal';
 import { parseTimeToMinutes, formatTime12, minutesToTimeLabel } from '../../config/time';
-import { serviceCardClass } from '../../config/sessionTaxonomy';
-import { Clock, Video, AlertTriangle } from 'lucide-react';
+import { serviceCardClass, sessionTypeById } from '../../config/sessionTaxonomy';
+import { Clock, Video, AlertTriangle, MapPin, PhoneOff, UserX, Star } from 'lucide-react';
 
 // Shared schedule-lane atom, extracted verbatim from CounselorDayView so the Day board
 // and the by-counselor Week board render the SAME column: same visible window, same
@@ -135,6 +135,9 @@ interface LaneColumnProps {
     onSelectAppt: (appt: Appointment) => void;
     /** Live therapist double-booking hits — renders the red ring/icon. Omitted = no ring. */
     conflictIds?: Set<string>;
+    /** Appointments with a clinical note on file — renders the note star (L1, David 7/28).
+     *  Notes are rare, so the star is a heads-up marker. Omitted = no stars. */
+    notedApptIds?: Set<string>;
     /** Fires when staff click an EMPTY point in the lane (cards stopPropagation). Omitted = no affordance. */
     onSlotClick?: (info: SlotClickInfo) => void;
     /** Border/width classes supplied by the host grid (Day: 1px lane dividers; Week: day/block dividers). */
@@ -146,7 +149,7 @@ interface LaneColumnProps {
     showNowLine?: boolean;
 }
 
-export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorId, counselorName, onSelectAppt, conflictIds, onSlotClick, className, style, showNowLine }) => {
+export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorId, counselorName, onSelectAppt, conflictIds, notedApptIds, onSlotClick, className, style, showNowLine }) => {
     // Step 9: empty-slot click -> prefilled booking. Reads the click's vertical position
     // within the lane, snaps to the nearest 30 min, and reports it plus the lane's counselor
     // (if any). Appointment cards stopPropagation() so clicking one opens ITS detail, never
@@ -185,13 +188,21 @@ export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorI
                 Day AND by-counselor Week from one edit. */}
             {HOURS.map(h => <div key={h} className="h-[65px] border-b border-grid-line dark:border-dark-grid-line"></div>)}
 
-            {/* Appointment blocks */}
+            {/* Appointment blocks — L1 (David 7/28): session type, client name, and the
+                IN-PERSON marker must all read WITHOUT hover. In-person is rare and loud:
+                amber double-border + filled MapPin chip, never a text suffix. Missed
+                statuses (No Show / No Call No Show) take the card fill back from the
+                service color so the miss reads at a glance; NCNS also gets PhoneOff. */}
             {events.map(apt => {
                 const s = getAppointmentStatusStyle(apt.status);
-                // Card fill = service color; status stays on the bar + badge.
-                // No taxonomy color → status card unchanged (see SessionManagement).
-                const card = serviceCardClass(apt.sessionTypeId) ?? s.card;
+                const isMissed = apt.status === 'No Show' || apt.status === 'No Call No Show';
+                // Card fill = service color; status stays on the bar + badge — EXCEPT
+                // missed/canceled, where the status fill wins (the miss is the message).
+                const card = (isMissed || apt.status === 'Canceled') ? s.card : (serviceCardClass(apt.sessionTypeId) ?? s.card);
                 const isConflict = !!conflictIds?.has(apt.id);
+                const isInPerson = apt.modality === 'In-Person';
+                const hasNote = !!notedApptIds?.has(apt.id);
+                const typeLabel = sessionTypeById(apt.sessionTypeId)?.label ?? apt.type;
                 return (
                     <div
                         key={apt.id}
@@ -199,18 +210,43 @@ export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorI
                         tabIndex={0}
                         onClick={e => { e.stopPropagation(); onSelectAppt(apt); }}
                         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onSelectAppt(apt); } }}
-                        className={`group/event absolute left-1 right-1 rounded-xl p-2 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
+                        className={`group/event absolute left-1 right-1 rounded-xl p-2 cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card} ${isInPerson ? 'border-2 border-amber-500/80' : 'border'} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
                         style={blockStyle(apt)}
                         title={isConflict ? `${apt.title} — DOUBLE-BOOKED with another ${apt.therapist} session` : `${apt.title} — ${apt.status} (click to change status)`}
                     >
                         <div className={`w-1 absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
-                        {isConflict && (
-                            <span className="absolute top-1 right-1 z-10" title={`Double-booked with another ${apt.therapist} session`}>
-                                <AlertTriangle size={12} className="text-red-600 fill-red-100" />
-                            </span>
-                        )}
+                        <span className="absolute top-1 right-1 z-10 flex items-center gap-0.5">
+                            {hasNote && (
+                                <span title="Note on file for this session">
+                                    <Star size={11} className="text-yellow-500 fill-yellow-300" />
+                                </span>
+                            )}
+                            {apt.status === 'No Call No Show' && (
+                                <span title="No Call No Show">
+                                    <PhoneOff size={11} className="text-rose-600" />
+                                </span>
+                            )}
+                            {apt.status === 'No Show' && (
+                                <span title="No Show">
+                                    <UserX size={11} className="text-amber-600" />
+                                </span>
+                            )}
+                            {isInPerson && (
+                                <span title="IN-PERSON session" className="inline-flex items-center rounded-full bg-amber-500 text-white p-0.5 shadow-sm">
+                                    <MapPin size={9} strokeWidth={3} />
+                                </span>
+                            )}
+                            {isConflict && (
+                                <span title={`Double-booked with another ${apt.therapist} session`}>
+                                    <AlertTriangle size={12} className="text-red-600 fill-red-100" />
+                                </span>
+                            )}
+                        </span>
                         <div className="pl-2 overflow-hidden">
                             <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
+                            {typeLabel && (
+                                <p className="text-[9px] font-semibold truncate opacity-90 leading-tight">{typeLabel}</p>
+                            )}
                             <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-80">
                                 <Clock size={10} /> {formatTime12(apt.startTime)} – {formatTime12(apt.endTime)}
                             </div>

@@ -9,7 +9,7 @@ import { serviceTypeLabelWithAbbrev } from '../../config/serviceType';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { detectOverlaps } from '../../services/recurrence';
 import Modal from '../ui/Modal';
-import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft, Phone, Mail, Repeat, Save, Loader2, CalendarClock } from 'lucide-react';
+import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft, Phone, Mail, Repeat, Save, Loader2, CalendarClock, PhoneOff } from 'lucide-react';
 
 /** The fee decision the cancel flow hands back to its parent. Outside the 24h window it's
  *  always { fee: 'none' }; inside, staff choose to assess or waive (with a logged reason). */
@@ -553,6 +553,9 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                 <CheckCircle2 size={16} /> {appointment.status === 'Completed' ? 'Completed (current)' : 'Mark Completed'}
                             </button>
                             <StatusAction status="No Show" label="Mark No-Show" icon={UserX} className="bg-amber-500 hover:bg-amber-600 text-white" />
+                            {/* L1 (David 7/28): NCNS is a distinct, worse outcome than a
+                                no-show (no notice at all) — its own action + rose styling. */}
+                            <StatusAction status="No Call No Show" label="Mark No Call / No Show" icon={PhoneOff} className="bg-rose-600 hover:bg-rose-700 text-white" />
                             <button
                                 type="button"
                                 onClick={handleCancelClick}

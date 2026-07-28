@@ -382,6 +382,9 @@ const APPOINTMENT_STATUS_MAP: Record<string, Appointment['status']> = {
     cancelled: 'Canceled',
     'no show': 'No Show',
     no_show: 'No Show',
+    'no call no show': 'No Call No Show',
+    no_call_no_show: 'No Call No Show',
+    ncns: 'No Call No Show',
     rescheduled: 'Scheduled',
 };
 
@@ -490,6 +493,26 @@ export const getAppointments = async (date?: Date): Promise<Appointment[]> => {
 };
 export const getSyncedAppointments = async (date?: Date) => (await getAppointments(date));
 export const getClientAppointments = async (id: string) => (await getAppointments()).filter(a => a.clientId === id);
+
+/** L1 (David 7/28): which of these appointments have a clinical note on file — the
+ *  calendar's note-star marker. Notes are rare, so this returns a small Set. Chunked
+ *  .in() to stay under PostgREST URL limits at clinic scale. Errors propagate to the
+ *  caller, which treats the marker as best-effort (no stars ≠ no schedule). */
+export const getNotedAppointmentIds = async (appointmentIds: string[]): Promise<Set<string>> => {
+    const out = new Set<string>();
+    const CHUNK = 200;
+    for (let i = 0; i < appointmentIds.length; i += CHUNK) {
+        const chunk = appointmentIds.slice(i, i + CHUNK);
+        if (!chunk.length) continue;
+        const { data, error } = await supabase
+            .from('clinical_notes')
+            .select('appointment_id')
+            .in('appointment_id', chunk);
+        if (error) throw error;
+        (data || []).forEach(r => { if (r.appointment_id) out.add(r.appointment_id); });
+    }
+    return out;
+};
 
 // Per-client booking glance: the most-recent PAST and the next UPCOMING appointment.
 // Matches on appointments.client_id the SAME way the contact-popup lookup does — exact

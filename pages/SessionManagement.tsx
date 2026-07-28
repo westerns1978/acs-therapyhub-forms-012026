@@ -1,19 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { getAppointments, getClients, getCounselors, deleteAppointment, updateAppointment, updateAppointmentStatus, assessLateCancellationFee, cancelSeries, deleteSeries } from '../services/api';
+import { getAppointments, getClients, getCounselors, deleteAppointment, updateAppointment, updateAppointmentStatus, assessLateCancellationFee, cancelSeries, deleteSeries, getNotedAppointmentIds } from '../services/api';
 import type { Counselor } from '../services/api';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import CounselorDayView from '../components/sessions/CounselorDayView';
 import CounselorWeekView from '../components/sessions/CounselorWeekView';
 import { parseTimeToMinutes, formatTime12 } from '../config/time';
-import { serviceCardClass } from '../config/sessionTaxonomy';
+import { serviceCardClass, sessionTypeById } from '../config/sessionTaxonomy';
 import { normalizeCounselorName, laneCounselorIdFor } from '../components/sessions/scheduleLane';
 import { timeRangesOverlap } from '../services/recurrence';
 import { isTrialHidden } from '../config/trialMode';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, Clock, Check, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, Clock, Check, AlertTriangle, MapPin, PhoneOff, UserX, Star } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +47,9 @@ const SessionManagement: React.FC = () => {
     // Calendar load must FAIL VISIBLY — never silently render phantom/mock appointments.
     const [loadError, setLoadError] = useState<string | null>(null);
     const [retryKey, setRetryKey] = useState(0);
+    // L1 (David 7/28): appointments with a clinical note on file → star marker on the
+    // block. Best-effort — a miss means no stars, never a blank schedule.
+    const [notedApptIds, setNotedApptIds] = useState<Set<string>>(new Set());
 
     // Opens the live session (ActiveSession → wrap-up → saved note) for this
     // appointment's client. Only reachable when the appointment carries a clientId.
@@ -240,6 +243,10 @@ const SessionManagement: React.FC = () => {
                 setAppointments(apts);
                 setClients(cls);
                 setCounselors(cnsl);
+                // Note stars load after the schedule paints — best-effort, non-blocking.
+                getNotedAppointmentIds(apts.map(a => a.id))
+                    .then(setNotedApptIds)
+                    .catch(err => console.warn('[SessionManagement] note markers unavailable:', err));
             } catch (err) {
                 // getAppointments rethrows on a real DB error (no mock fallback). Surface a
                 // visible error + Retry rather than a hung spinner or fabricated rows.
@@ -423,6 +430,8 @@ const SessionManagement: React.FC = () => {
                     counselors={counselors}
                     appointments={appointments}
                     onSelectAppt={setSelectedAppt}
+                    conflictIds={conflictIds}
+                    notedApptIds={notedApptIds}
                     onSlotClick={info => { setSlotPrefill(info); setScheduleModalOpen(true); }}
                 />
                 ) : weekStyle === 'byCounselor' ? (
@@ -432,6 +441,7 @@ const SessionManagement: React.FC = () => {
                     appointments={appointments}
                     onSelectAppt={setSelectedAppt}
                     conflictIds={conflictIds}
+                    notedApptIds={notedApptIds}
                     onSlotClick={info => { setSlotPrefill(info); setScheduleModalOpen(true); }}
                 />
                 ) : (
@@ -474,11 +484,16 @@ const SessionManagement: React.FC = () => {
                                         {/* Events */}
                                         {dayEvents.map(apt => {
                                             const s = getAppointmentStatusStyle(apt.status);
+                                            const isMissed = apt.status === 'No Show' || apt.status === 'No Call No Show';
                                             // Card fill = service color (David 7/7); status stays on the
-                                            // bar + badge. No taxonomy color (legacy rows, OMU family) →
-                                            // fall back to the status card unchanged.
-                                            const card = serviceCardClass(apt.sessionTypeId) ?? s.card;
+                                            // bar + badge — EXCEPT missed/canceled, where the status fill
+                                            // wins (L1: the miss is the message). No taxonomy color
+                                            // (legacy rows, OMU family) → status card unchanged.
+                                            const card = (isMissed || apt.status === 'Canceled') ? s.card : (serviceCardClass(apt.sessionTypeId) ?? s.card);
                                             const isConflict = conflictIds.has(apt.id);
+                                            const isInPerson = apt.modality === 'In-Person';
+                                            const hasNote = notedApptIds.has(apt.id);
+                                            const typeLabel = sessionTypeById(apt.sessionTypeId)?.label ?? apt.type;
                                             return (
                                             <div
                                                 key={apt.id}
@@ -486,19 +501,44 @@ const SessionManagement: React.FC = () => {
                                                 tabIndex={0}
                                                 onClick={() => setSelectedAppt(apt)}
                                                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedAppt(apt); } }}
-                                                className={`group/event absolute left-1 right-1 rounded-xl p-2.5 border cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
+                                                className={`group/event absolute left-1 right-1 rounded-xl p-2.5 cursor-pointer hover:scale-[1.03] hover:z-10 transition-all duration-200 shadow-sm hover:shadow-md overflow-hidden backdrop-blur-sm ${card} ${isInPerson ? 'border-2 border-amber-500/80' : 'border'} ${isConflict ? 'ring-2 ring-red-500 ring-offset-1' : ''}`}
                                                 style={getEventStyle(apt)}
                                                 title={isConflict ? `${apt.title} — DOUBLE-BOOKED with another ${apt.therapist} session` : `${apt.title} — ${apt.status} (click to change status)`}
                                             >
                                                 <div className="flex items-start gap-1">
                                                     <div className={`w-1 h-full absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
-                                                    {isConflict && (
-                                                        <span className="absolute top-1 right-1 z-10" title={`Double-booked with another ${apt.therapist} session`}>
-                                                            <AlertTriangle size={12} className="text-red-600 fill-red-100" />
-                                                        </span>
-                                                    )}
+                                                    <span className="absolute top-1 right-1 z-10 flex items-center gap-0.5">
+                                                        {hasNote && (
+                                                            <span title="Note on file for this session">
+                                                                <Star size={11} className="text-yellow-500 fill-yellow-300" />
+                                                            </span>
+                                                        )}
+                                                        {apt.status === 'No Call No Show' && (
+                                                            <span title="No Call No Show">
+                                                                <PhoneOff size={11} className="text-rose-600" />
+                                                            </span>
+                                                        )}
+                                                        {apt.status === 'No Show' && (
+                                                            <span title="No Show">
+                                                                <UserX size={11} className="text-amber-600" />
+                                                            </span>
+                                                        )}
+                                                        {isInPerson && (
+                                                            <span title="IN-PERSON session" className="inline-flex items-center rounded-full bg-amber-500 text-white p-0.5 shadow-sm">
+                                                                <MapPin size={9} strokeWidth={3} />
+                                                            </span>
+                                                        )}
+                                                        {isConflict && (
+                                                            <span title={`Double-booked with another ${apt.therapist} session`}>
+                                                                <AlertTriangle size={12} className="text-red-600 fill-red-100" />
+                                                            </span>
+                                                        )}
+                                                    </span>
                                                     <div className="pl-2 overflow-hidden">
                                                         <p className={`font-bold text-xs truncate leading-tight ${apt.status === 'Canceled' ? 'line-through opacity-70' : ''}`}>{apt.clientName || apt.title}</p>
+                                                        {typeLabel && (
+                                                            <p className="text-[9px] font-semibold truncate opacity-90 leading-tight">{typeLabel}</p>
+                                                        )}
                                                         {/* Counselor label — the week grid has no lanes, so
                                                             each card must say whose session it is. */}
                                                         {apt.therapist && (

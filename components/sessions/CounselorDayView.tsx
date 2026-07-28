@@ -23,6 +23,8 @@ interface CounselorDayViewProps {
      *  same-day + time-overlap). Renders the red ring/icon the old flat week grid had.
      *  Omitted = no ring, i.e. Day view's existing behavior is unchanged. */
     conflictIds?: Set<string>;
+    /** L1: appointments with a clinical note on file — the note-star marker. */
+    notedApptIds?: Set<string>;
     /** Step 8 week board: fixed-width lane columns + horizontal scroll instead of the
      *  default compress-to-fit. Day view leaves this unset — unchanged behavior. */
     scrollable?: boolean;
@@ -35,7 +37,7 @@ interface CounselorDayViewProps {
     onSlotClick?: (info: SlotClickInfo) => void;
 }
 
-const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt, soloLabel, conflictIds, scrollable, soloCounselorId, onSlotClick }) => {
+const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt, soloLabel, conflictIds, notedApptIds, scrollable, soloCounselorId, onSlotClick }) => {
     // Appointments on this calendar day.
     const dayEvents = useMemo(
         () => appointments.filter(a => new Date(a.date).toDateString() === date.toDateString()),
@@ -106,6 +108,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
                             counselorName={lane.key === UNASSIGNED_LANE_KEY ? undefined : lane.label}
                             onSelectAppt={onSelectAppt}
                             conflictIds={conflictIds}
+                            notedApptIds={notedApptIds}
                             onSlotClick={onSlotClick}
                             className="border-r border-grid-line dark:border-dark-grid-line last:border-0"
                         />
