@@ -2127,6 +2127,14 @@ const mapTreatmentPlanRowToApp = (row: any): TreatmentPlan => ({
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    // L5 update-versioning fields (migration 20260728_l5_treatment_plan_updates)
+    supersedesPlanId: row.supersedes_plan_id ?? undefined,
+    updateDate: row.update_date ?? undefined,
+    progressComments: row.progress_comments ?? undefined,
+    createdByName: row.created_by_name ?? undefined,
+    clinicianSignature: row.clinician_signature ?? undefined,
+    clientSignature: row.client_signature ?? undefined,
+    signedAt: row.signed_at ?? undefined,
 });
 
 export const getTreatmentPlansForClient = async (clientId: string): Promise<TreatmentPlan[]> => {
@@ -2147,7 +2155,12 @@ export const saveTreatmentPlan = async (input: {
     estimatedDuration?: string;
     content: TreatmentPlanContent;
     notes?: string;
+    /** L5: name of the clinician initiating the plan (David 7/15). */
+    createdByName?: string;
 }): Promise<TreatmentPlan> => {
+    // created_by was never written before L5 (NULL on every app-written plan);
+    // stamp the auth uuid when a session exists, alongside the display name.
+    const { data: auth } = await supabase.auth.getUser().catch(() => ({ data: { user: null } } as any));
     const { data, error } = await supabase
         .from('treatment_plans')
         .insert({
@@ -2159,10 +2172,65 @@ export const saveTreatmentPlan = async (input: {
             content: input.content,
             notes: input.notes ?? null,
             status: 'Active',
+            created_by: auth?.user?.id ?? null,
+            created_by_name: input.createdByName ?? null,
         })
         .select()
         .single();
     if (error) throw error;
+    return mapTreatmentPlanRowToApp(data);
+};
+
+/**
+ * L5 (David 7/15): apply an UPDATE to a treatment plan. The prior plan is left
+ * byte-for-byte untouched (then archived); the update is a NEW row that becomes
+ * the primary plan, linked via supersedes_plan_id. BOTH typed-name signatures
+ * are required — enforced here as well as in the UI.
+ * Order: insert first, archive second — a failure between the two leaves two
+ * plans visible (loud, recoverable) rather than a client with no active plan.
+ */
+export const applyTreatmentPlanUpdate = async (
+    prior: TreatmentPlan,
+    input: {
+        content: TreatmentPlanContent;
+        updateDate: string;              // 'YYYY-MM-DD'
+        progressComments?: string;
+        createdByName: string;
+        clinicianSignature: string;
+        clientSignature: string;
+        notes?: string;
+        estimatedDuration?: string;
+    },
+): Promise<TreatmentPlan> => {
+    if (!input.clinicianSignature.trim() || !input.clientSignature.trim()) {
+        throw new Error('A plan update requires BOTH signatures (clinician and client).');
+    }
+    const { data: auth } = await supabase.auth.getUser().catch(() => ({ data: { user: null } } as any));
+    const { data, error } = await supabase
+        .from('treatment_plans')
+        .insert({
+            client_id: prior.clientId,
+            template_id: prior.templateId ?? null,
+            title: prior.title,
+            category: prior.category,
+            estimated_duration: (input.estimatedDuration ?? prior.estimatedDuration) ?? null,
+            content: input.content,
+            notes: input.notes ?? null,
+            status: 'Active',
+            supersedes_plan_id: prior.id,
+            update_date: input.updateDate,
+            progress_comments: input.progressComments ?? null,
+            created_by: auth?.user?.id ?? null,
+            created_by_name: input.createdByName,
+            clinician_signature: input.clinicianSignature.trim(),
+            client_signature: input.clientSignature.trim(),
+            signed_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+    if (error) throw error;
+    // Prior becomes history — content untouched, status only.
+    await updateTreatmentPlan(prior.id, { status: 'Archived' });
     return mapTreatmentPlanRowToApp(data);
 };
 

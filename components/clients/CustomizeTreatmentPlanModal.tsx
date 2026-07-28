@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getClients, getTreatmentPlansForClient, saveTreatmentPlan, updateTreatmentPlan, archiveTreatmentPlan } from '../../services/api';
+import { getClients, getTreatmentPlansForClient, saveTreatmentPlan, updateTreatmentPlan, archiveTreatmentPlan, applyTreatmentPlanUpdate } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { toLocalYMD } from '../../config/time';
 import type { Client, TreatmentPlan, TreatmentPlanContent, TreatmentPlanProblem, TreatmentPlanIntervention } from '../../types';
 import type { TreatmentPlanTemplate } from '../../data/treatmentPlanTemplates';
 import { programLabel } from '../../config/programVocab';
 import { CATEGORY_STYLES } from '../../data/treatmentPlanTemplates';
 import { X, Plus, Trash2, CheckCircle, Loader2, AlertTriangle, ClipboardList, Target, Clock } from 'lucide-react';
 
-// Two modes — `apply-template` creates a new plan, `edit-plan` updates an
-// existing one. Same UI; different save path.
+// Three modes — `apply-template` creates a new plan, `edit-plan` mutates an
+// existing draft in place, `update-plan` (L5, David 7/15) applies a VERSIONED
+// update: prior plan preserved exactly as signed, the update becomes primary.
 export type CustomizeModalMode =
     | { kind: 'apply-template'; template: TreatmentPlanTemplate; preselectedClientId?: string }
-    | { kind: 'edit-plan'; plan: TreatmentPlan };
+    | { kind: 'edit-plan'; plan: TreatmentPlan }
+    | { kind: 'update-plan'; plan: TreatmentPlan };
 
 interface CustomizeTreatmentPlanModalProps {
     isOpen: boolean;
@@ -27,6 +31,12 @@ interface FormState {
     estimatedDuration: string;
     problems: TreatmentPlanProblem[];
     notes: string;
+    // L5 fields — createdByName on every mode; the rest are update-mode only.
+    createdByName: string;
+    updateDate: string;
+    progressComments: string;
+    clinicianSignature: string;
+    clientSignature: string;
 }
 
 const emptyForm: FormState = {
@@ -36,9 +46,15 @@ const emptyForm: FormState = {
     estimatedDuration: '',
     problems: [],
     notes: '',
+    createdByName: '',
+    updateDate: '',
+    progressComments: '',
+    clinicianSignature: '',
+    clientSignature: '',
 };
 
 const fromTemplate = (template: TreatmentPlanTemplate, preselectedClientId?: string): FormState => ({
+    ...emptyForm,
     clientId: preselectedClientId ?? '',
     title: template.title,
     category: template.category,
@@ -49,10 +65,10 @@ const fromTemplate = (template: TreatmentPlanTemplate, preselectedClientId?: str
         goals: [...p.goals],
         interventions: p.interventions.map(i => ({ description: i.description, frequency: i.frequency })),
     })),
-    notes: '',
 });
 
 const fromPlan = (plan: TreatmentPlan): FormState => ({
+    ...emptyForm,
     clientId: plan.clientId,
     title: plan.title,
     category: plan.category,
@@ -68,6 +84,7 @@ const fromPlan = (plan: TreatmentPlan): FormState => ({
 const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = ({ isOpen, onClose, mode }) => {
     const navigate = useNavigate();
     const { addNotification } = useNotification();
+    const { user } = useAuth();
 
     const [form, setForm] = useState<FormState>(emptyForm);
     const [clients, setClients] = useState<Client[]>([]);
@@ -78,6 +95,7 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
     const [existingActive, setExistingActive] = useState<{ id: string; title: string } | null>(null);
 
     const isEditMode = mode?.kind === 'edit-plan';
+    const isUpdateMode = mode?.kind === 'update-plan';
 
     // Body scroll lock
     useEffect(() => {
@@ -91,21 +109,29 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
     useEffect(() => {
         if (!isOpen || !mode) return;
         if (mode.kind === 'apply-template') {
-            setForm(fromTemplate(mode.template, mode.preselectedClientId));
+            setForm({ ...fromTemplate(mode.template, mode.preselectedClientId), createdByName: user?.name ?? '' });
+        } else if (mode.kind === 'update-plan') {
+            // L5: the existing plan POPULATES the update; the prior row is never edited.
+            setForm({
+                ...fromPlan(mode.plan),
+                notes: '',                          // progress lives in progressComments
+                updateDate: toLocalYMD(new Date()),
+                createdByName: user?.name ?? '',
+            });
         } else {
             setForm(fromPlan(mode.plan));
         }
         setExistingActive(null);
         setError(null);
-    }, [isOpen, mode]);
+    }, [isOpen, mode, user?.name]);
 
     // Load real clients (replaces the old hardcoded DEMO_CLIENTS in
     // TreatmentPlanLibrary). Only needed in apply-template mode where the
     // user picks a client; in edit mode the client is fixed.
     useEffect(() => {
-        if (!isOpen || isEditMode) return;
+        if (!isOpen || isEditMode || isUpdateMode) return;
         getClients().then(setClients).catch(e => console.warn('[CustomizePlan] getClients failed:', e));
-    }, [isOpen, isEditMode]);
+    }, [isOpen, isEditMode, isUpdateMode]);
 
     const categoryStyle = useMemo(() => {
         return (CATEGORY_STYLES as any)[form.category] || { badge: 'bg-slate-600 text-white', accent: 'text-slate-700', ring: 'ring-slate-500/20' };
@@ -146,6 +172,14 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
         for (const p of form.problems) {
             if (!p.title.trim()) return 'Every problem needs a title.';
         }
+        if (isUpdateMode) {
+            // L5: an update is only complete with a date, the updating clinician's
+            // name, and BOTH signatures (David 7/15).
+            if (!form.updateDate) return 'Date of update is required.';
+            if (!form.createdByName.trim()) return 'The updating clinician’s name is required.';
+            if (!form.clinicianSignature.trim()) return 'Clinician signature is required.';
+            if (!form.clientSignature.trim()) return 'Client signature is required.';
+        }
         return null;
     };
 
@@ -164,7 +198,21 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
         setError(null);
         setIsSaving(true);
         try {
-            if (mode.kind === 'edit-plan') {
+            if (mode.kind === 'update-plan') {
+                // L5 versioned update: prior preserved as signed, update becomes primary.
+                const updated = await applyTreatmentPlanUpdate(mode.plan, {
+                    content: buildContent(),
+                    updateDate: form.updateDate,
+                    progressComments: form.progressComments.trim() || undefined,
+                    createdByName: form.createdByName.trim(),
+                    clinicianSignature: form.clinicianSignature,
+                    clientSignature: form.clientSignature,
+                    estimatedDuration: form.estimatedDuration.trim() || undefined,
+                });
+                addNotification(`Plan updated — prior version preserved in history.`, 'success');
+                window.dispatchEvent(new CustomEvent('treatment-plan-saved', { detail: { plan: updated } }));
+                onClose();
+            } else if (mode.kind === 'edit-plan') {
                 const updated = await updateTreatmentPlan(mode.plan.id, {
                     title: form.title.trim(),
                     estimatedDuration: form.estimatedDuration.trim(),
@@ -201,8 +249,9 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
         const msg = validate();
         if (msg) { setError(msg); return; }
 
-        // Edit mode: no active-plan check, just save.
-        if (mode?.kind === 'edit-plan') {
+        // Edit + update modes: no active-plan check — edit mutates the draft, and
+        // an update supersedes its own prior by design.
+        if (mode?.kind === 'edit-plan' || mode?.kind === 'update-plan') {
             await doSave();
             return;
         }
@@ -259,14 +308,14 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
                 <div className="flex-shrink-0 bg-gray-50/80 dark:bg-slate-800/80 backdrop-blur-md p-6 border-b border-gray-200 dark:border-slate-700 flex justify-between items-center">
                     <div className="flex-1 min-w-0">
                         <h2 id="customize-tp-modal-title" className="text-xl font-bold text-gray-900 dark:text-white truncate">
-                            {isEditMode ? 'Edit Treatment Plan' : 'Customize & Apply Plan'}
+                            {isUpdateMode ? 'Update Treatment Plan' : isEditMode ? 'Edit Treatment Plan' : 'Customize & Apply Plan'}
                         </h2>
                         <div className="flex items-center gap-2 mt-1">
                             <span className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded ${categoryStyle.badge}`}>
                                 {form.category}
                             </span>
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                {isEditMode ? 'Editing existing plan' : 'New plan from template'}
+                                {isUpdateMode ? 'Prior version is preserved exactly as signed' : isEditMode ? 'Editing existing plan' : 'New plan from template'}
                             </span>
                         </div>
                     </div>
@@ -298,6 +347,51 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
                                     <option key={c.id} value={c.id}>{c.name} · {programLabel(c.program)}</option>
                                 ))}
                             </select>
+                        </section>
+                    )}
+
+                    {/* L5 update fields — date of update, updating clinician, progress comments. */}
+                    {isUpdateMode && (
+                        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Date of update <span className="text-rose-500">*</span></label>
+                                <input
+                                    type="date"
+                                    value={form.updateDate}
+                                    onChange={e => setForm(f => ({ ...f, updateDate: e.target.value }))}
+                                    className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Updating clinician <span className="text-rose-500">*</span></label>
+                                <input
+                                    value={form.createdByName}
+                                    onChange={e => setForm(f => ({ ...f, createdByName: e.target.value }))}
+                                    className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                />
+                            </div>
+                            <div className="space-y-1 sm:col-span-2">
+                                <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Progress comments</label>
+                                <textarea
+                                    value={form.progressComments}
+                                    onChange={e => setForm(f => ({ ...f, progressComments: e.target.value }))}
+                                    rows={3}
+                                    placeholder="Progress since the prior plan — what improved, what changed, why this update."
+                                    className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                />
+                            </div>
+                        </section>
+                    )}
+
+                    {/* Clinician of record — David 7/15: name of the clinician initiating the plan. */}
+                    {!isEditMode && !isUpdateMode && (
+                        <section className="space-y-1">
+                            <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Initiating clinician</label>
+                            <input
+                                value={form.createdByName}
+                                onChange={e => setForm(f => ({ ...f, createdByName: e.target.value }))}
+                                className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                            />
                         </section>
                     )}
 
@@ -432,6 +526,35 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
                             className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                         />
                     </section>
+
+                    {/* L5: BOTH signatures required on an update (typed-name signatures —
+                        consistent with the app-wide posture; the signature design itself
+                        is deliberately untouched). */}
+                    {isUpdateMode && (
+                        <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Clinician signature <span className="text-rose-500">*</span></label>
+                                <input
+                                    value={form.clinicianSignature}
+                                    onChange={e => setForm(f => ({ ...f, clinicianSignature: e.target.value }))}
+                                    placeholder="Type full name to sign"
+                                    className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 font-serif italic focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Client signature <span className="text-rose-500">*</span></label>
+                                <input
+                                    value={form.clientSignature}
+                                    onChange={e => setForm(f => ({ ...f, clientSignature: e.target.value }))}
+                                    placeholder="Type full name to sign"
+                                    className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 font-serif italic focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                />
+                            </div>
+                            <p className="sm:col-span-2 text-[11px] text-slate-400">
+                                Signing applies this update as the primary plan. The prior version is archived exactly as originally signed.
+                            </p>
+                        </section>
+                    )}
                 </div>
 
                 {/* Footer — confirm banner replaces buttons when an active plan exists. */}
@@ -462,7 +585,7 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
                             </button>
                             <button onClick={handleSaveClick} disabled={isSaving} className="px-7 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-focus font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all disabled:opacity-70">
                                 {isSaving ? <Loader2 className="animate-spin" size={16} /> : <ClipboardList size={16} />}
-                                {isSaving ? 'Saving...' : (isEditMode ? 'Save changes' : 'Save plan')}
+                                {isSaving ? 'Saving...' : (isUpdateMode ? 'Sign & apply update' : isEditMode ? 'Save changes' : 'Save plan')}
                             </button>
                         </div>
                     )}

@@ -597,4 +597,13 @@ export interface TreatmentPlan {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  // L5 (David 7/15, migration 20260728_l5_treatment_plan_updates): an UPDATE is a
+  // new row superseding the prior one; priors stay exactly as signed.
+  supersedesPlanId?: string;
+  updateDate?: string;
+  progressComments?: string;
+  createdByName?: string;
+  clinicianSignature?: string;
+  clientSignature?: string;
+  signedAt?: string;
 }
