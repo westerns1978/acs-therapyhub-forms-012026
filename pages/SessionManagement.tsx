@@ -14,7 +14,7 @@ import { isTrialHidden } from '../config/trialMode';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, Clock, Check, AlertTriangle, MapPin, PhoneOff, UserX, Star, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, Clock, Check, AlertTriangle, MapPin, PhoneOff, UserX, Star, Users, RotateCw } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -564,6 +564,11 @@ const SessionManagement: React.FC = () => {
                                                 <div className="flex items-start gap-1">
                                                     <div className={`w-1 h-full absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
                                                     <span className="absolute top-1 right-1 z-10 flex items-center gap-0.5">
+                                                        {(rescheduleCounts.get(apt.id) ?? 0) > 0 && (
+                                                            <span title={`Rescheduled ${rescheduleCounts.get(apt.id)}×  — open for the full trail`} className="inline-flex items-center gap-0.5 text-[9px] font-black text-sky-700 dark:text-sky-300">
+                                                                <RotateCw size={10} />{(rescheduleCounts.get(apt.id) ?? 0) > 1 ? rescheduleCounts.get(apt.id) : ''}
+                                                            </span>
+                                                        )}
                                                         {hasNote && (
                                                             <span title="Note on file for this session">
                                                                 <Star size={11} className="text-yellow-500 fill-yellow-300" />
