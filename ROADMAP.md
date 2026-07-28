@@ -32,6 +32,27 @@ Three buckets. Keep terse; one line per item. Newest on top within a bucket.
 - **last/next booked glance** — per-client most-recent-past + next-upcoming appointment on the
   client header. `getLastAppointment`/`getNextAppointment` (services/api.ts).
 
+## ⛔ TRIAL_MODE FLIP — BLOCKED (release gate, not a backlog item)
+
+**Do not flip `TRIAL_MODE` as a convenience.** It is a single boolean in
+`config/trialMode.ts` that simultaneously exposes **six** surfaces:
+
+`/video-sessions` · `/communication-center` · `/program-compliance` · `/portal/recovery-plan`
+· `/compliance` · `/session/:clientId`
+
+Each was hidden because it was **broken or dishonest**, not because it was unfinished. Hiding is
+containment; the defects are all still in the code. **Every one must be individually verified and
+released on its own** — the flag is not a release mechanism.
+
+**Known blocker — `pages/portal/RecoveryPlanForm.tsx:44`.** It carries the unscoped-draft bug
+class that was fixed elsewhere on 2026-07-27 (`const LS_KEY = 'recovery_plan_draft_1';` with the
+author's own comment *"Use client ID in real app"*). It is also hardcoded to `clientId '1'` and is
+a phantom twin of the honest registry form. That is **cross-client data bleed in a 42 CFR Part 2
+client-facing surface** — it must be fixed before this route is ever un-hidden.
+
+The 2026-07-27 draft fix deliberately did **not** touch that file: half-fixing a hidden phantom
+would have implied it was safe to expose. It is not.
+
 ## NEXT
 
 - **Native Standard Means Test (MO 650-0216) — STAFF console, not client intake.** David 7/21:
@@ -135,9 +156,18 @@ header notification bell with a permanent unread dot and no handler; ⌘K advert
 trial-hidden routes (the palette is the one entry point that does **not** filter through
 `isTrialHidden`); the "Saved Draft %" panel that can never render; `tasks`/`outreach_log` written
 to with **no reader anywhere**; 7 unrouted pages + 18 unreferenced components.
-→ **Also here: form drafts are keyed `draft-${formId}` with no client id** — part-fill an intake
-for client A, abandon, open the same form for client B and **client A's answers prefill**. Small
-fix, real confidentiality smell, worth doing early.
+→ **Form-draft cross-client bleed: FIXED 2026-07-27** (branch `fix/deploy-build-and-draft-scope`).
+Drafts are now keyed `acsdraft:v2:<formId>:<clientId>`, legacy `draft-*` keys are destroyed on
+form mount, and both the staff and portal render sites are keyed so a client change remounts the
+form. Still open: **`RecoveryPlanForm.tsx:44`** carries the same bug class behind the trial hide —
+see the TRIAL_MODE gate at the top of this file.
+→ **`FormLibrary.tsx` "Saved Draft %" panel — DEAD UI, delete in a cleanup branch.** It has never
+rendered: `BaseFormTemplate` writes only `{ formData }` and never a `progress` key, so the
+`progress > 0` condition gating the panel is always false, and the "Continue" vs "Start" button
+label has always read "Start". As of 2026-07-27 its probe is hard-nulled with a comment (the
+library has no client context, so it cannot look up a client-scoped draft). Either wire it to a
+real per-client lookup or remove the panel and its button-label branch — do not restore the
+unscoped key.
 
 **F — AI prompts asserting absent capabilities (9).** Portal Clara is unmounted (closed), but the
 **staff** prompt still promises to "Surface clinical priorities for today: pending intakes, due
