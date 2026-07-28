@@ -5,7 +5,7 @@ import {
   Client, ClientStatus, CLIENT_STATUSES, Appointment, Payment, DocumentFile, FormSubmission,
   SessionRecord, SROPProgress, ClientActivity,
   VideoSession, PracticeMetrics, User, AsamAnalysisResult, DailyBriefingData, ComplianceStatus,
-  RevenueDataPoint, ComplianceDataPoint,
+  RevenueDataPoint, ComplianceDataPoint, ComplianceEvent,
   TreatmentPlan, TreatmentPlanContent, TreatmentPlanStatus, AppointmentSeries, AuditLog
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -1024,7 +1024,25 @@ export const saveFormSubmission = async (sub: any) => {
     }
     return data;
 };
-export const getSROPData = async (id: string) => (dbSropData || []).find(d => d.clientId === id) || null;
+/**
+ * RETIRED — always returns null (2026-07-28).
+ *
+ * This read the hardcoded `dbSropData` array (data/database.ts): a single row for
+ * one demo client claiming 42/75 hours across two phases, plus fabricated drug
+ * screens with invented chain-of-custody ids. Those hours CONTRADICT the
+ * authoritative accrual (`client_accrued_hours` → composeProgress/fetchClientAccrual),
+ * which is the source the completion gate uses — so any surface showing both
+ * displayed two different truths for the same client.
+ *
+ * It fed one hidden page (/program-compliance) and, more importantly, two LIVE
+ * call sites (ClientWorkspace → ClientOverviewTab, DocumentManagement) that threaded
+ * it through as a prop. Returning null starves all of them safely: every consumer
+ * already handles `SROPProgress | null`.
+ *
+ * DO NOT re-point this at mock data. Real progress comes from services/displayProgress
+ * (fetchClientProgress / composeProgress) and the accrual view.
+ */
+export const getSROPData = async (_id: string): Promise<SROPProgress | null> => null;
 export const getClientActivityFeed = async (id: string) => (dbClientActivityFeed || []).filter(a => a.clientId === id);
 // The clinical_notes table stores notes as discrete SOAP columns
 // (subjective/objective/assessment/plan) — there is NO `content` or `source`
@@ -1325,11 +1343,41 @@ export const getClientCommunications = async (clientId: string): Promise<ClientC
     return (data || []).map(mapCommRow);
 };
 
+/**
+ * HARD GUARD — client messaging is NOT DELIVERABLE (2026-07-28).
+ *
+ * This wrote a real `client_communications` row and returned success, under a UI
+ * showing fabricated "ONLINE" presence and ✓✓ read receipts. But ACS has **no
+ * client inbox**: nothing in the portal reads these rows, and no email/SMS
+ * transport is wired. The message reached nobody, and the staff member was told
+ * it was delivered and read.
+ *
+ * That is the 42 CFR-adjacent failure: a counselor believing a client was informed
+ * (a missed-session warning, a court-deadline notice) when they were not, and a
+ * record implying a disclosure that never occurred.
+ *
+ * The guard lives HERE, at the write boundary, not in the page — so it holds even
+ * if /communication-center is reached directly, deep-linked, or un-hidden by a
+ * flag flip. Route containment (config/trialMode.ts) is the outer layer; this is
+ * the inner one.
+ *
+ * To re-enable: wire a real delivery transport AND a client-side inbox, then
+ * remove this guard deliberately — never as a side effect of un-hiding the route.
+ * The staff→support channel (sendSupportMessage) is unaffected: it is outbound to
+ * ACS admin, is answered out of band, and never claims client delivery.
+ */
+export const CLIENT_MESSAGING_ENABLED = false;
+
 export const sendClientMessage = async (
     clientId: string,
     text: string,
     sentBy: string = 'staff',
 ): Promise<ClientCommunication> => {
+    if (!CLIENT_MESSAGING_ENABLED) {
+        throw new Error(
+            'Client messaging is disabled: this app has no client inbox and no delivery transport, so nothing was sent and nothing was recorded. Contact the client by phone and log the outreach on their record.'
+        );
+    }
     if (!clientId || !text?.trim()) throw new Error('clientId and message text are required');
     const { data, error } = await supabase
         .from('client_communications')
@@ -1514,7 +1562,21 @@ export const getFormTemplates = async () =>
 export const getBillingSummary = async (id: string) => dbBillingSummaries[id];
 export const getClientDocuments = async (id: string) => (dbClientDocuments || []).filter(d => d.clientId === id);
 export const getClientAssignments = async (id: string) => (dbClientAssignments || []).filter(a => a.clientId === id);
-export const addClientAssignment = async (assignment: any) => {};
+/**
+ * NOT IMPLEMENTED — hard guard (2026-07-28).
+ *
+ * This was an empty function body (`async () => {}`) whose only caller — the
+ * /session wrap-up wizard — told the clinician "This will appear in the client's
+ * portal" and then reported success. There is no client-task table; nothing was
+ * ever written. Silently succeeding is the failure mode: it makes staff believe a
+ * client was assigned work they will never see.
+ *
+ * It now THROWS. Do NOT restore the empty body — implement a real table, or leave
+ * this throwing so the caller cannot claim success. Route is TRIAL_MODE-hidden.
+ */
+export const addClientAssignment = async (_assignment: any): Promise<never> => {
+    throw new Error('Client assignments are not implemented — nothing was saved. (No client-task table exists; see services/api.ts.)');
+};
 // WS5: addSignedDocument/getDocumentForSigning/saveClientSignature retired (Option A) —
 // the /sign no-op path is gone; signatures persist in form_submissions.data via the forms.
 export const getForms = async () => dbForms || [];
@@ -1549,13 +1611,41 @@ export const assignForm = async (formId: string, clientIds: string[], dueDate: D
 };
 export const getAiSuggestions = async (context: any) => (dbAiSuggestions || []).filter(s => s.contextId === context.clientId || s.contextId === context.documentId);
 export const getProgressData = async () => [];
-export const getVideoSessions = async () => dbVideoSessions || [];
-export const getVideoSessionById = async (id: string) => (dbVideoSessions || []).find(s => s.id === id);
-export const addVideoSession = async (s: any) => ({...s, id: uuidv4(), createdAt: new Date()});
-export const updateVideoSessionStatus = async (id: string, status: string) => {};
+// RETIRED 2026-07-28 — the video-session mock cluster. getVideoSessions returned the
+// hardcoded dbVideoSessions array; addVideoSession fabricated an object it never
+// persisted; updateVideoSessionStatus was an empty body, so "Start"/"Complete"/
+// "Cancel" recorded nothing while reporting success. Their only consumers
+// (pages/VideoSessions.tsx, ScheduleVideoSessionModal) are now honest placeholders.
+// The real session spine is `appointments` (+ the Zoom edge fns).
+// DO NOT re-point these at mock data.
+export const getVideoSessions = async (): Promise<VideoSession[]> => [];
+export const getVideoSessionById = async (_id: string): Promise<VideoSession | undefined> => undefined;
+export const addVideoSession = async (_s: any): Promise<never> => {
+    throw new Error('Video sessions are not implemented — nothing was saved. Book on the Calendar instead.');
+};
+export const updateVideoSessionStatus = async (_id: string, _status: string): Promise<never> => {
+    throw new Error('Video sessions are not implemented — no status was recorded. Use the Calendar’s appointment status instead.');
+};
 export const getAsamAssessment = async (id: string) => dbAsamAssessments[id] || {1:{dimension:1, name:'Intoxication', notes:''}, 2:{dimension:2, name:'Biomedical', notes:''}, 3:{dimension:3, name:'Emotional', notes:''}, 4:{dimension:4, name:'Readiness', notes:''}, 5:{dimension:5, name:'Relapse', notes:''}, 6:{dimension:6, name:'Environment', notes:''}};
 export const getProgramPlan = async (id: string) => dbProgramPlans[id] || {clientId: id, goals: []};
-export const getComplianceEvents = async () => dbComplianceEvents || [];
+/**
+ * RETIRED — always returns [] (2026-07-28).
+ *
+ * This read the hardcoded `dbComplianceEvents` array (data/database.ts): ONE row,
+ * for one demo client id, asserting a "Program Plan Review" due in 7 days. It was
+ * rendered by a LIVE, un-hidden surface — the client-record Overview tab's red
+ * "CSR Compliance Alerts" card (components/clients/ClientOverviewTab.tsx) — which
+ * therefore showed one client a fabricated regulatory deadline with a countdown,
+ * and showed every other client nothing at all.
+ *
+ * The honest equivalents already exist and are computed from real data: the
+ * deterministic engine verdicts (services/complianceEngine — the Clinical
+ * Guardrails / Compliance Readiness surfaces) and the deadline clock
+ * (services/complianceClock → ComplianceDeadlineStrip).
+ *
+ * DO NOT re-point this at mock data.
+ */
+export const getComplianceEvents = async (): Promise<ComplianceEvent[]> => [];
 export interface AuditLogFilters {
     userId?: string;
     /** Filters on details.client_id (jsonb path) — populated for note.signed,
@@ -1618,7 +1708,22 @@ export const getAuditLogs = async (filters: AuditLogFilters = {}): Promise<Audit
     }
 };
 export const updateDocumentComplianceStatus = async (ids: string[], status: string, user: any) => [];
-export const addSessionRecord = async (record: any) => {};
+/**
+ * NOT IMPLEMENTED — hard guard (2026-07-28).
+ *
+ * This was an empty function body (`async () => {}`) whose only caller — the
+ * /session wrap-up wizard — displayed "CPT 90834 / $150.00" and reported the
+ * charge submitted. Nothing was ever written: the real ledger is the `charges`
+ * table (see components/billing/BillingLedger.tsx), which this never touched.
+ * A billing surface that reports a charge it did not record is worse than one
+ * that refuses.
+ *
+ * It now THROWS. Do NOT restore the empty body — bill through the real charges
+ * path or leave this throwing. Route is TRIAL_MODE-hidden.
+ */
+export const addSessionRecord = async (_record: any): Promise<never> => {
+    throw new Error('Session charges are not implemented here — nothing was billed. (The real ledger is the charges table; see BillingLedger.)');
+};
 export const getComplianceAnalysis = async (client: any, sropData: any) => "Analysis";
 export const generateFormSuggestions = async (field: string, context: string) => "Suggestion";
 export const getDailyBriefingData = async () => ({ therapistStats: { reportingStreak: 10, caseloadSize: (dbClients || []).length, thisWeekCompletions: 2 }, todaysAppointments: (mockAppointments || []).slice(0,3), highPriorityAlerts: [], complianceRisks: [], clientMilestones: [] });

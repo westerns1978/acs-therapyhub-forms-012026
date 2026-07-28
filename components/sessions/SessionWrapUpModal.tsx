@@ -45,6 +45,10 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
     const [isSigned, setIsSigned] = useState(false);
     const [homework, setHomework] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
+    // Honest completion (2026-07-28): steps whose writer isn't implemented record a
+    // warning here, and the final screen reports what did NOT happen instead of
+    // "All post-session tasks are complete."
+    const [stepWarnings, setStepWarnings] = useState<string[]>([]);
     const navigate = useNavigate();
     // The clinician finishing the session is the counselor of record for the
     // follow-up appointment — never a hardcoded name (the Green Room "Bill fix"
@@ -71,14 +75,21 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
             }
         }
         if (currentStep === 1) { // After billing step
-            await addSessionRecord({
-                clientId: client.id,
-                date: new Date(),
-                type: 'Individual Session',
-                duration: sessionDuration,
-                rate: 150.00, // Mock rate
-                status: 'Unpaid'
-            });
+            // addSessionRecord is NOT IMPLEMENTED and now throws (2026-07-28) — it used
+            // to be an empty body that let this wizard report a charge it never recorded.
+            // Surface the truth and continue; never claim the charge was submitted.
+            try {
+                await addSessionRecord({
+                    clientId: client.id,
+                    date: new Date(),
+                    type: 'Individual Session',
+                    duration: sessionDuration,
+                    rate: 150.00,
+                    status: 'Unpaid'
+                });
+            } catch (e) {
+                setStepWarnings(w => [...w, 'No charge was recorded — billing is not wired to this wizard. Record it on the client’s Billing tab.']);
+            }
         }
         if (currentStep === 2) { // After scheduling
             const nextWeek = new Date();
@@ -98,12 +109,17 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
         }
         if (currentStep === 3) { // After assigning homework
              if (homework.trim()) {
-                await addClientAssignment({
-                    clientId: client.id,
-                    task: homework,
-                    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                    isComplete: false
-                });
+                // addClientAssignment is NOT IMPLEMENTED and now throws (2026-07-28).
+                try {
+                    await addClientAssignment({
+                        clientId: client.id,
+                        task: homework,
+                        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                        isComplete: false
+                    });
+                } catch (e) {
+                    setStepWarnings(w => [...w, 'The client task was NOT saved and will not appear in the client’s portal — client tasks are not implemented.']);
+                }
             }
         }
         setCurrentStep(prev => prev + 1);
@@ -143,16 +159,19 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                 );
             case 2: // Schedule Next
                  return (
-                    <div className="p-4 bg-surface rounded-lg border">
-                        <h3 className="font-semibold text-lg mb-4 text-center">Schedule Next Week's Session</h3>
-                        <div className="grid grid-cols-3 gap-2">
-                           {['10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM'].map(time => (
-                               <button key={time} className="p-3 text-center bg-white dark:bg-slate-700 border rounded-lg hover:bg-primary hover:text-white transition">
-                                   {time}
-                               </button>
-                           ))}
-                           <button className="p-3 text-center bg-gray-100 dark:bg-slate-800 border rounded-lg col-span-3 hover:bg-gray-200">View Full Calendar</button>
-                        </div>
+                    // The five time-slot buttons that used to render here had NO onClick —
+                    // whichever one the clinician pressed, the writer below always booked a
+                    // hardcoded next-week 10:00–11:00 AM appointment. Removed rather than
+                    // wired: picking a real slot belongs in ScheduleSessionModal, which has
+                    // conflict detection. State plainly what this step will book.
+                    <div className="p-4 bg-surface rounded-lg border space-y-3">
+                        <h3 className="font-semibold text-lg text-center">Schedule Next Week's Session</h3>
+                        <p className="text-sm text-center text-on-surface-secondary">
+                            Continuing books a follow-up <b>one week from today, 10:00–11:00 AM</b>, Individual Counseling via Zoom, with you as the counselor of record.
+                        </p>
+                        <p className="text-xs text-center text-warning-700 dark:text-warning-300">
+                            This time is fixed and is not conflict-checked. To choose a time, skip this and book from the Calendar instead.
+                        </p>
                     </div>
                 );
             case 3: // Assign Homework
@@ -167,15 +186,25 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                             placeholder="e.g., Attend 2 verified AA meetings"
                             className="w-full p-3 border border-border rounded-md focus:ring-primary focus:border-primary transition"
                         />
-                         <p className="text-xs text-on-surface-secondary">This will appear in the client's portal.</p>
+                         <p className="text-xs text-warning-700 dark:text-warning-300">Client tasks are not implemented — anything entered here will NOT be saved and will NOT appear in the client’s portal.</p>
                     </div>
                 );
-            case 4: // Complete
+            case 4: // Complete — reports what actually persisted, not a blanket success.
                 return (
                     <div className="text-center p-8">
                         <CheckCircleIcon className="w-20 h-20 text-green-500 mx-auto mb-4" />
-                        <h2 className="text-2xl font-bold">Session Finalized!</h2>
-                        <p className="text-on-surface-secondary mt-2">All post-session tasks are complete. Great work!</p>
+                        <h2 className="text-2xl font-bold">Session wrap-up finished</h2>
+                        <p className="text-on-surface-secondary mt-2">Your clinical note has been saved to the client’s record.</p>
+                        {stepWarnings.length > 0 && (
+                            <div className="mt-5 text-left p-4 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-xl">
+                                <p className="text-xs font-black uppercase tracking-widest text-warning-700 dark:text-warning-300">Not saved</p>
+                                <ul className="mt-2 space-y-1.5 list-disc list-inside">
+                                    {stepWarnings.map((w, i) => (
+                                        <li key={i} className="text-sm text-warning-800 dark:text-warning-200">{w}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                     </div>
                 )
             default: return null;

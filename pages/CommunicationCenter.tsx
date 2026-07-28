@@ -3,7 +3,7 @@ import { getClients, getClientCommunications, sendClientMessage, getSupportMessa
 import { useAuth } from '../contexts/AuthContext';
 import { Message, Client } from '../types';
 import { programLabel } from '../config/programVocab';
-import { Search, Send, Paperclip, Video, Phone, MoreVertical, CheckCheck, Smile, Loader2, LifeBuoy } from 'lucide-react';
+import { Search, Send, Paperclip, Video, Phone, MoreVertical, CheckCheck, Smile, Loader2, LifeBuoy, AlertTriangle } from 'lucide-react';
 
 const fmtTime = (iso: string) => {
     try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -131,8 +131,11 @@ const CommunicationCenter: React.FC = () => {
         const text = inputText.trim();
         if (!text || !activeId) return;
 
-        // Both paths persist REAL rows to client_communications (Support uses a NULL
-        // client_id + type='support'; Clients uses the client's uuid).
+        // Support persists a REAL row (NULL client_id + type='support') and is answered
+        // out of band. The CLIENT path is hard-guarded at the API boundary
+        // (CLIENT_MESSAGING_ENABLED, services/api.ts): there is no client inbox and no
+        // transport, so it throws rather than record a delivery that never happened.
+        // The catch below surfaces that message verbatim.
         setSending(true);
         try {
             const saved = activeId === SUPPORT_ID
@@ -266,8 +269,21 @@ const CommunicationCenter: React.FC = () => {
                 {/* Input Area — ALWAYS rendered so there is never a dead empty state with no
                     way to type. Disabled (with a hint) until a conversation is selected. */}
                 <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+                    {/* Undeliverable banner — shown BEFORE the counselor types, not after they
+                        press send. Client messaging is hard-guarded in services/api.ts. */}
+                    {activeTab === 'clients' && activeId && !isSupport && (
+                        <div className="mb-3 flex items-start gap-2 p-3 rounded-xl bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
+                            <AlertTriangle size={15} className="shrink-0 mt-0.5 text-warning-600" />
+                            <p className="text-xs text-warning-800 dark:text-warning-200 leading-relaxed">
+                                <b>Messages to clients cannot be delivered.</b> There is no client inbox and no
+                                email/SMS transport in this build, so nothing sent here would reach the client —
+                                sending is disabled. Contact the client by phone and log the outreach on their record.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Quick Replies — client conversations only */}
-                    {activeTab === 'clients' && activeId && (
+                    {activeTab === 'clients' && activeId && !isSupport && (
                         <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide">
                             {quickReplies.map(reply => (
                                 <button key={reply} onClick={() => setInputText(reply)} className="whitespace-nowrap px-3 py-1.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition shadow-sm">

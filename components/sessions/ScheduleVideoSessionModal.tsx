@@ -38,12 +38,15 @@ const ScheduleVideoSessionModal: React.FC<ScheduleVideoSessionModalProps> = ({ i
             status: 'scheduled' as const,
         };
         
+        // ORPHANED 2026-07-28 — this modal's only mount (pages/VideoSessions.tsx) is now
+        // an honest placeholder, and addVideoSession throws rather than fabricate a saved
+        // session it never persisted. Kept compiling, but it can no longer report success.
         try {
-            const savedSession = await addVideoSession(newSessionData);
-            onSave({...savedSession, startTime: new Date(savedSession.startTime), createdAt: new Date(savedSession.createdAt)});
+            await addVideoSession(newSessionData);
             onClose();
         } catch (error) {
-            console.error("Failed to save session", error);
+            console.error('Failed to save session', error);
+            alert('Video sessions are not implemented — nothing was saved. Book on the Calendar instead.');
         } finally {
             setIsSubmitting(false);
         }
