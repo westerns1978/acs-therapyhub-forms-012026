@@ -1,64 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Card from '../components/ui/Card';
-import { getRevenueData, getComplianceTrendData } from '../services/api';
-import { RevenueDataPoint, ComplianceDataPoint } from '../types';
-import RevenueChart from '../components/charts/RevenueChart';
-import ComplianceTrendChart from '../components/charts/ComplianceTrendChart';
-import MeetingSummary from '../components/reports/MeetingSummary';
-import LoadingSpinner from '../components/ui/LoadingSpinner';
+import { BarChart3 } from 'lucide-react';
 
-const DownloadIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
-
-const Reporting: React.FC = () => {
-    const [revenueData, setRevenueData] = useState<RevenueDataPoint[]>([]);
-    const [complianceData, setComplianceData] = useState<ComplianceDataPoint[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isPrinting, setIsPrinting] = useState(false);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            const [revData, compData] = await Promise.all([
-                getRevenueData(),
-                getComplianceTrendData()
-            ]);
-            setRevenueData(revData);
-            setComplianceData(compData);
-            setIsLoading(false);
-        }
-        fetchData();
-    }, []);
-    
-    const handlePrint = () => {
-        setIsPrinting(true);
-    };
-
-    if (isLoading) {
-        return <LoadingSpinner />;
-    }
-
-    return (
-        <div>
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                <div className="lg:col-span-3">
-                    <Card title="Monthly Revenue by Program">
-                        <div style={{ height: '400px' }}>
-                           <RevenueChart data={revenueData} />
-                        </div>
-                    </Card>
-                </div>
-                <div className="lg:col-span-2">
-                    <Card title="Overall Compliance Trend">
-                        <div style={{ height: '400px' }}>
-                           <ComplianceTrendChart data={complianceData} />
-                        </div>
-                    </Card>
-                </div>
+/**
+ * Reporting — HONEST PLACEHOLDER (2026-07-28).
+ *
+ * The previous version charted getRevenueData/getComplianceTrendData — hardcoded
+ * literals in services/api.ts ($12,500 SATOP revenue, an 88→98% compliance trend)
+ * presented to the Director as if real. Those functions are deleted (guard comment
+ * at their old site in services/api.ts). This page renders a not-wired notice and
+ * remains TRIAL_MODE-hidden (config/trialMode.ts) until it is rebuilt on the real
+ * acs_report_* RPCs — the same ledger pages/Financials.tsx already reads.
+ * Do NOT re-add charts here fed by anything other than those RPCs.
+ */
+const Reporting: React.FC = () => (
+    <div className="max-w-3xl mx-auto py-16">
+        <Card title="Analytics" subtitle="Not yet wired to live data.">
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+                <BarChart3 size={40} className="text-slate-300" />
+                <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
+                    Practice analytics are not connected to the live ledger yet.
+                </p>
+                <p className="text-xs text-slate-400 max-w-md leading-relaxed">
+                    Nothing is shown here because no real figures are available on this page yet.
+                    Financial reporting on real ledger data is available under Financials.
+                </p>
             </div>
-            
-            {isPrinting && <MeetingSummary onDone={() => setIsPrinting(false)} />}
-        </div>
-    );
-};
+        </Card>
+    </div>
+);
 
 export default Reporting;

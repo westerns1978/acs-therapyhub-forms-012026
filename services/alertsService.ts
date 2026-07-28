@@ -15,6 +15,7 @@
 import { supabase } from './supabase';
 import type { Client } from '../types';
 import { fetchAllClientProgress, type ClientProgress } from './displayProgress';
+import { maybeForceFail } from '../config/failureHarness';
 
 export type AlertTier = 'CRITICAL' | 'HIGH' | 'ELEVATED' | 'MODERATE';
 
@@ -200,31 +201,28 @@ export function summarizeAlerts(alerts: ClientAlert[]): AlertsSummary {
   return s;
 }
 
-/** Fetch all active clients and compute alerts. Falls back to empty array on error. */
+/** Fetch all active clients and compute alerts.
+ *  Fail-visibly contract (2026-07-28): THROWS on query failure. The old
+ *  return-[] fallback made the Dashboard say "no clients are currently flagged"
+ *  and RiskMonitor render its green "All clear" shield when nothing was read.
+ *  Consumers own their error UI. */
 export async function fetchAlerts(): Promise<ClientAlert[]> {
-  try {
-    // Canonical lowercase lifecycle values (status normalization, 2026-06-11).
-    // The old capitalized '(Completed,Archived)' exclusion matched NOTHING in
-    // the live DB (values were always lowercase), so archived + completed
-    // clients were silently alert-evaluated. Fixed; CHECK constraint now
-    // guarantees this vocabulary.
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .not('status', 'in', '(completed,archived)');
-    if (error) {
-      console.warn('[alertsService] supabase query failed:', error.message);
-      return [];
-    }
-    const rows = (data || []) as Client[];
-    // WS-DisplayTruth: authoritative progress (accrual + signed determination) per client,
-    // so the "behind on hours" alert agrees with the gate — not the static columns.
-    const progress = await fetchAllClientProgress(rows.map((r: any) => r.id));
-    return computeAlertsForClients(rows, progress);
-  } catch (e) {
-    console.error('[alertsService] fetchAlerts failed:', e);
-    return [];
-  }
+  maybeForceFail('fetchAlerts');
+  // Canonical lowercase lifecycle values (status normalization, 2026-06-11).
+  // The old capitalized '(Completed,Archived)' exclusion matched NOTHING in
+  // the live DB (values were always lowercase), so archived + completed
+  // clients were silently alert-evaluated. Fixed; CHECK constraint now
+  // guarantees this vocabulary.
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .not('status', 'in', '(completed,archived)');
+  if (error) throw new Error(`Alerts query failed: ${error.message}`);
+  const rows = (data || []) as Client[];
+  // WS-DisplayTruth: authoritative progress (accrual + signed determination) per client,
+  // so the "behind on hours" alert agrees with the gate — not the static columns.
+  const progress = await fetchAllClientProgress(rows.map((r: any) => r.id));
+  return computeAlertsForClients(rows, progress);
 }
 
 /** Log an outreach attempt to the backend. Falls back to clinical_notes if outreach_log table is missing. */

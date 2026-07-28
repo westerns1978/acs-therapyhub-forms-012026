@@ -42,14 +42,24 @@ const RiskMonitor: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [tierFilter, setTierFilter] = useState<AlertTier | 'ALL'>('ALL');
   const [selected, setSelected] = useState<ClientAlert | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const summary = useMemo(() => summarizeAlerts(alerts), [alerts]);
 
+  // Fail-visibly (2026-07-28): fetchAlerts THROWS on failure now. Without this catch
+  // the page rendered its green "All clear at this tier" shield over a failed query.
   const load = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
-    const data = await fetchAlerts();
-    setAlerts(data);
+    setLoadError(null);
+    try {
+      const data = await fetchAlerts();
+      setAlerts(data);
+    } catch (e: any) {
+      console.warn('[RiskMonitor] load failed:', e);
+      setAlerts([]);
+      setLoadError(e?.message || 'Unknown error');
+    }
     setLoading(false);
     setRefreshing(false);
   };
@@ -80,7 +90,7 @@ const RiskMonitor: React.FC = () => {
           onClick={() => setTierFilter('ALL')}
           className={`p-4 rounded-2xl border-2 text-left transition ${tierFilter === 'ALL' ? 'border-slate-900 dark:border-white' : 'border-slate-100 dark:border-slate-800'}`}
         >
-          <div className="text-3xl font-black tracking-tighter dark:text-white">{summary.total}</div>
+          <div className="text-3xl font-black tracking-tighter dark:text-white">{loadError ? '—' : summary.total}</div>
           <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">All alerts</div>
         </button>
         {(['CRITICAL', 'HIGH', 'ELEVATED', 'MODERATE'] as const).map(t => {
@@ -92,7 +102,7 @@ const RiskMonitor: React.FC = () => {
               onClick={() => setTierFilter(t)}
               className={`p-4 rounded-2xl border-2 text-left transition ${tierFilter === t ? 'border-slate-900 dark:border-white' : 'border-slate-100 dark:border-slate-800'}`}
             >
-              <div className={`text-3xl font-black tracking-tighter ${s.icon}`}>{count}</div>
+              <div className={`text-3xl font-black tracking-tighter ${s.icon}`}>{loadError ? '—' : count}</div>
               <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">{TIER_LABEL[t]}</div>
             </button>
           );
@@ -103,6 +113,18 @@ const RiskMonitor: React.FC = () => {
         <div className="flex items-center justify-center py-20 text-slate-400">
           <Loader2 size={24} className="animate-spin mr-3" />
           <span className="text-sm font-bold uppercase tracking-widest">Computing alerts…</span>
+        </div>
+      ) : loadError ? (
+        <div className="text-center py-20 bg-rose-50 dark:bg-rose-900/20 rounded-3xl border border-rose-200 dark:border-rose-800">
+          <AlertCircle size={48} className="mx-auto mb-4 text-rose-500" />
+          <p className="text-sm font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">Alerts could not be computed</p>
+          <p className="text-xs text-rose-600 dark:text-rose-400 mt-2 max-w-md mx-auto">This is a loading failure, not an all-clear. ({loadError})</p>
+          <button
+            onClick={() => load(true)}
+            className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-black uppercase tracking-widest text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition"
+          >
+            <RefreshCw size={14} /> Retry
+          </button>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-emerald-50 dark:bg-emerald-900/10 rounded-3xl border border-emerald-100 dark:border-emerald-900/30">

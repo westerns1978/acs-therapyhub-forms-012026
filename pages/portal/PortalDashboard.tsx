@@ -12,6 +12,8 @@ import { FileText, DollarSign, BarChart, Calendar, ArrowRight, Video, Award, Cli
 import Modal from '../../components/ui/Modal';
 import { fetchOwnProgress } from '../../services/displayProgress';
 import { isTrialHidden } from '../../config/trialMode';
+import PortalErrorCard from '../../components/ui/PortalErrorCard';
+import { maybeForceFail } from '../../config/failureHarness';
 
 interface ActionCardProps {
     icon: React.ElementType;
@@ -167,36 +169,47 @@ const PortalDashboard: React.FC = () => {
     const portalClient = usePortalClient();
     const [dashboardData, setDashboardData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [reloadKey, setReloadKey] = useState(0);
     const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
         if (!portalClient) return;
         const fetchData = async () => {
+            setIsLoading(true);
+            setLoadError(null);
+            // Fail-visibly (2026-07-28): supabase-js does NOT throw on query errors — check
+            // `error` explicitly (the rule the sibling portal pages already document). The
+            // old unchecked destructures rendered "Pending Forms: 0" / "No upcoming
+            // appointments." on failure, and the null path told the client "Session
+            // Expired." — a wrong diagnosis that sends them to a re-login that won't help.
             try {
-                // Get client details
-                const { data: clientData } = await supabase
+                maybeForceFail('portal dashboard');
+                const { data: clientData, error: clientError } = await supabase
                     .from('clients')
                     .select('*')
                     .eq('id', portalClient.id)
                     .single();
+                if (clientError) throw new Error(`Your record could not be loaded: ${clientError.message}`);
 
-                // Get upcoming appointments
-                const { data: upcomingAppts } = await supabase
+                const { data: upcomingAppts, error: apptsError } = await supabase
                     .from('appointments')
                     .select('*')
                     .eq('client_id', portalClient.id)
                     .eq('status', 'scheduled')
                     .order('start_time')
                     .limit(3);
+                if (apptsError) throw new Error(`Appointments could not be loaded: ${apptsError.message}`);
 
                 // Pending/in-progress forms — the portal surfaces both as "pending action"
                 // since both states need the client to act before completion.
-                const { data: pendingForms } = await supabase
+                const { data: pendingForms, error: formsError } = await supabase
                     .from('form_submissions')
                     .select('*')
                     .eq('client_id', portalClient.id)
                     .in('status', ['pending', 'Pending', 'In Progress', 'Not Started']);
+                if (formsError) throw new Error(`Forms could not be loaded: ${formsError.message}`);
 
                 // WS-DisplayTruth: own authoritative progress (accrual + level via my_progress() RPC).
                 const progress = await fetchOwnProgress(portalClient.id);
@@ -206,16 +219,30 @@ const PortalDashboard: React.FC = () => {
                     pendingForms: pendingForms || [],
                     progress,
                 });
-            } catch (err) {
+            } catch (err: any) {
                 console.warn('Portal dashboard error:', err);
+                setDashboardData(null);
+                setLoadError(err?.message || 'Unknown error');
             }
             setIsLoading(false);
         };
         fetchData();
-    }, [portalClient]);
+    }, [portalClient, reloadKey]);
 
     if (isLoading) return <PortalLayout><div className="flex justify-center items-center h-64"><LoadingSpinner /></div></PortalLayout>;
-    if (!dashboardData?.client) return <PortalLayout><div className="text-center p-12">Session Expired.</div></PortalLayout>;
+    // A query failure is a loading problem, not an auth problem — say so, with a retry.
+    if (loadError) {
+        return (
+            <PortalLayout>
+                <div className="max-w-xl mx-auto pt-8">
+                    <PortalErrorCard message="Your dashboard couldn’t load right now." onRetry={() => setReloadKey(k => k + 1)} />
+                </div>
+            </PortalLayout>
+        );
+    }
+    // Only reached with no query error: the signed-in user has no matching client
+    // record (usePortalClient) — a genuine access problem, not a failed load.
+    if (!dashboardData?.client) return <PortalLayout><div className="text-center p-12">Your session has ended or this account isn’t linked to a client record. Please sign in again.</div></PortalLayout>;
 
     const { client, upcomingAppointments, pendingForms, progress } = dashboardData;
     const nextAppointment = upcomingAppointments[0];

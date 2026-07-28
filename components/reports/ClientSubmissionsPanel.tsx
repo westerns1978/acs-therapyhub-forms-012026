@@ -8,6 +8,7 @@ import { normalizeSubmissionStatus, SUBMISSION_STATUS_LABELS, NormalizedSubmissi
 import { approveFormSubmission } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { Eye, CheckCircle2, Clock, AlertTriangle, Search, RefreshCw, User, FileText, Calendar } from 'lucide-react';
+import { maybeForceFail } from '../../config/failureHarness';
 
 interface Submission {
   id: string;
@@ -29,20 +30,26 @@ const ClientSubmissionsPanel: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed' | 'reviewed'>('all');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchSubmissions = async () => {
     setIsLoading(true);
+    setLoadError(null);
+    // Fail-visibly (2026-07-28): supabase-js does NOT throw on query errors — check
+    // `error` explicitly. The old unchecked destructure rendered 0 Awaiting / 0 Needs
+    // Review over an empty table on RLS denial: a clean-looking queue that wasn't read.
     try {
-      // Get all form submissions
-      const { data: subs } = await supabase
+      maybeForceFail('form submissions queue');
+      const { data: subs, error: subsError } = await supabase
         .from('form_submissions')
         .select('*')
         .order('created_at', { ascending: false });
+      if (subsError) throw new Error(`Submissions query failed: ${subsError.message}`);
 
-      // Get client names for mapping
-      const { data: clients } = await supabase
+      const { data: clients, error: clientsError } = await supabase
         .from('clients')
         .select('id, name');
+      if (clientsError) throw new Error(`Client names query failed: ${clientsError.message}`);
 
       const clientMap = new Map((clients || []).map(c => [c.id, c.name]));
 
@@ -52,8 +59,10 @@ const ClientSubmissionsPanel: React.FC = () => {
       }));
 
       setSubmissions(enriched);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Failed to fetch submissions:', err);
+      setSubmissions([]);
+      setLoadError(err?.message || 'Unknown error');
     }
     setIsLoading(false);
   };
@@ -120,6 +129,23 @@ const ClientSubmissionsPanel: React.FC = () => {
   };
 
   if (isLoading) return <div className="flex justify-center py-12"><LoadingSpinner /></div>;
+
+  // A failed load renders as a failed load — never as an empty (clean-looking) queue.
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center gap-3 p-8 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-2xl text-center">
+        <AlertTriangle size={22} className="text-rose-600" />
+        <p className="text-sm font-bold text-rose-700 dark:text-rose-300">The submissions queue could not be loaded.</p>
+        <p className="text-xs text-rose-600/80 dark:text-rose-400/80 max-w-md">Submissions may be awaiting review that aren’t shown. ({loadError})</p>
+        <button
+          onClick={fetchSubmissions}
+          className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-black uppercase tracking-widest text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition"
+        >
+          <RefreshCw size={14} /> Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

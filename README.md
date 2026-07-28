@@ -104,3 +104,7 @@ This application is designed with key Missouri DMH regulations in mind:
 -   **Staff Qualifications**: The "Compliance" dashboard includes a module for tracking staff certifications (e.g., QMHP, QAP), ensuring alignment with `9 CSR 30-3.155`.
 -   **Reassessments**: The system includes logic to flag clients for required annual reassessments, with the ability to trigger them sooner based on clinical need.
 -   **HIPAA / 42 CFR Part 2 — NOT compliant in this build:** This trial build runs on mock data and is **not** suitable for real client PHI. There is **no application-level data encryption** (uploaded documents are stored at public Storage URLs), access control is **client-side only** (Row-Level Security is permissive or disabled on the clinical tables and the Supabase anon key ships in the browser), and **audit logging is not implemented** (the `audit_logs` table is never written to). Real encryption, server-enforced role-based access, and audit logging are **planned / not yet implemented** — see Security & Compliance Status above.
+
+## Dev: forced-failure harness
+
+`VITE_FORCE_QUERY_FAIL=1 npm run dev` makes every fail-visibly query reject (`config/failureHarness.ts`) to prove no surface renders a reassuring empty/zero state on failure. Dev-only — inert in `vite build`.

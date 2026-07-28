@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
-import { AlertTriangle, ShieldCheck, CheckCircle2, HelpCircle, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, CheckCircle2, HelpCircle, ChevronRight, RefreshCw } from 'lucide-react';
 import { fetchComplianceReadiness, type ComplianceReadiness } from '../services/complianceEngine';
 
 const StatTile: React.FC<{ label: string; value: number; tone: string }> = ({ label, value, tone }) => (
@@ -15,28 +15,48 @@ const ComplianceReadiness: React.FC = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<ComplianceReadiness | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setIsLoading(true);
+      setLoadError(null);
+      // Fail-visibly: the engine THROWS on query failure (2026-07-28). A failed load
+      // must render as a failed load — never as "0 violations / every rule met".
       try {
         const r = await fetchComplianceReadiness();
         if (!cancelled) setData(r);
-      } catch (e) {
+      } catch (e: any) {
         console.warn('[ComplianceReadiness] load failed:', e);
+        if (!cancelled) { setData(null); setLoadError(e?.message || 'Unknown error'); }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   if (isLoading) {
     return <div className="max-w-6xl mx-auto py-16 text-center text-slate-400 text-sm font-bold uppercase tracking-widest">Computing compliance readiness…</div>;
   }
   if (!data) {
-    return <div className="max-w-6xl mx-auto py-16 text-center text-slate-400 text-sm">Couldn’t load compliance readiness.</div>;
+    return (
+      <div className="max-w-6xl mx-auto py-16">
+        <div className="flex flex-col items-center gap-3 p-8 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-2xl text-center">
+          <AlertTriangle size={24} className="text-rose-600" />
+          <p className="text-sm font-bold text-rose-700 dark:text-rose-300">Compliance readiness could not be computed — the data didn’t load.</p>
+          <p className="text-xs text-rose-600/80 dark:text-rose-400/80 max-w-md">No verdicts are being shown because none were evaluated. This is a loading failure, not a clean bill of health.{loadError ? ` (${loadError})` : ''}</p>
+          <button
+            onClick={() => setReloadKey(k => k + 1)}
+            className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-800 rounded-xl text-xs font-black uppercase tracking-widest text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition"
+          >
+            <RefreshCw size={14} /> Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const { counts, flags, notEnforceable, clientsEvaluated, packId, packVersion } = data;

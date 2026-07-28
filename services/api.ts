@@ -16,6 +16,7 @@ import { LATE_CANCELLATION_FEE } from '../config/satopFees';
 import { parseTimeToMinutes } from '../config/time';
 import { generateWeeklyOccurrences } from './recurrence';
 import { logAudit } from './auditLog';
+import { maybeForceFail } from '../config/failureHarness';
 
 import {
     dbMessages, dbSropData, dbComplianceEvents,
@@ -267,6 +268,7 @@ export interface ProspectRow {
 /** The intake queue: prospect rows + whether their intake fee actually cleared.
  *  Reads payments (Director/Admin RLS), so surface this only to financial staff. */
 export const getProspects = async (): Promise<ProspectRow[]> => {
+    maybeForceFail('getProspects');
     const { data, error } = await supabase
         .from('clients')
         .select('id, name, intake_interest, created_at')
@@ -1346,15 +1348,14 @@ export const sendClientMessage = async (
 // avoid depending on a PostgREST FK relationship. NOTE: the table has no read/unread
 // flag, so this is "recent", not "unread" — callers must not present it as unread.
 export const getRecentClientCommunications = async (limit = 6): Promise<ClientCommunication[]> => {
+    maybeForceFail('getRecentClientCommunications');
     const { data, error } = await supabase
         .from('client_communications')
         .select('*')
         .order('sent_at', { ascending: false })
         .limit(limit);
-    if (error) {
-        console.warn('[api] getRecentClientCommunications failed:', error);
-        return [];
-    }
+    // Fail-visibly (2026-07-28): throw, don't render "No recent messages." on failure.
+    if (error) throw new Error(`Recent communications query failed: ${error.message}`);
     return (data || []).map(mapCommRow);
 };
 
@@ -1623,21 +1624,11 @@ export const generateFormSuggestions = async (field: string, context: string) =>
 export const getDailyBriefingData = async () => ({ therapistStats: { reportingStreak: 10, caseloadSize: (dbClients || []).length, thisWeekCompletions: 2 }, todaysAppointments: (mockAppointments || []).slice(0,3), highPriorityAlerts: [], complianceRisks: [], clientMilestones: [] });
 export const getWestFlowExecutiveSummary = async () => "Executive summary data";
 
-export const getRevenueData = async (): Promise<RevenueDataPoint[]> => [
-    { name: 'SATOP', revenue: 12500 },
-    { name: 'REACT', revenue: 8400 },
-    { name: 'Anger', revenue: 5200 },
-    { name: 'Gambling', revenue: 3100 },
-];
-
-export const getComplianceTrendData = async (): Promise<ComplianceDataPoint[]> => [
-    { month: 'Jan', score: 88 },
-    { month: 'Feb', score: 91 },
-    { month: 'Mar', score: 89 },
-    { month: 'Apr', score: 94 },
-    { month: 'May', score: 96 },
-    { month: 'Jun', score: 98 },
-];
+// getRevenueData / getComplianceTrendData REMOVED 2026-07-28. They returned hardcoded
+// literals ($12,500 SATOP revenue; an 88→98% "compliance trend") that /reporting charted
+// to the Director as if real. DO NOT reintroduce mock chart feeds here — real reporting
+// must come from the acs_report_* RPCs (see pages/Financials.tsx). /reporting now renders
+// an honest not-wired notice and stays TRIAL_MODE-hidden until that wiring exists.
 
 export const resetDemoData = async () => {
     initializeDatabase();

@@ -10,10 +10,26 @@ import { fetchAlerts, summarizeAlerts, type AlertsSummary, type ClientAlert } fr
 import { fetchComplianceGuardrails, type GuardrailVerdict } from '../services/complianceEngine';
 import { buildGuardrailExplainPrompt, CLARA_AVATAR_URL } from '../services/claraPrompts';
 import { Appointment } from '../types';
-import { Video, Calendar, AlertTriangle, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus, Sparkles } from 'lucide-react';
+import { Video, Calendar, AlertTriangle, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus, Sparkles, RefreshCw } from 'lucide-react';
+import { maybeForceFail } from '../config/failureHarness';
 
 const greetingFor = (h: number) => (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening');
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+
+// Per-card visible error — Financials' SectionError pattern (fail-visibly, 2026-07-28).
+// A failed card must never render its reassuring empty state ("No compliance flags." /
+// "No new intakes.") — that told staff a queue was clear when nothing was read.
+const SectionError: React.FC<{ msg: string; onRetry?: () => void }> = ({ msg, onRetry }) => (
+    <div className="flex items-start gap-2 p-4 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-2xl text-rose-700 dark:text-rose-300 text-sm">
+        <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+        <span className="flex-1">{msg}</span>
+        {onRetry && (
+            <button onClick={onRetry} className="shrink-0 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest hover:underline">
+                <RefreshCw size={12} /> Retry
+            </button>
+        )}
+    </div>
+);
 
 const Dashboard: React.FC = () => {
     const { user } = useAuth();
@@ -61,31 +77,40 @@ const Dashboard: React.FC = () => {
         activeClients: null,
     });
     const [isLoading, setIsLoading] = useState(true);
+    // Fail-visibly (2026-07-28): each fetch that fails flips its flag and the card
+    // renders <SectionError> instead of its empty state. Empty must mean empty.
+    const [loadErrors, setLoadErrors] = useState({ schedule: false, alerts: false, guardrails: false, comms: false, intake: false });
+    const [reloadKey, setReloadKey] = useState(0);
+    const retry = () => setReloadKey(k => k + 1);
 
     useEffect(() => {
         let cancelled = false;
         const fetchData = async () => {
             setIsLoading(true);
+            const errs = { schedule: false, alerts: false, guardrails: false, comms: false, intake: false };
             try {
                 // Today's schedule + client name map — real (appointments + clients tables).
-                const [appts, clientList] = await Promise.all([getAppointments(new Date()), getClients()]);
-                if (cancelled) return;
-                setAppointments(appts);
-                const nameMap: Record<string, string> = {};
-                clientList.forEach(c => { nameMap[c.id] = c.name; });
-                setClientNames(nameMap);
+                try {
+                    maybeForceFail('dashboard schedule');
+                    const [appts, clientList] = await Promise.all([getAppointments(new Date()), getClients()]);
+                    if (cancelled) return;
+                    setAppointments(appts);
+                    const nameMap: Record<string, string> = {};
+                    clientList.forEach(c => { nameMap[c.id] = c.name; });
+                    setClientNames(nameMap);
+                } catch (e) { console.warn('[dashboard] schedule failed:', e); errs.schedule = true; }
 
                 // Compliance alerts — clinical only. Real, derived from the clients table.
                 if (isClinical) {
                     try {
                         const a = await fetchAlerts();
                         if (!cancelled) { setAlerts(a); setAlertSummary(summarizeAlerts(a)); }
-                    } catch (e) { console.warn('[dashboard] fetchAlerts failed:', e); }
+                    } catch (e) { console.warn('[dashboard] fetchAlerts failed:', e); errs.alerts = true; }
                     // Deterministic compliance verdicts (no AI) — drives the Guardrails card.
                     try {
                         const g = await fetchComplianceGuardrails();
                         if (!cancelled) setGuardrails(g);
-                    } catch (e) { console.warn('[dashboard] compliance guardrails failed:', e); }
+                    } catch (e) { console.warn('[dashboard] compliance guardrails failed:', e); errs.guardrails = true; }
                 }
 
                 // Recent client messages — admin only. Real client_communications rows.
@@ -93,7 +118,7 @@ const Dashboard: React.FC = () => {
                     try {
                         const c = await getRecentClientCommunications(6);
                         if (!cancelled) setRecentComms(c);
-                    } catch (e) { console.warn('[dashboard] recent comms failed:', e); }
+                    } catch (e) { console.warn('[dashboard] recent comms failed:', e); errs.comms = true; }
                 }
 
                 // Front-door intake queue — financial staff (Director/Admin). Real
@@ -102,25 +127,30 @@ const Dashboard: React.FC = () => {
                     try {
                         const p = await getProspects();
                         if (!cancelled) setProspects(p);
-                    } catch (e) { console.warn('[dashboard] intake queue failed:', e); }
+                    } catch (e) { console.warn('[dashboard] intake queue failed:', e); errs.intake = true; }
                 }
 
                 // Aggregate stats — director only. Real counts off the clients table.
+                // supabase-js does NOT throw on query errors — check `error` explicitly,
+                // and keep activeClients null (renders '—') when the count wasn't read.
                 if (isDirector) {
                     try {
-                        const { count } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active');
+                        maybeForceFail('dashboard active-count');
+                        const { count, error } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active');
+                        if (error) throw new Error(error.message);
                         if (!cancelled) setMetrics({ activeClients: count ?? 0 });
-                    } catch (e) { console.warn('[dashboard] metrics failed:', e); }
+                    } catch (e) {
+                        console.warn('[dashboard] metrics failed:', e);
+                        if (!cancelled) setMetrics({ activeClients: null });
+                    }
                 }
-            } catch (e) {
-                console.warn('[dashboard] load failed:', e);
             } finally {
-                if (!cancelled) setIsLoading(false);
+                if (!cancelled) { setLoadErrors(errs); setIsLoading(false); }
             }
         };
         fetchData();
         return () => { cancelled = true; };
-    }, [user]);
+    }, [user, reloadKey]);
 
     if (isLoading) return <DashboardSkeleton />;
 
@@ -136,23 +166,35 @@ const Dashboard: React.FC = () => {
         ? 'No sessions are on today’s schedule'
         : `${plural(todayCount, 'session')} ${todayCount === 1 ? 'is' : 'are'} on today’s schedule`;
 
+    // Fail-visibly: a count whose query failed is never spoken as zero. The line says
+    // "unavailable" instead — same deterministic templating, no AI (see comment above).
     let briefingDetail: string;
+    const schedLead = loadErrors.schedule ? 'Today’s schedule could not be loaded' : schedPhrase;
     if (isAdmin) {
-        briefingDetail = recentComms.length === 0
-            ? `${schedPhrase}, and there are no recent client messages.`
-            : `${schedPhrase}, and ${plural(recentComms.length, 'recent client message')} ${recentComms.length === 1 ? 'is' : 'are'} waiting.`;
+        briefingDetail = loadErrors.comms
+            ? `${schedLead}. Recent client messages are unavailable right now.`
+            : recentComms.length === 0
+                ? `${schedLead}, and there are no recent client messages.`
+                : `${schedLead}, and ${plural(recentComms.length, 'recent client message')} ${recentComms.length === 1 ? 'is' : 'are'} waiting.`;
     } else if (isTherapist) {
-        briefingDetail = flaggedClients === 0
-            ? `${schedPhrase}, and no clients are currently flagged.`
-            : `${schedPhrase}, and ${plural(flaggedClients, 'client')} ${flaggedClients === 1 ? 'has' : 'have'} a compliance flag.`;
+        briefingDetail = loadErrors.alerts
+            ? `${schedLead}. Alert data is unavailable right now.`
+            : flaggedClients === 0
+                ? `${schedLead}, and no clients are currently flagged.`
+                : `${schedLead}, and ${plural(flaggedClients, 'client')} ${flaggedClients === 1 ? 'has' : 'have'} a compliance flag.`;
     } else {
         // Director (and any other staff fallback): practice-wide.
         const stats = metrics.activeClients != null ? `, and ${plural(metrics.activeClients, 'active client')}` : '';
-        briefingDetail = `${schedPhrase}, with ${plural(alertSummary.total, 'open alert')} across the caseload${stats}.`;
+        briefingDetail = loadErrors.alerts
+            ? `${schedLead}. Alert data is unavailable right now${stats}.`
+            : `${schedLead}, with ${plural(alertSummary.total, 'open alert')} across the caseload${stats}.`;
     }
 
     const ScheduleCard = (
         <Card title="Today's Schedule" subtitle={isAdmin ? 'Appointments on the books for today.' : 'Today’s clinical sessions.'}>
+            {loadErrors.schedule ? (
+                <SectionError msg="Today’s schedule could not be loaded — appointments may exist that aren’t shown here." onRetry={retry} />
+            ) : (
             <div className="divide-y divide-hairline dark:divide-slate-800">
                 {appointments.length > 0 ? appointments.map(apt => (
                     <button
@@ -187,6 +229,7 @@ const Dashboard: React.FC = () => {
                     </div>
                 )}
             </div>
+            )}
         </Card>
     );
 
@@ -206,7 +249,9 @@ const Dashboard: React.FC = () => {
                 )}
             </div>
             <div className="px-6 pb-6 space-y-2.5">
-                {guardrails.length > 0 ? guardrails.slice(0, 6).map(g => {
+                {loadErrors.guardrails ? (
+                    <SectionError msg="Guardrail checks could not be computed — this is a loading failure, not a clean result." onRetry={retry} />
+                ) : guardrails.length > 0 ? guardrails.slice(0, 6).map(g => {
                     const isViolation = g.status === 'violation';
                     const accent = isViolation ? 'text-red-500/90' : 'text-amber-500/90';
                     const bar = isViolation ? 'bg-red-400/70' : 'bg-amber-400/70';
@@ -253,7 +298,9 @@ const Dashboard: React.FC = () => {
             subtitle="New self-serve intakes awaiting placement. Click to review and place."
         >
             <div className="space-y-2.5">
-                {prospects.length > 0 ? prospects.map(p => (
+                {loadErrors.intake ? (
+                    <SectionError msg="The intake queue could not be loaded — new intakes may be waiting that aren’t shown here." onRetry={retry} />
+                ) : prospects.length > 0 ? prospects.map(p => (
                     <button
                         key={p.id}
                         onClick={() => navigate(`/clients/${p.id}`)}
@@ -316,9 +363,9 @@ const Dashboard: React.FC = () => {
                 Monthly Revenue intentionally omitted (billing not wired). */}
             {isDirector && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {/* Sessions today — neutral */}
+                    {/* Sessions today — neutral. '—' when the schedule query failed (never a fake 0). */}
                     <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{todayCount}</div>
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{loadErrors.schedule ? '—' : todayCount}</div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Sessions today</div>
                     </div>
                     {/* Open alerts — red, second entry point to the same honest place as the pill */}
@@ -326,7 +373,7 @@ const Dashboard: React.FC = () => {
                         onClick={() => navigate('/risk-monitor')}
                         className="text-left rounded-2xl border border-red-100 dark:border-red-900/40 bg-red-50/60 dark:bg-red-900/10 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-red-600 leading-none">{alertSummary.total}</div>
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-red-600 leading-none">{loadErrors.alerts ? '—' : alertSummary.total}</div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Open alerts</div>
                     </button>
                     {/* Guardrail flags — amber, scrolls to the Guardrails card on this page */}
@@ -334,8 +381,8 @@ const Dashboard: React.FC = () => {
                         onClick={() => document.getElementById('dashboard-guardrails')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                         className="text-left rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
                     >
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-amber-600 leading-none">{guardrails.length}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Guardrail {guardrails.length === 1 ? 'flag' : 'flags'}</div>
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-amber-600 leading-none">{loadErrors.guardrails ? '—' : guardrails.length}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.guardrails ? 'Guardrail flags' : `Guardrail ${guardrails.length === 1 ? 'flag' : 'flags'}`}</div>
                     </button>
                     {/* Active clients — neutral */}
                     <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
@@ -367,7 +414,9 @@ const Dashboard: React.FC = () => {
                         {IntakeQueueCard}
                         <Card title="Recent Client Messages" subtitle="Most recent communications sent.">
                             <div className="space-y-3">
-                                {recentComms.length > 0 ? recentComms.map(m => (
+                                {loadErrors.comms ? (
+                                    <SectionError msg="Recent messages could not be loaded." onRetry={retry} />
+                                ) : recentComms.length > 0 ? recentComms.map(m => (
                                     <button
                                         key={m.id}
                                         onClick={() => { if (m.clientId) navigate(`/clients/${m.clientId}`); }}
@@ -403,6 +452,9 @@ const Dashboard: React.FC = () => {
                         {ScheduleCard}
                         {isFinancial && IntakeQueueCard}
                         <Card title="Risk Monitor" subtitle="Actionable alerts from real client activity.">
+                            {loadErrors.alerts ? (
+                                <SectionError msg="Alerts could not be computed — these tiles are unavailable, not zero." onRetry={retry} />
+                            ) : (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                 <div className="p-4 rounded-2xl border border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-red-600">{alertSummary.critical}</div>
@@ -421,6 +473,7 @@ const Dashboard: React.FC = () => {
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Moderate</div>
                                 </div>
                             </div>
+                            )}
                             <button
                                 onClick={() => navigate('/risk-monitor')}
                                 className="mt-4 w-full px-4 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition flex items-center justify-center gap-2"
