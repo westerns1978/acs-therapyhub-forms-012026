@@ -114,14 +114,17 @@ interface UnitsInfo { units: number; grainMinutes: number; minutes: number | nul
 // (clinical_notes.units, L3) outrank the appointment's billableUnits; both are
 // asserted (a clinician dictated them), the schedule-derived count stays a suggestion.
 const computeUnits = (a: Appointment, program?: string, noteUnits?: number | null): UnitsInfo | null => {
-  const grain = unitGrainFor(program, a.serviceType);
-  if (!grain) return null;
   const s = parseHHMM(a.startTime), e = parseHHMM(a.endTime);
   const minutes = s !== null && e !== null && e > s ? e - s : null;
-  const grainMinutes = grain.unitMinutes as number;
+  // Staff-entered note units are an ASSERTED clinical fact and always display —
+  // regardless of the billing-grain config (grainMinutes 0 = no grain to cite).
+  // The grain gate below still governs SUGGESTED (computed) counts only.
+  const grain = unitGrainFor(program, a.serviceType);
+  const grainMinutes = (grain?.unitMinutes as number | undefined) ?? 0;
   if (typeof noteUnits === 'number') {
     return { units: noteUnits, grainMinutes, minutes, asserted: true };
   }
+  if (!grain) return null;
   if (typeof a.billableUnits === 'number') {
     return { units: a.billableUnits, grainMinutes, minutes, asserted: true };
   }
@@ -149,9 +152,13 @@ const UnitsBadge: React.FC<{ info: UnitsInfo; variant: 'hero' | 'compact' }> = (
       </span>
     );
   }
-  const support = asserted
-    ? `${grainMinutes} min each · ${units * grainMinutes} min`
-    : `${grainMinutes} min each${minutes != null ? ` · ${minutes} min scheduled` : ''}`;
+  // grainMinutes 0 = note-asserted units with no configured billing grain — cite
+  // nothing rather than fabricate a minutes-per-unit figure.
+  const support = grainMinutes === 0
+    ? 'from the note'
+    : asserted
+        ? `${grainMinutes} min each · ${units * grainMinutes} min`
+        : `${grainMinutes} min each${minutes != null ? ` · ${minutes} min scheduled` : ''}`;
   return (
     <div
       className={`rounded-2xl px-5 py-4 flex items-center gap-4 ${
