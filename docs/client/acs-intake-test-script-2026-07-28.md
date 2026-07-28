@@ -61,12 +61,16 @@ Site: **https://acs-therapyhub.web.app**
 
 ## Part 4 — You send Derek his forms (your window)
 
+Assigning happens on the main **Forms** page, not inside Derek's record. His record is where you
+go to *see* what he's been given.
+
 | # | Do this | You should see | What actually happened |
 |---|---|---|---|
-| 17 | In Derek's workspace, open the **Forms** tab | His forms list (empty to start) | |
-| 18 | Assign **Consent for Treatment** | It appears as assigned / not started | |
-| 19 | Assign **HIPAA Notice Acknowledgement** | Same | |
-| 20 | Assign **Emergency Contact** | Same | |
+| 17 | Open **Forms** from the main menu | The forms library, each with **Start** and **Assign** | |
+| 18 | On **Consent for Treatment**, click **Assign** and choose Derek | Confirmation it's been assigned | |
+| 19 | Do the same for **HIPAA Notice Acknowledgement** | Same | |
+| 20 | Do the same for **Emergency Contact** | Same | |
+| 21 | Go back to Derek's record and open the **Records** tab | An **Assigned Forms** section listing all three as not started | |
 
 > **Important:** the system does **not** email or text Derek. Nothing is sent automatically.
 > You would ring him or hand him the link yourself. This is expected, not a fault — worth
@@ -78,14 +82,14 @@ Site: **https://acs-therapyhub.web.app**
 
 | # | Do this | You should see | What actually happened |
 |---|---|---|---|
-| 21 | Log in to the client portal at **/portal/login** as Derek | His portal dashboard | |
-| 22 | Open **Document Vault** (**/portal/documents**) | The three forms you assigned, all pending | |
-| 23 | Open **Consent for Treatment** and complete it | Fields accept input | |
-| 24 | Where it asks for a signature, **type his full name** | It accepts typed text | |
-| 25 | Submit | A confirmation, and the form shows as complete | |
-| 26 | Complete **Emergency Contact** the same way | Marked complete | |
-| 27 | Check the "X of Y complete" counter | It goes up | |
-| 28 | Leave **HIPAA** unfinished on purpose | It stays pending | |
+| 22 | Log in to the client portal at **/portal/login** as Derek | His portal dashboard | |
+| 23 | Open **Document Vault** (**/portal/documents**) | The three forms you assigned, all pending | |
+| 24 | Open **Consent for Treatment** and complete it | Fields accept input | |
+| 25 | Where it asks for a signature, **type his full name** | It accepts typed text | |
+| 26 | Submit | A confirmation, and the form shows as complete | |
+| 27 | Complete **Emergency Contact** the same way | Marked complete | |
+| 28 | Check the "X of Y complete" counter | It goes up | |
+| 29 | Leave **HIPAA** unfinished on purpose | It stays pending | |
 
 > On signatures: today the system accepts a **typed name**, not a drawn one. Drawn, handwritten
 > signatures are the next piece of work — this is exactly the gap you flagged on the 21st.
@@ -96,10 +100,10 @@ Site: **https://acs-therapyhub.web.app**
 
 | # | Do this | You should see | What actually happened |
 |---|---|---|---|
-| 29 | Reopen Derek's **Forms** tab | Two complete, HIPAA still outstanding | |
-| 30 | Open the **Overview** tab | His status reflects the two completed forms | |
-| 31 | Book Derek an appointment from **Schedule** | The appointment appears on the calendar | |
-| 32 | Reopen his workspace | The appointment shows on his record | |
+| 30 | Reopen Derek's record and open the **Records** tab | Under Assigned Forms: two complete, HIPAA still outstanding | |
+| 31 | Open the **Overview** tab | His status reflects the two completed forms | |
+| 32 | Book Derek an appointment from **Schedule** | The appointment appears on the calendar | |
+| 33 | Reopen his workspace | The appointment shows on his record | |
 
 ---
 
@@ -107,10 +111,10 @@ Site: **https://acs-therapyhub.web.app**
 
 | # | Do this | You should see | What actually happened |
 |---|---|---|---|
-| 33 | From Derek's record, request a document from him | A link you can copy and send by hand | |
-| 34 | Open that link in Derek's window and upload any file | It uploads | |
-| 35 | Back in your window, check it arrived on his record | The file is listed | |
-| 36 | Look at **Compliance Readiness** in the main menu | Honest status, including anything not yet verifiable | |
+| 34 | From Derek's record, use **Capture ▾ → Request from client** from him | A link you can copy and send by hand | |
+| 35 | Open that link in Derek's window and upload any file | It uploads | |
+| 36 | Back in your window, check it arrived on his record | The file is listed | |
+| 37 | Look at **Compliance Readiness** in the main menu | Honest status, including anything not yet verifiable | |
 
 ---
 

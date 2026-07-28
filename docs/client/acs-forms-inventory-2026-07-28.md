@@ -15,32 +15,31 @@ the numbers tell you which forms have been *exercised*, not how busy the practic
 All fourteen of these are real, digitized forms — a person fills in actual fields on screen and
 the answers are saved to the client's record.
 
-| Form | Who fills it in | Used so far |
-|---|---|---|
-| **Consent for Treatment** | Client (staff can fill on their behalf) | 13 — the most-used form in the system |
-| **Authorization for Release of Information** | Client | 9 (5 finished, 4 sent but not yet started) |
-| **Emergency Contact** | Client | 7 |
-| **SATOP Client Intake** | Client | 5 |
-| **Telehealth Informed Consent** | Client | 5 |
-| **HIPAA Notice Acknowledgement** | Client | 4 |
-| **Continuing Recovery Plan** | Client | 3 (1 finished, 2 part-way) |
-| **Orientation Checklist** | Client | 2 |
-| **Late Cancellation Policy** | Client | 2 |
-| **Chart Review** | Staff only | 1 |
-| **Clinical Discharge Summary** | Staff only | **Never used** |
-| **Session Attendance** | Staff only | **Never used** |
-| **Support Group Meeting Report** | Client | **Never used** |
-| **Telehealth Experience Feedback** | Client | **Never used** |
+A ★ marks the six forms the system currently requires before it will produce a completion
+certificate. Those six are the ones worth deciding about most carefully.
 
-### The six that gate a completion certificate
+| Form | Required for certificate | Who fills it in | Used so far |
+|---|---|---|---|
+| **Consent for Treatment** | ★ | Client (staff can fill on their behalf) | 13 — the most-used form in the system |
+| **Authorization for Release of Information** | ★ | Client | 9 (5 finished, 4 sent but not yet started) |
+| **Emergency Contact** | ★ | Client | 7 |
+| **SATOP Client Intake** | | Client | 5 |
+| **Telehealth Informed Consent** | ★ | Client | 5 |
+| **HIPAA Notice Acknowledgement** | ★ | Client | 4 |
+| **Continuing Recovery Plan** | | Client | 3 (1 finished, 2 part-way) |
+| **Orientation Checklist** | ★ | Client | 2 |
+| **Late Cancellation Policy** | | Client | 2 |
+| **Chart Review** | | Staff only | 1 |
+| **Clinical Discharge Summary** | | Staff only | **Never used** |
+| **Session Attendance** | | Staff only | **Never used** |
+| **Support Group Meeting Report** | | Client | **Never used** |
+| **Telehealth Experience Feedback** | | Client | **Never used** |
 
-Six of the above are wired as required before the system will produce a completion certificate:
+### About those six
 
-**Consent for Treatment · HIPAA Notice Acknowledgement · Authorization for Release of
-Information · Telehealth Informed Consent · Orientation Checklist · Emergency Contact**
-
-If you want a different six, that is a small change — but it is worth deciding deliberately,
-because this list is what the completion gate actually enforces.
+Until all six are complete for a client, the system will not issue their completion certificate.
+If a different set is the right one, changing it is small — but worth deciding deliberately,
+because this is the list the certificate actually depends on.
 
 ---
 
