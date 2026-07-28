@@ -13,10 +13,18 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg">
     <script>
-      // Register service worker for PWA
+      // NO service worker (2026-07-28). The old registration pointed at a /sw.js
+      // that the SPA rewrite served as HTML, leaving clients that had ever
+      // registered the earlier cache-everything worker unable to update it —
+      // the stale-shell-after-deploy landmine. public/sw.js is now a kill switch
+      // (browsers with a registered worker fetch it on their own update check);
+      // this block actively unregisters as belt-and-braces. Caching is the
+      // hosting layer's job: index.html no-cache, hashed /assets immutable.
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          navigator.serviceWorker.getRegistrations()
+            .then((regs) => regs.forEach((r) => r.unregister()))
+            .catch(() => {});
         });
       }
     </script>
