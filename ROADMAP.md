@@ -32,6 +32,23 @@ Three buckets. Keep terse; one line per item. Newest on top within a bucket.
 - **last/next booked glance** — per-client most-recent-past + next-upcoming appointment on the
   client header. `getLastAppointment`/`getNextAppointment` (services/api.ts).
 
+## ⚠️ LOAD-BEARING: the `isLoading` unmount in ClientWorkspace
+
+`pages/ClientWorkspace.tsx` has `if (isLoading) return <LoadingSpinner />;` before the tab render.
+Until 2026-07-27 that line was the **only** thing preventing ten client-PHI tabs (Assessment,
+Records/Forms, Billing, Sessions, Treatment Plan, Overview, Documents…) from rendering the previous
+client's data after a client switch — none of them carried a key, and several seed local state from
+props in a `useState` initializer that runs once. It reads like a loading nicety; it was a
+confidentiality control.
+
+`<div key={clientId}>` now wraps the tab subtree, so remount-on-client-change is structural. **Do
+not remove either mechanism without the other in place.** If someone "optimizes away" the loading
+early-return while the key is present, that is fine. Removing the key and relying on the
+early-return again silently re-arms all ten tabs.
+
+The same class was found in four places on 2026-07-27 (`SmartNoteImporter`, `CreateClientModal`,
+`AsamAssessment`, `ClientWorkspace`) and fixed; three more remain behind `TRIAL_MODE` — see below.
+
 ## ⛔ TRIAL_MODE FLIP — BLOCKED (release gate, not a backlog item)
 
 **Do not flip `TRIAL_MODE` as a convenience.** It is a single boolean in
