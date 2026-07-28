@@ -47,15 +47,18 @@ const formatBooking = (apt: Appointment): string => {
 // 'active' → 'Compliant' — a fabricated standing signal. Standing is the
 // engine's (the program-aware timeline state beside this badge); this badge
 // only says where the client is in the lifecycle.
+// Outline badges, no fill (2026-07-28). 'completed'/'successful_dx' lost its blue —
+// blue left the status system; a finished program is a resolved good outcome, so it
+// takes sage. Lifecycle states that need no action (archived) read warm neutral.
 const getStatusColor = (status: Client['status']) => {
     switch (status) {
-        case 'active': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        case 'completed': case 'successful_dx': return 'bg-blue-100 text-blue-800 border-blue-200';
-        case 'archived': return 'bg-slate-100 text-slate-600 border-slate-200';
-        case 'prospect': return 'bg-amber-100 text-amber-800 border-amber-200';
-        case 'paused': return 'bg-orange-100 text-orange-800 border-orange-200';
-        case 'unsuccessful_dx': return 'bg-rose-100 text-rose-800 border-rose-200';
-        default: return 'bg-slate-100 text-slate-800 border-slate-200';
+        case 'active': return 'border-success-400 text-success-700 dark:text-success-400';
+        case 'completed': case 'successful_dx': return 'border-success-500 text-success-800 dark:text-success-300';
+        case 'archived': return 'border-neutral-300 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400';
+        case 'prospect': return 'border-warning-400 text-warning-700 dark:text-warning-400';
+        case 'paused': return 'border-orange-400 text-orange-700 dark:text-orange-400';
+        case 'unsuccessful_dx': return 'border-danger-400 text-danger-700 dark:text-danger-400';
+        default: return 'border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-300';
     }
 };
 

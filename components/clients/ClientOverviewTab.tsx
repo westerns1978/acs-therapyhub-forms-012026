@@ -371,9 +371,12 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
             <div className="lg:col-span-1 space-y-6">
                 <Card>
                      {timeToDeadline !== null && (
-                        <div className={`p-4 rounded-lg mb-4 ${timeToDeadline < 7 ? 'bg-danger-50 border-danger-200' : 'bg-info-50 border-info-200'} border`}>
+                        /* Imminent (<7 days) is actionable and takes danger ink; anything
+                           further out is passive and reads warm neutral — it used to take
+                           blue, which has left the status system (2026-07-28). */
+                        <div className={`p-4 rounded-lg mb-4 border ${timeToDeadline < 7 ? 'bg-danger-50 border-danger-200 dark:bg-danger-900/15 dark:border-danger-900/40' : 'bg-white dark:bg-slate-900 border-hairline dark:border-slate-700/60'}`}>
                             <div className="flex items-center gap-3">
-                                <Clock className={`w-6 h-6 ${timeToDeadline < 7 ? 'text-danger-600' : 'text-info-600'}`} />
+                                <Clock className={`w-6 h-6 ${timeToDeadline < 7 ? 'text-danger-600' : 'text-neutral-400'}`} />
                                 <div>
                                     <p className="font-bold text-2xl">{timeToDeadline} Days</p>
                                     <p className="text-sm font-medium">until next deadline</p>

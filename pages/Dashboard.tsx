@@ -20,6 +20,46 @@ const greetingFor = (h: number) => (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 
 // Raw verdict tokens ('violation') must never print — mapped labels only (2026-07-28).
 const VERDICT_LABEL: Record<'warning' | 'violation', string> = { warning: 'Warning', violation: 'Violation' };
 
+/**
+ * Stat tile — restructured 2026-07-28.
+ *
+ * Neutral surface, 1px hairline, and colour ONLY as a 3px left rule. The previous
+ * tinted-fill + coloured-border treatment made four semantically different numbers
+ * shout in four different hues at once. `accent` is opt-in and belongs to the one
+ * metric in the group representing a live obligation; it is deliberately dropped at
+ * zero so a clean practice never gets a coloured card celebrating nothing.
+ */
+const TONE_RULE: Record<string, string> = {
+    danger: 'bg-danger-600 dark:bg-danger-400',
+    warning: 'bg-warning-600 dark:bg-warning-400',
+    success: 'bg-success-600 dark:bg-success-400',
+};
+const TONE_TEXT: Record<string, string> = {
+    danger: 'text-danger-700 dark:text-danger-400',
+    warning: 'text-warning-700 dark:text-warning-400',
+    success: 'text-success-700 dark:text-success-400',
+    neutral: 'text-neutral-500 dark:text-neutral-400',
+};
+const StatTile: React.FC<{
+    value: React.ReactNode; label: string; sub?: string;
+    accent?: 'danger' | 'warning' | 'success';
+    subTone?: 'danger' | 'warning' | 'success' | 'neutral';
+    emphasis?: boolean; onClick?: () => void;
+}> = ({ value, label, sub, accent, subTone = 'neutral', emphasis, onClick }) => {
+    const body = (
+        <>
+            {accent && <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${TONE_RULE[accent]}`} />}
+            <div className={`${emphasis ? 'text-3xl' : 'text-2xl'} font-black tabular-nums tracking-tight leading-none ${accent ? 'text-slate-900 dark:text-white' : 'text-neutral-700 dark:text-neutral-200'}`}>{value}</div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mt-1.5">{label}</div>
+            {sub && <div className={`text-[10px] font-semibold mt-0.5 ${TONE_TEXT[subTone]}`}>{sub}</div>}
+        </>
+    );
+    const cls = `relative overflow-hidden text-left rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 px-4 py-3 ${accent ? 'pl-5' : ''}`;
+    return onClick
+        ? <button onClick={onClick} className={`${cls} hover:bg-neutral-50 dark:hover:bg-slate-800/60 transition-colors`}>{body}</button>
+        : <div className={cls}>{body}</div>;
+};
+
 // Per-card visible error — Financials' SectionError pattern (fail-visibly, 2026-07-28).
 // A failed card must never render its reassuring empty state ("No compliance flags." /
 // "No new intakes.") — that told staff a queue was clear when nothing was read.
@@ -270,9 +310,13 @@ const Dashboard: React.FC = () => {
                 {loadErrors.guardrails ? (
                     <SectionError msg="Guardrail checks could not be computed — this is a loading failure, not a clean result." onRetry={retry} />
                 ) : guardrails.length > 0 ? guardrails.slice(0, 6).map(g => {
+                    // Full-strength ink at the new desaturated values (2026-07-28): the
+                    // /90 and /70 opacities existed to soften Tailwind's saturated
+                    // red/amber. The brick and ochre ramps are already quiet, so the
+                    // fades only cost contrast — the row rule now matches the tile rules.
                     const isViolation = g.status === 'violation';
-                    const accent = isViolation ? 'text-danger-500/90' : 'text-warning-500/90';
-                    const bar = isViolation ? 'bg-danger-400/70' : 'bg-warning-400/70';
+                    const accent = isViolation ? 'text-danger-700 dark:text-danger-400' : 'text-warning-700 dark:text-warning-400';
+                    const bar = isViolation ? 'bg-danger-600 dark:bg-danger-400' : 'bg-warning-600 dark:bg-warning-400';
                     return (
                         <div
                             key={g.id}
@@ -412,47 +456,39 @@ const Dashboard: React.FC = () => {
                 Monthly Revenue intentionally omitted (billing not wired). */}
             {isDirector && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {/* Structure (2026-07-28): neutral surface + 1px hairline on every tile;
+                        colour enters ONLY as the 3px left rule. The accent belongs to the one
+                        metric that is a live obligation — violations — and drops away at zero,
+                        so a clean practice reads calm rather than green-lit. */}
                     {/* 1. Violations — THE number. Scrolls to the guardrail detail below. */}
-                    <button
+                    <StatTile
                         onClick={() => document.getElementById('dashboard-guardrails')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                        className="text-left rounded-2xl border border-danger-200 dark:border-danger-900/50 bg-danger-50 dark:bg-danger-900/15 px-4 py-3 hover:bg-danger-100 dark:hover:bg-danger-900/25 transition-colors"
-                    >
-                        <div className="text-3xl font-black tabular-nums tracking-tight text-danger-600 leading-none">{loadErrors.guardrails ? '—' : violationCount}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-1.5">
-                            {loadErrors.guardrails ? 'Violations' : pluralNoun(violationCount, 'violation')}
-                        </div>
-                        {!loadErrors.guardrails && warningCount > 0 && (
-                            <div className="text-[10px] font-semibold text-warning-700 dark:text-warning-400 mt-0.5">
-                                + {plural(warningCount, 'warning')}
-                            </div>
-                        )}
-                    </button>
+                        value={loadErrors.guardrails ? '—' : violationCount}
+                        label={loadErrors.guardrails ? 'Violations' : pluralNoun(violationCount, 'violation')}
+                        accent={!loadErrors.guardrails && violationCount > 0 ? 'danger' : undefined}
+                        emphasis
+                        sub={!loadErrors.guardrails && warningCount > 0 ? `+ ${plural(warningCount, 'warning')}` : undefined}
+                        subTone="warning"
+                    />
                     {/* 2. Open alerts — the work queue. */}
-                    <button
+                    <StatTile
                         onClick={() => navigate('/risk-monitor')}
-                        className="text-left rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
-                    >
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{loadErrors.alerts ? '—' : alertSummary.total}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.alerts ? 'Open alerts' : `Open ${pluralNoun(alertSummary.total, 'alert')}`}</div>
-                    </button>
+                        value={loadErrors.alerts ? '—' : alertSummary.total}
+                        label={loadErrors.alerts ? 'Open alerts' : `Open ${pluralNoun(alertSummary.total, 'alert')}`}
+                    />
                     {/* 3. Intake queue — depth AND the oldest wait, the part that decays. */}
-                    <button
+                    <StatTile
                         onClick={() => document.getElementById('dashboard-intake')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                        className="text-left rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
-                    >
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{loadErrors.intake ? '—' : prospects.length}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.intake ? 'Intakes waiting' : `${pluralNoun(prospects.length, 'intake')} waiting`}</div>
-                        {!loadErrors.intake && oldestIntakeDays !== null && oldestIntakeDays > 0 && (
-                            <div className={`text-[10px] font-semibold mt-0.5 ${oldestIntakeDays >= 14 ? 'text-danger-600' : oldestIntakeDays >= 7 ? 'text-warning-700 dark:text-warning-400' : 'text-slate-400'}`}>
-                                oldest {plural(oldestIntakeDays, 'day')}
-                            </div>
-                        )}
-                    </button>
+                        value={loadErrors.intake ? '—' : prospects.length}
+                        label={loadErrors.intake ? 'Intakes waiting' : `${pluralNoun(prospects.length, 'intake')} waiting`}
+                        sub={!loadErrors.intake && oldestIntakeDays !== null && oldestIntakeDays > 0 ? `oldest ${plural(oldestIntakeDays, 'day')}` : undefined}
+                        subTone={oldestIntakeDays !== null && oldestIntakeDays >= 14 ? 'danger' : oldestIntakeDays !== null && oldestIntakeDays >= 7 ? 'warning' : 'neutral'}
+                    />
                     {/* 4. Sessions today — quiet schedule fact. '—' if the query failed. */}
-                    <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{loadErrors.schedule ? '—' : todayCount}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.schedule ? 'Sessions today' : `${pluralNoun(todayCount, 'session')} today`}</div>
-                    </div>
+                    <StatTile
+                        value={loadErrors.schedule ? '—' : todayCount}
+                        label={loadErrors.schedule ? 'Sessions today' : `${pluralNoun(todayCount, 'session')} today`}
+                    />
                 </div>
             )}
 
@@ -519,23 +555,24 @@ const Dashboard: React.FC = () => {
                             {loadErrors.alerts ? (
                                 <SectionError msg="Alerts could not be computed — these tiles are unavailable, not zero." onRetry={retry} />
                             ) : (
+                            /* Tier tiles: neutral surfaces, severity carried by a small dot
+                               instead of four competing tinted fills. A tier at ZERO shows a
+                               hollow dot and grey figures — only live tiers take ink. */
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div className="p-4 rounded-2xl border border-danger-100 dark:border-danger-900/40 bg-danger-50/50 dark:bg-danger-900/10 shadow-card dark:shadow-card-dark">
-                                    <div className="text-3xl font-black tracking-tighter text-danger-600">{alertSummary.critical}</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Critical</div>
-                                </div>
-                                <div className="p-4 rounded-2xl border border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10 shadow-card dark:shadow-card-dark">
-                                    <div className="text-3xl font-black tracking-tighter text-orange-600">{alertSummary.high}</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">High</div>
-                                </div>
-                                <div className="p-4 rounded-2xl border border-warning-100 dark:border-warning-900/40 bg-warning-50/50 dark:bg-warning-900/10 shadow-card dark:shadow-card-dark">
-                                    <div className="text-3xl font-black tracking-tighter text-warning-600">{alertSummary.elevated}</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Elevated</div>
-                                </div>
-                                <div className="p-4 rounded-2xl border border-info-100 dark:border-info-900/40 bg-info-50/50 dark:bg-info-900/10 shadow-card dark:shadow-card-dark">
-                                    <div className="text-3xl font-black tracking-tighter text-info-600">{alertSummary.moderate}</div>
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Moderate</div>
-                                </div>
+                                {([
+                                    { label: 'Critical', n: alertSummary.critical, dot: 'bg-danger-600 dark:bg-danger-400', ink: 'text-danger-700 dark:text-danger-400' },
+                                    { label: 'High', n: alertSummary.high, dot: 'bg-orange-600 dark:bg-orange-400', ink: 'text-orange-700 dark:text-orange-400' },
+                                    { label: 'Elevated', n: alertSummary.elevated, dot: 'bg-warning-600 dark:bg-warning-400', ink: 'text-warning-700 dark:text-warning-400' },
+                                    { label: 'Moderate', n: alertSummary.moderate, dot: 'bg-neutral-500 dark:bg-neutral-400', ink: 'text-neutral-600 dark:text-neutral-300' },
+                                ]).map(t => (
+                                    <div key={t.label} className="p-4 rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900">
+                                        <div className={`text-3xl font-black tabular-nums tracking-tighter ${t.n > 0 ? t.ink : 'text-neutral-400 dark:text-neutral-600'}`}>{t.n}</div>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.n > 0 ? t.dot : 'bg-neutral-300 dark:bg-neutral-700'}`} />
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">{t.label}</span>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                             )}
                             <button

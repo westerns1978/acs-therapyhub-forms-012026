@@ -32,15 +32,21 @@ const CATEGORY_ORDER = [
   'Billing', 'Other', UNCATEGORIZED,
 ];
 
+// CATEGORICAL palette — document type, NOT status (2026-07-28).
+// These borrowed danger/warning/success/green/orange from the status families, so a
+// status re-tone desaturated half the categories and left the rest bright, and a
+// "Court Order" chip read as an error. Pinned to explicit muted literals that no
+// status ramp owns: the two systems can no longer drag each other, and a category
+// can never be mistaken for a severity.
 const CATEGORY_COLORS: Record<string, string> = {
-  'Court Order': 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300',
-  'Intake': 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-300',
+  'Court Order': 'bg-[#EDE6DC] text-[#6B5844] dark:bg-[#3A322A] dark:text-[#CBB9A2]',
+  'Intake': 'bg-[#E3EAF2] text-[#3F5872] dark:bg-[#26313D] dark:text-[#A8C0D8]',
   'Treatment Plan': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
   'Consent': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  'Verification': 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300',
-  'Progress Note': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  'Completion Certificate': 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300',
-  'Drug Screen': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  'Verification': 'bg-[#EFE8D5] text-[#6E5E33] dark:bg-[#3A3427] dark:text-[#CFC08C]',
+  'Progress Note': 'bg-[#E4EBE5] text-[#425A47] dark:bg-[#28322A] dark:text-[#A9C1AE]',
+  'Completion Certificate': 'bg-[#DFE9E2] text-[#37604A] dark:bg-[#23332B] dark:text-[#9CC4AC]',
+  'Drug Screen': 'bg-[#F0E2D4] text-[#7A5334] dark:bg-[#3B2F24] dark:text-[#D3AE87]',
   'ID / License': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
   'Billing': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
   'Other': 'bg-slate-100 text-slate-700 dark:bg-slate-700/50 dark:text-slate-300',

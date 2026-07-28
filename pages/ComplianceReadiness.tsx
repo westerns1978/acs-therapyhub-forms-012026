@@ -8,12 +8,23 @@ import { programLabel } from '../config/programVocab';
 // Raw verdict tokens ('violation') must never print — mapped labels only (2026-07-28).
 const VERDICT_LABEL: Record<'warning' | 'violation', string> = { warning: 'Warning', violation: 'Violation' };
 
-const StatTile: React.FC<{ label: string; value: number; tone: string }> = ({ label, value, tone }) => (
-  <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-800/50 p-4">
-    <p className={`text-3xl font-black ${tone}`}>{value}</p>
-    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">{label}</p>
-  </div>
-);
+/**
+ * Restructured 2026-07-28: neutral surface + hairline, colour as a 3px left rule,
+ * and the rule appears only when the count is non-zero AND the metric is one the
+ * Director must act on. "Met" and "Not yet verifiable" are informational totals —
+ * they never take an accent, so a compliant practice reads calm instead of being
+ * congratulated in green.
+ */
+const StatTile: React.FC<{ label: string; value: number; rule?: string; ink?: string }> = ({ label, value, rule, ink }) => {
+  const live = value > 0 && !!rule;
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 ${live ? 'pl-5' : ''}`}>
+      {live && <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${rule}`} />}
+      <p className={`text-3xl font-black tabular-nums ${live ? ink : 'text-neutral-500 dark:text-neutral-400'}`}>{value}</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mt-1">{label}</p>
+    </div>
+  );
+};
 
 const ComplianceReadiness: React.FC = () => {
   const navigate = useNavigate();
@@ -77,30 +88,33 @@ const ComplianceReadiness: React.FC = () => {
 
       {/* Practice-wide counts */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatTile label="Violations" value={counts.violation} tone="text-danger-600" />
-        <StatTile label="Warnings" value={counts.warning} tone="text-warning-600" />
-        <StatTile label="Met" value={counts.met} tone="text-success-600" />
-        <StatTile label="Not yet verifiable" value={counts.not_enforceable} tone="text-slate-400" />
+        <StatTile label="Violations" value={counts.violation} rule="bg-danger-600 dark:bg-danger-400" ink="text-danger-700 dark:text-danger-400" />
+        <StatTile label="Warnings" value={counts.warning} rule="bg-warning-600 dark:bg-warning-400" ink="text-warning-700 dark:text-warning-400" />
+        <StatTile label="Met" value={counts.met} />
+        <StatTile label="Not yet verifiable" value={counts.not_enforceable} />
       </div>
 
       {/* Surfaced flags — warning/violation */}
       <Card title="Active Guardrails" subtitle="Warnings and violations from real client data. Click to open the client.">
         <div className="space-y-3">
           {flags.length > 0 ? flags.map(f => {
+            // Rows: neutral surface + 3px left rule, matching the Dashboard guardrail
+            // card. A full-bleed tinted fill per row turned a long list into stripes
+            // of colour and made severity harder to read, not easier (2026-07-28).
             const isViolation = f.status === 'violation';
-            const accent = isViolation ? 'text-danger-600' : 'text-warning-600';
-            const box = isViolation
-              ? 'bg-danger-50 dark:bg-danger-900/10 border-danger-100 dark:border-danger-900/30 hover:bg-danger-100 dark:hover:bg-danger-900/20'
-              : 'bg-warning-50 dark:bg-warning-900/10 border-warning-100 dark:border-warning-900/30 hover:bg-warning-100 dark:hover:bg-warning-900/20';
+            const accent = isViolation ? 'text-danger-700 dark:text-danger-400' : 'text-warning-700 dark:text-warning-400';
+            const rule = isViolation ? 'bg-danger-600 dark:bg-danger-400' : 'bg-warning-600 dark:bg-warning-400';
+            const box = 'bg-white dark:bg-slate-900 border-hairline dark:border-slate-700/60 hover:bg-neutral-50 dark:hover:bg-slate-800/60';
             return (
               <button
                 key={f.id}
                 onClick={() => navigate(`/clients/${f.clientId}`)}
-                className={`w-full text-left flex items-start gap-4 p-4 border rounded-2xl transition-colors ${box}`}
+                className={`relative overflow-hidden w-full text-left flex items-start gap-4 p-4 pl-5 border rounded-2xl transition-colors ${box}`}
               >
+                <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${rule}`} />
                 <AlertTriangle className={`shrink-0 mt-1 ${accent}`} size={20} />
                 <div className="min-w-0 flex-1">
-                  <p className={`text-[10px] font-black uppercase tracking-widest ${accent}`}>{VERDICT_LABEL[f.status]} · {f.clientName} · {programLabel(f.program)}</p>
+                  <p className={`text-[10px] font-bold uppercase tracking-widest ${accent}`}>{VERDICT_LABEL[f.status]} · {f.clientName} · {programLabel(f.program)}</p>
                   <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">{f.headline}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{f.detail}</p>
                   <p className="text-[10px] font-mono text-slate-400 mt-1.5">{f.citation}</p>
@@ -109,9 +123,12 @@ const ComplianceReadiness: React.FC = () => {
               </button>
             );
           }) : (
-            <div className="flex items-center gap-3 py-6 justify-center text-success-600">
-              <CheckCircle2 size={20} />
-              <span className="text-xs font-bold uppercase tracking-widest">No guardrails triggered — every enforceable rule is met.</span>
+            /* Neutral zero state (2026-07-28) — see the RiskMonitor note. The claim
+               itself stays precise: it is scoped to ENFORCEABLE rules, with the
+               "Not Yet Verifiable" card immediately below carrying the rest. */
+            <div className="flex items-center gap-3 py-6 justify-center text-neutral-600 dark:text-neutral-300">
+              <CheckCircle2 size={18} className="text-neutral-400" />
+              <span className="text-sm">No guardrails triggered — every enforceable rule is met.</span>
             </div>
           )}
         </div>

@@ -22,20 +22,66 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      // ── Status-tone ramps (semantic-token pass, 2026-07-28) ─────────────────
-      // Pinned to Tailwind v3's default hex values, so defining them changes ZERO
-      // pixels today — the point is ownership: every status shade in the app is
-      // now editable HERE, in one file (the same move as the slate override
-      // below). The semantic aliases (success/warning/danger/info) map converted
-      // call sites; the raw family names (red/amber/emerald/blue/rose) are pinned
-      // to the same ramps so the ~1,300 not-yet-converted sites are equally
-      // tunable. An Attesta re-theme edits these five ramps — not 100 files.
+      /* ══════════════════════════════════════════════════════════════════════
+       * LAYER 1 — BRAND.  ***ATTESTA OVERRIDES THIS BLOCK.***
+       *
+       * The tenant's identity colour and nothing else. ACS is maroon; the Attesta
+       * fork swaps this wholesale for its green and is DONE — it must not need to
+       * touch the status ramps below, because status meaning is not tenant-specific.
+       * The focus-visible ring in /index.css is brand too and swaps with it.
+       * ══════════════════════════════════════════════════════════════════════ */
+      const BRAND = {
+        DEFAULT: '#8B1E24',   // ACS maroon
+        focus:   '#70181D',   // pressed / hover-darken
+        content: '#FFFFFF',   // text on brand
+        dark:    '#F87171',   // legible on the near-black dark background
+        darkFocus: '#EF4444',
+      };
+
+      /* ══════════════════════════════════════════════════════════════════════
+       * LAYER 2 — STATUS.  ***ATTESTA INHERITS THIS UNCHANGED.***
+       *
+       * Warm, desaturated, deliberately BRAND-INDEPENDENT: these must read
+       * correctly under maroon chrome AND under Attesta green, so they are never
+       * tinted toward the brand hue. Character target: institutional warm paper —
+       * closer to a legal document than a SaaS dashboard.
+       *
+       * Ink slots (the ones the app actually uses for text/icons) are contrast-
+       * verified on both white cards and the cream page background:
+       *   danger  600 #9A3324 brick   7.3:1 white / 6.8:1 cream   (AAA / AA)
+       *   warning 600 #A16207 ochre   4.9:1 white / 4.6:1 cream   (AA)
+       *   success 600 #4D6A52 sage    6.0:1 white / 5.6:1 cream   (AA)
+       *   neutral 500 #78716C stone   4.8:1 white / 4.5:1 cream   (AA)
+       * Fill/border slots (50–300) are non-text and clear 3:1 against their own ink.
+       *
+       * NOTE ON BLUE: deliberately ABSENT. Blue was doing almost entirely
+       * NON-status work in this app (Zoom/telehealth affordances, the calendar
+       * "today" highlight, AI-provenance panels, file-type chips, avatar hues,
+       * read receipts), so pinning it here meant any status re-tone silently
+       * wrecked all of that. It is now unpinned and falls back to Tailwind's
+       * default blue, free to keep doing non-status work. The status system has
+       * no "info" hue: actionable states take BRAND, passive states take NEUTRAL.
+       * ══════════════════════════════════════════════════════════════════════ */
+      const BRICK = { 50:'#FBF4F2', 100:'#F6E5E0', 200:'#EBCAC1', 300:'#DAA697', 400:'#C27D6A', 500:'#AC5A46', 600:'#9A3324', 700:'#82291C', 800:'#6A231A', 900:'#551E17', 950:'#2F0F0B' };
+      const OCHRE = { 50:'#FCF8EE', 100:'#F7EED4', 200:'#EEDCA8', 300:'#E0C173', 400:'#CDA345', 500:'#B4841F', 600:'#A16207', 700:'#855009', 800:'#6B410B', 900:'#56350C', 950:'#2F1C05' };
+      const SAGE  = { 50:'#F3F6F3', 100:'#E3EBE4', 200:'#C7D8CA', 300:'#A3BCA8', 400:'#7A9A81', 500:'#5F7F66', 600:'#4D6A52', 700:'#405845', 800:'#354739', 900:'#2C3A2F', 950:'#171F19' };
+      // 500 is #736B66, not stone's stock #78716C: the stock value measured 4.48:1 on
+      // the cream page background — a rounding miss against AA — and this token carries
+      // the small uppercase meta labels. Nudged two steps darker to clear it at 4.87:1.
+      const STONE = { 50:'#FAFAF9', 100:'#F5F5F4', 200:'#E7E5E4', 300:'#D6D3D1', 400:'#A8A29E', 500:'#736B66', 600:'#57534E', 700:'#44403C', 800:'#292524', 900:'#1C1917', 950:'#0C0A09' };
+      // Terracotta sits between ochre and brick for the HIGH alert tier, so the
+      // 4-tier ladder stays legible without reintroducing a saturated orange.
+      const TERRA = { 50:'#FCF6F1', 100:'#F7E9DC', 200:'#EDD2B9', 300:'#DFB28C', 400:'#CB8D5D', 500:'#B36F3C', 600:'#9C5A2B', 700:'#814824', 800:'#683A20', 900:'#54301C', 950:'#2E180D' };
+
       const STATUS_RAMPS = {
-        red:     { 50:'#FEF2F2', 100:'#FEE2E2', 200:'#FECACA', 300:'#FCA5A5', 400:'#F87171', 500:'#EF4444', 600:'#DC2626', 700:'#B91C1C', 800:'#991B1B', 900:'#7F1D1D', 950:'#450A0A' },
-        rose:    { 50:'#FFF1F2', 100:'#FFE4E6', 200:'#FECDD3', 300:'#FDA4AF', 400:'#FB7185', 500:'#F43F5E', 600:'#E11D48', 700:'#BE123C', 800:'#9F1239', 900:'#881337', 950:'#4C0519' },
-        amber:   { 50:'#FFFBEB', 100:'#FEF3C7', 200:'#FDE68A', 300:'#FCD34D', 400:'#FBBF24', 500:'#F59E0B', 600:'#D97706', 700:'#B45309', 800:'#92400E', 900:'#78350F', 950:'#451A03' },
-        emerald: { 50:'#ECFDF5', 100:'#D1FAE5', 200:'#A7F3D0', 300:'#6EE7B7', 400:'#34D399', 500:'#10B981', 600:'#059669', 700:'#047857', 800:'#065F46', 900:'#064E3B', 950:'#022C22' },
-        blue:    { 50:'#EFF6FF', 100:'#DBEAFE', 200:'#BFDBFE', 300:'#93C5FD', 400:'#60A5FA', 500:'#3B82F6', 600:'#2563EB', 700:'#1D4ED8', 800:'#1E40AF', 900:'#1E3A8A', 950:'#172554' },
+        // Raw family names stay pinned so the ~1,000 not-yet-renamed call sites
+        // re-tone with everything else — the same lever as the slate override below.
+        red:     BRICK,
+        rose:    BRICK,   // error cards used rose; same ink as danger, on purpose
+        amber:   OCHRE,
+        emerald: SAGE,
+        green:   SAGE,    // both greens were in use; they must not diverge
+        orange:  TERRA,
       };
       tailwind.config = {
         darkMode: 'class',
@@ -62,10 +108,12 @@
               hairline: {
                 DEFAULT: '#E7E1D8',
               },
+              // BRAND (layer 1) — sourced from the BRAND object above so the Attesta
+              // fork changes ONE literal, not scattered hexes.
               primary: {
-                DEFAULT: '#8B1E24',
-                focus: '#70181D',
-                content: '#FFFFFF'
+                DEFAULT: BRAND.DEFAULT,
+                focus: BRAND.focus,
+                content: BRAND.content
               },
               secondary: {
                 DEFAULT: '#4F46E5',
@@ -101,31 +149,42 @@
               'surface-secondary-content': 'var(--th-on-surface-secondary)',
               // Explicit dark-pair partner used as `dark:text-dark-surface-secondary-content`.
               'dark-surface-secondary-content': '#94A3B8',
-              // ── Semantic status tokens (2026-07-28) ──────────────────────────
-              // The app's tone grammar: success (met/paid/signed), warning
-              // (advisory/pending), danger (violation/critical/error), info
-              // (moderate/needs-review). Aliased to the pinned ramps above, so
-              // `bg-danger-50 text-danger-600` renders byte-identically to the
-              // old `bg-red-50 text-red-600` — the swap is semantic, not visual.
-              // Status-grammar call sites use THESE names; new code should too.
-              success: STATUS_RAMPS.emerald,
-              warning: STATUS_RAMPS.amber,
-              danger:  STATUS_RAMPS.red,
-              info:    STATUS_RAMPS.blue,
+              // ── Semantic status tokens ───────────────────────────────────────
+              // The app's tone grammar. Status-grammar call sites use THESE names.
+              //   success  — met / paid / signed / resolved      → sage
+              //   warning  — advisory / pending / due            → ochre
+              //   danger   — violation / critical / error        → brick
+              //   neutral  — zero, passive, already-handled, N/A → warm stone
+              // There is deliberately NO info/blue tier: an ACTIONABLE state takes
+              // BRAND (text-primary / border-primary), a PASSIVE one takes neutral.
+              success: SAGE,
+              warning: OCHRE,
+              danger:  BRICK,
+              neutral: STONE,
+              // DEPRECATED alias. `info` used to mean blue; blue left the status
+              // system (see the note above), so it now resolves to the passive
+              // neutral. Kept only so un-migrated `info-*` call sites still compile
+              // and render sensibly — do not use it in new code.
+              info:    STONE,
               // Raw families pinned to the same ramps (the slate-override move):
-              // unconverted sites keep their exact colors but become one-file-tunable.
+              // un-renamed sites re-tone with everything else, one file.
               red:     STATUS_RAMPS.red,
               rose:    STATUS_RAMPS.rose,
               amber:   STATUS_RAMPS.amber,
               emerald: STATUS_RAMPS.emerald,
-              blue:    STATUS_RAMPS.blue,
+              green:   STATUS_RAMPS.green,
+              orange:  STATUS_RAMPS.orange,
+              // `blue` is intentionally NOT pinned — it fell out of the status
+              // system and keeps Tailwind's default so telehealth/Zoom cues, the
+              // calendar "today" highlight, AI-provenance panels and file-type
+              // chips are untouched by a status re-tone.
               border: {
                 DEFAULT: '#D6CFC2',
               },
               dark: {
                 primary: {
-                  DEFAULT: '#F87171',
-                  focus: '#EF4444',
+                  DEFAULT: BRAND.dark,
+                  focus: BRAND.darkFocus,
                 },
                 secondary: {
                   DEFAULT: '#818CF8',

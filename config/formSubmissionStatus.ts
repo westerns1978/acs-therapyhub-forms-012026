@@ -49,10 +49,15 @@ export const normalizeSubmissionStatus = (
   }
 };
 
-/** Display labels — presentation only; identity is the normalized token. */
+/** Display labels — presentation only; identity is the normalized token.
+ *  Sentence case (2026-07-28): these render inside badges that no longer shout.
+ *  'completed' reads "Needs review" because that is what it means to the STAFF
+ *  member looking at this queue — the client finished it and it is now waiting on
+ *  them. Labelling it "Completed" next to a warning triangle was the source of the
+ *  icon/label contradiction on the submissions queue. */
 export const SUBMISSION_STATUS_LABELS: Record<NormalizedSubmissionStatus, string> = {
-  not_started: 'Not Started',
-  in_progress: 'In Progress',
-  completed: 'Completed',
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  completed: 'Needs review',
   reviewed: 'Reviewed',
 };

@@ -14,8 +14,12 @@ const UserIcon = (props: React.ComponentProps<'svg'>) => (
   </svg>
 );
 
+// Identity hues — decorative, NOT status (2026-07-28). These used to borrow
+// emerald/amber/rose from the status families, so re-toning status desaturated
+// half the avatars and left the other half bright. Pinned to arbitrary literals
+// that no status ramp owns, so the two systems can never drag each other again.
 const avatarColors = [
-    'bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500', 'bg-teal-500'
+    'bg-[#4C6FA5]', 'bg-[#5B8C7B]', 'bg-[#A8763E]', 'bg-[#7C5C9E]', 'bg-[#9E5C72]', 'bg-[#3F7F8C]'
 ];
 
 const ClientAvatar: React.FC<ClientAvatarProps> = ({ client, className = '' }) => {

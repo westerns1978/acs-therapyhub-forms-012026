@@ -21,17 +21,19 @@ interface ClientFormsTabProps {
 const getStatusPill = (status: FormSubmission['status'], data?: any, dueDate?: Date) => {
     const s = normalizeSubmissionStatus(status);
     const isOverdue = dueDate && new Date(dueDate) < new Date() && s !== 'completed' && s !== 'reviewed';
-    if (isOverdue) return 'bg-red-100 text-red-800';
+    // Outline badges, no fill (2026-07-28). "Needs review" is the one ACTIONABLE
+    // state here, so it takes brand maroon rather than the blue it used to borrow.
+    if (isOverdue) return 'border border-danger-400 text-danger-700 dark:text-danger-400';
 
     if (s === 'completed' && data?.requires_review) {
-        return 'bg-blue-100 text-blue-800 border border-blue-200';
+        return 'border border-primary/40 text-primary dark:border-dark-primary/40 dark:text-dark-primary';
     }
 
     switch(s) {
-        case 'reviewed': return 'bg-emerald-100 text-emerald-800';
-        case 'completed': return 'bg-green-100 text-green-800';
-        case 'in_progress': return 'bg-yellow-100 text-yellow-800';
-        case 'not_started': return 'bg-gray-100 text-gray-800';
+        case 'reviewed': return 'border border-success-300 text-success-700 dark:text-success-400';
+        case 'completed': return 'border border-success-300 text-success-700 dark:text-success-400';
+        case 'in_progress': return 'border border-warning-300 text-warning-700 dark:text-warning-400';
+        case 'not_started': return 'border border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-300';
     }
 };
 

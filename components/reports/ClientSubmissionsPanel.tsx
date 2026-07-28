@@ -22,6 +22,29 @@ interface Submission {
   client_name?: string;
 }
 
+/**
+ * Stat card, restructured pattern (2026-07-28).
+ *
+ * Neutral surface + 1px hairline always. Colour is a 3px LEFT RULE, never a fill
+ * and never a heavy border — and it appears only when `accent` is true, i.e. on
+ * the single metric in the group that the user must act on. Everything else is a
+ * count of work that is blocked elsewhere or already done, and reads quietly.
+ */
+const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: number; accent?: boolean }> = ({
+  icon: Icon, label, value, accent = false,
+}) => (
+  <div className={`relative overflow-hidden p-4 rounded-2xl bg-white dark:bg-slate-900 border border-hairline dark:border-slate-700/60 ${accent ? 'pl-5' : ''}`}>
+    {accent && <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary dark:bg-dark-primary" />}
+    <div className="flex items-center gap-3">
+      <Icon className={accent ? 'text-primary dark:text-dark-primary' : 'text-neutral-400'} size={18} />
+      <div>
+        <p className={`text-2xl font-black tabular-nums ${accent ? 'text-slate-900 dark:text-white' : 'text-neutral-600 dark:text-neutral-300'}`}>{value}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mt-0.5">{label}</p>
+      </div>
+    </div>
+  </div>
+);
+
 const ClientSubmissionsPanel: React.FC = () => {
   const { user } = useAuth();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -107,22 +130,32 @@ const ClientSubmissionsPanel: React.FC = () => {
 
   const pendingCount = submissions.filter(s => isAwaitingClient(normalizeSubmissionStatus(s.status))).length;
   const completedCount = submissions.filter(s => normalizeSubmissionStatus(s.status) === 'completed').length;
+  const reviewedCount = submissions.filter(s => normalizeSubmissionStatus(s.status) === 'reviewed').length;
 
+  // Badges: outline + ink, no fill (2026-07-28). A filled chip reads as a button
+  // and, at this density, turned the table into a colour field. 1px border in the
+  // status ink + the same ink for text carries the same meaning at a fraction of
+  // the visual weight. Only the ACTIONABLE state ('completed' = waiting on staff)
+  // gets brand maroon; everything else is passive and stays warm neutral.
   const getStatusBadge = (status: string) => {
     switch (normalizeSubmissionStatus(status)) {
       case 'not_started':
-      case 'in_progress': return 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300';
-      case 'completed': return 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-300';
-      case 'reviewed': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-      default: return 'bg-slate-100 text-slate-600';
+      case 'in_progress': return 'border border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-300';
+      case 'completed': return 'border border-primary/40 text-primary dark:border-dark-primary/40 dark:text-dark-primary';
+      case 'reviewed': return 'border border-success-300 text-success-700 dark:border-success-800 dark:text-success-400';
+      default: return 'border border-neutral-300 text-neutral-600';
     }
   };
 
+  // Icon semantics audited 2026-07-28: 'completed' rendered an AlertTriangle —
+  // a hazard glyph on a row whose label said "Completed". It means "the client
+  // finished it, you must review it", so it now carries an inbox/eye affordance
+  // and the label reads "Needs review" (config/formSubmissionStatus.ts).
   const getStatusIcon = (status: string) => {
     switch (normalizeSubmissionStatus(status)) {
-      case 'not_started':
+      case 'not_started': return <Clock size={12} />;
       case 'in_progress': return <Clock size={12} />;
-      case 'completed': return <AlertTriangle size={12} />;
+      case 'completed': return <Eye size={12} />;
       case 'reviewed': return <CheckCircle2 size={12} />;
       default: return null;
     }
@@ -149,35 +182,18 @@ const ClientSubmissionsPanel: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Summary cards. Restructured 2026-07-28: three tinted, 1px-bordered colour
+          blocks competed at equal weight, so nothing led. Now a neutral surface with
+          a hairline, and colour enters ONLY as a 3px left rule.
+
+          ONE card carries the accent — the actionable one. Of these three, only
+          "Needs review" is work the staff member must do: "Awaiting client" is
+          blocked on someone else, "Reviewed" is already finished. Both stay neutral.
+          A ZERO count drops the accent entirely (no colour celebrating nothing). */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800/50 rounded-2xl">
-          <div className="flex items-center gap-3">
-            <Clock className="text-warning-600" size={20} />
-            <div>
-              <p className="text-2xl font-black text-warning-800 dark:text-warning-200">{pendingCount}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-warning-600">Awaiting Client</p>
-            </div>
-          </div>
-        </div>
-        <div className="p-4 bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800/50 rounded-2xl">
-          <div className="flex items-center gap-3">
-            <FileText className="text-info-600" size={20} />
-            <div>
-              <p className="text-2xl font-black text-info-800 dark:text-info-200">{completedCount}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-info-600">Needs Review</p>
-            </div>
-          </div>
-        </div>
-        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-2xl">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="text-green-600" size={20} />
-            <div>
-              <p className="text-2xl font-black text-green-800 dark:text-green-200">{submissions.filter(s => normalizeSubmissionStatus(s.status) === 'reviewed').length}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-green-600">Reviewed</p>
-            </div>
-          </div>
-        </div>
+        <SummaryCard icon={Clock} label="Awaiting client" value={pendingCount} />
+        <SummaryCard icon={Eye} label="Needs review" value={completedCount} accent={completedCount > 0} />
+        <SummaryCard icon={CheckCircle2} label="Reviewed" value={reviewedCount} />
       </div>
 
       {/* Filters */}
@@ -246,16 +262,20 @@ const ClientSubmissionsPanel: React.FC = () => {
                     }
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg ${getStatusBadge(sub.status)}`}>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md ${getStatusBadge(sub.status)}`}>
                       {getStatusIcon(sub.status)}
                       {SUBMISSION_STATUS_LABELS[status]}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
+                    {/* Proper secondary button (2026-07-28): the old pale-pink
+                        bg-primary/10 fill read as a weak primary — a washed-out version
+                        of the real CTA rather than a deliberate second tier. Transparent
+                        with a maroon border and maroon text is unambiguous at both tiers. */}
                     {status === 'completed' && (
                       <button
                         onClick={() => setSelectedSubmission(sub)}
-                        className="inline-flex items-center gap-2 text-sm bg-primary/10 text-primary px-3 py-1.5 rounded-lg font-bold hover:bg-primary/20 transition-colors"
+                        className="inline-flex items-center gap-2 text-sm bg-transparent border border-primary text-primary dark:border-dark-primary dark:text-dark-primary px-3 py-1.5 rounded-lg font-semibold hover:bg-primary/5 dark:hover:bg-dark-primary/10 transition-colors"
                       >
                         <Eye size={14} /> Review
                       </button>
@@ -263,13 +283,13 @@ const ClientSubmissionsPanel: React.FC = () => {
                     {status === 'reviewed' && (
                       <button
                         onClick={() => setSelectedSubmission(sub)}
-                        className="inline-flex items-center gap-2 text-sm bg-slate-100 dark:bg-slate-800 text-slate-500 px-3 py-1.5 rounded-lg font-bold hover:bg-slate-200 transition-colors"
+                        className="inline-flex items-center gap-2 text-sm bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 px-3 py-1.5 rounded-lg font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                       >
                         <Eye size={14} /> View
                       </button>
                     )}
                     {isAwaitingClient(status) && (
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Awaiting Client</span>
+                      <span className="text-[11px] text-neutral-500">Awaiting client</span>
                     )}
                   </td>
                 </tr>
@@ -301,7 +321,7 @@ const ClientSubmissionsPanel: React.FC = () => {
                   }
                 </span>
               </div>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg ${getStatusBadge(selectedSubmission.status)}`}>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md ${getStatusBadge(selectedSubmission.status)}`}>
                 {SUBMISSION_STATUS_LABELS[normalizeSubmissionStatus(selectedSubmission.status)]}
               </span>
             </div>
