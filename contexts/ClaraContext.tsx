@@ -41,6 +41,30 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { ChatMessage, User, isStaffRole } from '../types';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../services/supabase';
+import { isTrialHidden } from '../config/trialMode';
+
+// ── Clara navigation allowlist (2026-07-28) ──────────────────────────────────
+// navigate_to_page was a raw navigate(path) with no bounds: Clara could send staff
+// to any route, including the eight TRIAL_MODE-hidden surfaces — she'd announce a
+// navigation and the user would silently land back on /dashboard. Only the live,
+// un-hidden static staff surfaces below (plus /clients/:id deep-links) are
+// navigable; everything else resolves to null and Clara reports the page as
+// unavailable. isTrialHidden is ALSO checked at execution time, so if a listed
+// route is ever re-hidden, containment wins without touching this list.
+const CLARA_NAV_ALLOWLIST: readonly string[] = [
+  '/dashboard', '/clients', '/session-management', '/forms', '/help',
+  '/risk-monitor', '/treatment-plan-library', '/compliance-readiness',
+  '/financials', '/settings',
+];
+const resolveClaraNavTarget = (raw: unknown): string | null => {
+  const path = String(raw ?? '').trim();
+  if (!path.startsWith('/')) return null;
+  if (isTrialHidden(path)) return null;
+  if (CLARA_NAV_ALLOWLIST.includes(path)) return path;
+  // The one parameterized target: the client workspace deep-link.
+  if (/^\/clients\/[A-Za-z0-9-]+$/.test(path)) return path;
+  return null;
+};
 
 // Text chat routes through pds-gemini-proxy; Live voice uses an ephemeral token
 // from gemini-live-token. The raw Gemini key is never held client-side.
@@ -107,7 +131,7 @@ Missouri SATOP context: SATOP (Substance Abuse Traffic Offender Program) has mul
 
 You work alongside David Yoder (Director) and the clinical team. You are part of the ACS team, not a vendor or external service.
 
-You can navigate the staff UI via the available tool.`;
+You can navigate the staff UI via the navigate_to_page tool — but ONLY to the pages it lists as valid. Those are the pages that exist in this build. Never claim the app has a messaging center, video sessions, an analytics page, or any surface not on that list; if asked for one, say it isn't available in this build and offer the closest live page (e.g. Financials for money questions, Compliance Readiness for practice-wide compliance).`;
 
 const clientInstruction = (user: User | null) => `You are Clara, a warm and supportive recovery assistant for clients at Assessment & Counseling Solutions (ACS) in St. Louis, Missouri.
 ${user ? `You are speaking with ${user.name}, an enrolled ACS client. Address them by their first name.` : ''}
@@ -236,7 +260,7 @@ export const ClaraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return [
       {
         function_declarations: [
-          { name: 'navigate_to_page', description: 'Navigate to a specific system page (e.g. /dashboard, /clients).', parameters: { type: 'OBJECT', properties: { path: { type: 'STRING' } }, required: ['path'] } },
+          { name: 'navigate_to_page', description: `Navigate to a live system page. Valid paths: ${CLARA_NAV_ALLOWLIST.join(', ')}, or /clients/<clientId> for a specific client. No other paths exist.`, parameters: { type: 'OBJECT', properties: { path: { type: 'STRING' } }, required: ['path'] } },
         ],
       },
     ];
@@ -356,8 +380,13 @@ export const ClaraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             // The Live config declares NO tools today — kept as the safe shape
             // for when later phases add voice tools. navigate_to_page only.
             for (const fc of msg.toolCall.functionCalls) {
-              if (fc.name === 'navigate_to_page') navigate((fc.args as any).path);
-              sessionRef.current?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { status: 'OK' } }] });
+              let navStatus = 'OK';
+              if (fc.name === 'navigate_to_page') {
+                const target = resolveClaraNavTarget((fc.args as any)?.path);
+                if (target) navigate(target);
+                else navStatus = 'UNAVAILABLE — that page does not exist or is not enabled; tell the user instead of pretending to navigate.';
+              }
+              sessionRef.current?.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { status: navStatus } }] });
             }
           }
 
@@ -538,7 +567,11 @@ export const ClaraProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         for (const part of functionCalls) {
           const fc = part.functionCall;
           setToolUseState('Looking that up...');
-          if (fc.name === 'navigate_to_page') navigate(fc.args?.path);
+          if (fc.name === 'navigate_to_page') {
+            const target = resolveClaraNavTarget(fc.args?.path);
+            if (target) navigate(target);
+            else pushMessage({ role: 'model', parts: [{ text: "That page isn’t available in this build, so I haven’t navigated anywhere. I can take you to the dashboard, clients, calendar, forms, or reports instead." }] });
+          }
         }
         setToolUseState(null);
       } else {

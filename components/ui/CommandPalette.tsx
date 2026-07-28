@@ -8,8 +8,6 @@ import { Client } from '../../types';
 const SearchIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>;
 const UserIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 const HomeIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const MessageSquareIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
-
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -32,15 +30,22 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
         }
     }, [isOpen]);
 
+    // Dead-link fixes (2026-07-28):
+    // - Client rows navigated to /program-compliance/:id — TRIAL_MODE-hidden, so EVERY
+    //   client result silently bounced to /dashboard. They now open the real client
+    //   workspace (/clients/:id, live and un-hidden).
+    // - "Messages" navigated to /communication-center (also hidden → silent bounce).
+    //   Removed rather than repointed: there is no live messaging surface to point at;
+    //   restore the entry when /communication-center ships for real.
+    // If this palette ever indexes more pages, filter through isTrialHidden first.
     const commands = useMemo(() => [
         { type: 'Page', title: 'Dashboard', icon: HomeIcon, action: () => navigate('/dashboard') },
         { type: 'Page', title: 'Clients', icon: UserIcon, action: () => navigate('/clients') },
-        { type: 'Page', title: 'Messages', icon: MessageSquareIcon, action: () => navigate('/communication-center') },
         ...clients.map(client => ({
             type: 'Client',
             title: `View ${client.name}`,
             icon: () => <img src={client.avatarUrl} alt={client.name} className="w-5 h-5 rounded-full" />,
-            action: () => navigate(`/program-compliance/${client.id}`)
+            action: () => navigate(`/clients/${client.id}`)
         }))
     ], [navigate, clients]);
     
