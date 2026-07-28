@@ -10,7 +10,7 @@ import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import ClientTypeBadge from './ClientTypeBadge';
-import { CalendarPlus, FilePlus, BrainCircuit, Zap, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock, Phone, Mail } from 'lucide-react';
+import { CalendarPlus, FilePlus, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock, Phone, Mail } from 'lucide-react';
 import { placeAndActivate } from '../../services/api';
 import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
 
@@ -133,21 +133,15 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
     return { head: 'Plan Review', value: 'No plan', sub: null, tone };
   })() : null;
 
+  // J5 (2026-07-28): the hero sits ON the elevation scale now — surface-1 card,
+  // hairline border, card shadow — instead of a glassmorphic tinted slab unlike
+  // every other surface. Removed with it: the decorative HUD brain, the avatar
+  // glow, and the green lightning "presence" badge (a fabricated online
+  // indicator — nothing measures presence; same class as the fake read receipts).
   return (
-    <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-white/20 dark:border-slate-800 rounded-[2.5rem] shadow-2xl p-8 transition-all duration-500 overflow-hidden relative">
-      {/* Background HUD decorations */}
-      <div className="absolute top-0 right-0 p-4 opacity-5">
-         <BrainCircuit size={120} />
-      </div>
-
-      <div className="flex flex-col lg:flex-row items-center lg:items-start gap-10 relative z-10">
-        <div className="relative group">
-            <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl group-hover:blur-3xl transition-all"></div>
-            <ClientAvatar client={client} className="w-32 h-32 text-5xl relative border-4 border-white dark:border-slate-800 shadow-2xl" />
-            <div className="absolute -bottom-2 -right-2 bg-green-500 w-8 h-8 rounded-full border-4 border-white dark:border-slate-900 flex items-center justify-center">
-               <Zap size={14} className="text-white fill-white" />
-            </div>
-        </div>
+    <div className="bg-white dark:bg-slate-900 border border-hairline dark:border-slate-700/60 rounded-2xl shadow-card p-8 relative">
+      <div className="flex flex-col lg:flex-row items-center lg:items-start gap-10">
+        <ClientAvatar client={client} className="w-32 h-32 text-5xl border-4 border-white dark:border-slate-800 shadow-card" />
 
         <div className="flex-1 text-center lg:text-left">
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-3">
@@ -218,7 +212,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                     <button
                         onClick={handlePlaceActivate}
                         disabled={placing}
-                        className="flex items-center gap-3 bg-emerald-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 hover:scale-105 transition-all shadow-xl shadow-emerald-600/20 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
+                        className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary-focus transition-colors shadow-card disabled:opacity-60"
                     >
                         {placing ? <Loader2 size={16} className="animate-spin" /> : <UserCheck size={16} />}
                         {placing ? 'Placing…' : 'Place & Activate'}
@@ -226,7 +220,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                     <button
                         onClick={() => window.dispatchEvent(new CustomEvent('open-edit-client-modal', { detail: { client } }))}
                         aria-label="Edit client"
-                        className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95"
+                        className="flex items-center gap-2 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
                         <Pencil size={14} /> Edit
                     </button>
@@ -236,38 +230,41 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                 {/* Contextual Clara — the one obvious, high-value action: one tap → Clara
                     summarizes THIS client from real on-page facts. Clara-branded (her avatar)
                     so the value is unmistakably hers. Seed/composition live in ClientWorkspace. */}
+                {/* J5 hierarchy: ONE primary per row - the daily clinical action,
+                    starting a note. Everything else demotes to bordered secondary.
+                    Sentence case throughout (uppercase tracking read as shouting). */}
                 {onAskClara && (
                     <button
                         onClick={onAskClara}
-                        className="flex items-center gap-2.5 bg-primary text-white pl-2 pr-5 py-2 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-primary-focus hover:scale-105 transition-all shadow-xl shadow-primary/20 active:scale-95"
+                        className="flex items-center gap-2.5 bg-transparent border border-primary text-primary dark:border-dark-primary dark:text-dark-primary pl-2 pr-5 py-2 rounded-xl font-semibold text-sm hover:bg-primary/5 dark:hover:bg-dark-primary/10 transition-colors"
                     >
-                        <img src={CLARA_AVATAR_URL} alt="" className="w-7 h-7 rounded-full object-cover ring-2 ring-white/40" />
+                        <img src={CLARA_AVATAR_URL} alt="" className="w-7 h-7 rounded-full object-cover" />
                         Summarize with Clara
                     </button>
                 )}
                 {canStartSession && (
                     <button
                         onClick={() => navigate(`/session/${client.id}`)}
-                        className="flex items-center gap-3 bg-indigo-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 hover:scale-105 transition-all shadow-xl shadow-indigo-600/20 active:scale-95"
+                        className="flex items-center gap-2 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
-                        <Play size={16} /> Start transcribed session
+                        <Play size={15} /> Start transcribed session
                     </button>
                 )}
                 {/* Opens Smart Note Studio (owned by MainLayout) pre-scoped to THIS
                     client via the existing open-note-modal event (e.detail.clientId). */}
                 <button
                     onClick={() => window.dispatchEvent(new CustomEvent('open-note-modal', { detail: { clientId: client.id } }))}
-                    className="flex items-center gap-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-slate-900/10 active:scale-95"
+                    className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary-focus transition-colors shadow-card"
                 >
-                    <FilePlus size={16} /> Start typed or dictated note
+                    <FilePlus size={15} /> Start note
                 </button>
                 {/* Opens the existing ScheduleSessionModal pre-scoped to this client
                     (its preselectedClient prop → "Schedule Makeup for {name}"). */}
                 <button
                     onClick={() => window.dispatchEvent(new CustomEvent('open-schedule-modal', { detail: { client } }))}
-                    className="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95"
+                    className="flex items-center gap-2 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
-                    <CalendarPlus size={16} /> Schedule
+                    <CalendarPlus size={15} /> Schedule
                 </button>
                 {/* Opens EditClientModal owned by MainLayout. Available to all
                     roles; the modal itself locks clinical fields for Admin. */}
@@ -275,7 +272,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                     onClick={() => window.dispatchEvent(new CustomEvent('open-edit-client-modal', { detail: { client } }))}
                     aria-label="Edit client"
                     title="Edit client"
-                    className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all active:scale-95"
+                    className="flex items-center gap-2 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
                     <Pencil size={14} /> Edit
                 </button>

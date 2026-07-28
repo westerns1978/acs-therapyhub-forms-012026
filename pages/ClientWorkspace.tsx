@@ -456,8 +456,8 @@ const ClientWorkspace: React.FC = () => {
             <div className="flex items-center justify-between border-b border-border dark:border-dark-border gap-3 flex-wrap">
                 <nav className="flex -mb-px space-x-8 overflow-x-auto">
                     {tabs.map(tab => (
-                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-1 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                            <tab.icon size={18} /> {tab.label.toUpperCase()}
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-1 py-4 text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+                            <tab.icon size={18} /> {tab.label}
                         </button>
                     ))}
                 </nav>
@@ -465,7 +465,7 @@ const ClientWorkspace: React.FC = () => {
                     <button
                         onClick={() => setPreview('status')}
                         title="Preview the compliance status report, then create the PDF"
-                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-border dark:border-dark-border text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-border dark:border-dark-border text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
                     >
                         <FileText size={14} /> Status Report
                     </button>
@@ -474,7 +474,7 @@ const ClientWorkspace: React.FC = () => {
                         title={assessment.completion.eligible
                             ? 'Preview the SATOP completion certificate, then create the PDF'
                             : `Preview the completion gates — ${assessment.completion.unmetReasons[0] || 'criteria not yet met'}`}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 ${assessment.completion.eligible
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 ${assessment.completion.eligible
                             ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-border dark:border-dark-border hover:bg-slate-200 dark:hover:bg-slate-700'}`}
                     >
@@ -494,7 +494,7 @@ const ClientWorkspace: React.FC = () => {
                         }}
                         disabled={isCompiling}
                         title="Compile a downloadable record packet (ZIP): summary, completion certificate if eligible, and the client's documents by category"
-                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60"
                     >
                         <Archive size={14} /> {isCompiling ? 'Compiling…' : 'Record Packet'}
                     </button>
