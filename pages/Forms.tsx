@@ -108,7 +108,16 @@ const Forms: React.FC = () => {
         return (
             <div className="animate-fade-in-up min-h-screen">
                 {fillingForBanner && <div className="max-w-4xl mx-auto px-4 sm:px-0 pt-4">{fillingForBanner}</div>}
-                {renderForm()}
+                {/* Keyed on (form, client) so switching the ?clientId= target REMOUNTS
+                    the form. Without this key React reconciles the same
+                    BaseFormTemplate element at the same position, its useState
+                    initializer never re-runs, and client A's typed answers stay in
+                    component state while you fill the form for client B. Scoping the
+                    localStorage draft key alone does NOT close that path — the bleed
+                    happens in memory, before storage is ever consulted. */}
+                <React.Fragment key={`${currentView}:${clientId ?? 'noclient'}`}>
+                    {renderForm()}
+                </React.Fragment>
             </div>
         );
     }

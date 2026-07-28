@@ -23,6 +23,33 @@ interface BaseFormTemplateProps<T> {
   clientId?: string;
 }
 
+/**
+ * One-time destruction of pre-2026-07-27 form drafts.
+ *
+ * Legacy drafts were stored as `draft-<formId>` with no client id, so a stored
+ * draft cannot be attributed to a client — that IS the defect. Anything that
+ * cannot be attributed cannot be safely migrated: assigning it to a guessed
+ * owner would make the cross-client bleed permanent instead of transient. So we
+ * delete rather than orphan. Orphaning would also be worse than useless — the
+ * partial client data would simply sit in localStorage on staff workstations
+ * forever, unread and unreachable, which is exactly what we are trying to stop.
+ *
+ * Cost of deletion: a staff member with a half-finished, unsubmitted form loses
+ * it once and retypes. Runs on form mount; idempotent after the first pass.
+ */
+const purgeLegacyDrafts = (): void => {
+  try {
+    const stale: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('draft-')) stale.push(k);
+    }
+    stale.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* private-mode / quota errors must never block the form from rendering */
+  }
+};
+
 // Coerce any form value into a string an <input> can safely render. Without
 // this, boolean maps like {Mon:true, Thu:true} stringify to "[object Object]".
 const safeFieldValue = (raw: any): string => {
@@ -64,8 +91,22 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
   // another chart. We now refuse to save instead (see handleSubmit).
   const portalClient = usePortalClient();
   const targetClientId = clientId ?? portalClient?.id ?? null;
+
+  // Draft autosave is scoped to (form, client). The old key was `draft-<formId>`
+  // with NO client in it, so a part-filled intake for client A prefilled for
+  // client B the next time that same form was opened — cross-client bleed of
+  // 42 CFR Part 2 data, on a shared staff workstation.
+  //
+  // The prefix changed to `acsdraft:v2:` deliberately: it makes every legacy key
+  // unambiguously identifiable so purgeLegacyDrafts() below can delete it. Do not
+  // read the old `draft-` keys — they are unattributable by construction (that is
+  // the defect), so there is no safe way to assign one to a client. They are
+  // destroyed, not migrated.
+  const draftKey = `acsdraft:v2:${formDefinition.id}:${targetClientId ?? 'noclient'}`;
+
   const [formData, setFormData] = useState<T>(() => {
-    const savedData = localStorage.getItem(`draft-${formDefinition.id}`);
+    purgeLegacyDrafts();
+    const savedData = localStorage.getItem(draftKey);
     if (savedData) {
       try {
         return JSON.parse(savedData).formData;
@@ -113,22 +154,22 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
       const dataToSave = {
         formData: formDataRef.current,
       };
-      localStorage.setItem(`draft-${formDefinition.id}`, JSON.stringify(dataToSave));
+      localStorage.setItem(draftKey, JSON.stringify(dataToSave));
       const now = new Date();
       setTimeout(() => setSaveStatus(`Saved at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toUpperCase()}`), 500);
     } catch (error) {
       setSaveStatus('Save failed');
     }
-  }, [formDefinition.id]);
+  }, [draftKey]);
 
   useEffect(() => {
-    const savedData = localStorage.getItem(`draft-${formDefinition.id}`);
+    const savedData = localStorage.getItem(draftKey);
     if (savedData) {
       setSaveStatus('Draft loaded');
     }
     const autoSaveInterval = setInterval(saveDraft, 60000);
     return () => clearInterval(autoSaveInterval);
-  }, [saveDraft, formDefinition.id]);
+  }, [saveDraft, draftKey]);
 
   const handleSubmit = async () => {
     // Generic required-ness from fieldDefinitions[].required (config/formValidation.ts)
@@ -226,7 +267,7 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
 
       setSubmissionId(formId);
       setIsSubmitted(true);
-      localStorage.removeItem(`draft-${formDefinition.id}`);
+      localStorage.removeItem(draftKey);
     } catch (error: any) {
       console.error('[BaseFormTemplate] submit failed:', error);
       setSubmissionError(error?.message || 'Submission failed. Please try again.');

@@ -57,8 +57,14 @@ const FormCard: React.FC<{
   index: number;
 }> = ({ form, onSelect, onToggleFavorite, onPreview, onAssign, isFavorite, index }) => {
   const { definition, view } = form;
-  const draft = localStorage.getItem(`draft-${definition.id}`);
-  const progress = draft ? JSON.parse(draft).progress : 0;
+  // Drafts are keyed per (form, client) as `acsdraft:v2:<formId>:<clientId>` since
+  // 2026-07-27; the library has no client context, so it cannot and must not probe
+  // them. This read is retained only as a no-op: `progress` was never written by
+  // BaseFormTemplate either, so the "Saved Draft %" panel it gates has never
+  // rendered. Wire it to a real per-client lookup or delete it — don't restore the
+  // unscoped key.
+  const draft = null;
+  const progress = 0;
 
   return (
     <motion.div

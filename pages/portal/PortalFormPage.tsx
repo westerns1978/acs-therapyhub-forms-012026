@@ -82,7 +82,11 @@ const PortalFormPage: React.FC = () => {
   return (
     <PortalLayout>
       <div className="max-w-3xl mx-auto">
+        {/* Keyed on (form, client) for the same reason as the staff path: this page
+            stays mounted across /portal/forms/:formId changes, so without a key the
+            previous form's answers would persist into the next one. */}
         <BaseFormTemplate
+          key={`${formId ?? 'noform'}:${portalClient?.id ?? 'noclient'}`}
           formDefinition={prefilledConfig || config}
           onBackToLibrary={() => navigate('/portal/documents')}
         />
