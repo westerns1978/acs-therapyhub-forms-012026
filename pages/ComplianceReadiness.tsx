@@ -84,7 +84,7 @@ const ComplianceReadiness: React.FC = () => {
       </div>
 
       {/* Surfaced flags — warning/violation */}
-      <Card title="Active Compliance Flags" subtitle="Warnings and violations from real client data. Click to open the client.">
+      <Card title="Active Guardrails" subtitle="Warnings and violations from real client data. Click to open the client.">
         <div className="space-y-3">
           {flags.length > 0 ? flags.map(f => {
             const isViolation = f.status === 'violation';
@@ -111,7 +111,7 @@ const ComplianceReadiness: React.FC = () => {
           }) : (
             <div className="flex items-center gap-3 py-6 justify-center text-success-600">
               <CheckCircle2 size={20} />
-              <span className="text-xs font-bold uppercase tracking-widest">No active flags — every enforceable rule is met.</span>
+              <span className="text-xs font-bold uppercase tracking-widest">No guardrails triggered — every enforceable rule is met.</span>
             </div>
           )}
         </div>

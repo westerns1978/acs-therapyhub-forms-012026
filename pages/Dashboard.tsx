@@ -183,9 +183,13 @@ const Dashboard: React.FC = () => {
     } else if (isTherapist) {
         briefingDetail = loadErrors.alerts
             ? `${schedLead}. Alert data is unavailable right now.`
+            // Vocabulary (2026-07-28): these rows ARE the alert feed, so the line says
+            // "alert" — it previously called them a "compliance flag", which is the
+            // guardrail engine's word for a different data source. Still deterministic
+            // templating over real counts; no AI (see the note above).
             : flaggedClients === 0
-                ? `${schedLead}, and no clients are currently flagged.`
-                : `${schedLead}, and ${plural(flaggedClients, 'client')} ${flaggedClients === 1 ? 'has' : 'have'} a compliance flag.`;
+                ? `${schedLead}, and no clients have open alerts.`
+                : `${schedLead}, and ${plural(flaggedClients, 'client')} ${flaggedClients === 1 ? 'has' : 'have'} an open alert.`;
     } else {
         // Director (and any other staff fallback): practice-wide.
         const stats = metrics.activeClients != null ? `, and ${plural(metrics.activeClients, 'active client')}` : '';
@@ -281,13 +285,13 @@ const Dashboard: React.FC = () => {
                                     className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline"
                                 >
                                     <img src={CLARA_AVATAR_URL} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                    Ask Clara to explain this flag
+                                    Ask Clara to explain this guardrail
                                 </button>
                             </div>
                         </div>
                     );
                 }) : (
-                    <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No compliance flags.</div>
+                    <div className="text-center py-6 text-slate-400 text-xs font-bold uppercase tracking-widest">No guardrails triggered.</div>
                 )}
             </div>
         </Card>
@@ -455,7 +459,7 @@ const Dashboard: React.FC = () => {
                     <div className="lg:col-span-2 space-y-8">
                         {ScheduleCard}
                         {isFinancial && IntakeQueueCard}
-                        <Card title="Risk Monitor" subtitle="Actionable alerts from real client activity.">
+                        <Card title="Alerts" subtitle="Actionable alerts from real client activity.">
                             {loadErrors.alerts ? (
                                 <SectionError msg="Alerts could not be computed — these tiles are unavailable, not zero." onRetry={retry} />
                             ) : (
@@ -482,7 +486,7 @@ const Dashboard: React.FC = () => {
                                 onClick={() => navigate('/risk-monitor')}
                                 className="mt-4 w-full px-4 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/90 transition flex items-center justify-center gap-2"
                             >
-                                {alertSummary.total > 0 ? `Review ${plural(alertSummary.total, 'alert')}` : 'Open Risk Monitor'}
+                                {alertSummary.total > 0 ? `Review ${plural(alertSummary.total, 'alert')}` : 'Open alerts'}
                                 <ArrowUpRight size={14} />
                             </button>
                         </Card>

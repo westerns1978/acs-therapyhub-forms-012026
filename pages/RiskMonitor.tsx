@@ -69,8 +69,8 @@ const RiskMonitor: React.FC = () => {
     <div className="max-w-6xl mx-auto p-8 space-y-8 animate-fade-in-up">
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="text-4xl font-black tracking-tighter dark:text-white">Risk Monitor</h1>
-          <p className="text-sm text-slate-500 mt-2">Actionable alerts computed from attendance, deadlines, and compliance state.</p>
+          <h1 className="text-4xl font-black tracking-tighter dark:text-white">Alerts</h1>
+          <p className="text-sm text-slate-500 mt-2">Actionable alerts computed from attendance, deadlines, and compliance state. Advisory verdicts live on Compliance Readiness.</p>
         </div>
         <button
           onClick={() => load(true)}

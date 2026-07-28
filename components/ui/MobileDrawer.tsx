@@ -5,9 +5,10 @@ import ThemeToggle from './ThemeToggle';
 import {
     Home, Users, MessageSquare, Calendar,
     DollarSign, LogOut, X, BarChart3, FileText, Settings,
-    HardDrive, ClipboardList, Zap, ShieldCheck, BookOpen, HelpCircle
+    HardDrive, ClipboardList, Zap, ShieldCheck, BookOpen, HelpCircle, Shield
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
+import { navLabelFor, NAV_SECTIONS } from '../../config/vocab';
 import { FINANCIAL_ROLES, type UserRole } from '../../types';
 
 type DrawerItemDef = {
@@ -52,25 +53,36 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
         onClose();
     };
 
+    // Labels come from config/vocab (NAV_LABELS) — the drawer and the desktop sidebar
+    // MUST agree; they previously disagreed on both grouping and membership.
     const navItems: DrawerItemDef[] = ([
-        { to: '/dashboard', icon: Home, label: 'Dashboard', roles: ALL_ROLES },
-        { to: '/clients', icon: Users, label: 'Clients', roles: ALL_ROLES },
-        { to: '/session-management', icon: Calendar, label: 'Calendar', roles: ALL_ROLES },
-        { to: '/communication-center', icon: MessageSquare, label: 'Messages', roles: ALL_ROLES },
-        { to: '/forms', icon: ClipboardList, label: 'Forms', roles: ALL_ROLES },
-        { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library', roles: CLINICAL_ROLES },
-        { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
-        { to: '/financials', icon: DollarSign, label: 'Financials', roles: FINANCIAL_ROLES },
-        { to: '/compliance', icon: ShieldCheck, label: 'Compliance', roles: CLINICAL_ROLES },
-        { to: '/help', icon: HelpCircle, label: 'Help & Training', roles: ALL_ROLES },
+        { to: '/dashboard', icon: Home, label: navLabelFor('/dashboard'), roles: ALL_ROLES },
+        { to: '/clients', icon: Users, label: navLabelFor('/clients'), roles: ALL_ROLES },
+        { to: '/session-management', icon: Calendar, label: navLabelFor('/session-management'), roles: ALL_ROLES },
+        { to: '/communication-center', icon: MessageSquare, label: navLabelFor('/communication-center'), roles: ALL_ROLES },
+        { to: '/forms', icon: ClipboardList, label: navLabelFor('/forms'), roles: ALL_ROLES },
+        { to: '/document-intelligence', icon: Zap, label: navLabelFor('/document-intelligence'), roles: ALL_ROLES },
+        { to: '/help', icon: HelpCircle, label: navLabelFor('/help'), roles: ALL_ROLES },
+    ] satisfies DrawerItemDef[])
+        .filter(item => !isTrialHidden(item.to))
+        .filter(item => !user || item.roles.includes(user.role));
+
+    // Oversight — mirrors the desktop sidebar exactly. '/risk-monitor' (Alerts) was
+    // MISSING from this drawer entirely, so a Therapist on mobile had no nav path to
+    // the alert queue at all. Treatment Plan Library + Financials moved here to match
+    // desktop instead of sitting in the main list.
+    const oversightItems: DrawerItemDef[] = ([
+        { to: '/risk-monitor', icon: Shield, label: navLabelFor('/risk-monitor'), roles: CLINICAL_ROLES },
+        { to: '/treatment-plan-library', icon: BookOpen, label: navLabelFor('/treatment-plan-library'), roles: CLINICAL_ROLES },
+        { to: '/compliance-readiness', icon: ShieldCheck, label: navLabelFor('/compliance-readiness'), roles: DIRECTOR_ONLY },
+        { to: '/financials', icon: DollarSign, label: navLabelFor('/financials'), roles: FINANCIAL_ROLES },
+        { to: '/reporting', icon: BarChart3, label: navLabelFor('/reporting'), roles: DIRECTOR_ONLY },
     ] satisfies DrawerItemDef[])
         .filter(item => !isTrialHidden(item.to))
         .filter(item => !user || item.roles.includes(user.role));
 
     const adminItems: DrawerItemDef[] = ([
-        { to: '/reporting', icon: BarChart3, label: 'Analytics', roles: DIRECTOR_ONLY },
-        { to: '/compliance-readiness', icon: ShieldCheck, label: 'Compliance Readiness', roles: DIRECTOR_ONLY },
-        { to: '/settings', icon: Settings, label: 'Settings', roles: DIRECTOR_ONLY },
+        { to: '/settings', icon: Settings, label: navLabelFor('/settings'), roles: DIRECTOR_ONLY },
     ] satisfies DrawerItemDef[])
         .filter(item => !isTrialHidden(item.to))
         .filter(item => !user || item.roles.includes(user.role));
@@ -133,11 +145,39 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
                         ))}
                     </ul>
 
+                    {/* Oversight — mirrors the desktop sidebar section (config/vocab). */}
+                    {oversightItems.length > 0 && (
+                        <>
+                            <div className="px-4 pt-6 pb-2">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{NAV_SECTIONS.oversight}</p>
+                            </div>
+                            <ul className="space-y-0.5">
+                                {oversightItems.map(item => (
+                                    <li key={item.to}>
+                                        <NavLink
+                                            to={item.to}
+                                            className={({ isActive }) =>
+                                                `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                                                    isActive
+                                                        ? 'bg-primary/10 text-primary'
+                                                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                }`
+                                            }
+                                        >
+                                            <item.icon size={18} />
+                                            {item.label}
+                                        </NavLink>
+                                    </li>
+                                ))}
+                            </ul>
+                        </>
+                    )}
+
                     {/* Admin Section — visible only if at least one item survives the role/trial filter above */}
                     {adminItems.length > 0 && (
                         <>
                             <div className="px-4 pt-6 pb-2">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Administration</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{NAV_SECTIONS.admin}</p>
                             </div>
                             <ul className="space-y-0.5">
                                 {adminItems.map(item => (

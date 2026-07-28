@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
+import { navLabelFor } from '../../config/vocab';
 
 const ChevronRightIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="9 18 15 12 9 6"/></svg>;
 
@@ -57,9 +58,12 @@ const Breadcrumbs: React.FC = () => {
     if (UUID_RE.test(str)) {
       return resolvedNames[str] || clientNameCache.get(str) || '…';
     }
-    return str
-      .replace(/-/g, ' ')
-      .replace(/(\b\w)/g, (char) => char.toUpperCase());
+    // Route slugs are NOT labels. Title-casing the slug made the breadcrumb
+    // contradict the nav on every route whose label differs from its path —
+    // "Calendar" became "Session Management", "Alerts" became "Risk Monitor".
+    // config/vocab is the single source; it falls back to title-case for
+    // anything unmapped, which is the old behavior. (2026-07-28)
+    return navLabelFor(str);
   };
 
   return (

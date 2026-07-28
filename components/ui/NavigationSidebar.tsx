@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { isTrialHidden } from '../../config/trialMode';
 import { FINANCIAL_ROLES, type UserRole } from '../../types';
+import { navLabelFor, NAV_SECTIONS } from '../../config/vocab';
 
 type NavItemDef = {
     to: string;
@@ -22,16 +23,21 @@ const ALL_ROLES: readonly UserRole[] = ['Director', 'Therapist', 'Admin'];
 const CLINICAL_ROLES: readonly UserRole[] = ['Director', 'Therapist'];
 const DIRECTOR_ONLY: readonly UserRole[] = ['Director'];
 
-// Density pass: the compliance/reporting cluster lives under the calmer "Reports" divider
-// (lower prominence than daily work) — Compliance Risk + Treatment Plan Library + Financials
-// moved here from the top list. Same routes, same role-gating. Nothing removed.
-const reportsNavItems: NavItemDef[] = [
-    { to: '/risk-monitor', icon: Shield, label: 'Compliance Risk', roles: CLINICAL_ROLES },
-    { to: '/treatment-plan-library', icon: BookOpen, label: 'Treatment Plan Library', roles: CLINICAL_ROLES },
-    { to: '/compliance-readiness', icon: ShieldCheck, label: 'Compliance Readiness', roles: DIRECTOR_ONLY },
-    { to: '/financials', icon: DollarSign, label: 'Financials', roles: FINANCIAL_ROLES },
-    { to: '/reporting', icon: BarChart3, label: 'Analytics', roles: DIRECTOR_ONLY },
-    { to: '/settings', icon: Settings, label: 'Settings', roles: DIRECTOR_ONLY },
+// Density pass: the lower-prominence cluster sits under a divider, below daily work.
+// Renamed "Reports" → "Oversight" (2026-07-28): a work queue, a template picker and
+// Settings are not reports, and the old heading made four "compliance"-ish entries read
+// as one undifferentiated pile. Settings now has its own Administration group.
+// Labels come from config/vocab so the sidebar, the drawer and the breadcrumb agree.
+const oversightNavItems: NavItemDef[] = [
+    { to: '/risk-monitor', icon: Shield, label: navLabelFor('/risk-monitor'), roles: CLINICAL_ROLES },
+    { to: '/treatment-plan-library', icon: BookOpen, label: navLabelFor('/treatment-plan-library'), roles: CLINICAL_ROLES },
+    { to: '/compliance-readiness', icon: ShieldCheck, label: navLabelFor('/compliance-readiness'), roles: DIRECTOR_ONLY },
+    { to: '/financials', icon: DollarSign, label: navLabelFor('/financials'), roles: FINANCIAL_ROLES },
+    { to: '/reporting', icon: BarChart3, label: navLabelFor('/reporting'), roles: DIRECTOR_ONLY },
+].filter(item => !isTrialHidden(item.to));
+
+const adminNavItems: NavItemDef[] = [
+    { to: '/settings', icon: Settings, label: navLabelFor('/settings'), roles: DIRECTOR_ONLY },
 ].filter(item => !isTrialHidden(item.to));
 
 const NavItem: React.FC<{ to: string; icon: React.ElementType; label: string; isCollapsed: boolean, notifications?: number }> = ({ to, icon: Icon, label, isCollapsed, notifications }) => (
@@ -62,15 +68,15 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
   const navigate = useNavigate();
 
   // Daily-work leads (scheduling-first): Dashboard / Calendar / Clients / Forms, then the rest.
-  // The compliance/reporting cluster is tucked under the Reports divider (reportsNavItems).
+  // Lower-prominence items sit under the Oversight + Administration dividers below.
   const baseNavItems: NavItemDef[] = ([
-    { to: '/dashboard', icon: Home, label: 'Dashboard', roles: ALL_ROLES },
-    { to: '/session-management', icon: Calendar, label: 'Calendar', roles: ALL_ROLES },
-    { to: '/clients', icon: Users, label: 'Clients', roles: ALL_ROLES },
-    { to: '/forms', icon: ClipboardList, label: 'Forms', roles: ALL_ROLES },
-    { to: '/communication-center', icon: MessageSquare, label: 'Messages', roles: ALL_ROLES },
-    { to: '/document-intelligence', icon: Zap, label: 'AI Documents', roles: ALL_ROLES },
-    { to: '/help', icon: HelpCircle, label: 'Help & Training', roles: ALL_ROLES },
+    { to: '/dashboard', icon: Home, label: navLabelFor('/dashboard'), roles: ALL_ROLES },
+    { to: '/session-management', icon: Calendar, label: navLabelFor('/session-management'), roles: ALL_ROLES },
+    { to: '/clients', icon: Users, label: navLabelFor('/clients'), roles: ALL_ROLES },
+    { to: '/forms', icon: ClipboardList, label: navLabelFor('/forms'), roles: ALL_ROLES },
+    { to: '/communication-center', icon: MessageSquare, label: navLabelFor('/communication-center'), roles: ALL_ROLES },
+    { to: '/document-intelligence', icon: Zap, label: navLabelFor('/document-intelligence'), roles: ALL_ROLES },
+    { to: '/help', icon: HelpCircle, label: navLabelFor('/help'), roles: ALL_ROLES },
   ] satisfies NavItemDef[])
     .filter(item => !isTrialHidden(item.to))
     .filter(item => !user || item.roles.includes(user.role));
@@ -88,18 +94,21 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
         <ul className="space-y-1">
           {baseNavItems.map(item => <NavItem key={item.to} {...item} isCollapsed={isCollapsed} />)}
         </ul>
-        {(() => {
-            const visibleReportsItems = reportsNavItems.filter(item => user && item.roles.includes(user.role));
-            if (visibleReportsItems.length === 0) return null;
+        {([
+            { heading: NAV_SECTIONS.oversight, items: oversightNavItems },
+            { heading: NAV_SECTIONS.admin, items: adminNavItems },
+        ]).map(({ heading, items }) => {
+            const visible = items.filter(item => user && item.roles.includes(user.role));
+            if (visible.length === 0) return null;
             return (
-                <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
-                    {!isCollapsed && <div className="px-4 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Reports</div>}
+                <div key={heading} className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
+                    {!isCollapsed && <div className="px-4 pb-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{heading}</div>}
                     <ul className="space-y-1">
-                      {visibleReportsItems.map(item => <NavItem key={item.to} {...item} isCollapsed={isCollapsed} />)}
+                      {visible.map(item => <NavItem key={item.to} {...item} isCollapsed={isCollapsed} />)}
                     </ul>
                 </div>
             );
-        })()}
+        })}
       </nav>
 
       {/* Theme control moved to the header (ui-elevate-p1) — this footer now holds
