@@ -114,7 +114,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
       {/* Theme control moved to the header (ui-elevate-p1) — this footer now holds
           Sign Out only. Mobile keeps its own control in MobileDrawer. */}
       <div className="p-4 border-t border-black/5 dark:border-white/10 bg-slate-50/50 dark:bg-black/20">
-        <button onClick={() => { logout(); navigate('/login'); }} className="w-full flex items-center justify-center p-3 rounded-xl text-primary hover:bg-red-50 dark:hover:bg-red-900/20 transition-all font-bold text-sm">
+        <button onClick={() => { logout(); navigate('/login'); }} className="w-full flex items-center justify-center p-3 rounded-xl text-primary dark:text-dark-primary hover:bg-primary/5 dark:hover:bg-dark-primary/10 transition-all font-bold text-sm">
           <LogOut size={18} />
           {!isCollapsed && <span className="ml-2">Sign Out</span>}
         </button>

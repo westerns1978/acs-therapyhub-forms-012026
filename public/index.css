@@ -28,13 +28,16 @@
  * clipping. The !important is load-bearing: it must beat the existing
  * `focus:outline-none` utilities already sprinkled through the components.
  * ────────────────────────────────────────────────────────────────────────────── */
+/* Brand values come from the BRAND block in index.html via CSS variables
+   (--brand / --brand-dark, set on <html> before first paint) — no brand hex
+   lives in this file. The fallbacks only cover a hypothetical var failure. */
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid #8B1E24;          /* primary */
+  outline: 2px solid var(--brand, #7A222E);
   outline-offset: 2px;
   border-radius: 4px;
 }
 .dark :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline-color: #F87171;              /* dark.primary — legible on #020617 */
+  outline-color: var(--brand-dark, #D999A1);
 }
 /* Components that suppress the native ring must not suppress THIS one. */
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
@@ -53,7 +56,7 @@
   left: 0.5rem;
   top: 0.5rem;
   padding: 0.5rem 1rem;
-  background: #8B1E24;
+  background: var(--brand, #7A222E);
   color: #fff;
   border-radius: 0.5rem;
   font-weight: 700;

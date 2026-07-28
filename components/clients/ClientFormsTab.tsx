@@ -28,8 +28,10 @@ const getStatusPill = (status: FormSubmission['status'], data?: any, dueDate?: D
     // state here, so it takes brand maroon rather than the blue it used to borrow.
     if (isOverdue) return 'border border-danger-400 text-danger-700 dark:text-danger-400';
 
+    // J4b role separation: BRAND never renders as a status badge - pending-on-staff
+    // takes warning ochre.
     if (s === 'completed' && data?.requires_review) {
-        return 'border border-primary/40 text-primary dark:border-dark-primary/40 dark:text-dark-primary';
+        return 'border border-warning-600 text-warning-700 dark:border-warning-400 dark:text-warning-400';
     }
 
     switch(s) {

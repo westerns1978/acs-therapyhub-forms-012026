@@ -90,7 +90,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                                     <div><p className="font-bold text-sm">Schedule Session</p></div>
                                 </button>
                                 <button onClick={() => { onNewIntake(); setCreateMenuOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 transition-colors">
-                                    <div className="p-2 bg-secondary/10 text-secondary rounded-xl"><UserPlus size={18} /></div>
+                                    <div className="p-2 bg-primary/10 text-primary rounded-xl"><UserPlus size={18} /></div>
                                     <div><p className="font-bold text-sm">New Intake</p></div>
                                 </button>
                                 {/* Create Note is clinical work — hidden from the office Admin role (Jess). */}
@@ -154,7 +154,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                                     </Link>
                                 )}
                                 <div className="my-1 border-t border-border dark:border-slate-800"></div>
-                                <button onClick={handleLogout} className="w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm text-primary hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                <button onClick={handleLogout} className="w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm text-primary dark:text-dark-primary hover:bg-primary/5 dark:hover:bg-dark-primary/10 transition-colors">
                                     <LogOut size={16} /> Logout
                                 </button>
                             </div>

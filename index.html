@@ -38,13 +38,30 @@
        * touch the status ramps below, because status meaning is not tenant-specific.
        * The focus-visible ring in /index.css is brand too and swaps with it.
        * ══════════════════════════════════════════════════════════════════════ */
+      /* THE RED BUDGET (2026-07-28) — three reds, one job each:
+       *   MARK   — the ACS logo vermillion. Lives in the logo ASSET only, never a
+       *            UI color, never restyled from here.
+       *   BRAND  — below. Muted, slightly COOLER than the logo: buttons, active
+       *            nav, links, focus ring. What Attesta overrides.
+       *   DANGER — the BRICK ramp in the STATUS block: warmer/hotter than brand,
+       *            violations and critical ONLY.
+       * Role separation is enforced in component code: BRAND never renders as a
+       * status rule/dot/badge; DANGER never renders on a button or nav item.
+       * The old BRAND #8B1E24 sat 11° of hue from danger #9A3324 at near-equal
+       * lightness — the sidebar active state and the violations rule read as the
+       * SAME red, so a violation looked like branding. */
       const BRAND = {
-        DEFAULT: '#8B1E24',   // ACS maroon
-        focus:   '#70181D',   // pressed / hover-darken
+        DEFAULT: '#7A222E',   // deep burgundy — cooler + darker than the logo mark
+        focus:   '#611B25',   // pressed / hover-darken
         content: '#FFFFFF',   // text on brand
-        dark:    '#F87171',   // legible on the near-black dark background
-        darkFocus: '#EF4444',
+        dark:    '#D999A1',   // warm rose — legible on the warm-charcoal dark surfaces
+        darkFocus: '#C9808A',
       };
+      // Single source for CSS too (the /index.css focus ring reads these vars) —
+      // no brand hex may live outside this block.
+      document.documentElement.style.setProperty('--brand', BRAND.DEFAULT);
+      document.documentElement.style.setProperty('--brand-focus', BRAND.focus);
+      document.documentElement.style.setProperty('--brand-dark', BRAND.dark);
 
       /* ══════════════════════════════════════════════════════════════════════
        * LAYER 2 — STATUS.  ***ATTESTA INHERITS THIS UNCHANGED.***
@@ -54,13 +71,14 @@
        * tinted toward the brand hue. Character target: institutional warm paper —
        * closer to a legal document than a SaaS dashboard.
        *
-       * Ink slots (the ones the app actually uses for text/icons) are contrast-
-       * verified on both white cards and the cream page background:
-       *   danger  600 #9A3324 brick   7.3:1 white / 6.8:1 cream   (AAA / AA)
-       *   warning 600 #A16207 ochre   4.9:1 white / 4.6:1 cream   (AA)
-       *   success 600 #4D6A52 sage    6.0:1 white / 5.6:1 cream   (AA)
-       *   neutral 500 #78716C stone   4.8:1 white / 4.5:1 cream   (AA)
-       * Fill/border slots (50–300) are non-text and clear 3:1 against their own ink.
+       * Ink slots are contrast-verified on the J4 surfaces (card #FFFFFF and
+       * the parchment page #F0EAE1; dark card #252019):
+       *   danger  600 #A63A22 brick   6.5 card / 5.4 page   (AA)
+       *   warning 600 #955B06 ochre   5.6 card / 4.6 page   (AA)
+       *   success 600 #4D6A52 sage    6.0 card / 5.0 page   (AA)
+       *   neutral 500 #635C57 stone   6.6 card / 5.5 page   (AA)
+       * Dark inks are the -400 slots (4.9-6.9 on the dark card). Fill/border
+       * slots (50-300) are non-text and clear 3:1 against their own ink.
        *
        * NOTE ON BLUE: deliberately ABSENT. Blue was doing almost entirely
        * NON-status work in this app (Zoom/telehealth affordances, the calendar
@@ -70,16 +88,22 @@
        * default blue, free to keep doing non-status work. The status system has
        * no "info" hue: actionable states take BRAND, passive states take NEUTRAL.
        * ══════════════════════════════════════════════════════════════════════ */
-      const BRICK = { 50:'#FBF4F2', 100:'#F6E5E0', 200:'#EBCAC1', 300:'#DAA697', 400:'#C27D6A', 500:'#AC5A46', 600:'#9A3324', 700:'#82291C', 800:'#6A231A', 900:'#551E17', 950:'#2F0F0B' };
-      const OCHRE = { 50:'#FCF8EE', 100:'#F7EED4', 200:'#EEDCA8', 300:'#E0C173', 400:'#CDA345', 500:'#B4841F', 600:'#A16207', 700:'#855009', 800:'#6B410B', 900:'#56350C', 950:'#2F1C05' };
+      // DANGER — warmed one step past the old brick (600 #9A3324 → #A63A22) so it
+      // separates from BRAND #7A222E on BOTH axes: ~20° of hue and a full
+      // lightness step. Still clearly redder + darker than the HIGH-tier
+      // terracotta (#9C5A2B) — verified side-by-side before shipping.
+      const BRICK = { 50:'#FBF3F0', 100:'#F6E3DD', 200:'#ECC7BC', 300:'#DDA28F', 400:'#CB7A5F', 500:'#B95A3D', 600:'#A63A22', 700:'#8B2F1B', 800:'#712818', 900:'#5A2215', 950:'#31110A' };
+      // 600/700 darkened for the J4 parchment page (#A16207 measured 4.12:1 there).
+      const OCHRE = { 50:'#FCF8EE', 100:'#F7EED4', 200:'#EEDCA8', 300:'#E0C173', 400:'#CDA345', 500:'#B4841F', 600:'#955B06', 700:'#7A4A08', 800:'#6B410B', 900:'#56350C', 950:'#2F1C05' };
       const SAGE  = { 50:'#F3F6F3', 100:'#E3EBE4', 200:'#C7D8CA', 300:'#A3BCA8', 400:'#7A9A81', 500:'#5F7F66', 600:'#4D6A52', 700:'#405845', 800:'#354739', 900:'#2C3A2F', 950:'#171F19' };
-      // 500 is #736B66, not stone's stock #78716C: the stock value measured 4.48:1 on
-      // the cream page background — a rounding miss against AA — and this token carries
-      // the small uppercase meta labels. Nudged two steps darker to clear it at 4.87:1.
-      const STONE = { 50:'#FAFAF9', 100:'#F5F5F4', 200:'#E7E5E4', 300:'#D6D3D1', 400:'#A8A29E', 500:'#736B66', 600:'#57534E', 700:'#44403C', 800:'#292524', 900:'#1C1917', 950:'#0C0A09' };
+      // 500 darkened twice from stock #78716C: it carries the small uppercase meta
+      // labels, and each page-background warm-up (cream, then the J4 parchment
+      // #F0EAE1) lowered its ratio. #635C57 clears AA on parchment with margin.
+      const STONE = { 50:'#FAFAF9', 100:'#F5F5F4', 200:'#E7E5E4', 300:'#D6D3D1', 400:'#A8A29E', 500:'#635C57', 600:'#57534E', 700:'#44403C', 800:'#292524', 900:'#1C1917', 950:'#0C0A09' };
       // Terracotta sits between ochre and brick for the HIGH alert tier, so the
       // 4-tier ladder stays legible without reintroducing a saturated orange.
-      const TERRA = { 50:'#FCF6F1', 100:'#F7E9DC', 200:'#EDD2B9', 300:'#DFB28C', 400:'#CB8D5D', 500:'#B36F3C', 600:'#9C5A2B', 700:'#814824', 800:'#683A20', 900:'#54301C', 950:'#2E180D' };
+      // 600 nudged for the parchment page (stock #9C5A2B measured 4.49:1 there).
+      const TERRA = { 50:'#FCF6F1', 100:'#F7E9DC', 200:'#EDD2B9', 300:'#DFB28C', 400:'#CB8D5D', 500:'#B36F3C', 600:'#955528', 700:'#7D4522', 800:'#683A20', 900:'#54301C', 950:'#2E180D' };
 
       const STATUS_RAMPS = {
         // Raw family names stay pinned so the ~1,000 not-yet-renamed call sites
@@ -104,17 +128,37 @@
               // Overridden at the token so the ~625 raw text-slate-400/500 sites move at once
               // WITHOUT a per-component sweep. Both clear AA (≥4.5:1) on cream #F8F7F4.
               // Value text stays on slate-700/800 (already ~7:1) — untouched by design.
+              /* J4 DARK TEMPERATURE (2026-07-28): the whole slate ramp is repointed
+                 at warm stone. Light mode was warm cream while dark mode was navy —
+                 two different products; and every dark surface in the app is a raw
+                 dark:bg-slate-800/900. Warming the ramp HERE moves all ~2,700 slate
+                 call sites (dark cards, light headings, borders, muted text) to warm
+                 charcoal in one file. 900/800 are deliberately the dark surface-1/2
+                 values so dark:bg-slate-900 cards land exactly on the elevation
+                 scale. 400/500 remain the contrast-raised secondary-text slots (AA
+                 on the parchment page bg). */
               slate: {
-                // #647487 (the first pass) cleared AA on white cards but measured 4.47:1 on
-                // the cream page bg where section headings sit — just under the 4.5 bar. Nudged
-                // to #627082 (4.71:1 on cream, 5.05:1 on white), still clearly the secondary tone.
-                400: '#627082',
-                500: '#475569',
+                50: '#FAFAF9',
+                100: '#F5F5F4',
+                200: '#E7E5E4',
+                300: '#D6D3D1',
+                400: '#6E6862',
+                500: '#5D5852',
+                600: '#4A453F',
+                700: '#3A362F',
+                800: '#2E2820',
+                900: '#252019',
+                950: '#161310',
               },
               // In-card / between-row hairline (ui-elevate-p1). Warm tan-gray that reads as
               // structure without competing with the Card border (#D6CFC2, left alone).
+              /* J4 ELEVATION (light): surface-0 page #F0EAE1, surface-1 card
+                 #FFFFFF, surface-2 raised #FFFFFF + shadow. The old page #F8F7F4
+                 sat 1.03:1 against white cards and the hairline 1.15:1 — both
+                 invisible, so when Batch I removed the tinted fills nothing
+                 separated surfaces anymore. Value does the work, not hue. */
               hairline: {
-                DEFAULT: '#E7E1D8',
+                DEFAULT: '#E2D8CA',
               },
               // BRAND (layer 1) — sourced from the BRAND object above so the Attesta
               // fork changes ONE literal, not scattered hexes.
@@ -123,21 +167,28 @@
                 focus: BRAND.focus,
                 content: BRAND.content
               },
+              /* J4c - STRAYS RETIRED (2026-07-28). `secondary` (#4F46E5 indigo)
+                 and `accent` (#06B6D4 cyan) were leftover-template hues against an
+                 institutional maroon. Both now route to BRAND so any un-migrated
+                 call site renders on-brand instead of indigo/cyan. Deprecated: use
+                 `primary`, a status token, or blue (the non-status lane) in new
+                 code. */
               secondary: {
-                DEFAULT: '#4F46E5',
-                focus: '#4338CA',
-                content: '#FFFFFF'
+                DEFAULT: BRAND.DEFAULT,
+                focus: BRAND.focus,
+                content: BRAND.content
               },
               accent: {
-                DEFAULT: '#06B6D4',
-                content: '#FFFFFF'
+                DEFAULT: BRAND.DEFAULT,
+                content: BRAND.content
               },
               background: {
-                DEFAULT: '#F8F7F4',
+                DEFAULT: '#F0EAE1',
               },
               surface: {
-                DEFAULT: 'rgba(255, 255, 255, 0.8)',
-                content: '#0F172A',
+                DEFAULT: '#FFFFFF',        // opaque: translucent white blurred into the parchment
+                raised: '#FFFFFF',         // surface-2 differs by shadow, not hue
+                content: '#292524',        // warm near-black (was cool #0F172A)
                 // Darkened from #64748B (ui-elevate-p1) — the drill-in label token
                 // (text-surface-secondary, ~44 sites) failed AA on cream at the old value.
                 secondary: '#475569'
@@ -187,26 +238,32 @@
               // calendar "today" highlight, AI-provenance panels and file-type
               // chips are untouched by a status re-tone.
               border: {
-                DEFAULT: '#D6CFC2',
+                DEFAULT: '#D6CCBC',
               },
+              /* J4 ELEVATION (dark): page #1A1714 / card #252019 / raised #2E2820 /
+                 border #3A322A — warm charcoal matching maroon-on-parchment. The old
+                 #020617 page and rgba(15,23,42,.8) card sat ~2% apart at the bottom
+                 of the range: no visible step at all. */
               dark: {
                 primary: {
                   DEFAULT: BRAND.dark,
                   focus: BRAND.darkFocus,
                 },
+                // DEPRECATED — indigo secondary retired (J4c); routes to brand.
                 secondary: {
-                  DEFAULT: '#818CF8',
+                  DEFAULT: BRAND.dark,
                 },
                 background: {
-                  DEFAULT: '#020617',
+                  DEFAULT: '#1A1714',
                 },
-                surface: { 
-                  DEFAULT: 'rgba(15, 23, 42, 0.8)',
-                  content: '#F1F5F9',
-                  secondary: '#94A3B8'
+                surface: {
+                  DEFAULT: '#252019',
+                  raised: '#2E2820',
+                  content: '#F2EFE9',
+                  secondary: '#A8A29E'
                 },
                 border: {
-                    DEFAULT: 'rgba(30, 41, 59, 0.5)',
+                    DEFAULT: '#3A322A',
                 }
               }
             },
@@ -246,12 +303,12 @@
          dark.surface.content / dark.surface.secondary. Kept here — index.html is the
          single theme file — so the Attesta fork ports this as one hunk. */
       :root {
-        --th-on-surface: #0F172A;
-        --th-on-surface-secondary: #475569;
+        --th-on-surface: #292524;
+        --th-on-surface-secondary: #5D5852;
       }
       .dark {
-        --th-on-surface: #F1F5F9;
-        --th-on-surface-secondary: #94A3B8;
+        --th-on-surface: #F2EFE9;
+        --th-on-surface-secondary: #A8A29E;
       }
     </style>
 <link rel="stylesheet" href="/index.css">

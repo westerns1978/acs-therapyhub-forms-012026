@@ -162,7 +162,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
                             ))}
                         </div>
                     </div>
-                    <button onClick={toggleRecording} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/50' : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100'}`}>
+                    <button onClick={toggleRecording} className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wide transition-all shadow-sm ${isRecording ? 'bg-primary text-white animate-pulse shadow-primary/50' : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100'}`}>
                         {isRecording ? <><MicOff size={14}/> Stop</> : <><Mic size={14}/> Dictate</>}
                     </button>
                 </div>

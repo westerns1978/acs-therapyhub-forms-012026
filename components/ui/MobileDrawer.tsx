@@ -208,7 +208,7 @@ const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
                         <ThemeToggle />
                         <button 
                             onClick={handleLogout}
-                            className="flex items-center gap-2 text-sm font-bold text-red-600 hover:text-red-700 transition-colors"
+                            className="flex items-center gap-2 text-sm font-bold text-primary dark:text-dark-primary hover:opacity-80 transition-colors"
                         >
                             <LogOut size={16} /> Sign Out
                         </button>

@@ -37,9 +37,9 @@ const SummaryCard: React.FC<{ icon: React.ElementType; label: string; value: num
   icon: Icon, label, value, accent = false,
 }) => (
   <div className={`relative overflow-hidden p-4 rounded-2xl bg-white dark:bg-slate-900 border border-hairline dark:border-slate-700/60 ${accent ? 'pl-5' : ''}`}>
-    {accent && <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-primary dark:bg-dark-primary" />}
+    {accent && <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-warning-600 dark:bg-warning-400" />}
     <div className="flex items-center gap-3">
-      <Icon className={accent ? 'text-primary dark:text-dark-primary' : 'text-neutral-400'} size={18} />
+      <Icon className={accent ? 'text-warning-700 dark:text-warning-400' : 'text-neutral-400'} size={18} />
       <div>
         <p className={`text-2xl font-black tabular-nums ${accent ? 'text-slate-900 dark:text-white' : 'text-neutral-600 dark:text-neutral-300'}`}>{value}</p>
         <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mt-0.5">{label}</p>
@@ -149,7 +149,10 @@ const ClientSubmissionsPanel: React.FC = () => {
     switch (normalizeSubmissionStatus(status)) {
       case 'not_started':
       case 'in_progress': return 'border border-neutral-300 text-neutral-600 dark:border-neutral-700 dark:text-neutral-300';
-      case 'completed': return 'border border-primary/40 text-primary dark:border-dark-primary/40 dark:text-dark-primary';
+      // J4b role separation: BRAND never renders as a status badge. Needs-review
+      // is a pending-on-staff STATE, so it takes warning ochre; the brand stays
+      // on the Review BUTTON (buttons are brand's job).
+      case 'completed': return 'border border-warning-600 text-warning-700 dark:border-warning-400 dark:text-warning-400';
       case 'reviewed': return 'border border-success-300 text-success-700 dark:border-success-800 dark:text-success-400';
       default: return 'border border-neutral-300 text-neutral-600';
     }

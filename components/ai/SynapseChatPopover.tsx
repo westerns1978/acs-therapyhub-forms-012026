@@ -121,7 +121,7 @@ const SynapseChatPopover: React.FC<SynapseChatPopoverProps> = ({ variant = 'floa
             <div className="p-5 border-t border-border dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
                 {isVoiceMode || isVisionMode ? (
                     <div className="flex items-center justify-between gap-6 h-14 px-4 bg-white dark:bg-slate-800 rounded-3xl border border-border dark:border-slate-700 shadow-inner">
-                        <button onClick={() => setVoiceMode(false)} className="p-3 rounded-2xl bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg" aria-label="Stop voice mode"><MicOff className="w-5 h-5" /></button>
+                        <button onClick={() => setVoiceMode(false)} className="p-3 rounded-2xl bg-primary text-white hover:bg-red-600 transition-all shadow-lg" aria-label="Stop voice mode"><MicOff className="w-5 h-5" /></button>
                         <div className="flex-1 flex justify-center gap-1.5">
                             {[1,2,3,4,5].map(i => <div key={i} className={`w-1 h-6 bg-primary rounded-full transition-all duration-300 ${isSpeaking ? 'animate-bounce' : 'opacity-20'}`} style={{ animationDelay: `${i*0.1}s` }}></div>)}
                         </div>

@@ -273,7 +273,10 @@ const Dashboard: React.FC = () => {
                                 <h4 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-primary transition-colors truncate" title={apt.clientName || apt.title}>{apt.clientName || apt.title}</h4>
                                 <div className="flex items-center gap-4 mt-1.5">
                                     <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500">{apt.type}</span>
-                                    {apt.modality?.includes('Zoom') && <span className="flex items-center gap-1.5 text-[10px] font-bold text-secondary"><Video size={12}/> Telehealth</span>}
+                                    {/* Telehealth is a MODALITY cue, not brand or status — it lives in the
+    deliberate non-status blue lane (J4c; the retired `secondary` token
+    now routes to brand, which would mislabel this as an action). */}
+{apt.modality?.includes('Zoom') && <span className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400"><Video size={12}/> Telehealth</span>}
                                 </div>
                             </div>
                         </div>
