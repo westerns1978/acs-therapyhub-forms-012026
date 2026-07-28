@@ -6,6 +6,7 @@ import RecordPaymentModal from './RecordPaymentModal';
 import DocumentPreviewModal from '../clients/DocumentPreviewModal';
 import { buildPaymentReceiptDoc, receiptFileName } from '../../services/paymentReceipt';
 import { Loader2, AlertTriangle, Wallet, CheckCircle2, Receipt, Plus } from 'lucide-react';
+import { formatMoney } from '../../config/format';
 
 // Shared, real-ledger billing view. Reads charges (debits) + payments (credits) +
 // the derived clients.balance straight from Supabase by clientId — the SAME ledger
@@ -52,7 +53,7 @@ interface BillingLedgerProps {
 
 const EPS = 0.005; // sub-cent tolerance so float math doesn't leave $0.00 "outstanding"
 
-const money = (n: number) => `$${(Number(n) || 0).toFixed(2)}`;
+const money = formatMoney; // shared Intl formatter (config/format.ts, 2026-07-28)
 
 // Local-parse so a date-only string ('YYYY-MM-DD') doesn't shift a day in Central.
 // timestamptz values carry a time, so parse those as-is.

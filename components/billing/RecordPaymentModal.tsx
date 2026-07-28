@@ -5,6 +5,7 @@ import { X, Loader2, AlertTriangle, CheckCircle2, Receipt } from 'lucide-react';
 import type { LedgerCharge, LedgerPayment } from './BillingLedger';
 import DocumentPreviewModal from '../clients/DocumentPreviewModal';
 import { buildPaymentReceiptDoc, receiptFileName, receiptNumber } from '../../services/paymentReceipt';
+import { formatMoney } from '../../config/format';
 
 interface RecordPaymentModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ const todayLocal = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const money = (n: number) => `$${(Number(n) || 0).toFixed(2)}`;
+const money = formatMoney; // shared Intl formatter (config/format.ts, 2026-07-28)
 
 /**
  * Deterministic manual-payment entry (cash / check / money_order). No AI — the

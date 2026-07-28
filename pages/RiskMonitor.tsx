@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowUpRight, RefreshCw, Loader2, Users, Shield, AlertCircle } from 'lucide-react';
 import { fetchAlerts, summarizeAlerts, type ClientAlert, type AlertTier } from '../services/alertsService';
 import OutreachModal from '../components/OutreachModal';
+import { programLabel } from '../config/programVocab';
 
 const TIER_STYLE: Record<AlertTier, { badge: string; card: string; icon: string }> = {
   CRITICAL: { badge: 'bg-red-600 text-white',     card: 'border-red-200 dark:border-red-900/50',    icon: 'text-red-600' },
@@ -26,14 +27,10 @@ const TIER_LABEL: Record<AlertTier, string> = {
   MODERATE: 'Moderate',
 };
 
-// Cleans up program enum values for display. Acronyms (SATOP, REACT, DOT, SROP)
-// stay as-is; underscore-snake values get title-cased.
-const PROGRAM_ACRONYMS = new Set(['SATOP', 'REACT', 'DOT', 'SROP']);
-const formatProgram = (p: string | undefined | null): string => {
-  if (!p) return '';
-  if (PROGRAM_ACRONYMS.has(p)) return p;
-  return p.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-};
+// Program display goes through the canonical config/programVocab labels. The old
+// private formatProgram here had an acronym list missing CIP/OEP/WIP, so those
+// title-cased to "Cip"/"Oep"/"Wip" (fixed 2026-07-28 — never re-implement labels
+// per-component; see CLAUDE.md).
 
 const RiskMonitor: React.FC = () => {
   const navigate = useNavigate();
@@ -146,7 +143,7 @@ const RiskMonitor: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${s.badge}`}>{TIER_LABEL[alert.tier]}</span>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{formatProgram(alert.program)}</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{programLabel(alert.program)}</span>
                     </div>
                     <h3 className="font-black text-lg tracking-tight mt-1.5 dark:text-white">{alert.clientName}</h3>
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-0.5">{alert.headline}</p>

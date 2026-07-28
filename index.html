@@ -71,6 +71,21 @@
                 // (text-surface-secondary, ~44 sites) failed AA on cream at the old value.
                 secondary: '#475569'
               },
+              // DEFERRED #24 fix (2026-07-28): these four names were referenced 122×
+              // across 31 files but never defined — the classes compiled to NOTHING and
+              // the text inherited its parent color (the root cause of washed-out
+              // secondary labels). Defined as CSS variables (declared in the <style>
+              // block below) so the ~71 call sites WITHOUT an explicit dark: sibling
+              // still flip correctly in dark mode; sites WITH a dark: pair keep it
+              // (the .dark-prefixed utility wins on specificity). No opacity modifiers
+              // are used on these classes (verified), so plain var() is safe.
+              'on-surface': {
+                DEFAULT: 'var(--th-on-surface)',
+                secondary: 'var(--th-on-surface-secondary)',
+              },
+              'surface-secondary-content': 'var(--th-on-surface-secondary)',
+              // Explicit dark-pair partner used as `dark:text-dark-surface-secondary-content`.
+              'dark-surface-secondary-content': '#94A3B8',
               border: {
                 DEFAULT: '#D6CFC2',
               },
@@ -125,6 +140,20 @@
         },
       }
     </script>
+    <style>
+      /* Theme variables backing the on-surface tokens above (DEFERRED #24, 2026-07-28).
+         Light values match surface.content / surface.secondary; dark values match
+         dark.surface.content / dark.surface.secondary. Kept here — index.html is the
+         single theme file — so the Attesta fork ports this as one hunk. */
+      :root {
+        --th-on-surface: #0F172A;
+        --th-on-surface-secondary: #475569;
+      }
+      .dark {
+        --th-on-surface: #F1F5F9;
+        --th-on-surface-secondary: #94A3B8;
+      }
+    </style>
 <link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-background text-surface-content dark:bg-dark-background dark:text-dark-surface-content transition-colors duration-500 ease-in-out text-base leading-normal font-sans antialiased selection:bg-primary/20">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
+import { programLabel as canonicalProgramLabel } from '../config/programVocab';
 
 export interface PortalClient {
   id: string;
@@ -11,14 +12,10 @@ export interface PortalClient {
   [key: string]: any;
 }
 
-const PROGRAM_LABELS: Record<string, string> = {
-  SATOP: 'SATOP',
-  SROP: 'SROP',
-  CSTAR: 'CSTAR',
-  REACT: 'REACT',
-  GAMBLING_RECOVERY: 'Gambling Recovery',
-};
-
+// Labels come from config/programVocab — the single source. The old private 5-key
+// map here (which even carried non-canonical CSTAR/REACT keys) fell through to the
+// raw token for 6 of the 9 canonical programs, on the CLIENT-facing portal
+// (fixed 2026-07-28).
 function mapClientRow(row: any): PortalClient {
   return {
     ...row,
@@ -26,9 +23,7 @@ function mapClientRow(row: any): PortalClient {
     name: row.name,
     email: row.email,
     program: row.program_type ?? undefined,
-    programLabel: row.program_type
-      ? (PROGRAM_LABELS[row.program_type] ?? row.program_type)
-      : undefined,
+    programLabel: row.program_type ? canonicalProgramLabel(row.program_type) : undefined,
   };
 }
 

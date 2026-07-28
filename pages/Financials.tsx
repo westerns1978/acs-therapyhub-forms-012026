@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Card from '../components/ui/Card';
 import { supabase } from '../services/supabase';
 import { Loader2, AlertTriangle, DollarSign, Landmark, CircleDashed, Wallet, CheckCircle2 } from 'lucide-react';
+import { formatMoney } from '../config/format';
 
 /**
  * ACS Director Reports — read-only views over the REAL charges/payments ledger.
@@ -13,7 +14,7 @@ import { Loader2, AlertTriangle, DollarSign, Landmark, CircleDashed, Wallet, Che
  * (revenue + remittance + unallocated = total) so the page proves itself.
  */
 
-const usd = (n: number | string) => `$${(Number(n) || 0).toFixed(2)}`;
+const usd = formatMoney; // shared Intl formatter (config/format.ts, 2026-07-28)
 const pad = (n: number) => String(n).padStart(2, '0');
 
 // Local (Central) YYYY-MM-DD built from local date parts — no UTC parse, so no

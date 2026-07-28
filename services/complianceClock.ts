@@ -24,6 +24,7 @@
  */
 import { screeningValidity } from './placementEngine';
 import { isBalanceSettled } from './complianceEngine';
+import { formatMoney } from '../config/format';
 
 // ── Tunable thresholds (single source; the witness asserts against these) ─────
 /** Screening is flagged "re-screen soon" when this many days or fewer remain. */
@@ -86,7 +87,7 @@ const addDays = (d: Date, n: number) => {
 };
 /** Whole-day signed difference (to − from), both normalized to local midnight. */
 const daysBetween = (from: Date, to: Date) => Math.round((midnight(to).getTime() - midnight(from).getTime()) / DAY_MS);
-const money = (n: number) => `$${(Number(n) || 0).toFixed(2)}`;
+const money = formatMoney; // shared Intl formatter (config/format.ts, 2026-07-28)
 
 const atRiskStatuses: ReadonlySet<ClockStatus> = new Set(['due_soon', 'window_elapsed', 'expired', 'blocked']);
 

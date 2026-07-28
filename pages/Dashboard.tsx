@@ -12,9 +12,13 @@ import { buildGuardrailExplainPrompt, CLARA_AVATAR_URL } from '../services/clara
 import { Appointment } from '../types';
 import { Video, Calendar, AlertTriangle, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus, Sparkles, RefreshCw } from 'lucide-react';
 import { maybeForceFail } from '../config/failureHarness';
+import { plural, pluralNoun } from '../config/format';
+import { programLabel } from '../config/programVocab';
+import { formatTime12 } from '../config/time';
 
 const greetingFor = (h: number) => (h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening');
-const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+// Raw verdict tokens ('violation') must never print — mapped labels only (2026-07-28).
+const VERDICT_LABEL: Record<'warning' | 'violation', string> = { warning: 'Warning', violation: 'Violation' };
 
 // Per-card visible error — Financials' SectionError pattern (fail-visibly, 2026-07-28).
 // A failed card must never render its reassuring empty state ("No compliance flags." /
@@ -206,8 +210,8 @@ const Dashboard: React.FC = () => {
                     >
                         <div className="flex items-center gap-8">
                             <div className="text-center w-20">
-                                <p className="text-lg font-bold text-slate-900 dark:text-white leading-none">{apt.startTime}</p>
-                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-1">{apt.endTime}</p>
+                                <p className="text-lg font-bold text-slate-900 dark:text-white leading-none">{formatTime12(apt.startTime)}</p>
+                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-1">{formatTime12(apt.endTime)}</p>
                             </div>
                             <div className="h-10 w-px bg-slate-200 dark:bg-slate-700"></div>
                             <div>
@@ -267,7 +271,7 @@ const Dashboard: React.FC = () => {
                             <span className={`absolute left-0 top-0 bottom-0 w-1 ${bar}`}></span>
                             <AlertTriangle className={`shrink-0 mt-0.5 ${accent}`} size={15} />
                             <div className="min-w-0 flex-1">
-                                <p className={`text-[10px] font-bold uppercase tracking-widest ${accent}`}>{g.status} · {g.clientName} · {g.program}</p>
+                                <p className={`text-[10px] font-bold uppercase tracking-widest ${accent}`}>{VERDICT_LABEL[g.status]} · {g.clientName} · {programLabel(g.program)}</p>
                                 <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">{g.headline}</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{g.detail}</p>
                                 <p className="text-[10px] font-mono text-slate-400 mt-1.5">{g.citation}</p>
@@ -366,7 +370,7 @@ const Dashboard: React.FC = () => {
                     {/* Sessions today — neutral. '—' when the schedule query failed (never a fake 0). */}
                     <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
                         <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{loadErrors.schedule ? '—' : todayCount}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Sessions today</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.schedule ? 'Sessions today' : `${pluralNoun(todayCount, 'session')} today`}</div>
                     </div>
                     {/* Open alerts — red, second entry point to the same honest place as the pill */}
                     <button
@@ -374,7 +378,7 @@ const Dashboard: React.FC = () => {
                         className="text-left rounded-2xl border border-red-100 dark:border-red-900/40 bg-red-50/60 dark:bg-red-900/10 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                         <div className="text-2xl font-black tabular-nums tracking-tight text-red-600 leading-none">{loadErrors.alerts ? '—' : alertSummary.total}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Open alerts</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.alerts ? 'Open alerts' : `Open ${pluralNoun(alertSummary.total, 'alert')}`}</div>
                     </button>
                     {/* Guardrail flags — amber, scrolls to the Guardrails card on this page */}
                     <button
@@ -382,12 +386,12 @@ const Dashboard: React.FC = () => {
                         className="text-left rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
                     >
                         <div className="text-2xl font-black tabular-nums tracking-tight text-amber-600 leading-none">{loadErrors.guardrails ? '—' : guardrails.length}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.guardrails ? 'Guardrail flags' : `Guardrail ${guardrails.length === 1 ? 'flag' : 'flags'}`}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.guardrails ? 'Guardrail flags' : `Guardrail ${pluralNoun(guardrails.length, 'flag')}`}</div>
                     </button>
                     {/* Active clients — neutral */}
                     <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
                         <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{metrics.activeClients === null ? '—' : metrics.activeClients}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">Active clients</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{metrics.activeClients === null ? 'Active clients' : `Active ${pluralNoun(metrics.activeClients, 'client')}`}</div>
                     </div>
                 </div>
             )}

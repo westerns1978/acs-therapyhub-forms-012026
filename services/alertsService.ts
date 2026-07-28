@@ -16,6 +16,7 @@ import { supabase } from './supabase';
 import type { Client } from '../types';
 import { fetchAllClientProgress, type ClientProgress } from './displayProgress';
 import { maybeForceFail } from '../config/failureHarness';
+import { programLabel as canonicalProgramLabel } from '../config/programVocab';
 
 export type AlertTier = 'CRITICAL' | 'HIGH' | 'ELEVATED' | 'MODERATE';
 
@@ -152,16 +153,18 @@ export function computeAlertsForClients(clients: Client[], progressByClientId?: 
     // so a "behind on hours" alert can never contradict the gate.
     if (prog?.established && prog.requiredTotal != null && prog.requiredTotal >= 50
         && prog.completedTotal >= 40 && prog.completedTotal < prog.requiredTotal) {
-      const programLabel = c.program || (c as any).program_type || 'program';
+      // Display label, not the raw token — "…into their OPIOID_RECOVERY program"
+      // read like a database error in clinician-facing prose (2026-07-28).
+      const progLabel = canonicalProgramLabel(c.program || (c as any).program_type || 'program');
       alerts.push({
         id: alertId(c.id, 'CSR_PLAN_REVIEW_DUE'),
         clientId: c.id,
         clientName: c.name,
-        program: programLabel,
+        program: progLabel,
         tier: 'ELEVATED',
         reason: 'CSR_PLAN_REVIEW_DUE',
         headline: '90-Day Treatment Plan Update Due',
-        detail: `${c.name} is ${prog.completedTotal}/${prog.requiredTotal} hours into their ${programLabel} program. Per 9 CSR 30-3, the 90-day treatment plan review is due within 7 days. Schedule clinical staffing.`,
+        detail: `${c.name} is ${prog.completedTotal}/${prog.requiredTotal} hours into their ${progLabel} program. Per 9 CSR 30-3, the 90-day treatment plan review is due within 7 days. Schedule clinical staffing.`,
         recommendedActions: ['CREATE_TASK', 'FLAG_SUPERVISOR'],
         computedAt: now,
       });

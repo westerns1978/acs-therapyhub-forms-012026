@@ -4,6 +4,7 @@ import { getClients, getTreatmentPlansForClient, saveTreatmentPlan, updateTreatm
 import { useNotification } from '../../contexts/NotificationContext';
 import type { Client, TreatmentPlan, TreatmentPlanContent, TreatmentPlanProblem, TreatmentPlanIntervention } from '../../types';
 import type { TreatmentPlanTemplate } from '../../data/treatmentPlanTemplates';
+import { programLabel } from '../../config/programVocab';
 import { CATEGORY_STYLES } from '../../data/treatmentPlanTemplates';
 import { X, Plus, Trash2, CheckCircle, Loader2, AlertTriangle, ClipboardList, Target, Clock } from 'lucide-react';
 
@@ -294,7 +295,7 @@ const CustomizeTreatmentPlanModal: React.FC<CustomizeTreatmentPlanModalProps> = 
                             >
                                 <option value="">— Select a client —</option>
                                 {clients.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name} · {c.program}</option>
+                                    <option key={c.id} value={c.id}>{c.name} · {programLabel(c.program)}</option>
                                 ))}
                             </select>
                         </section>

@@ -24,7 +24,7 @@ import { useClara } from '../contexts/ClaraContext';
 import { assessClient, fetchCompletionSignoff, fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms, fetchClientProgramCardState, fetchClientPlan, type AccruedHours, type ProgramCardState } from '../services/complianceEngine';
 import type { SatopLevel } from '../config/satopFees';
 import { REQUIRED_FORMS_BY_LEVEL } from '../config/formRegistry';
-import { normalizeProgram } from '../config/programVocab';
+import { normalizeProgram, programLabel as canonicalProgramLabel } from '../config/programVocab';
 import { buildClientSummaryPrompt } from '../services/claraPrompts';
 import { composeProgress } from '../services/displayProgress';
 import { composePacketReadiness } from '../services/packetReadiness';
@@ -324,7 +324,9 @@ const ClientWorkspace: React.FC = () => {
     // real data; she invents nothing. No new query, no auto-open. Clinical staff only.
     const summarizeWithClara = () => {
         const norm = normalizeProgram(client.program);
-        const programLabel = clientDeterminedLevel ? `SATOP Level ${clientDeterminedLevel}` : norm.canonical;
+        // Canonical display label — Clara's prompt must never carry a raw token like
+        // OPIOID_RECOVERY (she'd read it aloud verbatim). Signed level stays primary.
+        const programLabel = clientDeterminedLevel ? `SATOP Level ${clientDeterminedLevel}` : canonicalProgramLabel(norm.canonical);
         const requiredFormsCount = clientDeterminedLevel
             ? (REQUIRED_FORMS_BY_LEVEL[clientDeterminedLevel]?.length ?? null)
             : null;

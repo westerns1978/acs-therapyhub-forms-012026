@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../components/ui/Card';
 import { AlertTriangle, ShieldCheck, CheckCircle2, HelpCircle, ChevronRight, RefreshCw } from 'lucide-react';
 import { fetchComplianceReadiness, type ComplianceReadiness } from '../services/complianceEngine';
+import { programLabel } from '../config/programVocab';
+
+// Raw verdict tokens ('violation') must never print — mapped labels only (2026-07-28).
+const VERDICT_LABEL: Record<'warning' | 'violation', string> = { warning: 'Warning', violation: 'Violation' };
 
 const StatTile: React.FC<{ label: string; value: number; tone: string }> = ({ label, value, tone }) => (
   <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-800/50 p-4">
@@ -96,7 +100,7 @@ const ComplianceReadiness: React.FC = () => {
               >
                 <AlertTriangle className={`shrink-0 mt-1 ${accent}`} size={20} />
                 <div className="min-w-0 flex-1">
-                  <p className={`text-[10px] font-black uppercase tracking-widest ${accent}`}>{f.status} · {f.clientName} · {f.program}</p>
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${accent}`}>{VERDICT_LABEL[f.status]} · {f.clientName} · {programLabel(f.program)}</p>
                   <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">{f.headline}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{f.detail}</p>
                   <p className="text-[10px] font-mono text-slate-400 mt-1.5">{f.citation}</p>

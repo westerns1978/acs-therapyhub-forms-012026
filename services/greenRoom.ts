@@ -19,6 +19,7 @@
  */
 import { supabase } from './supabase';
 import { fetchClientProgress, type ClientProgress } from './displayProgress';
+import { programLabel as canonicalProgramLabel } from '../config/programVocab';
 
 export interface GreenRoomSession {
   appointmentId: string;
@@ -67,12 +68,16 @@ const DAY_MS = 86_400_000;
 const toInitials = (name: string) =>
   name.split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
 
-function programLabel(programType: string | null, p: ClientProgress): string {
-  const prog = (programType || 'Program').trim();
+// Program display routes through config/programVocab (2026-07-28) — the old
+// pass-through here rendered raw tokens ("OPIOID_RECOVERY · placement pending")
+// and stuttered on level-named programs ("SROP · Level IV (SROP)"). With a signed
+// determination the SATOP level IS the identity, so render just the level.
+function programDisplay(programType: string | null, p: ClientProgress): string {
   if (p.established && p.determinedLevel) {
     const srop = p.determinedLevel === 'IV' ? ' (SROP)' : '';
-    return `${prog} · Level ${p.determinedLevel}${srop}`;
+    return `SATOP · Level ${p.determinedLevel}${srop}`;
   }
+  const prog = programType ? canonicalProgramLabel(programType) : 'Program';
   return `${prog} · placement pending`;
 }
 
@@ -171,7 +176,7 @@ export async function fetchGreenRoomSession(appointmentId: string): Promise<Gree
         appointmentId: seatByClient.get(cid) ?? null,
         name: client.name,
         initials: toInitials(client.name),
-        programLabel: programLabel(client.program_type, progress),
+        programLabel: programDisplay(client.program_type, progress),
         progress,
         balance: client.balance == null ? 0 : Number(client.balance),
         daysSinceEnrollment: days,

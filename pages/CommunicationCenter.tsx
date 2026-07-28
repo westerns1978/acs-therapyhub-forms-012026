@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getClients, getClientCommunications, sendClientMessage, getSupportMessages, sendSupportMessage } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Message, Client } from '../types';
+import { programLabel } from '../config/programVocab';
 import { Search, Send, Paperclip, Video, Phone, MoreVertical, CheckCheck, Smile, Loader2, LifeBuoy } from 'lucide-react';
 
 const fmtTime = (iso: string) => {
@@ -65,7 +66,7 @@ const CommunicationCenter: React.FC = () => {
                     sender: 'client',
                     clientName: c.name,
                     avatarUrl: c.avatarUrl || '',
-                    text: (c.program as string) || 'Client',
+                    text: c.program ? programLabel(c.program as string) : 'Client',
                     timestamp: '',
                     read: true,
                     status: 'read',

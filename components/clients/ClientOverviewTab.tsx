@@ -7,6 +7,7 @@ import { getComplianceEvents } from '../../services/api';
 import { type ClientProgress } from '../../services/displayProgress';
 import { type PacketReadiness, type ReadinessRow, type ReadinessState } from '../../services/packetReadiness';
 import ClinicalNoteView from './ClinicalNoteView';
+import { formatMoney } from '../../config/format';
 
 interface ClientOverviewTabProps {
   client: Client;
@@ -131,10 +132,7 @@ const ActivityIcon: React.FC<{ type: ClientActivity['type'] }> = ({ type }) => {
     return <Icon className="w-4 h-4" />;
 };
 
-const formatCurrency = (n: number | string) => {
-    const num = typeof n === 'string' ? parseFloat(n) : n;
-    return `$${num.toFixed(2)}`;
-};
+const formatCurrency = formatMoney; // shared Intl formatter (config/format.ts, 2026-07-28)
 
 const truncatePaymentId = (id: string | null) => {
     if (!id) return '—';

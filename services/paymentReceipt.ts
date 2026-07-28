@@ -12,6 +12,7 @@
  * a real one.
  */
 import { jsPDF } from 'jspdf';
+import { formatMoney } from '../config/format';
 import {
   MAROON,
   SLATE,
@@ -51,7 +52,7 @@ export interface ReceiptInput {
   isDemo?: boolean;
 }
 
-const money = (n: number) => `$${(Number(n) || 0).toFixed(2)}`;
+const money = formatMoney; // shared Intl formatter (config/format.ts, 2026-07-28)
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',

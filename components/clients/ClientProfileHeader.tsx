@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Client, Appointment, CLIENT_STATUS_LABELS, needsStatusReview } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
 import { formatTime12 } from '../../config/time';
-import { normalizeProgram } from '../../config/programVocab';
+import { normalizeProgram, programLabel } from '../../config/programVocab';
 import { isTrialHidden } from '../../config/trialMode';
 import type { ClientProgress } from '../../services/displayProgress';
 import type { ProgramCardState } from '../../services/complianceEngine';
@@ -69,17 +69,18 @@ const getProgramBadge = (client: Client, determinedLevel?: SatopLevel | null) =>
         const label = determinedLevel ? `SATOP Level ${determinedLevel}` : norm.canonical;
         return { label, color: 'bg-blue-100 text-blue-800 border-blue-200' };
     }
+    // Labels from config/programVocab (single source, 2026-07-28) — the old default
+    // branch leaked the raw canonical token. Per-program badge colors stay local.
+    const label = programLabel(norm.canonical);
     switch (norm.canonical) {
         case 'ANGER_MANAGEMENT':
-            return { label: 'Anger Management', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+            return { label, color: 'bg-orange-100 text-orange-800 border-orange-200' };
         case 'GAMBLING_RECOVERY':
-            return { label: 'Gambling Recovery', color: 'bg-teal-100 text-teal-800 border-teal-200' };
+            return { label, color: 'bg-teal-100 text-teal-800 border-teal-200' };
         case 'OPIOID_RECOVERY':
-            return { label: 'Opioid Recovery', color: 'bg-violet-100 text-violet-800 border-violet-200' };
-        case 'INDIVIDUAL_COUNSELING':
-            return { label: 'Individual Counseling', color: 'bg-slate-100 text-slate-800 border-slate-200' };
+            return { label, color: 'bg-violet-100 text-violet-800 border-violet-200' };
         default:
-            return { label: norm.canonical, color: 'bg-slate-100 text-slate-800 border-slate-200' };
+            return { label, color: 'bg-slate-100 text-slate-800 border-slate-200' };
     }
 };
 

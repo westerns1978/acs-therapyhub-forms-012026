@@ -8,6 +8,7 @@ import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../service
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
+import { programLabel } from '../../config/programVocab';
 import { useAuth } from '../../contexts/AuthContext';
 import { MapPin, AlertTriangle, Loader2, Repeat } from 'lucide-react';
 
@@ -444,7 +445,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 <option value="">— Ad-hoc session (no group) —</option>
                                 {groups.map(g => (
                                     <option key={g.id} value={g.id}>
-                                        {g.program} · {g.counselor_name ?? 'TBD'} · {WEEKDAYS[g.weekday] ?? 'by appt'}{g.start_local ? ' ' + String(g.start_local).slice(0, 5) : ''} · {g.session_kind}
+                                        {programLabel(g.program)} · {g.counselor_name ?? 'TBD'} · {WEEKDAYS[g.weekday] ?? 'by appt'}{g.start_local ? ' ' + String(g.start_local).slice(0, 5) : ''} · {g.session_kind}
                                     </option>
                                 ))}
                             </select>

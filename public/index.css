@@ -1,0 +1,13 @@
+/*
+ * ACS TherapyHub — global stylesheet.
+ *
+ * Created 2026-07-28. index.html has linked /index.css since the beginning, but the
+ * file never existed — a 404 on every page load, which also meant cross-cutting CSS
+ * (a global focus-visible ring, @media print rules) had nowhere to live.
+ *
+ * This pass creates the file as a stub ONLY (per the UX-remediation brief): the
+ * theme tokens stay in index.html's inline tailwind.config + <style> block. Future
+ * candidates for this file, deliberately NOT added yet: global :focus-visible ring,
+ * the ~15-line print block (force light, hide chrome, drop shadows/blur — see
+ * RECON-ux-2026-07-28.md §4f).
+ */
