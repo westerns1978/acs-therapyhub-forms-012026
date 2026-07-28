@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Native Standard Means Test (MO 650-0216) — design direction</title>
+<style>
+  :root {
+    --ink: #14181d; --muted: #5b6672; --line: #e2e6ea; --bg: #ffffff;
+    --panel: #f7f9fa; --accent: #7c1d2e; --accent-soft: #fbeef0; --ok: #16704a; --warn: #8a5a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #e8ecef; --muted: #97a3b0; --line: #2a3138; --bg: #12161a;
+            --panel: #181d23; --accent: #e0899a; --accent-soft: #2a1a1f; --ok: #6fd3a6; --warn: #e0b86a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  .eyebrow { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase;
+             color: var(--accent); font-weight: 700; margin: 0 0 .5rem; }
+  h1 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); line-height: 1.2; margin: 0 0 .6rem; letter-spacing: -.01em; }
+  h2 { font-size: 1.15rem; margin: 2.6rem 0 .8rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line); }
+  h3 { font-size: .95rem; margin: 1.6rem 0 .4rem; }
+  p, li { color: var(--ink); }
+  .lede { color: var(--muted); font-size: 1.02rem; margin: 0 0 1.2rem; }
+  .meta { color: var(--muted); font-size: .84rem; border-left: 3px solid var(--line);
+          padding-left: .85rem; margin: 1.4rem 0 0; }
+  .callout { background: var(--accent-soft); border: 1px solid var(--line);
+             border-left: 3px solid var(--accent); border-radius: 6px; padding: .9rem 1.05rem; margin: 1.3rem 0; }
+  .callout p { margin: 0; font-size: .93rem; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.25rem; margin: 1.1rem 0; }
+  .flow { list-style: none; padding: 0; margin: 1.1rem 0; counter-reset: step; }
+  .flow li { position: relative; padding: .75rem 0 .75rem 3rem; border-bottom: 1px dashed var(--line); }
+  .flow li:last-child { border-bottom: 0; }
+  .flow li::before { counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: .8rem; width: 1.9rem; height: 1.9rem; border-radius: 50%;
+    background: var(--accent); color: #fff; display: grid; place-items: center;
+    font-size: .8rem; font-weight: 700; }
+  @media (prefers-color-scheme: dark) { .flow li::before { color: #12161a; } }
+  .flow b { display: block; font-size: .96rem; }
+  .flow span { color: var(--muted); font-size: .9rem; }
+  .tag { display: inline-block; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase;
+         font-weight: 700; padding: .16rem .5rem; border-radius: 3px; border: 1px solid var(--line);
+         color: var(--muted); margin-left: .4rem; vertical-align: middle; }
+  .tag.open { color: var(--warn); border-color: var(--warn); }
+  .tag.set { color: var(--ok); border-color: var(--ok); }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 1rem 0; }
+  th, td { text-align: left; padding: .55rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: .74rem; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  code { background: var(--panel); border: 1px solid var(--line); border-radius: 3px;
+         padding: .08rem .34rem; font-size: .86em; }
+  .scroll { overflow-x: auto; }
+  ul.tight li { margin: .3rem 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Design direction · not a specification</p>
+  <h1>Native Standard Means Test <span style="white-space:nowrap">(MO 650-0216)</span></h1>
+  <p class="lede">
+    Bring the Missouri Standard Means Test into ACS TherapyHub as a native staff console, so the
+    fee determination it produces becomes structured data the rest of the system can use — rather
+    than a paper form re-keyed into three other places.
+  </p>
+
+  <div class="callout">
+    <p>
+      <strong>The decision that shapes everything else:</strong> this is a <strong>staff console,
+      not client intake</strong>. David, 21 July 2026 — the form is too complex to hand to a
+      client; staff will sit with them and run it. Every design choice below follows from that:
+      it is optimised for a trained operator moving fast, not for a first-time user being guided.
+    </p>
+  </div>
+
+  <h2>Why native rather than a PDF</h2>
+  <p>
+    The means test currently ends at a signed sheet of paper. Everything downstream of it — what
+    the client owes, the Notice of Cost, the completion certificate — restates a number that lives
+    only on that sheet. Making the determination native turns it into one authoritative record
+    that the billing ledger, the Notice of Cost, and the certificate all read from.
+  </p>
+  <p>
+    The gain is not data entry speed. It is that the fee a client is charged becomes traceable to
+    the determination that set it.
+  </p>
+
+  <h2>The flow</h2>
+  <ol class="flow">
+    <li>
+      <b>Income capture, in whatever period the client actually gets paid</b>
+      <span>Weekly, fortnightly, twice-monthly, monthly. Staff enter what the client reports;
+      the console converts. Nobody should be doing arithmetic on a legal pad — that is where the
+      errors are today.</span>
+    </li>
+    <li>
+      <b>Automatic pay-period conversion to a common basis</b>
+      <span>One conversion step, shown on screen, so the operator can see the working rather than
+      trust it.</span>
+    </li>
+    <li>
+      <b>Household total</b>
+      <span>Income sources combined into the total the rate table is read against.</span>
+    </li>
+    <li>
+      <b>Rate-table lookup</b>
+      <span>Total plus household size resolves to the fee. The table is configuration, not code —
+      it changes on the state's schedule, not ours.</span>
+    </li>
+    <li>
+      <b>Certification and e-signature</b>
+      <span>The client certifies the income figures; staff certify they ran the test. This is the
+      point the determination becomes binding, so it is also the point that must carry a real
+      signature — see the dependency below.</span>
+    </li>
+    <li>
+      <b>Structured determination written</b>
+      <span>Append-only, superseded rather than edited — the same shape as
+      <code>placement_determinations</code>, which already works this way.</span>
+    </li>
+    <li>
+      <b>Downstream consumers read it</b>
+      <span>Billing ledger, Notice of Cost (MO 650-0215), completion certificate (MO 650-7743).</span>
+    </li>
+  </ol>
+
+  <h2>What it feeds</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Consumer</th><th>What it takes from the determination</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Billing</strong></td>
+        <td>The determined fee, as the basis for charges raised against the client</td>
+        <td>Ledger exists (<code>charges</code>) — needs to read the determination rather than a manual rate</td>
+      </tr>
+      <tr>
+        <td><strong>Notice of Cost</strong><br><span style="color:var(--muted);font-size:.85rem">MO 650-0215</span></td>
+        <td>Determined fee, household basis, determination date</td>
+        <td>Not yet built</td>
+      </tr>
+      <tr>
+        <td><strong>Completion certificate</strong><br><span style="color:var(--muted);font-size:.85rem">MO 650-7743</span></td>
+        <td>Confirmation the fee obligation was determined and satisfied</td>
+        <td>Certificate exists; currently prints as a sample only</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Dependencies</h2>
+  <div class="panel">
+    <h3 style="margin-top:0">Signature capture <span class="tag open">blocking</span></h3>
+    <p style="margin:.3rem 0 0;font-size:.93rem">
+      Step 5 is a certification. Today the system accepts a <em>typed name</em> in a text field,
+      with no signer identity bound to it and no audit stamp. A means-test certification signed
+      that way is weaker than the paper it replaces. The signature build should land first, or
+      the means test inherits the same gap on a document that determines what someone pays.
+    </p>
+  </div>
+  <div class="panel">
+    <h3 style="margin-top:0">Rate table as configuration <span class="tag set">decided</span></h3>
+    <p style="margin:.3rem 0 0;font-size:.93rem">
+      Held as versioned configuration with an effective date, not compiled in. A determination
+      records <em>which version</em> it was computed against, so an old determination stays
+      explicable after the table changes.
+    </p>
+  </div>
+
+  <h2>Open questions</h2>
+  <ul class="tight">
+    <li><strong>Household composition</strong> <span class="tag open">open</span> — what counts as household size, and who is asked. Drives the lookup.</li>
+    <li><strong>Verification</strong> <span class="tag open">open</span> — is documentary proof of income required, attached, or taken on attestation?</li>
+    <li><strong>Re-testing</strong> <span class="tag open">open</span> — when circumstances change mid-programme, does a new determination supersede, and what happens to charges already raised?</li>
+    <li><strong>Who may certify</strong> <span class="tag open">open</span> — any staff member, or a defined role?</li>
+    <li><strong>Sliding-scale edges</strong> <span class="tag open">open</span> — behaviour at the boundaries of the table, and whether a zero-fee determination is a distinct outcome.</li>
+  </ul>
+
+  <h2>Deliberately out of scope</h2>
+  <ul class="tight">
+    <li>Any client-facing means-test entry. Staff run this — that is the premise.</li>
+    <li>Automatic income verification against external sources.</li>
+    <li>Retrospective recalculation of historical charges.</li>
+  </ul>
+
+  <p class="meta">
+    Design direction recorded 27 July 2026, from David Yoder's 21 July direction. Committed as a
+    durable artifact so the decision survives context loss — it is a direction to build against,
+    not a finished specification. The open questions above are genuinely open and should be put
+    to David before implementation. Roadmap entry: <code>ROADMAP.md</code> → NEXT.
+  </p>
+
+</div>
+</body>
+</html>
