@@ -211,7 +211,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           clientId={preselectedClientId}
       />
 
-      <CreateClientModal isOpen={isCreateClientModalOpen} onClose={() => setCreateClientModalOpen(false)} />
+      {/* STRUCTURALLY UNMOUNTED when closed. `if (!isOpen) return null` inside a
+          component is NOT an unmount — the fiber and every hook survive, so this
+          modal used to retain a whole intake in memory for the entire session:
+          firstName, lastName, email, phone, DOB, case number, probation officer,
+          program — plus `duplicateMatches`, which holds rows describing OTHER
+          existing clients. Nothing reset it (its only effect is a scroll lock),
+          so the next "New Intake" opened prefilled with the previous person's
+          details and a partially-edited second intake could be submitted carrying
+          the first one's DOB and case number.
+          Unmounting is the fix rather than a reset effect: a reset effect has to
+          enumerate every field and silently rots the moment someone adds one.
+          Nothing needs this mounted — the open-create-client-modal listener lives
+          in this file, and the scroll-lock cleanup runs on unmount. */}
+      {isCreateClientModalOpen && (
+        <CreateClientModal isOpen onClose={() => setCreateClientModalOpen(false)} />
+      )}
 
       <EditClientModal
         isOpen={!!editingClient}

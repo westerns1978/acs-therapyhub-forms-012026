@@ -29,6 +29,18 @@ const AsamAssessment: React.FC = () => {
         const loadData = async () => {
             if (!clientId) return;
             setIsPageLoading(true);
+            // Clear every piece of the PREVIOUS client's assessment before loading
+            // the next one. This effect used to refetch `client` and
+            // `assessmentData` only, leaving `analysisResult`, `isConfirmed`,
+            // `reassessmentDate` and `error` untouched — so navigating
+            // /assessments/A → /assessments/B rendered client B's demographics
+            // beside client A's ASAM analysis and A's confirmed state. The
+            // isPageLoading gate hides the render during the fetch, which made it
+            // look deliberate rather than stale.
+            setAnalysisResult(null);
+            setIsConfirmed(false);
+            setReassessmentDate(null);
+            setError(null);
             try {
                 const [clientData, assessment] = await Promise.all([
                     getClient(clientId),

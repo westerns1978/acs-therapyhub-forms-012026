@@ -13,6 +13,9 @@ interface SmartNoteImporterProps {
 
 const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, clientId: initialId, onDirtyChange }) => {
     const [clients, setClients] = useState<Client[]>([]);
+    // Free-choice selection, used ONLY when the dock was opened without a client
+    // (generic nav entry). When `initialId` is supplied it wins outright — see
+    // targetClientId below. Never read this directly for a write.
     const [selectedClientId, setSelectedClientId] = useState(initialId || '');
     const [rawText, setRawText] = useState('');
     const [formattedNote, setFormattedNote] = useState('');
@@ -25,6 +28,20 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
     // height for live typing during a session; it auto-expands after formatting.
     const [showFormatted, setShowFormatted] = useState(false);
     const recognitionRef = useRef<any>(null);
+
+    // ── The single source of truth for WHICH CHART this note lands on ───────────
+    // When the dock is opened from a client header, `initialId` IS the target and
+    // local selection is irrelevant. Deriving it this way makes the header label
+    // and the save target structurally incapable of diverging.
+    //
+    // They used to diverge: `selectedClientId` was seeded by a useState initializer
+    // that runs once, and the loader effect below only assigns it in the
+    // `!initialId` branch. The dock stays mounted while minimized, so opening the
+    // Note Studio on client A, minimizing, then clicking "Note" on client B left
+    // the header rendering B's name (it reads initialId) while every save call
+    // still passed A's id — a note written for B filed to A's chart. Silent
+    // misattribution, which is worse than exposure: nothing looks wrong afterward.
+    const targetClientId = initialId || selectedClientId;
 
     useEffect(() => {
         const load = async () => {
@@ -44,7 +61,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
         if (!rawText.trim()) return;
         setIsProcessing(true);
         try {
-            const clientName = clients.find(c => c.id === selectedClientId)?.name || "Client";
+            const clientName = clients.find(c => c.id === targetClientId)?.name || "Client";
             const note = await generateSoapNoteFromTranscript(rawText, clientName, noteFormat);
             setFormattedNote(note);
             setShowFormatted(true);
@@ -56,10 +73,10 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
     };
 
     const handleSave = async () => {
-        if (!selectedClientId) return;
+        if (!targetClientId) return;
         setIsSaving(true);
         try {
-            await saveClinicalNote(selectedClientId, formattedNote || rawText, { noteFormat });
+            await saveClinicalNote(targetClientId, formattedNote || rawText, { noteFormat });
             onNoteGenerated(formattedNote || rawText);
         } catch (e) {
             alert("Error saving note");
@@ -74,11 +91,11 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
     // note.signed audit_logs row. The confirm() is the "are you sure" gate; there
     // is no unsign affordance to fall back on if this is clicked by mistake.
     const handleSignAndSave = async () => {
-        if (!selectedClientId) return;
+        if (!targetClientId) return;
         if (!window.confirm('Sign this note now? Signed notes are permanent and cannot be edited or unsigned afterward.')) return;
         setIsSigning(true);
         try {
-            await saveClinicalNote(selectedClientId, formattedNote || rawText, { noteFormat, isSigned: true });
+            await saveClinicalNote(targetClientId, formattedNote || rawText, { noteFormat, isSigned: true });
             onNoteGenerated(formattedNote || rawText);
         } catch (e) {
             alert("Error signing note");

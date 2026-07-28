@@ -94,7 +94,22 @@ const NoteStudioDock: React.FC<NoteStudioDockProps> = ({ isOpen, onClose, client
                         </div>
                     </header>
                     <div className="flex-1 min-h-0 p-4">
-                        <SmartNoteImporter clientId={clientId} onNoteGenerated={onClose} onDirtyChange={setDirty} />
+                        {/* Keyed on the client so a client change REMOUNTS the studio.
+                            The dock deliberately stays mounted while minimized (that is
+                            the point — a live-session note must survive minimizing), but
+                            that also meant a note typed about client A survived a switch
+                            to client B and sat in a panel now labelled B. Note text is
+                            about one specific person; it must not outlive the chart it
+                            was written for. Deriving the save target (targetClientId in
+                            SmartNoteImporter) stops the note landing on the wrong chart;
+                            this key stops the wrong *content* being offered in the first
+                            place. Both are needed — neither alone is sufficient. */}
+                        <SmartNoteImporter
+                            key={clientId ?? 'noclient'}
+                            clientId={clientId}
+                            onNoteGenerated={onClose}
+                            onDirtyChange={setDirty}
+                        />
                     </div>
                 </div>
             </aside>

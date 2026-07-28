@@ -540,7 +540,22 @@ const ClientWorkspace: React.FC = () => {
                     </div>
                 </div>
             </div>
-            <div>{renderTabContent()}</div>
+            {/* key={clientId} makes remount-on-client-change STRUCTURAL rather than
+                accidental. Every tab below holds client PHI in local state
+                (AssessmentTab's BAC/DUI/diagnosis form, ClientFormsTab's selected
+                submission, BillingLedger's charges + waive reason, ClientSessionsTab's
+                items, TreatmentPlanTab's plans…) and none of them carry a key. Today
+                they are saved only by the `if (isLoading) return <LoadingSpinner/>`
+                above, which unmounts this whole subtree while the next client loads —
+                i.e. ten PHI surfaces depend on one early-return line that reads like a
+                loading nicety and would be entirely reasonable to "optimize" away.
+                This key is the guarantee; the isLoading unmount is no longer the only
+                thing standing between a client switch and ten stale panels.
+                Deliberately NOT keyed on the whole workspace: activeTab should persist
+                across a client change (staying on the same tab is the useful
+                behaviour), and loadClientData already overwrites every field this
+                component owns before isLoading clears. */}
+            <div key={clientId}>{renderTabContent()}</div>
 
             {preview && (
                 <DocumentPreviewModal
