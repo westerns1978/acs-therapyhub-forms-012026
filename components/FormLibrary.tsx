@@ -8,21 +8,9 @@ import { getClients } from '../services/api';
 import { Client } from '../types';
 import AssignFormModal from './forms/AssignFormModal';
 
-// Definitions
-import { SATOP_INTAKE_DEFINITION } from './forms/SatopClientIntakeForm';
-import { RECOVERY_PLAN_DEFINITION } from './forms/ContinuingRecoveryPlanForm';
-import { CONSENT_FORM_DEFINITION } from './forms/ConsentForTreatmentForm';
-import { MEETING_REPORT_DEFINITION } from './forms/MeetingReportForm';
-import { EMERGENCY_CONTACT_DEFINITION } from './forms/EmergencyContactForm';
-import { DISCHARGE_SUMMARY_DEFINITION } from './forms/DischargeSummaryForm';
-import { TELEHEALTH_FEEDBACK_DEFINITION } from './forms/TelehealthFeedbackForm';
-import { SATOP_CHECKLIST_DEFINITION } from './forms/SatopChecklistForm';
-import { AUTHORIZATION_RELEASE_DEFINITION } from './forms/AuthorizationForReleaseForm';
-import { CHART_CHECKLIST_DEFINITION } from './forms/ChartChecklistForm';
-import { SESSION_ATTENDANCE_DEFINITION } from './forms/SessionAttendanceForm';
-import { HIPAA_ACK_DEFINITION } from './forms/HipaaAckForm';
-import { TELEHEALTH_CONSENT_DEFINITION } from './forms/TelehealthConsentForm';
-import { LATE_CANCELLATION_DEFINITION } from './forms/LateCancellationForm';
+// Definitions come from the ONE shared index (config/formDefinitions, 2026-07-28)
+// so this list and the submission viewers cannot drift — the #36 catalog hazard.
+import { FORM_DEFINITION_BY_ID } from '../config/formDefinitions';
 
 export type View = 'library' | 'satop-intake' | 'recovery-plan' | 'consent-treatment' | 'meeting-report' | 'emergency-contact' | 'discharge-summary' | 'telehealth-feedback' | 'satop-checklist' | 'authorization-release' | 'chart-checklist' | 'session-attendance' | 'hipaa-ack' | 'telehealth-consent' | 'late-cancellation';
 
@@ -30,22 +18,13 @@ interface FormLibraryProps {
   onSelectForm: (form: View) => void;
 }
 
-const allForms = [
-  { id: 'satop-intake', definition: SATOP_INTAKE_DEFINITION, view: 'satop-intake' as View },
-  { id: 'recovery-plan', definition: RECOVERY_PLAN_DEFINITION, view: 'recovery-plan' as View },
-  { id: 'consent-treatment', definition: CONSENT_FORM_DEFINITION, view: 'consent-treatment' as View },
-  { id: 'meeting-report', definition: MEETING_REPORT_DEFINITION, view: 'meeting-report' as View },
-  { id: 'emergency-contact', definition: EMERGENCY_CONTACT_DEFINITION, view: 'emergency-contact' as View },
-  { id: 'discharge-summary', definition: DISCHARGE_SUMMARY_DEFINITION, view: 'discharge-summary' as View },
-  { id: 'telehealth-feedback', definition: TELEHEALTH_FEEDBACK_DEFINITION, view: 'telehealth-feedback' as View },
-  { id: 'satop-checklist', definition: SATOP_CHECKLIST_DEFINITION, view: 'satop-checklist' as View },
-  { id: 'authorization-release', definition: AUTHORIZATION_RELEASE_DEFINITION, view: 'authorization-release' as View },
-  { id: 'chart-checklist', definition: CHART_CHECKLIST_DEFINITION, view: 'chart-checklist' as View },
-  { id: 'session-attendance', definition: SESSION_ATTENDANCE_DEFINITION, view: 'session-attendance' as View },
-  { id: 'hipaa-ack', definition: HIPAA_ACK_DEFINITION, view: 'hipaa-ack' as View },
-  { id: 'telehealth-consent', definition: TELEHEALTH_CONSENT_DEFINITION, view: 'telehealth-consent' as View },
-  { id: 'late-cancellation', definition: LATE_CANCELLATION_DEFINITION, view: 'late-cancellation' as View },
-];
+// Every library id doubles as its View token; 'meeting-report' etc. included.
+// Derived from the shared index — adding a form there surfaces it here.
+const allForms = (Object.keys(FORM_DEFINITION_BY_ID) as View[]).map(id => ({
+  id,
+  definition: FORM_DEFINITION_BY_ID[id],
+  view: id as View,
+}));
 
 const FormCard: React.FC<{
   form: { definition: FormDefinition<any>; view: View };

@@ -7,12 +7,14 @@ import Modal from '../ui/Modal';
 import { normalizeSubmissionStatus, SUBMISSION_STATUS_LABELS, NormalizedSubmissionStatus } from '../../config/formSubmissionStatus';
 import { approveFormSubmission } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, CheckCircle2, Clock, AlertTriangle, Search, RefreshCw, User, FileText, Calendar } from 'lucide-react';
+import { Eye, CheckCircle2, Clock, AlertTriangle, Search, RefreshCw, User, FileText, Calendar, Printer } from 'lucide-react';
 import { maybeForceFail } from '../../config/failureHarness';
+import { SubmissionViewer, RecordPrintRoot, printRecord } from '../forms/SubmissionViewer';
 
 interface Submission {
   id: string;
   client_id: string;
+  form_id?: string | null;
   form_type: string;
   form_name: string;
   status: string;
@@ -326,23 +328,16 @@ const ClientSubmissionsPanel: React.FC = () => {
               </span>
             </div>
 
-            {/* Form Data Display */}
+            {/* Answers through the shared SubmissionViewer (2026-07-28): real field
+                labels from the form's own definition instead of raw payload keys
+                ('clientSignature', dotted legacy ids), and unanswered fields say
+                "Not answered" rather than rendering as bare headings. */}
             {selectedSubmission.data && typeof selectedSubmission.data === 'object' ? (
-              <div className="space-y-3">
-                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Form Responses</h4>
-                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 space-y-3">
-                  {Object.entries(selectedSubmission.data).map(([key, value]) => (
-                    <div key={key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider min-w-[140px]">
-                        {key.replace(/_/g, ' ')}
-                      </span>
-                      <span className="text-sm text-slate-800 dark:text-slate-200 font-medium">
-                        {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value || '—')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <SubmissionViewer
+                formId={selectedSubmission.form_id}
+                formName={selectedSubmission.form_name}
+                data={selectedSubmission.data}
+              />
             ) : (
               <p className="text-slate-500 italic text-center py-8">No form data available yet.</p>
             )}
@@ -362,16 +357,28 @@ const ClientSubmissionsPanel: React.FC = () => {
               >
                 Close
               </button>
+              <button
+                onClick={printRecord}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-sm font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <Printer size={15} /> Print / Save as PDF
+              </button>
               {normalizeSubmissionStatus(selectedSubmission.status) === 'completed' && (
                 <button
                   onClick={() => handleMarkReviewed(selectedSubmission)}
-                  className="px-6 py-2 bg-green-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-green-500/20 hover:bg-green-600 transition-all flex items-center gap-2"
+                  className="px-6 py-2 bg-primary text-white rounded-xl font-semibold text-sm hover:bg-primary-focus transition-all flex items-center gap-2"
                 >
-                  <CheckCircle2 size={16} /> Mark as Reviewed
+                  <CheckCircle2 size={16} /> Mark reviewed
                 </button>
               )}
             </div>
           </div>
+          <RecordPrintRoot
+            formId={selectedSubmission.form_id}
+            formName={selectedSubmission.form_name}
+            data={selectedSubmission.data}
+            committedAt={selectedSubmission.submitted_at}
+          />
         </Modal>
       )}
     </div>

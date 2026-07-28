@@ -6,6 +6,11 @@ import { shouldPrintField } from '../config/fieldVisibility';
 interface PrintPreviewProps {
   formData: any;
   formDefinition: FormDefinition<any>;
+  /** When reprinting an EXISTING record (SubmissionViewer print action), the
+   *  original submission date — a reprint must not restamp today as the commit
+   *  date. Omitted in the live commit flow, where "today" is genuinely the
+   *  commit date (2026-07-28). */
+  committedAt?: string | Date;
 }
 
 const PrintField: React.FC<{ label: string; value: any, type?: string, options?: { value: string; label: string }[] }> = ({ label, value, type, options }) => {
@@ -37,7 +42,8 @@ const PrintField: React.FC<{ label: string; value: any, type?: string, options?:
   );
 };
 
-export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefinition }) => {
+export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefinition, committedAt }) => {
+  const recordDate = committedAt ? new Date(committedAt) : new Date();
   return (
     <div className="p-12 bg-white text-black font-sans min-h-screen">
       <div className="flex justify-between items-start mb-10 border-b-2 border-gray-900 pb-6">
@@ -51,7 +57,7 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
         </div>
         <div className="text-right">
             <h1 className="text-3xl font-black uppercase tracking-tighter leading-none">{formDefinition.title}</h1>
-            <p className="text-sm font-bold text-gray-600 mt-2">COMMITTED RECORD: {new Date().toLocaleDateString()}</p>
+            <p className="text-sm font-bold text-gray-600 mt-2">COMMITTED RECORD: {recordDate.toLocaleDateString()}</p>
         </div>
       </div>
 
@@ -95,9 +101,10 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
         )}
       </div>
       
-      <div className="mt-20 text-center">
-         <p className="text-[8px] text-gray-300 font-mono">ENCRYPTION HASH: 0x8B1E24...90E7709773EA6582 | HIPAA SECURE NODE 04</p>
-      </div>
+      {/* The fabricated "ENCRYPTION HASH … HIPAA SECURE NODE 04" footer is REMOVED
+          (2026-07-28): it was decorative fiction (the "hash" was the brand hex) on a
+          document that reaches courts and POs. Do not reintroduce security theater —
+          if a real integrity attestation ever exists, print that. */}
     </div>
   );
 };

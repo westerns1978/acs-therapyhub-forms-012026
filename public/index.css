@@ -122,3 +122,18 @@
 
   @page { margin: 0.6in; }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────────
+ * 3. COMMITTED-RECORD PRINT ISOLATION (2026-07-28)
+ *
+ * SubmissionViewer's Print action portals the committed-record layout
+ * (PrintPreview) into #record-print-root on <body> and toggles
+ * `print-record-only` around window.print(). On screen the portal is invisible;
+ * in print it is the ONLY content — no display:none-the-#root DOM hacks (the
+ * fragile MeetingSummary pattern this replaces the need for).
+ * ────────────────────────────────────────────────────────────────────────────── */
+#record-print-root { display: none; }
+@media print {
+  body.print-record-only #root { display: none !important; }
+  body.print-record-only #record-print-root { display: block !important; }
+}

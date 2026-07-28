@@ -4,11 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { Client, FormSubmission, Form, RecoveryPlanData } from '../../types';
 import Card from '../ui/Card';
 import { SignedFileLink, SignedFileFrame } from '../ui/SignedFile';
-import { Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, Bell, PencilLine } from 'lucide-react';
-import { dbForms } from '../../data/database'; // Using mock forms for now
+import { Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, PencilLine, Printer } from 'lucide-react';
 import { approveFormSubmission } from '../../services/api';
 import { normalizeSubmissionStatus, SUBMISSION_STATUS_LABELS } from '../../config/formSubmissionStatus';
 import { useAuth } from '../../contexts/AuthContext';
+import Modal from '../ui/Modal';
+import { SubmissionViewer, RecordPrintRoot, printRecord } from '../forms/SubmissionViewer';
+import { definitionForSubmission, submissionTitle, FORM_DEFINITION_BY_ID } from '../../config/formDefinitions';
+import { FORM_REGISTRY } from '../../config/formRegistry';
 
 interface ClientFormsTabProps {
   client: Client;
@@ -46,7 +49,11 @@ const ReviewSubmissionModal: React.FC<{
     const { user } = useAuth();
     const [isApproving, setIsApproving] = useState(false);
     const [approveError, setApproveError] = useState<string | null>(null);
-    const form = dbForms.find(f => f.id === submission.formId);
+    // Title from the real catalog (definition first, registry second) — never the
+    // retired dbForms mock (2026-07-28).
+    const formTitle = definitionForSubmission(submission.formId, submission.formName)?.title
+        ?? FORM_REGISTRY.find(f => f.id === submission.formId)?.title
+        ?? submission.formName;
     const data = submission.data || {};
 
     const handleApprove = async () => {
@@ -76,7 +83,7 @@ const ReviewSubmissionModal: React.FC<{
                 <header className="flex justify-between items-center p-6 border-b bg-slate-50 dark:bg-slate-900/50">
                     <div>
                         <h3 className="text-xl font-black tracking-tight">Review Paper Submission</h3>
-                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">{form?.title} • {clientName}</p>
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">{submissionTitle(formTitle, clientName)}</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-all"><X size={24} /></button>
                 </header>
@@ -156,27 +163,84 @@ const ReviewSubmissionModal: React.FC<{
     );
 };
 
-const ViewSubmissionModal: React.FC<{ submission: FormSubmission, clientName: string, onClose: () => void }> = ({ submission, clientName, onClose }) => {
-    const data = submission.data as RecoveryPlanData;
-    const form = dbForms.find(f => f.id === submission.formId);
-    if (!data) return null;
+/**
+ * Rebuilt 2026-07-28. The old modal (a) looked the title up in the RETIRED
+ * dbForms mock — every real form missed and the header rendered ": <client>"
+ * with a leading colon — and (b) hardcoded RecoveryPlan's two field keys as
+ * the body for EVERY form type, so other forms showed bare section labels with
+ * no values. It now renders through the shared SubmissionViewer (real labels
+ * from the form's own definition, "Not answered" for empty fields) with the
+ * actions the queue implies: mark reviewed (approveFormSubmission — the same
+ * real write the Forms-page queue uses) and Print / Save as PDF (the
+ * committed-record layout via RecordPrintRoot).
+ */
+const ViewSubmissionModal: React.FC<{
+    submission: FormSubmission,
+    clientName: string,
+    onClose: () => void,
+    onChanged: () => void,
+}> = ({ submission, clientName, onClose, onChanged }) => {
+    const { user } = useAuth();
+    const [isApproving, setIsApproving] = useState(false);
+    const [approveError, setApproveError] = useState<string | null>(null);
+    const definition = definitionForSubmission(submission.formId, submission.formName);
+    const title = submissionTitle(definition?.title ?? submission.formName, clientName);
+    const status = normalizeSubmissionStatus(submission.status);
+
+    const handleMarkReviewed = async () => {
+        setIsApproving(true);
+        setApproveError(null);
+        try {
+            await approveFormSubmission(submission.id, user?.id ?? null);
+            onChanged();
+            onClose();
+        } catch (err: any) {
+            setApproveError(err?.message || 'Review failed — the record was NOT updated. Please try again.');
+        } finally {
+            setIsApproving(false);
+        }
+    };
 
     return (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-background dark:bg-dark-surface rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-                <header className="flex justify-between items-center p-4 border-b">
-                    <h3 className="text-lg font-bold">{form?.title}: {clientName}</h3>
-                    <button onClick={onClose}><X size={24} /></button>
-                </header>
-                <main className="flex-1 p-6 overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
-                    <p><strong>Submitted:</strong> {submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : 'N/A'}</p>
-                    <hr />
-                    <h4>Recovery Goals</h4><p>{data.primaryGoals}</p>
-                    <h4>Coping Strategies</h4><p>{data.copingSkills}</p>
-                    {data.signatureDataUrl && <><h4>Signature</h4><img src={data.signatureDataUrl} alt="Signature" className="h-16 border rounded bg-white p-1" /></>}
-                </main>
+        <Modal isOpen onClose={onClose} title={title} maxWidth="max-w-3xl">
+            <div className="p-6">
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-4">
+                    {submission.submittedAt
+                        ? `Submitted ${new Date(submission.submittedAt).toLocaleString()}`
+                        : 'Submission date not recorded'}
+                </p>
+                <SubmissionViewer formId={submission.formId} formName={submission.formName} data={submission.data} />
             </div>
-        </div>
+            {approveError && (
+                <div className="mx-6 mb-3 p-3 bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800 rounded-xl flex items-center gap-2 text-danger-700 dark:text-danger-300 text-xs font-semibold">
+                    <AlertTriangle size={14} className="shrink-0" /> {approveError}
+                </div>
+            )}
+            <footer className="px-6 py-4 border-t border-hairline dark:border-slate-700/60 flex justify-end gap-3">
+                <button
+                    onClick={printRecord}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-sm font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                >
+                    <Printer size={15} /> Print / Save as PDF
+                </button>
+                {status === 'completed' && (
+                    <button
+                        onClick={handleMarkReviewed}
+                        disabled={isApproving}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-focus transition-colors disabled:opacity-50"
+                    >
+                        {isApproving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />}
+                        {isApproving ? 'Saving…' : 'Mark reviewed'}
+                    </button>
+                )}
+            </footer>
+            <RecordPrintRoot
+                formId={submission.formId}
+                formName={definition?.title ?? submission.formName}
+                data={submission.data}
+                committedAt={submission.submittedAt ? String(submission.submittedAt) : null}
+            />
+        </Modal>
     );
 };
 
@@ -184,15 +248,10 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
     const navigate = useNavigate();
     const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
     const [reviewingSubmission, setReviewingSubmission] = useState<FormSubmission | null>(null);
-    const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
-
-    const handleSendReminder = async (subId: string) => {
-        setSendingReminderId(subId);
-        // Simulate API call
-        await new Promise(r => setTimeout(r, 1000));
-        setSendingReminderId(null);
-        alert('Reminder sent to client via Push & SMS.');
-    };
+    // The old "Send Reminder" button here was a setTimeout + alert('Reminder sent
+    // to client via Push & SMS.') — no push, no SMS, no write. Same class as the
+    // messaging guard (Batch F): staff believing a client was nudged when nothing
+    // was sent. Removed 2026-07-28; do not reintroduce without a real transport.
 
     return (
         <Card>
@@ -213,7 +272,10 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                     </thead>
                     <tbody className="bg-background divide-y divide-border">
                         {formSubmissions.map(sub => {
-                            const form = dbForms.find(f => f.id === sub.formId);
+                            // Real catalog, not the retired dbForms mock (2026-07-28).
+                            const formTitle = FORM_DEFINITION_BY_ID[sub.formId]?.title
+                                ?? FORM_REGISTRY.find(f => f.id === sub.formId)?.title
+                                ?? sub.formName ?? sub.formId;
                             const status = normalizeSubmissionStatus(sub.status);
                             const isOverdue = sub.dueDate && new Date(sub.dueDate) < new Date() && status !== 'completed' && status !== 'reviewed';
                             const needsReview = sub.data?.requires_review;
@@ -222,7 +284,7 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                                 <tr key={sub.id}>
                                     <td className="px-6 py-4 font-medium">
                                         <div className="flex items-center gap-2">
-                                            {form?.title || sub.formName || sub.formId}
+                                            {formTitle}
                                             {sub.data?.is_paper_upload && <FileText size={14} className="text-slate-400" />}
                                             {sub.data?.signed && <CheckCircle size={14} className="text-emerald-500" />}
                                         </div>
@@ -245,14 +307,6 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                                                         title={`Fill out this form for ${client.name}`}
                                                     >
                                                         <PencilLine size={14} /> Fill Out
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleSendReminder(sub.id)}
-                                                        disabled={sendingReminderId === sub.id}
-                                                        className="p-2 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
-                                                        title="Send Reminder"
-                                                    >
-                                                        {sendingReminderId === sub.id ? <Loader2 size={16} className="animate-spin" /> : <Bell size={16} />}
                                                     </button>
                                                 </>
                                             )}
@@ -282,10 +336,11 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
             </div>
 
             {selectedSubmission && (
-                <ViewSubmissionModal 
+                <ViewSubmissionModal
                     submission={selectedSubmission}
                     clientName={client.name}
                     onClose={() => setSelectedSubmission(null)}
+                    onChanged={onFormAssigned}
                 />
             )}
             {reviewingSubmission && (
