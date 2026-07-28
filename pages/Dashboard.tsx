@@ -257,8 +257,8 @@ const Dashboard: React.FC = () => {
                     <SectionError msg="Guardrail checks could not be computed — this is a loading failure, not a clean result." onRetry={retry} />
                 ) : guardrails.length > 0 ? guardrails.slice(0, 6).map(g => {
                     const isViolation = g.status === 'violation';
-                    const accent = isViolation ? 'text-red-500/90' : 'text-amber-500/90';
-                    const bar = isViolation ? 'bg-red-400/70' : 'bg-amber-400/70';
+                    const accent = isViolation ? 'text-danger-500/90' : 'text-warning-500/90';
+                    const bar = isViolation ? 'bg-danger-400/70' : 'bg-warning-400/70';
                     return (
                         <div
                             key={g.id}
@@ -324,7 +324,7 @@ const Dashboard: React.FC = () => {
                                         {p.intakeInterest}
                                     </span>
                                 )}
-                                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${p.intakeFeePaid ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${p.intakeFeePaid ? 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300' : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
                                     {p.intakeFeePaid ? <><ShieldCheck size={11} /> Intake fee paid</> : 'Fee pending'}
                                 </span>
                             </div>
@@ -353,7 +353,7 @@ const Dashboard: React.FC = () => {
                 {isClinical && alertSummary.total > 0 && (
                     <button
                         onClick={() => navigate('/risk-monitor')}
-                        className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition text-xs font-black uppercase tracking-widest"
+                        className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-danger-50 border border-danger-200 text-danger-700 hover:bg-danger-100 transition text-xs font-black uppercase tracking-widest"
                     >
                         <AlertTriangle size={14} /> Review {plural(alertSummary.total, 'alert')}
                     </button>
@@ -375,17 +375,17 @@ const Dashboard: React.FC = () => {
                     {/* Open alerts — red, second entry point to the same honest place as the pill */}
                     <button
                         onClick={() => navigate('/risk-monitor')}
-                        className="text-left rounded-2xl border border-red-100 dark:border-red-900/40 bg-red-50/60 dark:bg-red-900/10 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        className="text-left rounded-2xl border border-danger-100 dark:border-danger-900/40 bg-danger-50/60 dark:bg-danger-900/10 px-4 py-3 hover:bg-danger-50 dark:hover:bg-danger-900/20 transition-colors"
                     >
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-red-600 leading-none">{loadErrors.alerts ? '—' : alertSummary.total}</div>
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-danger-600 leading-none">{loadErrors.alerts ? '—' : alertSummary.total}</div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.alerts ? 'Open alerts' : `Open ${pluralNoun(alertSummary.total, 'alert')}`}</div>
                     </button>
                     {/* Guardrail flags — amber, scrolls to the Guardrails card on this page */}
                     <button
                         onClick={() => document.getElementById('dashboard-guardrails')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                        className="text-left rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-900/10 px-4 py-3 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                        className="text-left rounded-2xl border border-warning-100 dark:border-warning-900/40 bg-warning-50/60 dark:bg-warning-900/10 px-4 py-3 hover:bg-warning-50 dark:hover:bg-warning-900/20 transition-colors"
                     >
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-amber-600 leading-none">{loadErrors.guardrails ? '—' : guardrails.length}</div>
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-warning-600 leading-none">{loadErrors.guardrails ? '—' : guardrails.length}</div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.guardrails ? 'Guardrail flags' : `Guardrail ${pluralNoun(guardrails.length, 'flag')}`}</div>
                     </button>
                     {/* Active clients — neutral */}
@@ -460,20 +460,20 @@ const Dashboard: React.FC = () => {
                                 <SectionError msg="Alerts could not be computed — these tiles are unavailable, not zero." onRetry={retry} />
                             ) : (
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div className="p-4 rounded-2xl border border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-900/10 shadow-card dark:shadow-card-dark">
-                                    <div className="text-3xl font-black tracking-tighter text-red-600">{alertSummary.critical}</div>
+                                <div className="p-4 rounded-2xl border border-danger-100 dark:border-danger-900/40 bg-danger-50/50 dark:bg-danger-900/10 shadow-card dark:shadow-card-dark">
+                                    <div className="text-3xl font-black tracking-tighter text-danger-600">{alertSummary.critical}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Critical</div>
                                 </div>
                                 <div className="p-4 rounded-2xl border border-orange-100 dark:border-orange-900/40 bg-orange-50/50 dark:bg-orange-900/10 shadow-card dark:shadow-card-dark">
                                     <div className="text-3xl font-black tracking-tighter text-orange-600">{alertSummary.high}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">High</div>
                                 </div>
-                                <div className="p-4 rounded-2xl border border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10 shadow-card dark:shadow-card-dark">
-                                    <div className="text-3xl font-black tracking-tighter text-amber-600">{alertSummary.elevated}</div>
+                                <div className="p-4 rounded-2xl border border-warning-100 dark:border-warning-900/40 bg-warning-50/50 dark:bg-warning-900/10 shadow-card dark:shadow-card-dark">
+                                    <div className="text-3xl font-black tracking-tighter text-warning-600">{alertSummary.elevated}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Elevated</div>
                                 </div>
-                                <div className="p-4 rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/50 dark:bg-blue-900/10 shadow-card dark:shadow-card-dark">
-                                    <div className="text-3xl font-black tracking-tighter text-blue-600">{alertSummary.moderate}</div>
+                                <div className="p-4 rounded-2xl border border-info-100 dark:border-info-900/40 bg-info-50/50 dark:bg-info-900/10 shadow-card dark:shadow-card-dark">
+                                    <div className="text-3xl font-black tracking-tighter text-info-600">{alertSummary.moderate}</div>
                                     <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Moderate</div>
                                 </div>
                             </div>

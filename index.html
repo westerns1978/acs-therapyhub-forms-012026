@@ -22,6 +22,21 @@
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+      // ── Status-tone ramps (semantic-token pass, 2026-07-28) ─────────────────
+      // Pinned to Tailwind v3's default hex values, so defining them changes ZERO
+      // pixels today — the point is ownership: every status shade in the app is
+      // now editable HERE, in one file (the same move as the slate override
+      // below). The semantic aliases (success/warning/danger/info) map converted
+      // call sites; the raw family names (red/amber/emerald/blue/rose) are pinned
+      // to the same ramps so the ~1,300 not-yet-converted sites are equally
+      // tunable. An Attesta re-theme edits these five ramps — not 100 files.
+      const STATUS_RAMPS = {
+        red:     { 50:'#FEF2F2', 100:'#FEE2E2', 200:'#FECACA', 300:'#FCA5A5', 400:'#F87171', 500:'#EF4444', 600:'#DC2626', 700:'#B91C1C', 800:'#991B1B', 900:'#7F1D1D', 950:'#450A0A' },
+        rose:    { 50:'#FFF1F2', 100:'#FFE4E6', 200:'#FECDD3', 300:'#FDA4AF', 400:'#FB7185', 500:'#F43F5E', 600:'#E11D48', 700:'#BE123C', 800:'#9F1239', 900:'#881337', 950:'#4C0519' },
+        amber:   { 50:'#FFFBEB', 100:'#FEF3C7', 200:'#FDE68A', 300:'#FCD34D', 400:'#FBBF24', 500:'#F59E0B', 600:'#D97706', 700:'#B45309', 800:'#92400E', 900:'#78350F', 950:'#451A03' },
+        emerald: { 50:'#ECFDF5', 100:'#D1FAE5', 200:'#A7F3D0', 300:'#6EE7B7', 400:'#34D399', 500:'#10B981', 600:'#059669', 700:'#047857', 800:'#065F46', 900:'#064E3B', 950:'#022C22' },
+        blue:    { 50:'#EFF6FF', 100:'#DBEAFE', 200:'#BFDBFE', 300:'#93C5FD', 400:'#60A5FA', 500:'#3B82F6', 600:'#2563EB', 700:'#1D4ED8', 800:'#1E40AF', 900:'#1E3A8A', 950:'#172554' },
+      };
       tailwind.config = {
         darkMode: 'class',
         theme: {
@@ -86,6 +101,24 @@
               'surface-secondary-content': 'var(--th-on-surface-secondary)',
               // Explicit dark-pair partner used as `dark:text-dark-surface-secondary-content`.
               'dark-surface-secondary-content': '#94A3B8',
+              // ── Semantic status tokens (2026-07-28) ──────────────────────────
+              // The app's tone grammar: success (met/paid/signed), warning
+              // (advisory/pending), danger (violation/critical/error), info
+              // (moderate/needs-review). Aliased to the pinned ramps above, so
+              // `bg-danger-50 text-danger-600` renders byte-identically to the
+              // old `bg-red-50 text-red-600` — the swap is semantic, not visual.
+              // Status-grammar call sites use THESE names; new code should too.
+              success: STATUS_RAMPS.emerald,
+              warning: STATUS_RAMPS.amber,
+              danger:  STATUS_RAMPS.red,
+              info:    STATUS_RAMPS.blue,
+              // Raw families pinned to the same ramps (the slate-override move):
+              // unconverted sites keep their exact colors but become one-file-tunable.
+              red:     STATUS_RAMPS.red,
+              rose:    STATUS_RAMPS.rose,
+              amber:   STATUS_RAMPS.amber,
+              emerald: STATUS_RAMPS.emerald,
+              blue:    STATUS_RAMPS.blue,
               border: {
                 DEFAULT: '#D6CFC2',
               },

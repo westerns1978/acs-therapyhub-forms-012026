@@ -77,9 +77,9 @@ const ComplianceReadiness: React.FC = () => {
 
       {/* Practice-wide counts */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatTile label="Violations" value={counts.violation} tone="text-red-600" />
-        <StatTile label="Warnings" value={counts.warning} tone="text-amber-600" />
-        <StatTile label="Met" value={counts.met} tone="text-emerald-600" />
+        <StatTile label="Violations" value={counts.violation} tone="text-danger-600" />
+        <StatTile label="Warnings" value={counts.warning} tone="text-warning-600" />
+        <StatTile label="Met" value={counts.met} tone="text-success-600" />
         <StatTile label="Not yet verifiable" value={counts.not_enforceable} tone="text-slate-400" />
       </div>
 
@@ -88,10 +88,10 @@ const ComplianceReadiness: React.FC = () => {
         <div className="space-y-3">
           {flags.length > 0 ? flags.map(f => {
             const isViolation = f.status === 'violation';
-            const accent = isViolation ? 'text-red-600' : 'text-amber-600';
+            const accent = isViolation ? 'text-danger-600' : 'text-warning-600';
             const box = isViolation
-              ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/20'
-              : 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/20';
+              ? 'bg-danger-50 dark:bg-danger-900/10 border-danger-100 dark:border-danger-900/30 hover:bg-danger-100 dark:hover:bg-danger-900/20'
+              : 'bg-warning-50 dark:bg-warning-900/10 border-warning-100 dark:border-warning-900/30 hover:bg-warning-100 dark:hover:bg-warning-900/20';
             return (
               <button
                 key={f.id}
@@ -109,7 +109,7 @@ const ComplianceReadiness: React.FC = () => {
               </button>
             );
           }) : (
-            <div className="flex items-center gap-3 py-6 justify-center text-emerald-600">
+            <div className="flex items-center gap-3 py-6 justify-center text-success-600">
               <CheckCircle2 size={20} />
               <span className="text-xs font-bold uppercase tracking-widest">No active flags — every enforceable rule is met.</span>
             </div>

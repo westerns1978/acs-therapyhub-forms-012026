@@ -14,10 +14,10 @@ import OutreachModal from '../components/OutreachModal';
 import { programLabel } from '../config/programVocab';
 
 const TIER_STYLE: Record<AlertTier, { badge: string; card: string; icon: string }> = {
-  CRITICAL: { badge: 'bg-red-600 text-white',     card: 'border-red-200 dark:border-red-900/50',    icon: 'text-red-600' },
+  CRITICAL: { badge: 'bg-danger-600 text-white',     card: 'border-danger-200 dark:border-danger-900/50',    icon: 'text-danger-600' },
   HIGH:     { badge: 'bg-orange-500 text-white',  card: 'border-orange-200 dark:border-orange-900/50', icon: 'text-orange-600' },
-  ELEVATED: { badge: 'bg-amber-400 text-slate-900', card: 'border-amber-200 dark:border-amber-900/50',  icon: 'text-amber-600' },
-  MODERATE: { badge: 'bg-blue-400 text-white',    card: 'border-blue-200 dark:border-blue-900/50',    icon: 'text-blue-600' },
+  ELEVATED: { badge: 'bg-warning-400 text-slate-900', card: 'border-warning-200 dark:border-warning-900/50',  icon: 'text-warning-600' },
+  MODERATE: { badge: 'bg-info-400 text-white',    card: 'border-info-200 dark:border-info-900/50',    icon: 'text-info-600' },
 };
 
 const TIER_LABEL: Record<AlertTier, string> = {
@@ -124,10 +124,10 @@ const RiskMonitor: React.FC = () => {
           </button>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 bg-emerald-50 dark:bg-emerald-900/10 rounded-3xl border border-emerald-100 dark:border-emerald-900/30">
-          <Shield size={48} className="mx-auto mb-4 text-emerald-500" />
-          <p className="text-sm font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">All clear at this tier</p>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2">No alerts require attention right now.</p>
+        <div className="text-center py-20 bg-success-50 dark:bg-success-900/10 rounded-3xl border border-success-100 dark:border-success-900/30">
+          <Shield size={48} className="mx-auto mb-4 text-success-500" />
+          <p className="text-sm font-black uppercase tracking-widest text-success-700 dark:text-success-300">All clear at this tier</p>
+          <p className="text-xs text-success-600 dark:text-success-400 mt-2">No alerts require attention right now.</p>
         </div>
       ) : (
         <div className="space-y-3">

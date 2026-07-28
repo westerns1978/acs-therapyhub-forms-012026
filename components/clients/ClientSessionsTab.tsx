@@ -49,16 +49,16 @@ const toneOf = (s: string): StatusTone => {
 
 const TONE_TEXT: Record<StatusTone, string> = {
   complete: 'text-[#1F7A4D]',
-  negative: 'text-red-600',
-  progress: 'text-amber-600',
+  negative: 'text-danger-600',
+  progress: 'text-warning-600',
   neutral: 'text-slate-500',
 };
 
 // Tinted pill per tone — light bg + AA text. Used for the discrete Status field.
 const TONE_CHIP: Record<StatusTone, string> = {
   complete: 'bg-[#1F7A4D]/10 text-[#1F7A4D]',
-  negative: 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300',
-  progress: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+  negative: 'bg-danger-50 text-danger-700 dark:bg-danger-900/20 dark:text-danger-300',
+  progress: 'bg-warning-50 text-warning-700 dark:bg-warning-900/20 dark:text-warning-300',
   neutral: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
@@ -331,7 +331,7 @@ const ClientSessionsTab: React.FC<{ client: Client }> = ({ client }) => {
                   return info ? <UnitsBadge info={info} variant="compact" /> : null;
                 })()}
                 {it.kind === 'appointment' && it.hasNote && (
-                  <span className={`text-[10px] font-black uppercase tracking-wide ${it.signed ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <span className={`text-[10px] font-black uppercase tracking-wide ${it.signed ? 'text-success-600' : 'text-warning-600'}`}>
                     {it.signed ? 'Signed note' : 'Note on file'}
                   </span>
                 )}

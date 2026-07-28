@@ -15,9 +15,9 @@ import { CalendarClock, CheckCircle2, Clock, AlertTriangle, Ban, Minus, Info } f
  */
 
 const STATUS_META: Record<ClockStatus, { label: string; pill: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
-  ok:             { label: 'On track',   pill: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300', icon: CheckCircle2 },
-  due_soon:       { label: 'Due soon',   pill: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',         icon: Clock },
-  window_elapsed: { label: 'Verify',     pill: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',         icon: AlertTriangle },
+  ok:             { label: 'On track',   pill: 'bg-success-100 text-success-800 dark:bg-success-900/40 dark:text-success-300', icon: CheckCircle2 },
+  due_soon:       { label: 'Due soon',   pill: 'bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-200',         icon: Clock },
+  window_elapsed: { label: 'Verify',     pill: 'bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-200',         icon: AlertTriangle },
   expired:        { label: 'Re-screen',  pill: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',             icon: AlertTriangle },
   blocked:        { label: 'Outstanding',pill: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',             icon: Ban },
   informational:  { label: 'Automatic',  pill: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',                icon: Info },
@@ -39,7 +39,7 @@ const ComplianceDeadlineStrip: React.FC<Props> = ({ clock, signedLevel }) => {
           <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Compliance Deadlines</h3>
         </div>
         {clock.atRiskCount > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-200">
             {clock.atRiskCount} need{clock.atRiskCount === 1 ? 's' : ''} attention
           </span>
         )}
@@ -63,7 +63,7 @@ const ComplianceDeadlineStrip: React.FC<Props> = ({ clock, signedLevel }) => {
                 muted
                   ? 'border-dashed border-border dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/30'
                   : it.atRisk
-                    ? 'border-amber-200 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-900/10'
+                    ? 'border-warning-200 dark:border-warning-800 bg-warning-50/40 dark:bg-warning-900/10'
                     : 'border-border dark:border-slate-700 bg-white dark:bg-slate-800'
               }`}
             >

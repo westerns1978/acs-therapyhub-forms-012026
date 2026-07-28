@@ -33,13 +33,13 @@ const CATEGORY_ORDER = [
 ];
 
 const CATEGORY_COLORS: Record<string, string> = {
-  'Court Order': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  'Intake': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  'Court Order': 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300',
+  'Intake': 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-300',
   'Treatment Plan': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
   'Consent': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  'Verification': 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+  'Verification': 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300',
   'Progress Note': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  'Completion Certificate': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
+  'Completion Certificate': 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300',
   'Drug Screen': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
   'ID / License': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
   'Billing': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
@@ -97,7 +97,7 @@ const DocumentGridCard: React.FC<{ document: DocumentFile; onClick: () => void }
         <div className="flex items-center gap-2">
           {document.needsReview && (
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold bg-warning-50 text-warning-700 dark:bg-warning-900/20 dark:text-warning-300"
               title="A client-submitted or unverified document — needs clinician review"
             >
               <AlertCircle size={10} /> Needs review
@@ -176,7 +176,7 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
         <div>
           <h3 className="text-2xl font-black tracking-tighter">Documents</h3>
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${uplinkStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+            <span className={`w-2 h-2 rounded-full ${uplinkStatus === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-danger-500'}`}></span>
             Storage: {uplinkStatus === 'connected' ? 'Connected' : 'Offline'} • {docs.length} file{docs.length === 1 ? '' : 's'}
           </p>
         </div>

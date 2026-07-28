@@ -62,9 +62,9 @@ const StatCard: React.FC<{ label: string; value: string | number; icon: React.El
 const STATE_META: Record<ReadinessState, { icon: React.ElementType; tone: string; chip: string; chipClass: string }> = {
     met: {
         icon: CheckCircle2,
-        tone: 'text-emerald-600 dark:text-emerald-400',
+        tone: 'text-success-600 dark:text-success-400',
         chip: 'Met',
-        chipClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800',
+        chipClass: 'bg-success-50 text-success-700 border-success-200 dark:bg-success-900/20 dark:text-success-300 dark:border-success-800',
     },
     action: {
         icon: AlertTriangle,
@@ -218,23 +218,23 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
                 {csrAlerts.length > 0 && (
-                    <Card title="CSR Compliance Alerts" className="border-l-4 border-red-500">
+                    <Card title="CSR Compliance Alerts" className="border-l-4 border-danger-500">
                         <div className="space-y-3">
                             {csrAlerts.map(ce => {
                                 const due = new Date(ce.dueDate);
                                 const days = Math.ceil((due.getTime() - Date.now()) / (1000 * 3600 * 24));
                                 return (
-                                    <div key={ce.id} className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 rounded-xl">
-                                        <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                                    <div key={ce.id} className="flex items-start gap-3 p-3 bg-danger-50 dark:bg-danger-900/10 border border-danger-200 rounded-xl">
+                                        <AlertTriangle className="w-5 h-5 text-danger-600 shrink-0 mt-0.5" />
                                         <div className="flex-1">
-                                            <p className="text-sm font-bold text-red-800 dark:text-red-200">
+                                            <p className="text-sm font-bold text-danger-800 dark:text-danger-200">
                                                 {ce.type === 'Program Plan Review' ? '90-Day Treatment Plan Update Due' : ce.type}
                                             </p>
-                                            <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">
+                                            <p className="text-xs text-danger-700 dark:text-danger-300 mt-0.5">
                                                 Due {due.toLocaleDateString()} · {days >= 0 ? `${days} day${days === 1 ? '' : 's'}` : `${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} overdue`}
                                             </p>
                                         </div>
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-800 border border-red-200">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-danger-100 text-danger-800 border border-danger-200">
                                             {ce.status}
                                         </span>
                                     </div>
@@ -253,8 +253,8 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                             <p className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-1">{readiness.programLabel}</p>
                             {readiness.kind === 'gates' && (
                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-widest ${readiness.eligible
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'}`}>
+                                    ? 'bg-success-100 text-success-800 dark:bg-success-900/40 dark:text-success-300'
+                                    : 'bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-300'}`}>
                                     {readiness.eligible ? <ShieldCheck size={13} /> : <AlertTriangle size={13} />}
                                     {readiness.metCount} of {readiness.totalCount} gates met{readiness.eligible ? ' — eligible' : ''}
                                 </span>
@@ -272,14 +272,14 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                             return (
                                 <div className={`p-4 rounded-xl border ${neutral
                                     ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
-                                    : 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800'}`}>
+                                    : 'bg-warning-50 dark:bg-warning-900/10 border-warning-200 dark:border-warning-800'}`}>
                                     <div className="flex items-start gap-3">
                                         {neutral
                                             ? <HelpCircle className="text-slate-400 shrink-0 mt-0.5" size={18} />
-                                            : <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />}
+                                            : <AlertTriangle className="text-warning-600 shrink-0 mt-0.5" size={18} />}
                                         <div>
-                                            <p className={`text-sm font-bold ${neutral ? 'text-slate-700 dark:text-slate-200' : 'text-amber-800 dark:text-amber-200'}`}>{headline}</p>
-                                            <p className={`text-xs mt-0.5 leading-relaxed ${neutral ? 'text-slate-500 dark:text-slate-400' : 'text-amber-700 dark:text-amber-300'}`}>{readiness.statusNote}</p>
+                                            <p className={`text-sm font-bold ${neutral ? 'text-slate-700 dark:text-slate-200' : 'text-warning-800 dark:text-warning-200'}`}>{headline}</p>
+                                            <p className={`text-xs mt-0.5 leading-relaxed ${neutral ? 'text-slate-500 dark:text-slate-400' : 'text-warning-700 dark:text-warning-300'}`}>{readiness.statusNote}</p>
                                             {readiness.citation && <p className="text-[10px] font-mono text-slate-400 mt-1">{readiness.citation}</p>}
                                         </div>
                                     </div>
@@ -371,9 +371,9 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
             <div className="lg:col-span-1 space-y-6">
                 <Card>
                      {timeToDeadline !== null && (
-                        <div className={`p-4 rounded-lg mb-4 ${timeToDeadline < 7 ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'} border`}>
+                        <div className={`p-4 rounded-lg mb-4 ${timeToDeadline < 7 ? 'bg-danger-50 border-danger-200' : 'bg-info-50 border-info-200'} border`}>
                             <div className="flex items-center gap-3">
-                                <Clock className={`w-6 h-6 ${timeToDeadline < 7 ? 'text-red-600' : 'text-blue-600'}`} />
+                                <Clock className={`w-6 h-6 ${timeToDeadline < 7 ? 'text-danger-600' : 'text-info-600'}`} />
                                 <div>
                                     <p className="font-bold text-2xl">{timeToDeadline} Days</p>
                                     <p className="text-sm font-medium">until next deadline</p>
@@ -402,12 +402,12 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                             {payments.map(p => {
                                 const date = p.payment_date ? new Date(p.payment_date).toLocaleDateString() : '—';
                                 const statusBadge = (p.status || 'paid').toLowerCase() === 'paid'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-amber-100 text-amber-800';
+                                    ? 'bg-success-100 text-success-800'
+                                    : 'bg-warning-100 text-warning-800';
                                 return (
                                     <li key={p.id} className="py-3 flex items-start gap-3">
-                                        <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
-                                            <CreditCard className="w-4 h-4 text-emerald-600" />
+                                        <div className="p-2 rounded-lg bg-success-50 dark:bg-success-900/20">
+                                            <CreditCard className="w-4 h-4 text-success-600" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between gap-2">

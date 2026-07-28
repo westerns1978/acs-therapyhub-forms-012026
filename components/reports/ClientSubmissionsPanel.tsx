@@ -111,8 +111,8 @@ const ClientSubmissionsPanel: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (normalizeSubmissionStatus(status)) {
       case 'not_started':
-      case 'in_progress': return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300';
-      case 'completed': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+      case 'in_progress': return 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300';
+      case 'completed': return 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-300';
       case 'reviewed': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
       default: return 'bg-slate-100 text-slate-600';
     }
@@ -151,21 +151,21 @@ const ClientSubmissionsPanel: React.FC = () => {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl">
+        <div className="p-4 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800/50 rounded-2xl">
           <div className="flex items-center gap-3">
-            <Clock className="text-amber-600" size={20} />
+            <Clock className="text-warning-600" size={20} />
             <div>
-              <p className="text-2xl font-black text-amber-800 dark:text-amber-200">{pendingCount}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">Awaiting Client</p>
+              <p className="text-2xl font-black text-warning-800 dark:text-warning-200">{pendingCount}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-warning-600">Awaiting Client</p>
             </div>
           </div>
         </div>
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-2xl">
+        <div className="p-4 bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800/50 rounded-2xl">
           <div className="flex items-center gap-3">
-            <FileText className="text-blue-600" size={20} />
+            <FileText className="text-info-600" size={20} />
             <div>
-              <p className="text-2xl font-black text-blue-800 dark:text-blue-200">{completedCount}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Needs Review</p>
+              <p className="text-2xl font-black text-info-800 dark:text-info-200">{completedCount}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-info-600">Needs Review</p>
             </div>
           </div>
         </div>
@@ -328,7 +328,7 @@ const ClientSubmissionsPanel: React.FC = () => {
             )}
 
             {reviewError && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-600 dark:text-red-400">
+              <div className="p-4 bg-danger-500/10 border border-danger-500/20 rounded-2xl flex items-center gap-3 text-danger-600 dark:text-danger-400">
                 <AlertTriangle size={18} className="shrink-0" />
                 <span className="text-xs font-bold leading-relaxed">{reviewError}</span>
               </div>
