@@ -93,17 +93,24 @@ delete from public.clients where is_demo;
 -- ────────────────────────── PART 1 — CLIENTS (10) ──────────────────────────
 insert into public.clients
   (id, name, email, primary_phone, program_type, client_type, status, case_number, county, is_demo)
+-- CAST (Dan 7/28): the familiar demo names the team already recognizes, recovered
+-- from git history — the 20260714 demo-week seed, RECON-ux-2026-07-28.md, and
+-- scripts/fixtures. 'Joe Blow' and 'Flower Tester' never lived in a seed file at
+-- all (they came in through PublicIntake as live rows — see RECON-ux:194).
+-- 'James West' appears in that old roster and is DELIBERATELY EXCLUDED: it is the
+-- REAL client's name. Re-collision-checked before use — 0 hits on exact/surname/
+-- first-name vs is_demo=false, and vs the counselor roster.
 values
-  ('dc100001-0000-4000-8000-000000000001','Adrian Holloway','adrian.holloway@example.com','314-555-0101','SATOP','SROP','active','DEMO-2026-0101','St. Louis',true),
-  ('dc100002-0000-4000-8000-000000000002','Bernadette Okafor','bernadette.okafor@example.com','314-555-0102','SATOP','CIP','active','DEMO-2026-0102','St. Louis',true),
-  ('dc100003-0000-4000-8000-000000000003','Curtis Vandenberg','curtis.vandenberg@example.com','636-555-0103','SATOP','OP','active','DEMO-2026-0103','Jefferson',true),
-  ('dc100004-0000-4000-8000-000000000004','Delia Marchetti','delia.marchetti@example.com','314-555-0104','SATOP','EAP','active','DEMO-2026-0104','St. Louis',true),
-  ('dc100005-0000-4000-8000-000000000005','Elias Thornbury','elias.thornbury@example.com','636-555-0105','SATOP','DWI_COURT','active','DEMO-2026-0105','Jefferson',true),
-  ('dc100006-0000-4000-8000-000000000006','Fiona Castellanos','fiona.castellanos@example.com','314-555-0106','SATOP','SROP','active','DEMO-2026-0106','St. Louis',true),
-  ('dc100007-0000-4000-8000-000000000007','Gregory Ashworth','gregory.ashworth@example.com','314-555-0107','SATOP','DOT','active','DEMO-2026-0107','St. Louis',true),
-  ('dc100008-0000-4000-8000-000000000008','Helena Sorensen','helena.sorensen@example.com','636-555-0108','SATOP','RELAPSE_PREVENTION','active','DEMO-2026-0108','Jefferson',true),
-  ('dc100009-0000-4000-8000-000000000009','Ibrahim Nasser','ibrahim.nasser@example.com','314-555-0109','ANGER_MANAGEMENT','ANGER_MANAGEMENT','active','DEMO-2026-0109','St. Louis',true),
-  ('dc100010-0000-4000-8000-000000000010','Joanna Fairbanks','joanna.fairbanks@example.com','314-555-0110','GAMBLING_RECOVERY','GAMBLING_RECOVERY','active','DEMO-2026-0110','St. Louis',true);
+  ('dc100001-0000-4000-8000-000000000001','Marcus Reyes','marcus.reyes@example.com','314-555-0101','SATOP','SROP','active','DEMO-2026-0101','St. Louis',true),
+  ('dc100002-0000-4000-8000-000000000002','Emma Reeves','emma.reeves@example.com','314-555-0102','SATOP','CIP','active','DEMO-2026-0102','St. Louis',true),
+  ('dc100003-0000-4000-8000-000000000003','Curtis Lane','curtis.lane@example.com','636-555-0103','SATOP','OP','active','DEMO-2026-0103','Jefferson',true),
+  ('dc100004-0000-4000-8000-000000000004','Denise Park','denise.park@example.com','314-555-0104','SATOP','EAP','active','DEMO-2026-0104','St. Louis',true),
+  ('dc100005-0000-4000-8000-000000000005','Derek Stone','derek.stone@example.com','636-555-0105','SATOP','DWI_COURT','active','DEMO-2026-0105','Jefferson',true),
+  ('dc100006-0000-4000-8000-000000000006','Flower Tester','flower.tester@example.com','314-555-0106','SATOP','SROP','active','DEMO-2026-0106','St. Louis',true),
+  ('dc100007-0000-4000-8000-000000000007','Fred Garvin','fred.garvin@example.com','314-555-0107','SATOP','DOT','active','DEMO-2026-0107','St. Louis',true),
+  ('dc100008-0000-4000-8000-000000000008','Margaret Sullivan','margaret.sullivan@example.com','636-555-0108','SATOP','RELAPSE_PREVENTION','active','DEMO-2026-0108','Jefferson',true),
+  ('dc100009-0000-4000-8000-000000000009','Joe Blow','joe.blow@example.com','314-555-0109','ANGER_MANAGEMENT','ANGER_MANAGEMENT','active','DEMO-2026-0109','St. Louis',true),
+  ('dc100010-0000-4000-8000-000000000010','Reggie Vance','reggie.vance@example.com','314-555-0110','GAMBLING_RECOVERY','GAMBLING_RECOVERY','active','DEMO-2026-0110','St. Louis',true);
 
 -- ───────────────────── PART 2 — INDIVIDUAL APPOINTMENTS ────────────────────
 -- Day offsets are from THIS week's Monday (America/Chicago). Counselor 1:1s are
@@ -119,32 +126,32 @@ select
   v.mins, v.status, v.service_type, v.units, v.modality, true
 from wk, (values
   -- ── this week: completed, WITH signed notes (drive the calendar note star) ──
-  ('dee0aa01-0000-4000-8000-000000000001','dc100001-0000-4000-8000-000000000001','Adrian Holloway','David Yoder','SROP 1:1','srop_1on1',0,time '13:00',60,'Completed','counseling',4,'In-Person'),
-  ('dee0aa02-0000-4000-8000-000000000002','dc100002-0000-4000-8000-000000000002','Bernadette Okafor','Karen Ventimiglia','CIP 1:1','cip_1on1',0,time '14:30',60,'Completed','counseling',4,'Virtual (Zoom)'),
-  ('dee0aa03-0000-4000-8000-000000000003','dc100003-0000-4000-8000-000000000003','Curtis Vandenberg','Karen Ventimiglia','OP Intake','op_intake',1,time '09:00',60,'Completed','counseling',4,'In-Person'),
+  ('dee0aa01-0000-4000-8000-000000000001','dc100001-0000-4000-8000-000000000001','Marcus Reyes','David Yoder','SROP 1:1','srop_1on1',0,time '13:00',60,'Completed','counseling',4,'In-Person'),
+  ('dee0aa02-0000-4000-8000-000000000002','dc100002-0000-4000-8000-000000000002','Emma Reeves','Karen Ventimiglia','CIP 1:1','cip_1on1',0,time '14:30',60,'Completed','counseling',4,'Virtual (Zoom)'),
+  ('dee0aa03-0000-4000-8000-000000000003','dc100003-0000-4000-8000-000000000003','Curtis Lane','Karen Ventimiglia','OP Intake','op_intake',1,time '09:00',60,'Completed','counseling',4,'In-Person'),
   -- ── this week: completed, NO note (so the difference is visible) ──
-  ('dee0aa04-0000-4000-8000-000000000004','dc100004-0000-4000-8000-000000000004','Delia Marchetti','Bill Sunderman','EAP 1:1','eap_1on1',0,time '10:00',60,'Completed','counseling',4,'Virtual (Zoom)'),
-  ('dee0aa05-0000-4000-8000-000000000005','dc100005-0000-4000-8000-000000000005','Elias Thornbury','Debra','MRT 1:1','mrt_1on1',1,time '15:00',15,'Completed','other',null,'In-Person'),
+  ('dee0aa04-0000-4000-8000-000000000004','dc100004-0000-4000-8000-000000000004','Denise Park','Bill Sunderman','EAP 1:1','eap_1on1',0,time '10:00',60,'Completed','counseling',4,'Virtual (Zoom)'),
+  ('dee0aa05-0000-4000-8000-000000000005','dc100005-0000-4000-8000-000000000005','Derek Stone','Debra','MRT 1:1','mrt_1on1',1,time '15:00',15,'Completed','other',null,'In-Person'),
   -- ── this week: the missed pair ──
-  ('dee0aa06-0000-4000-8000-000000000006','dc100007-0000-4000-8000-000000000007','Gregory Ashworth','Bill Sunderman','Series 1:1','series_1on1',1,time '11:00',60,'No Show',null,null,'Virtual (Zoom)'),
-  ('dee0aa07-0000-4000-8000-000000000007','dc100008-0000-4000-8000-000000000008','Helena Sorensen','David Yoder','DOT 1:1','dot_1on1',1,time '13:00',60,'No Call No Show',null,null,'In-Person'),
+  ('dee0aa06-0000-4000-8000-000000000006','dc100007-0000-4000-8000-000000000007','Fred Garvin','Bill Sunderman','Series 1:1','series_1on1',1,time '11:00',60,'No Show',null,null,'Virtual (Zoom)'),
+  ('dee0aa07-0000-4000-8000-000000000007','dc100008-0000-4000-8000-000000000008','Margaret Sullivan','David Yoder','DOT 1:1','dot_1on1',1,time '13:00',60,'No Call No Show',null,null,'In-Person'),
   -- ── this week: upcoming ──
-  ('dee0aa08-0000-4000-8000-000000000008','dc100010-0000-4000-8000-000000000010','Joanna Fairbanks','Karen Ventimiglia','CD Evaluation','eval_cd',2,time '09:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
-  ('dee0aa09-0000-4000-8000-000000000009','dc100002-0000-4000-8000-000000000002','Bernadette Okafor','David Yoder','CIP 1:1','cip_1on1',2,time '13:00',60,'Scheduled','counseling',null,'In-Person'),
-  ('dee0aa10-0000-4000-8000-000000000010','dc100003-0000-4000-8000-000000000003','Curtis Vandenberg','Bill Sunderman','OP 1:1','op_1on1',2,time '15:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
-  ('dee0aa11-0000-4000-8000-000000000011','dc100008-0000-4000-8000-000000000008','Helena Sorensen','Karen Ventimiglia','RP 1:1','rp_1on1',3,time '10:00',60,'Scheduled','counseling',null,'In-Person'),
+  ('dee0aa08-0000-4000-8000-000000000008','dc100010-0000-4000-8000-000000000010','Reggie Vance','Karen Ventimiglia','CD Evaluation','eval_cd',2,time '09:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
+  ('dee0aa09-0000-4000-8000-000000000009','dc100002-0000-4000-8000-000000000002','Emma Reeves','David Yoder','CIP 1:1','cip_1on1',2,time '13:00',60,'Scheduled','counseling',null,'In-Person'),
+  ('dee0aa10-0000-4000-8000-000000000010','dc100003-0000-4000-8000-000000000003','Curtis Lane','Bill Sunderman','OP 1:1','op_1on1',2,time '15:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
+  ('dee0aa11-0000-4000-8000-000000000011','dc100008-0000-4000-8000-000000000008','Margaret Sullivan','Karen Ventimiglia','RP 1:1','rp_1on1',3,time '10:00',60,'Scheduled','counseling',null,'In-Person'),
   -- the twice-moved session (reschedule trail + recount marker) — now Thu 13:00
-  ('dee0aa12-0000-4000-8000-000000000012','dc100006-0000-4000-8000-000000000006','Fiona Castellanos','David Yoder','SROP 1:1','srop_1on1',3,time '13:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
-  ('dee0aa13-0000-4000-8000-000000000013','dc100001-0000-4000-8000-000000000001','Adrian Holloway','John Burns','OP 1:1','op_1on1',4,time '09:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
-  ('dee0aa14-0000-4000-8000-000000000014','dc100004-0000-4000-8000-000000000004','Delia Marchetti','Dave L','CIP 1:1','cip_1on1',4,time '11:00',60,'Scheduled','counseling',null,'In-Person'),
-  ('dee0aa15-0000-4000-8000-000000000015','dc100005-0000-4000-8000-000000000005','Elias Thornbury','Debra','DWI Court 1:1','dwi_court_1on1',4,time '14:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
+  ('dee0aa12-0000-4000-8000-000000000012','dc100006-0000-4000-8000-000000000006','Flower Tester','David Yoder','SROP 1:1','srop_1on1',3,time '13:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
+  ('dee0aa13-0000-4000-8000-000000000013','dc100001-0000-4000-8000-000000000001','Marcus Reyes','John Burns','OP 1:1','op_1on1',4,time '09:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
+  ('dee0aa14-0000-4000-8000-000000000014','dc100004-0000-4000-8000-000000000004','Denise Park','Dave L','CIP 1:1','cip_1on1',4,time '11:00',60,'Scheduled','counseling',null,'In-Person'),
+  ('dee0aa15-0000-4000-8000-000000000015','dc100005-0000-4000-8000-000000000005','Derek Stone','Debra','DWI Court 1:1','dwi_court_1on1',4,time '14:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
   -- ── next week ──
-  ('dee0aa16-0000-4000-8000-000000000016','dc100001-0000-4000-8000-000000000001','Adrian Holloway','David Yoder','SROP 1:1','srop_1on1',7,time '13:00',60,'Scheduled','counseling',null,'In-Person'),
-  ('dee0aa17-0000-4000-8000-000000000017','dc100003-0000-4000-8000-000000000003','Curtis Vandenberg','Karen Ventimiglia','OP 1:1','op_1on1',8,time '10:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
-  ('dee0aa18-0000-4000-8000-000000000018','dc100004-0000-4000-8000-000000000004','Delia Marchetti','Bill Sunderman','EAP 1:1','eap_1on1',9,time '14:00',60,'Scheduled','counseling',null,'In-Person'),
-  ('dee0aa19-0000-4000-8000-000000000019','dc100002-0000-4000-8000-000000000002','Bernadette Okafor','Dave L','CIP 1:1','cip_1on1',10,time '13:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
-  ('dee0aa20-0000-4000-8000-000000000020','dc100008-0000-4000-8000-000000000008','Helena Sorensen','John Burns','RP 1:1','rp_1on1',11,time '09:00',60,'Scheduled','counseling',null,'In-Person'),
-  ('dee0aa21-0000-4000-8000-000000000021','dc100005-0000-4000-8000-000000000005','Elias Thornbury','Debra','MRT 1:1','mrt_1on1',11,time '15:00',15,'Scheduled','other',null,'Virtual (Zoom)')
+  ('dee0aa16-0000-4000-8000-000000000016','dc100001-0000-4000-8000-000000000001','Marcus Reyes','David Yoder','SROP 1:1','srop_1on1',7,time '13:00',60,'Scheduled','counseling',null,'In-Person'),
+  ('dee0aa17-0000-4000-8000-000000000017','dc100003-0000-4000-8000-000000000003','Curtis Lane','Karen Ventimiglia','OP 1:1','op_1on1',8,time '10:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
+  ('dee0aa18-0000-4000-8000-000000000018','dc100004-0000-4000-8000-000000000004','Denise Park','Bill Sunderman','EAP 1:1','eap_1on1',9,time '14:00',60,'Scheduled','counseling',null,'In-Person'),
+  ('dee0aa19-0000-4000-8000-000000000019','dc100002-0000-4000-8000-000000000002','Emma Reeves','Dave L','CIP 1:1','cip_1on1',10,time '13:00',60,'Scheduled','counseling',null,'Virtual (Zoom)'),
+  ('dee0aa20-0000-4000-8000-000000000020','dc100008-0000-4000-8000-000000000008','Margaret Sullivan','John Burns','RP 1:1','rp_1on1',11,time '09:00',60,'Scheduled','counseling',null,'In-Person'),
+  ('dee0aa21-0000-4000-8000-000000000021','dc100005-0000-4000-8000-000000000005','Derek Stone','Debra','MRT 1:1','mrt_1on1',11,time '15:00',15,'Scheduled','other',null,'Virtual (Zoom)')
 ) as v(id, client_id, client_name, therapist, label, session_type, day_off, t, mins, status, service_type, units, modality);
 
 -- ───────────── PART 3 — SIGNED NOTES on three completed sessions ───────────
@@ -246,16 +253,16 @@ select v.appt_id::uuid, v.client_id, v.client_name, 'David Yoder',
        ((wk.monday - 7) + time '12:00') at time zone 'America/Chicago',
        180, 'Completed', 'counseling', 12, 'In-Person', true, true
 from wk, (values
-  ('dee0bb01-0000-4000-8000-000000000001','dc100001-0000-4000-8000-000000000001','Adrian Holloway'),
-  ('dee0bb02-0000-4000-8000-000000000002','dc100002-0000-4000-8000-000000000002','Bernadette Okafor'),
-  ('dee0bb03-0000-4000-8000-000000000003','dc100003-0000-4000-8000-000000000003','Curtis Vandenberg'),
-  ('dee0bb04-0000-4000-8000-000000000004','dc100004-0000-4000-8000-000000000004','Delia Marchetti'),
-  ('dee0bb05-0000-4000-8000-000000000005','dc100005-0000-4000-8000-000000000005','Elias Thornbury'),
-  ('dee0bb06-0000-4000-8000-000000000006','dc100006-0000-4000-8000-000000000006','Fiona Castellanos'),
-  ('dee0bb07-0000-4000-8000-000000000007','dc100007-0000-4000-8000-000000000007','Gregory Ashworth'),
-  ('dee0bb08-0000-4000-8000-000000000008','dc100008-0000-4000-8000-000000000008','Helena Sorensen'),
+  ('dee0bb01-0000-4000-8000-000000000001','dc100001-0000-4000-8000-000000000001','Marcus Reyes'),
+  ('dee0bb02-0000-4000-8000-000000000002','dc100002-0000-4000-8000-000000000002','Emma Reeves'),
+  ('dee0bb03-0000-4000-8000-000000000003','dc100003-0000-4000-8000-000000000003','Curtis Lane'),
+  ('dee0bb04-0000-4000-8000-000000000004','dc100004-0000-4000-8000-000000000004','Denise Park'),
+  ('dee0bb05-0000-4000-8000-000000000005','dc100005-0000-4000-8000-000000000005','Derek Stone'),
+  ('dee0bb06-0000-4000-8000-000000000006','dc100006-0000-4000-8000-000000000006','Flower Tester'),
+  ('dee0bb07-0000-4000-8000-000000000007','dc100007-0000-4000-8000-000000000007','Fred Garvin'),
+  ('dee0bb08-0000-4000-8000-000000000008','dc100008-0000-4000-8000-000000000008','Margaret Sullivan'),
   -- makeup: not a standing member of this group
-  ('dee0bb09-0000-4000-8000-000000000009','dc100010-0000-4000-8000-000000000010','Joanna Fairbanks')
+  ('dee0bb09-0000-4000-8000-000000000009','dc100010-0000-4000-8000-000000000010','Reggie Vance')
 ) as v(appt_id, client_id, client_name);
 
 insert into public.group_session_attendees (id, group_session_id, client_id, appointment_id, source)
