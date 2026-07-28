@@ -1,13 +1,124 @@
 /*
  * ACS TherapyHub — global stylesheet.
  *
- * Created 2026-07-28. index.html has linked /index.css since the beginning, but the
- * file never existed — a 404 on every page load, which also meant cross-cutting CSS
- * (a global focus-visible ring, @media print rules) had nowhere to live.
+ * index.html has linked /index.css since the beginning, but the file did not exist
+ * — a 404 on every page load, which also meant cross-cutting CSS had nowhere to
+ * live. Created 2026-07-28.
  *
- * This pass creates the file as a stub ONLY (per the UX-remediation brief): the
- * theme tokens stay in index.html's inline tailwind.config + <style> block. Future
- * candidates for this file, deliberately NOT added yet: global :focus-visible ring,
- * the ~15-line print block (force light, hide chrome, drop shadows/blur — see
- * RECON-ux-2026-07-28.md §4f).
+ * Theme TOKENS stay in index.html's inline tailwind.config (+ its :root/.dark
+ * variable block). This file is for rules Tailwind utilities can't express per
+ * component: the global focus ring, and print.
  */
+
+/* ──────────────────────────────────────────────────────────────────────────────
+ * 1. KEYBOARD FOCUS
+ *
+ * `focus-visible:` appeared ZERO times across the app, and several components ran
+ * `focus:outline-none` with no replacement ring — so a keyboard user could tab into
+ * a control with no visible indication of where they were. A compliance product
+ * will face an accessibility question eventually, and staff live on keyboards.
+ *
+ * This is deliberately a GLOBAL :focus-visible rule rather than per-component
+ * utilities: it covers all 389 buttons / 102 inputs at once, ports to the Attesta
+ * fork as one file, and — because :focus-visible only matches keyboard/AT focus —
+ * it never fires on mouse click, which is why the app had been suppressing focus
+ * rings in the first place.
+ *
+ * `outline` (not box-shadow) so it follows border-radius and survives overflow
+ * clipping. The !important is load-bearing: it must beat the existing
+ * `focus:outline-none` utilities already sprinkled through the components.
+ * ────────────────────────────────────────────────────────────────────────────── */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid #8B1E24;          /* primary */
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.dark :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline-color: #F87171;              /* dark.primary — legible on #020617 */
+}
+/* Components that suppress the native ring must not suppress THIS one. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline-style: solid !important;
+  outline-width: 2px !important;
+}
+
+/* Skip-to-content affordance: visible only once focused. */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+.skip-to-content:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #8B1E24;
+  color: #fff;
+  border-radius: 0.5rem;
+  font-weight: 700;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+ * 2. PRINT
+ *
+ * This product emits court and state documents. Those go through jsPDF and are
+ * well-built — but a Director printing a screen (Ctrl+P on Compliance Readiness
+ * for a file, a ledger, a treatment plan) got: a fixed blurred header stamped over
+ * page 1, a 256px empty sidebar gutter on every sheet, Clara's chat panel printed
+ * over the content if open, and — in dark mode — near-black full-bleed pages.
+ *
+ * Force light, drop the chrome, flatten effects. ~30 lines that fix every route.
+ * ────────────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* Force a light document regardless of the user's theme. */
+  html, body, .dark body, body * {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* App chrome is not part of the document. */
+  header, nav, aside,
+  [data-print="hide"],
+  .no-print {
+    display: none !important;
+  }
+
+  /* Anything pinned to the viewport tiles onto page 1 and overlaps content. */
+  .fixed, [class*="fixed"] {
+    position: static !important;
+  }
+
+  /* Sidebar gutter + Clara's docked-panel offset must collapse. */
+  main, [class*="lg:ml-64"], [class*="lg:mr-["] {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Translucency and blur rasterize badly (or drop out entirely). */
+  [class*="backdrop-blur"], [class*="bg-white/"], [class*="bg-slate-9"] {
+    backdrop-filter: none !important;
+    background: #fff !important;
+  }
+
+  /* Keep status meaning when color is stripped: borders survive, fills don't. */
+  [class*="border-danger"], [class*="border-warning"],
+  [class*="border-success"], [class*="border-info"] {
+    border-color: #000 !important;
+  }
+
+  /* Don't split a card/row across a page break. */
+  section, article, li, tr, [class*="rounded-2xl"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  a[href]::after { content: ""; }  /* no URL spew after every link */
+
+  @page { margin: 0.6in; }
+}

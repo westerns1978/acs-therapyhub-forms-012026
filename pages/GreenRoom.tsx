@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { fetchGreenRoomSession, type GreenRoomData, type GreenRoomAttendee, type GreenRoomSession } from '../services/greenRoom';
 import { distributeGroupNote } from '../services/api';
+import { daysSince, plural } from '../config/format';
 import { useAuth } from '../contexts/AuthContext';
 
 /* ── time helpers ───────────────────────────────────────────────────────────── */
@@ -202,7 +203,21 @@ const ClientCard: React.FC<{ a: GreenRoomAttendee; defaultOpen: boolean }> = ({ 
               {a.lastNote ? (
                 <div className="mt-3 bg-slate-50/70 dark:bg-slate-800/40 border border-border/50 dark:border-slate-700/50 border-l-[3px] border-l-primary rounded-lg p-3">
                   <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
+                    {/* Ageing (2026-07-28): createdAt was already on the note object and
+                        thrown away. An UNSIGNED note that has been sitting is the actionable
+                        case, so it gets the tint; a signed one just shows its age. */}
                     <FileText size={11} /> {a.lastNote.isSigned ? 'Last signed note' : 'Last note'} · {a.lastNote.noteType}
+                    {(() => {
+                      const age = daysSince(a.lastNote.createdAt);
+                      if (age === null) return null;
+                      const label = age === 0 ? 'today' : plural(age, 'day') + ' ago';
+                      const urgent = !a.lastNote.isSigned && age >= 3;
+                      return (
+                        <span className={urgent ? 'text-warning-700 dark:text-warning-400 font-semibold' : 'text-slate-400'}>
+                          {' · '}{label}{urgent ? ' · unsigned' : ''}
+                        </span>
+                      );
+                    })()}
                   </div>
                   <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-4">{a.lastNote.snippet}</p>
                 </div>

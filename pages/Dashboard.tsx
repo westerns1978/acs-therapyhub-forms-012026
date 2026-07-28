@@ -12,7 +12,7 @@ import { buildGuardrailExplainPrompt, CLARA_AVATAR_URL } from '../services/clara
 import { Appointment } from '../types';
 import { Video, Calendar, AlertTriangle, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus, Sparkles, RefreshCw } from 'lucide-react';
 import { maybeForceFail } from '../config/failureHarness';
-import { plural, pluralNoun } from '../config/format';
+import { plural, pluralNoun, daysSince, waitingLabel } from '../config/format';
 import { programLabel } from '../config/programVocab';
 import { formatTime12 } from '../config/time';
 
@@ -166,6 +166,16 @@ const Dashboard: React.FC = () => {
     const hello = `Good ${greetingFor(new Date().getHours())}, ${firstName}.`;
     const todayCount = appointments.length;
     const flaggedClients = new Set(alerts.map(a => a.clientId)).size;
+    // Violations vs warnings: the split the engine already computes but the UI never
+    // surfaced — a violation is a regulatory exposure, a warning is a heads-up, and
+    // showing only their sum hid the difference (2026-07-28).
+    const violationCount = guardrails.filter(g => g.status === 'violation').length;
+    const warningCount = guardrails.length - violationCount;
+    // Oldest item in the intake queue, in days. getProspects() orders created_at desc,
+    // so the last row is the longest-waiting.
+    const oldestIntakeDays = prospects.length
+        ? daysSince(prospects[prospects.length - 1].createdAt)
+        : null;
     const schedPhrase = todayCount === 0
         ? 'No sessions are on today’s schedule'
         : `${plural(todayCount, 'session')} ${todayCount === 1 ? 'is' : 'are'} on today’s schedule`;
@@ -219,7 +229,7 @@ const Dashboard: React.FC = () => {
                             </div>
                             <div className="h-10 w-px bg-slate-200 dark:bg-slate-700"></div>
                             <div>
-                                <h4 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-primary transition-colors">{apt.clientName || apt.title}</h4>
+                                <h4 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-primary transition-colors truncate" title={apt.clientName || apt.title}>{apt.clientName || apt.title}</h4>
                                 <div className="flex items-center gap-4 mt-1.5">
                                     <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500">{apt.type}</span>
                                     {apt.modality?.includes('Zoom') && <span className="flex items-center gap-1.5 text-[10px] font-bold text-secondary"><Video size={12}/> Telehealth</span>}
@@ -318,9 +328,25 @@ const Dashboard: React.FC = () => {
                         <span className="absolute left-0 top-0 bottom-0 w-1 bg-primary/70"></span>
                         <UserPlus className="text-primary shrink-0 mt-0.5" size={18} />
                         <div className="min-w-0 flex-1">
+                            {/* Ageing (2026-07-28): createdAt was already fetched and rendered as a
+                                bare grey date, so a prospect waiting three weeks looked identical
+                                to one that arrived this morning. Show elapsed time, and tint it
+                                once the wait becomes the point. */}
                             <div className="flex justify-between items-baseline gap-2">
                                 <p className="text-sm font-black text-slate-800 dark:text-slate-100 truncate">{p.name}</p>
-                                <span className="text-[10px] font-mono text-slate-400 shrink-0">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : ''}</span>
+                                {(() => {
+                                    const waited = waitingLabel(p.createdAt);
+                                    const age = daysSince(p.createdAt);
+                                    if (!waited) return null;
+                                    const tone = age !== null && age >= 14 ? 'text-danger-600 font-bold'
+                                        : age !== null && age >= 7 ? 'text-warning-700 font-semibold'
+                                        : 'text-slate-400';
+                                    return (
+                                        <span className={`text-[10px] shrink-0 ${tone}`} title={new Date(p.createdAt!).toLocaleDateString()}>
+                                            {age === 0 ? 'today' : `waiting ${waited}`}
+                                        </span>
+                                    );
+                                })()}
                             </div>
                             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                 {p.intakeInterest && (
@@ -354,7 +380,11 @@ const Dashboard: React.FC = () => {
                         <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 leading-relaxed">{briefingDetail}</p>
                     </div>
                 </div>
-                {isClinical && alertSummary.total > 0 && (
+                {/* Dedup (2026-07-28): this pill rendered alertSummary.total a third time,
+                    pointing at the same /risk-monitor as the stat card 20px below it.
+                    Directors get the stat strip, so the pill is now Therapist-only —
+                    they have no strip and would otherwise lose their entry point. */}
+                {isTherapist && alertSummary.total > 0 && !loadErrors.alerts && (
                     <button
                         onClick={() => navigate('/risk-monitor')}
                         className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-danger-50 border border-danger-200 text-danger-700 hover:bg-danger-100 transition text-xs font-black uppercase tracking-widest"
@@ -364,38 +394,64 @@ const Dashboard: React.FC = () => {
                 )}
             </div>
 
-            {/* Director-only stat strip — four compact, severity-tinted stat cards replacing the
-                old plain inline line (kills the duplicate treatment). Alerts/Guardrails are
-                clickable jump-offs; sessions/active-clients are quiet counts. Clara's prose above
-                stays the narrative register — a number appearing once there and once here is fine.
+            {/* Director-only stat strip. Reordered 2026-07-28 so the strip answers "where do
+                I look first?" rather than rendering four semantically different numbers at
+                identical weight.
+
+                VIOLATIONS LEADS. It is the only number here that is (a) a regulatory
+                exposure, (b) computed deterministically from real client data with a 9 CSR
+                citation, and (c) actionable today — and it previously rendered NOWHERE,
+                while alertSummary.total rendered three times. Warnings are folded in as its
+                subtitle rather than taking their own tile: a warning is the same rule engine
+                at a lower severity, not a separate metric.
+
+                Then: open alerts (work queue) → intake queue depth with the oldest wait →
+                sessions today (a glanceable schedule fact, deliberately last and quiet).
+                "Active clients" was dropped from the strip — it is a vanity metric at 21 and
+                a meaningless one at 100; it still appears in Clara's line above.
                 Monthly Revenue intentionally omitted (billing not wired). */}
             {isDirector && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {/* Sessions today — neutral. '—' when the schedule query failed (never a fake 0). */}
+                    {/* 1. Violations — THE number. Scrolls to the guardrail detail below. */}
+                    <button
+                        onClick={() => document.getElementById('dashboard-guardrails')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="text-left rounded-2xl border border-danger-200 dark:border-danger-900/50 bg-danger-50 dark:bg-danger-900/15 px-4 py-3 hover:bg-danger-100 dark:hover:bg-danger-900/25 transition-colors"
+                    >
+                        <div className="text-3xl font-black tabular-nums tracking-tight text-danger-600 leading-none">{loadErrors.guardrails ? '—' : violationCount}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-1.5">
+                            {loadErrors.guardrails ? 'Violations' : pluralNoun(violationCount, 'violation')}
+                        </div>
+                        {!loadErrors.guardrails && warningCount > 0 && (
+                            <div className="text-[10px] font-semibold text-warning-700 dark:text-warning-400 mt-0.5">
+                                + {plural(warningCount, 'warning')}
+                            </div>
+                        )}
+                    </button>
+                    {/* 2. Open alerts — the work queue. */}
+                    <button
+                        onClick={() => navigate('/risk-monitor')}
+                        className="text-left rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
+                    >
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{loadErrors.alerts ? '—' : alertSummary.total}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.alerts ? 'Open alerts' : `Open ${pluralNoun(alertSummary.total, 'alert')}`}</div>
+                    </button>
+                    {/* 3. Intake queue — depth AND the oldest wait, the part that decays. */}
+                    <button
+                        onClick={() => document.getElementById('dashboard-intake')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                        className="text-left rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors"
+                    >
+                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{loadErrors.intake ? '—' : prospects.length}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.intake ? 'Intakes waiting' : `${pluralNoun(prospects.length, 'intake')} waiting`}</div>
+                        {!loadErrors.intake && oldestIntakeDays !== null && oldestIntakeDays > 0 && (
+                            <div className={`text-[10px] font-semibold mt-0.5 ${oldestIntakeDays >= 14 ? 'text-danger-600' : oldestIntakeDays >= 7 ? 'text-warning-700 dark:text-warning-400' : 'text-slate-400'}`}>
+                                oldest {plural(oldestIntakeDays, 'day')}
+                            </div>
+                        )}
+                    </button>
+                    {/* 4. Sessions today — quiet schedule fact. '—' if the query failed. */}
                     <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
                         <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{loadErrors.schedule ? '—' : todayCount}</div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.schedule ? 'Sessions today' : `${pluralNoun(todayCount, 'session')} today`}</div>
-                    </div>
-                    {/* Open alerts — red, second entry point to the same honest place as the pill */}
-                    <button
-                        onClick={() => navigate('/risk-monitor')}
-                        className="text-left rounded-2xl border border-danger-100 dark:border-danger-900/40 bg-danger-50/60 dark:bg-danger-900/10 px-4 py-3 hover:bg-danger-50 dark:hover:bg-danger-900/20 transition-colors"
-                    >
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-danger-600 leading-none">{loadErrors.alerts ? '—' : alertSummary.total}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.alerts ? 'Open alerts' : `Open ${pluralNoun(alertSummary.total, 'alert')}`}</div>
-                    </button>
-                    {/* Guardrail flags — amber, scrolls to the Guardrails card on this page */}
-                    <button
-                        onClick={() => document.getElementById('dashboard-guardrails')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                        className="text-left rounded-2xl border border-warning-100 dark:border-warning-900/40 bg-warning-50/60 dark:bg-warning-900/10 px-4 py-3 hover:bg-warning-50 dark:hover:bg-warning-900/20 transition-colors"
-                    >
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-warning-600 leading-none">{loadErrors.guardrails ? '—' : guardrails.length}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{loadErrors.guardrails ? 'Guardrail flags' : `Guardrail ${pluralNoun(guardrails.length, 'flag')}`}</div>
-                    </button>
-                    {/* Active clients — neutral */}
-                    <div className="rounded-2xl border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3">
-                        <div className="text-2xl font-black tabular-nums tracking-tight text-slate-800 dark:text-white leading-none">{metrics.activeClients === null ? '—' : metrics.activeClients}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">{metrics.activeClients === null ? 'Active clients' : `Active ${pluralNoun(metrics.activeClients, 'client')}`}</div>
                     </div>
                 </div>
             )}
@@ -458,7 +514,7 @@ const Dashboard: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 space-y-8">
                         {ScheduleCard}
-                        {isFinancial && IntakeQueueCard}
+                        {isFinancial && <div id="dashboard-intake" className="scroll-mt-6">{IntakeQueueCard}</div>}
                         <Card title="Alerts" subtitle="Actionable alerts from real client activity.">
                             {loadErrors.alerts ? (
                                 <SectionError msg="Alerts could not be computed — these tiles are unavailable, not zero." onRetry={retry} />

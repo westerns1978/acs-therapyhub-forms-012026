@@ -26,3 +26,26 @@ export const plural = (n: number, noun: string, pluralForm?: string): string =>
  *  under a big number): pluralNoun(1, 'session') → "session". */
 export const pluralNoun = (n: number, noun: string, pluralForm?: string): string =>
   n === 1 ? noun : (pluralForm ?? `${noun}s`);
+
+const DAY_MS = 86_400_000;
+
+/** Whole days elapsed since `iso` (local midnight-to-midnight, so "yesterday" is
+ *  always 1 regardless of clock time). Null for missing/unparseable input —
+ *  callers must render nothing rather than a fabricated 0. */
+export const daysSince = (iso: string | Date | null | undefined): number | null => {
+  if (!iso) return null;
+  const then = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(then.getTime())) return null;
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.max(0, Math.round((midnight(new Date()) - midnight(then)) / DAY_MS));
+};
+
+/** Human waiting-time label: "today" / "1 day" / "12 days". Null when unknown.
+ *  Used for queue ageing (intake queue, unsigned notes) where an absolute date
+ *  alone hides how long something has been sitting. */
+export const waitingLabel = (iso: string | Date | null | undefined): string | null => {
+  const d = daysSince(iso);
+  if (d === null) return null;
+  if (d === 0) return 'today';
+  return plural(d, 'day');
+};

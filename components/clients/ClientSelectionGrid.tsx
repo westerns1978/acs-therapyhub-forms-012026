@@ -97,7 +97,7 @@ const ClientCard: React.FC<{
             className="bg-white/70 dark:bg-dark-surface/70 backdrop-blur-xl border border-black/5 dark:border-white/10 rounded-xl shadow-md p-4 flex flex-col items-center text-center cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
         >
             <ClientAvatar client={client} className="w-14 h-14 text-xl mb-2" />
-            <h3 className="font-bold">{client.name}</h3>
+            <h3 className="font-bold truncate" title={client.name}>{client.name}</h3>
             <p className="text-sm text-surface-secondary-content">{programDisplayLabel(client.program)}</p>
             {/* Always rendered (sched step 11) — surfaces a "needs review" state for
                 untagged/ambiguous-legacy client_type instead of staying invisible. */}

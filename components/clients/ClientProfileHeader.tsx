@@ -148,7 +148,10 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
 
         <div className="flex-1 text-center lg:text-left">
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-3">
-              <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white">{client.name}</h1>
+              {/* Truncate + title (2026-07-28): at text-4xl a 40-character name wrapped the
+                  header and pushed the action row down the page. min-w-0 lets the flex
+                  parent actually allow the shrink. */}
+              <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white truncate min-w-0" title={client.name}>{client.name}</h1>
               <span className={`px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border ${getProgramBadge(client, determinedLevel).color}`}>
                 {getProgramBadge(client, determinedLevel).label}
               </span>
