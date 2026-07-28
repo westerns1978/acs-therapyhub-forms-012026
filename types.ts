@@ -92,6 +92,9 @@ export interface Client {
   /** Operational scheduling-funnel category (DOT / Outpatient / Relapse Prevention…).
    *  Free-text passthrough from clients.client_type; distinct from clinical program_type. */
   clientType?: string;
+  /** L4 (David 7/15): the client's primary counselor — clients.primary_counselor_id,
+   *  FK → public.counselors (migration 20260728_l4_primary_counselor). */
+  primaryCounselorId?: string;
   enrollmentDate: string;
   completionPercentage: number;
   nextDeadline?: string;

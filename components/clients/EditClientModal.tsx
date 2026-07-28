@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { updateClient } from '../../services/api';
+import { updateClient, getCounselors } from '../../services/api';
+import type { Counselor } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Client, ClientStatus } from '../../types';
 import { CLIENT_STATUS_LABELS } from '../../types';
@@ -37,11 +38,17 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
         county: 'St. Louis',
         probationOfficer: '',
         billingType: 'Self-Pay',
+        primaryCounselorId: '',
         program: 'SROP',
         status: 'active',
     });
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // L4: Primary Counselor picker — the active roster. Empty on failure (honest).
+    const [counselors, setCounselors] = useState<Counselor[]>([]);
+    useEffect(() => {
+        if (isOpen) getCounselors().then(setCounselors).catch(() => setCounselors([]));
+    }, [isOpen]);
 
     // Sync form state with the incoming client whenever the modal opens.
     useEffect(() => {
@@ -55,6 +62,7 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
             county: (client as any).county || 'St. Louis',
             probationOfficer: client.probationOfficer || '',
             billingType: (client.billingType as string) || 'Self-Pay',
+            primaryCounselorId: client.primaryCounselorId || '',
             // Normalize so a legacy/free-text value maps onto a canonical option.
             program: normalizeProgram(client.program).canonical || 'SROP',
             status: (client.status as string) || 'active',
@@ -96,6 +104,7 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
                 county: formData.county,
                 probationOfficer: formData.probationOfficer,
                 billingType: formData.billingType,
+                primaryCounselorId: formData.primaryCounselorId,
             };
             // Clinical fields only included when the role allows them. Sending
             // them as Admin would be rejected logically here regardless of
@@ -196,6 +205,16 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
                         </FieldLabel>
                         <FieldLabel label="Payment Source">
                             <Select value={formData.billingType} onChange={v => setField('billingType', v)} options={['Self-Pay', 'Insurance', 'Court Mandate', 'State Funded', 'Sliding Scale']} />
+                        </FieldLabel>
+                        <FieldLabel label="Primary Counselor">
+                            <select
+                                value={formData.primaryCounselorId}
+                                onChange={e => setField('primaryCounselorId', e.target.value)}
+                                className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                            >
+                                <option value="">— None assigned —</option>
+                                {counselors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
                         </FieldLabel>
                     </section>
 

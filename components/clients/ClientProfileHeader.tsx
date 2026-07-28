@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client, Appointment, CLIENT_STATUS_LABELS, needsStatusReview } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
@@ -11,7 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import ClientTypeBadge from './ClientTypeBadge';
 import { CalendarPlus, FilePlus, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock, Phone, Mail } from 'lucide-react';
-import { placeAndActivate } from '../../services/api';
+import { placeAndActivate, getCounselors } from '../../services/api';
 import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
 
 interface ClientProfileHeaderProps {
@@ -93,6 +93,19 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
   const showBookingGlance = lastBooked !== undefined || nextBooked !== undefined;
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // L4 (David 7/15): Primary Counselor in the header. Resolved from the tiny
+  // counselors roster; best-effort — no name renders while unset/unloadable
+  // (never a fabricated one).
+  const [primaryCounselorName, setPrimaryCounselorName] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (!client.primaryCounselorId) { setPrimaryCounselorName(null); return; }
+    getCounselors()
+      .then(list => { if (live) setPrimaryCounselorName(list.find(c => c.id === client.primaryCounselorId)?.name ?? null); })
+      .catch(() => { if (live) setPrimaryCounselorName(null); });
+    return () => { live = false; };
+  }, [client.primaryCounselorId]);
   // A live session writes a CLINICAL note — Director/Therapist only (not Admin/Jessica).
   // …and not while /session is trial-hidden, or "Start transcribed session"
   // would just bounce to the dashboard (see config/trialMode.ts).
@@ -171,6 +184,11 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                 <a href={`mailto:${client.email}`} className="flex items-center gap-1.5 normal-case tracking-normal font-medium text-slate-500 hover:text-primary transition-colors">
                   <Mail size={13} className="shrink-0" /> {client.email}
                 </a>
+              )}
+              {primaryCounselorName && (
+                <span className="flex items-center gap-1.5 normal-case tracking-normal font-medium text-slate-500" title="Primary Counselor">
+                  <UserCheck size={13} className="shrink-0" /> {primaryCounselorName}
+                </span>
               )}
           </div>
 

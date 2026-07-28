@@ -128,6 +128,7 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
         county: c.county ?? null,
         probation_officer: c.probationOfficer ?? c.probation_officer ?? null,
         billing_type: c.billingType ?? c.billing_type ?? null,
+        primary_counselor_id: c.primaryCounselorId ?? c.primary_counselor_id ?? null,
         avatar_url: c.avatarUrl
             ?? c.avatar_url
             ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Client')}&background=8B1E24&color=fff`,
@@ -138,6 +139,9 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
     for (const k of Object.keys(row)) {
         if (row[k] === null || row[k] === undefined) delete row[k];
     }
+    // Explicit UNSET: an empty-string primaryCounselorId means "clear the
+    // assignment" — re-add as a real NULL after the drop-nulls pass.
+    if (c.primaryCounselorId === '') row.primary_counselor_id = null;
     return row;
 };
 
@@ -169,6 +173,7 @@ const mapClientToApp = (c: any): Client => {
         caseNumber: c.caseNumber ?? c.case_number ?? '',
         clientType: c.clientType ?? c.client_type ?? undefined,
         phone: c.phone ?? c.primary_phone ?? '',
+        primaryCounselorId: c.primaryCounselorId ?? c.primary_counselor_id ?? undefined,
         program,
         programType: c.programType ?? c.program_type ?? program,
         referralSource: c.referralSource ?? c.referral_source ?? '',
