@@ -1173,6 +1173,18 @@ export interface SaveClinicalNoteOptions {
     noteType?: string;
     isSigned?: boolean;
     /**
+     * L3 structured fields (David 7/15; migration 20260728_l3_note_structure).
+     * All optional at the API layer — the UI enforces David's required-field
+     * rule; legacy callers keep working untouched.
+     */
+    serviceDate?: string;        // 'YYYY-MM-DD'
+    timeStarted?: string;        // 'HH:MM'
+    timeEnded?: string;          // 'HH:MM'
+    units?: number;              // 1-12, staff-entered
+    problemsAddressed?: string;  // Tx Plan problems — number or full sentence
+    staffName?: string;
+    staffCredentials?: string;
+    /**
      * Note format the therapist chose. 'SOAP' (default) keeps today's behavior.
      * 'DAP' is recorded as a "(DAP)" marker in the EXISTING note_type column and
      * stored in the existing SOAP columns (see splitDapNote). No schema change.
@@ -1198,7 +1210,26 @@ export const saveClinicalNote = async (
         is_signed: opts.isSigned ?? false,
         created_at: new Date().toISOString(),
         ...(format === 'DAP' ? splitDapNote(note) : splitSoapNote(note)),
+        // FORMATTING FIX (L3): the splitters above destroy headers and blank-line
+        // structure — that is the "Start Session note loses formatting" defect.
+        // The verbatim text now always lands in `narrative`; renderers prefer it
+        // and fall back to the split columns only for legacy rows.
+        narrative: note,
     };
+    // L3 structured fields — written only when supplied so legacy callers'
+    // rows look exactly as before.
+    if (opts.serviceDate) row.service_date = opts.serviceDate;
+    if (opts.timeStarted) row.time_started = opts.timeStarted;
+    if (opts.timeEnded) row.time_ended = opts.timeEnded;
+    if (typeof opts.units === 'number') row.units = opts.units;
+    if (opts.problemsAddressed) row.problems_addressed = opts.problemsAddressed;
+    if (opts.staffName) row.staff_name = opts.staffName;
+    if (opts.staffCredentials) row.staff_credentials = opts.staffCredentials;
+    if (opts.isSigned) {
+        // "Staff signature + date": typed-name signature stamped at sign time.
+        row.signed_at = new Date().toISOString();
+        if (opts.staffName) row.signed_by_name = opts.staffName;
+    }
     if (opts.appointmentId) {
         // Trust boundary: appointmentId can arrive via a URL query param (ActiveSession
         // reads ?appointmentId= off the route) — a stale tab or a hand-edited URL could
@@ -1817,9 +1848,13 @@ export const generateSoapNoteFromTranscript = async (
     clientName: string,
     format: 'SOAP' | 'DAP' = 'SOAP',
 ) => {
+    // PLAIN TEXT ONLY: the note renderer is whitespace-pre-wrap with no markdown
+    // pipeline, so **bold** / # headings would surface as literal characters —
+    // part of the "loses formatting" defect chain (L3, 2026-07-28).
+    const plainTextRule = 'Output PLAIN TEXT only — no markdown, no asterisks, no # headings, no bullet symbols other than a simple dash. Separate sections with a blank line.';
     const prompt = format === 'DAP'
-        ? `Construct a structured DAP progress note for ${clientName}. Use EXACTLY three sections, each beginning with its heading on its own line: "Data:", then "Assessment:", then "Plan:". Data = factual/observed session information (what the client reported and did, presentation, events); Assessment = clinical interpretation, progress toward goals, and risk; Plan = next steps, interventions, and follow-up. Content must be HIPAA-compliant. Source: ${transcript}`
-        : `Construct a structural SOAP note for ${clientName}. Content must be HIPAA-compliant. Source: ${transcript}`;
+        ? `Construct a structured DAP progress note for ${clientName}. Use EXACTLY three sections, each beginning with its heading on its own line: "Data:", then "Assessment:", then "Plan:". Data = factual/observed session information (what the client reported and did, presentation, events); Assessment = clinical interpretation, progress toward goals, and risk; Plan = next steps, interventions, and follow-up. ${plainTextRule} Content must be HIPAA-compliant. Source: ${transcript}`
+        : `Construct a structured SOAP note for ${clientName}. Use EXACTLY four sections, each beginning with its heading on its own line: "Subjective:", "Objective:", "Assessment:", "Plan:". ${plainTextRule} Content must be HIPAA-compliant. Source: ${transcript}`;
     return geminiText('gemini-2.5-flash', prompt);
 };
 

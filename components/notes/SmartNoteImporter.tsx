@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { generateSoapNoteFromTranscript, saveClinicalNote, getClients } from '../../services/api';
 import { Client } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { toLocalYMD } from '../../config/time';
 import { Sparkles, Loader2, Mic, MicOff, Eraser, FileText, CheckCircle, ChevronDown, ChevronUp, FileSignature } from 'lucide-react';
 
 interface SmartNoteImporterProps {
@@ -12,6 +14,7 @@ interface SmartNoteImporterProps {
 }
 
 const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, clientId: initialId, onDirtyChange }) => {
+    const { user } = useAuth();
     const [clients, setClients] = useState<Client[]>([]);
     // Free-choice selection, used ONLY when the dock was opened without a client
     // (generic nav entry). When `initialId` is supplied it wins outright — see
@@ -28,6 +31,38 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
     // height for live typing during a session; it auto-expands after formatting.
     const [showFormatted, setShowFormatted] = useState(false);
     const recognitionRef = useRef<any>(null);
+
+    // ── L3 required fields (David 7/15 — structure is specified, don't invent) ──
+    // Date | Time started/ended | Units 1-12 | Client | Tx Plan problems addressed |
+    // Staff name + credentials | Narrative | Staff signature + date | Submit.
+    // Required fields get an asterisk and BLOCK submit ("that field has to be
+    // filled or the note isn't complete"). Save draft stays open so mid-session
+    // text is never lost; SIGN is the submit that completes the note.
+    const [serviceDate, setServiceDate] = useState<string>(() => toLocalYMD(new Date()));
+    const [timeStarted, setTimeStarted] = useState('');
+    const [timeEnded, setTimeEnded] = useState('');
+    const [units, setUnits] = useState<string>('');
+    const [problemsAddressed, setProblemsAddressed] = useState('');
+    const [staffName, setStaffName] = useState<string>(user?.name ?? '');
+    const [staffCredentials, setStaffCredentials] = useState('');
+    const [showMissing, setShowMissing] = useState(false);
+
+    const missingRequired = useMemo(() => {
+        const missing: string[] = [];
+        if (!targetOrEmpty()) missing.push('Client');
+        if (!serviceDate) missing.push('Date');
+        if (!timeStarted) missing.push('Time started');
+        if (!timeEnded) missing.push('Time ended');
+        const u = parseInt(units, 10);
+        if (!units || Number.isNaN(u) || u < 1 || u > 12) missing.push('Units (1–12)');
+        if (!problemsAddressed.trim()) missing.push('Tx Plan problems addressed');
+        if (!staffName.trim()) missing.push('Staff name');
+        if (!staffCredentials.trim()) missing.push('Credentials');
+        if (!(formattedNote.trim() || rawText.trim())) missing.push('Narrative');
+        return missing;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [serviceDate, timeStarted, timeEnded, units, problemsAddressed, staffName, staffCredentials, formattedNote, rawText, initialId, selectedClientId]);
+    function targetOrEmpty() { return initialId || selectedClientId; }
 
     // ── The single source of truth for WHICH CHART this note lands on ───────────
     // When the dock is opened from a client header, `initialId` IS the target and
@@ -57,6 +92,11 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
         onDirtyChange?.(!!(rawText.trim() || formattedNote.trim()));
     }, [rawText, formattedNote, onDirtyChange]);
 
+    // Auth resolves async — backfill the staff name once it lands (never stomp an edit).
+    useEffect(() => {
+        if (user?.name) setStaffName(prev => prev || user.name);
+    }, [user?.name]);
+
     const handleAIFormat = async () => {
         if (!rawText.trim()) return;
         setIsProcessing(true);
@@ -72,11 +112,24 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
         }
     };
 
+    // Structured fields shared by draft-save and sign-submit.
+    const structuredOpts = () => ({
+        noteFormat,
+        serviceDate: serviceDate || undefined,
+        timeStarted: timeStarted || undefined,
+        timeEnded: timeEnded || undefined,
+        units: (() => { const u = parseInt(units, 10); return Number.isNaN(u) ? undefined : u; })(),
+        problemsAddressed: problemsAddressed.trim() || undefined,
+        staffName: staffName.trim() || undefined,
+        staffCredentials: staffCredentials.trim() || undefined,
+        therapistId: user?.id ? String(user.id) : undefined,
+    });
+
     const handleSave = async () => {
         if (!targetClientId) return;
         setIsSaving(true);
         try {
-            await saveClinicalNote(targetClientId, formattedNote || rawText, { noteFormat });
+            await saveClinicalNote(targetClientId, formattedNote || rawText, structuredOpts());
             onNoteGenerated(formattedNote || rawText);
         } catch (e) {
             alert("Error saving note");
@@ -92,10 +145,12 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
     // is no unsign affordance to fall back on if this is clicked by mistake.
     const handleSignAndSave = async () => {
         if (!targetClientId) return;
+        // L3 (David): required fields BLOCK submit — the sign is the submit.
+        if (missingRequired.length > 0) { setShowMissing(true); return; }
         if (!window.confirm('Sign this note now? Signed notes are permanent and cannot be edited or unsigned afterward.')) return;
         setIsSigning(true);
         try {
-            await saveClinicalNote(targetClientId, formattedNote || rawText, { noteFormat, isSigned: true });
+            await saveClinicalNote(targetClientId, formattedNote || rawText, { ...structuredOpts(), isSigned: true });
             onNoteGenerated(formattedNote || rawText);
         } catch (e) {
             alert("Error signing note");
@@ -168,6 +223,50 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
                 </div>
             </div>
 
+            {/* L3 required fields (David 7/15). Asterisked; the SIGN submit blocks
+                until every one is filled. Compact grid so the narrative keeps the
+                vertical space in a docked panel. */}
+            <div className="mb-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="col-span-1">
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1">Date <span className="text-rose-500">*</span></label>
+                    <input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)}
+                        className="w-full p-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+                <div className="col-span-1">
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1">Started <span className="text-rose-500">*</span></label>
+                    <input type="time" value={timeStarted} onChange={e => setTimeStarted(e.target.value)}
+                        className="w-full p-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+                <div className="col-span-1">
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1">Ended <span className="text-rose-500">*</span></label>
+                    <input type="time" value={timeEnded} onChange={e => setTimeEnded(e.target.value)}
+                        className="w-full p-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+                <div className="col-span-1">
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1">Units (1–12) <span className="text-rose-500">*</span></label>
+                    <input type="number" min={1} max={12} value={units} onChange={e => setUnits(e.target.value)}
+                        placeholder="e.g. 4"
+                        className="w-full p-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+                <div className="col-span-2 sm:col-span-4">
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1">Tx Plan problems addressed <span className="text-rose-500">*</span></label>
+                    <input type="text" value={problemsAddressed} onChange={e => setProblemsAddressed(e.target.value)}
+                        placeholder="Problem number(s) or a full sentence"
+                        className="w-full p-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1">Staff name <span className="text-rose-500">*</span></label>
+                    <input type="text" value={staffName} onChange={e => setStaffName(e.target.value)}
+                        className="w-full p-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1">Credentials <span className="text-rose-500">*</span></label>
+                    <input type="text" value={staffCredentials} onChange={e => setStaffCredentials(e.target.value)}
+                        placeholder="e.g. LPC, CRADC"
+                        className="w-full p-1.5 text-sm border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+            </div>
+
             {/* Body — single-column stack so it stays comfortable at narrow (docked)
                 width: Raw Input is the primary, always-ready typing surface; the AI
                 pane stacks below and is collapsible (never a 2-column squeeze). */}
@@ -175,7 +274,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
                 {/* Raw Input (primary) */}
                 <div className="flex flex-col flex-1 min-h-0">
                     <div className="flex justify-between items-center mb-2">
-                        <label className="text-xs font-bold uppercase text-gray-500 tracking-wider flex items-center gap-2"><FileText size={14}/> Raw Input</label>
+                        <label className="text-xs font-bold uppercase text-gray-500 tracking-wider flex items-center gap-2"><FileText size={14}/> Narrative <span className="text-rose-500">*</span></label>
                         {rawText && <button onClick={() => setRawText('')} title="Clear" className="text-xs text-gray-400 hover:text-red-500 transition"><Eraser size={14}/></button>}
                     </div>
                     <textarea
@@ -212,24 +311,33 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
             {/* Footer — Save persists an unsigned draft via saveClinicalNote (unchanged
                 path & formats). Sign & Save is a separate, deliberate action (confirm()
                 gated) that persists WITH isSigned: true — never the default. */}
-            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex flex-wrap justify-end gap-3 flex-shrink-0">
-                <button
-                    onClick={handleSave}
-                    disabled={isSaving || isSigning || (!formattedNote && !rawText)}
-                    className="flex-1 sm:flex-none justify-center bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 flex items-center gap-2 shadow-lg shadow-green-600/20 hover:shadow-green-600/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none"
-                >
-                    {isSaving ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle size={18} />}
-                    {isSaving ? 'Saving to Record...' : 'Save Note'}
-                </button>
-                <button
-                    onClick={handleSignAndSave}
-                    disabled={isSaving || isSigning || (!formattedNote && !rawText)}
-                    title="Sign this note — permanent, cannot be undone"
-                    className="flex-1 sm:flex-none justify-center bg-slate-900 dark:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold hover:bg-black dark:hover:bg-indigo-800 flex items-center gap-2 shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none"
-                >
-                    {isSigning ? <Loader2 className="animate-spin" size={18}/> : <FileSignature size={18} />}
-                    {isSigning ? 'Signing...' : 'Sign & Save'}
-                </button>
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex-shrink-0">
+                {/* L3: required-field gate — listed plainly when submit was blocked. */}
+                {showMissing && missingRequired.length > 0 && (
+                    <p className="mb-2 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                        The note isn't complete — required: {missingRequired.join(', ')}.
+                    </p>
+                )}
+                <div className="flex flex-wrap justify-end gap-3">
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving || isSigning || (!formattedNote && !rawText)}
+                        title="Saves an unsigned draft — the note is not complete until signed"
+                        className="flex-1 sm:flex-none justify-center bg-green-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-green-700 flex items-center gap-2 shadow-lg shadow-green-600/20 hover:shadow-green-600/40 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none"
+                    >
+                        {isSaving ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle size={18} />}
+                        {isSaving ? 'Saving to Record...' : 'Save Draft'}
+                    </button>
+                    <button
+                        onClick={handleSignAndSave}
+                        disabled={isSaving || isSigning}
+                        title={missingRequired.length > 0 ? `Required: ${missingRequired.join(', ')}` : 'Sign this note — permanent, cannot be undone'}
+                        className="flex-1 sm:flex-none justify-center bg-slate-900 dark:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold hover:bg-black dark:hover:bg-indigo-800 flex items-center gap-2 shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none"
+                    >
+                        {isSigning ? <Loader2 className="animate-spin" size={18}/> : <FileSignature size={18} />}
+                        {isSigning ? 'Signing...' : 'Sign & Submit'}
+                    </button>
+                </div>
             </div>
         </div>
     );

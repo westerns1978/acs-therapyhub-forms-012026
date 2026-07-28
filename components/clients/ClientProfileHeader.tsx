@@ -256,7 +256,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                     onClick={() => window.dispatchEvent(new CustomEvent('open-note-modal', { detail: { clientId: client.id } }))}
                     className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary-focus transition-colors shadow-card"
                 >
-                    <FilePlus size={15} /> Start note
+                    <FilePlus size={15} /> Start typed or dictated note
                 </button>
                 {/* Opens the existing ScheduleSessionModal pre-scoped to this client
                     (its preselectedClient prop → "Schedule Makeup for {name}"). */}
