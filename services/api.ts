@@ -17,6 +17,7 @@ import { parseTimeToMinutes } from '../config/time';
 import { generateWeeklyOccurrences } from './recurrence';
 import { logAudit } from './auditLog';
 import { maybeForceFail } from '../config/failureHarness';
+import { applyDemoFilter } from '../config/demoData';
 
 import {
     dbMessages, dbSropData, dbComplianceEvents,
@@ -216,7 +217,8 @@ export const callWestFlowOrchestrator = callMcpOrchestrator;
 export const getClients = async (
     opts?: { includeArchived?: boolean; status?: ClientStatus | 'all' },
 ): Promise<Client[]> => {
-    let query = supabase.from('clients').select('*');
+    // ONE shared demo filter (config/demoData) — see that module's docblock.
+    let query = applyDemoFilter(supabase.from('clients').select('*'));
     if (opts?.status) {
         if (opts.status !== 'all') query = query.eq('status', opts.status);
     } else if (!opts?.includeArchived) {
@@ -269,10 +271,10 @@ export interface ProspectRow {
  *  Reads payments (Director/Admin RLS), so surface this only to financial staff. */
 export const getProspects = async (): Promise<ProspectRow[]> => {
     maybeForceFail('getProspects');
-    const { data, error } = await supabase
+    const { data, error } = await applyDemoFilter(supabase
         .from('clients')
         .select('id, name, intake_interest, created_at')
-        .eq('status', 'prospect')
+        .eq('status', 'prospect'))
         .order('created_at', { ascending: false });
     if (error) {
         console.error('[api] getProspects failed:', error);

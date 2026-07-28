@@ -24,6 +24,7 @@ import { REQUIRED_HOURS_BY_LEVEL, type SatopLevel } from '../config/satopFees';
 import { REQUIRED_FORMS_BY_LEVEL } from '../config/formRegistry';
 import { normalizeProgram } from '../config/programVocab';
 import { maybeForceFail } from '../config/failureHarness';
+import { applyDemoFilter } from '../config/demoData';
 
 export type Primitive =
   | 'HOURS' | 'DEADLINE' | 'DOCUMENT' | 'SIGNATURE' | 'CONSTRAINT' | 'SEQUENCE' | 'CREDENTIAL';
@@ -467,11 +468,11 @@ async function fetchAllSignedForms(): Promise<Map<string, Set<string>>> {
  */
 export async function fetchComplianceGuardrails(): Promise<GuardrailVerdict[]> {
   maybeForceFail('fetchComplianceGuardrails');
-  const { data, error } = await supabase
+  const { data, error } = await applyDemoFilter(supabase
     .from('clients')
     .select('*')
     // Lowercase-only since the 20260611 CHECK constraint guarantees the vocabulary.
-    .not('status', 'in', '(completed,archived,prospect)');
+    .not('status', 'in', '(completed,archived,prospect)'));
   // Fail-visibly contract (2026-07-28): a failed query THROWS. Returning [] here made
   // the Dashboard render "No compliance flags." on RLS denial — a reassuring lie on a
   // compliance surface. Consumers own their error UI; none may catch back to empty.
@@ -541,11 +542,11 @@ export async function fetchComplianceReadiness(): Promise<ComplianceReadiness> {
     notEnforceable: [],
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await applyDemoFilter(supabase
     .from('clients')
     .select('*')
     // Lowercase-only since the 20260611 CHECK constraint guarantees the vocabulary.
-    .not('status', 'in', '(completed,archived,prospect)');
+    .not('status', 'in', '(completed,archived,prospect)'));
   // Fail-visibly contract (2026-07-28): THROW on failure. Returning the zeroed `base`
   // here rendered "No active flags — every enforceable rule is met." in green to the
   // Director when nothing was read. `base` is now only the accumulator for success.

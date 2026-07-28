@@ -12,6 +12,7 @@ import { buildGuardrailExplainPrompt, CLARA_AVATAR_URL } from '../services/clara
 import { Appointment } from '../types';
 import { Video, Calendar, AlertTriangle, ArrowUpRight, ShieldCheck, MessageSquare, UserPlus, Sparkles, RefreshCw } from 'lucide-react';
 import { maybeForceFail } from '../config/failureHarness';
+import { applyDemoFilter } from '../config/demoData';
 import { plural, pluralNoun, daysSince, waitingLabel } from '../config/format';
 import { programLabel } from '../config/programVocab';
 import { formatTime12 } from '../config/time';
@@ -180,7 +181,7 @@ const Dashboard: React.FC = () => {
                 if (isDirector) {
                     try {
                         maybeForceFail('dashboard active-count');
-                        const { count, error } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active');
+                        const { count, error } = await applyDemoFilter(supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active'));
                         if (error) throw new Error(error.message);
                         if (!cancelled) setMetrics({ activeClients: count ?? 0 });
                     } catch (e) {

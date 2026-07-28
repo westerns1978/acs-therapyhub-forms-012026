@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Eye, CheckCircle2, Clock, AlertTriangle, Search, RefreshCw, User, FileText, Calendar, Printer } from 'lucide-react';
 import { maybeForceFail } from '../../config/failureHarness';
 import { SubmissionViewer, RecordPrintRoot, printRecord } from '../forms/SubmissionViewer';
+import { showDemoRows } from '../../config/demoData';
 
 interface Submission {
   id: string;
@@ -73,15 +74,20 @@ const ClientSubmissionsPanel: React.FC = () => {
 
       const { data: clients, error: clientsError } = await supabase
         .from('clients')
-        .select('id, name');
+        .select('id, name, is_demo');
       if (clientsError) throw new Error(`Client names query failed: ${clientsError.message}`);
 
       const clientMap = new Map((clients || []).map(c => [c.id, c.name]));
+      // ONE shared demo policy (config/demoData): submissions belonging to a
+      // flagged demo client leave the queue with them unless ?demo=1.
+      const demoIds = new Set((clients || []).filter(c => (c as any).is_demo).map(c => c.id));
 
-      const enriched = (subs || []).map(s => ({
-        ...s,
-        client_name: clientMap.get(s.client_id) || 'Unknown Client'
-      }));
+      const enriched = (subs || [])
+        .filter(s => showDemoRows() || !demoIds.has(s.client_id))
+        .map(s => ({
+          ...s,
+          client_name: clientMap.get(s.client_id) || 'Unknown Client'
+        }));
 
       setSubmissions(enriched);
     } catch (err: any) {

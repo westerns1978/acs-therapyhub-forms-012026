@@ -16,6 +16,7 @@ import { supabase } from './supabase';
 import type { Client } from '../types';
 import { fetchAllClientProgress, type ClientProgress } from './displayProgress';
 import { maybeForceFail } from '../config/failureHarness';
+import { applyDemoFilter } from '../config/demoData';
 import { programLabel as canonicalProgramLabel } from '../config/programVocab';
 
 export type AlertTier = 'CRITICAL' | 'HIGH' | 'ELEVATED' | 'MODERATE';
@@ -216,10 +217,10 @@ export async function fetchAlerts(): Promise<ClientAlert[]> {
   // the live DB (values were always lowercase), so archived + completed
   // clients were silently alert-evaluated. Fixed; CHECK constraint now
   // guarantees this vocabulary.
-  const { data, error } = await supabase
+  const { data, error } = await applyDemoFilter(supabase
     .from('clients')
     .select('*')
-    .not('status', 'in', '(completed,archived)');
+    .not('status', 'in', '(completed,archived)'));
   if (error) throw new Error(`Alerts query failed: ${error.message}`);
   const rows = (data || []) as Client[];
   // WS-DisplayTruth: authoritative progress (accrual + signed determination) per client,
