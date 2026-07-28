@@ -7,15 +7,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client } from '../../types';
-// Fix: Correctly import addSessionRecord and addClientAssignment from the services API.
-import { addSessionRecord, addAppointment, addClientAssignment, saveClinicalNote } from '../../services/api';
-import { useAuth } from '../../contexts/AuthContext';
+import { addClientAssignment, saveClinicalNote } from '../../services/api';
 
 // Icons
 const CheckCircleIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
 const EditIcon = (props: React.ComponentProps<'svg'>) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const DollarSignIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
-const CalendarIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
 const ClipboardCheckIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>;
 
 
@@ -32,10 +28,13 @@ interface SessionWrapUpModalProps {
     appointmentId?: string | null;
 }
 
+// "Submit Charge" and "Schedule Next" FORMALLY CUT (David 7/15, confirmed 7/28).
+// They were the wizard's phantom writers: the charge step never billed anything
+// (addSessionRecord throws) and the schedule step force-booked a hardcoded
+// un-conflict-checked next-week slot. Charges live on the client's Fees tab;
+// booking lives in ScheduleSessionModal.
 const steps = [
     { title: 'Sign Note', icon: EditIcon },
-    { title: 'Submit Charge', icon: DollarSignIcon },
-    { title: 'Schedule Next', icon: CalendarIcon },
     { title: 'Assign Tasks', icon: ClipboardCheckIcon }
 ];
 
@@ -50,10 +49,6 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
     // "All post-session tasks are complete."
     const [stepWarnings, setStepWarnings] = useState<string[]>([]);
     const navigate = useNavigate();
-    // The clinician finishing the session is the counselor of record for the
-    // follow-up appointment — never a hardcoded name (the Green Room "Bill fix"
-    // class, applied here to the wrap-up's real addAppointment write).
-    const { user } = useAuth();
 
     const handleNext = async () => {
         if (currentStep === 0) { // After signing the note
@@ -74,40 +69,7 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                 setIsSavingNote(false);
             }
         }
-        if (currentStep === 1) { // After billing step
-            // addSessionRecord is NOT IMPLEMENTED and now throws (2026-07-28) — it used
-            // to be an empty body that let this wizard report a charge it never recorded.
-            // Surface the truth and continue; never claim the charge was submitted.
-            try {
-                await addSessionRecord({
-                    clientId: client.id,
-                    date: new Date(),
-                    type: 'Individual Session',
-                    duration: sessionDuration,
-                    rate: 150.00,
-                    status: 'Unpaid'
-                });
-            } catch (e) {
-                setStepWarnings(w => [...w, 'No charge was recorded — billing is not wired to this wizard. Record it on the client’s Billing tab.']);
-            }
-        }
-        if (currentStep === 2) { // After scheduling
-            const nextWeek = new Date();
-            nextWeek.setDate(nextWeek.getDate() + 7);
-            await addAppointment({
-                title: `Individual Counseling`,
-                clientName: client.name,
-                clientId: client.id,
-                date: nextWeek,
-                startTime: '10:00 AM',
-                endTime: '11:00 AM',
-                type: 'Individual Counseling',
-                modality: 'Virtual (Zoom)',
-                therapist: user?.name || 'Assigned Clinician',
-                status: 'Scheduled',
-            });
-        }
-        if (currentStep === 3) { // After assigning homework
+        if (currentStep === 1) { // After assigning homework
              if (homework.trim()) {
                 // addClientAssignment is NOT IMPLEMENTED and now throws (2026-07-28).
                 try {
@@ -148,33 +110,7 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                         </button>
                     </div>
                 );
-            case 1: // Submit Charge
-                return (
-                    <div className="text-center p-8 bg-surface rounded-lg border">
-                        <h3 className="font-semibold text-lg">Suggested Billing Code</h3>
-                        <p className="text-4xl font-bold text-primary my-2">90834</p>
-                        <p className="text-on-surface-secondary">Individual Psychotherapy, 45-52 minutes</p>
-                        <p className="mt-4 font-semibold">Charge Amount: $150.00</p>
-                    </div>
-                );
-            case 2: // Schedule Next
-                 return (
-                    // The five time-slot buttons that used to render here had NO onClick —
-                    // whichever one the clinician pressed, the writer below always booked a
-                    // hardcoded next-week 10:00–11:00 AM appointment. Removed rather than
-                    // wired: picking a real slot belongs in ScheduleSessionModal, which has
-                    // conflict detection. State plainly what this step will book.
-                    <div className="p-4 bg-surface rounded-lg border space-y-3">
-                        <h3 className="font-semibold text-lg text-center">Schedule Next Week's Session</h3>
-                        <p className="text-sm text-center text-on-surface-secondary">
-                            Continuing books a follow-up <b>one week from today, 10:00–11:00 AM</b>, Individual Counseling via Zoom, with you as the counselor of record.
-                        </p>
-                        <p className="text-xs text-center text-warning-700 dark:text-warning-300">
-                            This time is fixed and is not conflict-checked. To choose a time, skip this and book from the Calendar instead.
-                        </p>
-                    </div>
-                );
-            case 3: // Assign Homework
+            case 1: // Assign Homework
                 return (
                     <div className="space-y-4">
                         <label htmlFor="homework-input" className="font-semibold text-lg">Assign Client Task (Optional)</label>
@@ -189,7 +125,7 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                          <p className="text-xs text-warning-700 dark:text-warning-300">Client tasks are not implemented — anything entered here will NOT be saved and will NOT appear in the client’s portal.</p>
                     </div>
                 );
-            case 4: // Complete — reports what actually persisted, not a blanket success.
+            case 2: // Complete — reports what actually persisted, not a blanket success.
                 return (
                     <div className="text-center p-8">
                         <CheckCircleIcon className="w-20 h-20 text-green-500 mx-auto mb-4" />
@@ -242,9 +178,9 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                 </main>
                 <footer className="p-4 border-t border-border dark:border-slate-800 flex justify-end gap-3 flex-shrink-0">
                     <button onClick={onClose} className="px-4 py-2 text-sm bg-gray-200 dark:bg-slate-700 rounded-md hover:bg-gray-300 dark:hover:bg-slate-600">Cancel</button>
-                    {currentStep < 4 ? (
+                    {currentStep < 2 ? (
                         <button onClick={handleNext} disabled={(currentStep === 0 && !isSigned) || isSavingNote} className="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-primary-focus transition disabled:bg-gray-400">
-                            {isSavingNote ? 'Saving Note…' : currentStep === 3 ? 'Finish & Assign' : 'Save & Continue'}
+                            {isSavingNote ? 'Saving Note…' : currentStep === 1 ? 'Finish & Assign' : 'Save & Continue'}
                         </button>
                     ) : (
                         <button onClick={handleFinish} className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition">

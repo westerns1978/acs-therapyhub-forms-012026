@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client, Appointment, CLIENT_STATUS_LABELS, needsStatusReview } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
@@ -10,8 +10,9 @@ import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import ClientTypeBadge from './ClientTypeBadge';
-import { CalendarPlus, FilePlus, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock, Phone, Mail } from 'lucide-react';
-import { placeAndActivate } from '../../services/api';
+import GroupAssignmentModal from './GroupAssignmentModal';
+import { CalendarPlus, FilePlus, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock, Phone, Mail, UsersRound } from 'lucide-react';
+import { placeAndActivate, getCounselors } from '../../services/api';
 import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
 
 interface ClientProfileHeaderProps {
@@ -93,6 +94,19 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
   const showBookingGlance = lastBooked !== undefined || nextBooked !== undefined;
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // L4 (David 7/15): Primary Counselor in the header. Resolved from the tiny
+  // counselors roster; best-effort — no name renders while unset/unloadable
+  // (never a fabricated one).
+  const [primaryCounselorName, setPrimaryCounselorName] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (!client.primaryCounselorId) { setPrimaryCounselorName(null); return; }
+    getCounselors()
+      .then(list => { if (live) setPrimaryCounselorName(list.find(c => c.id === client.primaryCounselorId)?.name ?? null); })
+      .catch(() => { if (live) setPrimaryCounselorName(null); });
+    return () => { live = false; };
+  }, [client.primaryCounselorId]);
   // A live session writes a CLINICAL note — Director/Therapist only (not Admin/Jessica).
   // …and not while /session is trial-hidden, or "Start transcribed session"
   // would just bounce to the dashboard (see config/trialMode.ts).
@@ -104,6 +118,8 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
   const isProspect = client.status === 'prospect';
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  // L2: standing group assignment modal (Modal portals to body — no transform trap).
+  const [groupsModalOpen, setGroupsModalOpen] = useState(false);
   const handlePlaceActivate = async () => {
     setPlaceError(null);
     setPlacing(true);
@@ -171,6 +187,11 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                 <a href={`mailto:${client.email}`} className="flex items-center gap-1.5 normal-case tracking-normal font-medium text-slate-500 hover:text-primary transition-colors">
                   <Mail size={13} className="shrink-0" /> {client.email}
                 </a>
+              )}
+              {primaryCounselorName && (
+                <span className="flex items-center gap-1.5 normal-case tracking-normal font-medium text-slate-500" title="Primary Counselor">
+                  <UserCheck size={13} className="shrink-0" /> {primaryCounselorName}
+                </span>
               )}
           </div>
 
@@ -256,7 +277,7 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                     onClick={() => window.dispatchEvent(new CustomEvent('open-note-modal', { detail: { clientId: client.id } }))}
                     className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary-focus transition-colors shadow-card"
                 >
-                    <FilePlus size={15} /> Start note
+                    <FilePlus size={15} /> Start typed or dictated note
                 </button>
                 {/* Opens the existing ScheduleSessionModal pre-scoped to this client
                     (its preselectedClient prop → "Schedule Makeup for {name}"). */}
@@ -265,6 +286,13 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                     className="flex items-center gap-2 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 >
                     <CalendarPlus size={15} /> Schedule
+                </button>
+                {/* L2: standing group assignment — multi-select, start date, no end date. */}
+                <button
+                    onClick={() => setGroupsModalOpen(true)}
+                    className="flex items-center gap-2 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                >
+                    <UsersRound size={15} /> Groups
                 </button>
                 {/* Opens EditClientModal owned by MainLayout. Available to all
                     roles; the modal itself locks clinical fields for Admin. */}
@@ -302,6 +330,8 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
         </div>
       </div>
 
+      {/* L2: standing group assignment — open groups, start date, no end date. */}
+      <GroupAssignmentModal isOpen={groupsModalOpen} onClose={() => setGroupsModalOpen(false)} client={client} />
     </div>
   );
 };

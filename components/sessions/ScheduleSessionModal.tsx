@@ -9,6 +9,8 @@ import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { programLabel } from '../../config/programVocab';
+import { serviceTypeLabel } from '../../config/serviceType';
+import ClientTypeAhead from '../ui/ClientTypeAhead';
 import { useAuth } from '../../contexts/AuthContext';
 import { MapPin, AlertTriangle, Loader2, Repeat } from 'lucide-react';
 
@@ -59,7 +61,9 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
     // "In person" (David 7/7): every booking carries the checkbox; checked skips the
     // ad-hoc Zoom mint and stores modality 'In-Person'.
     const [inPerson, setInPerson] = useState(false);
-    const [selectedClientId, setSelectedClientId] = useState<string | undefined>(clients[0]?.id);
+    // L1 type-ahead: NO silent first-client default — staff must pick a client
+    // (David's Bookings-demo model; the old <select> quietly preselected row one).
+    const [selectedClientId, setSelectedClientId] = useState<string | undefined>(undefined);
 
     // Booking-dropdown TYPE funnel (status → type). The clients passed in are already
     // status-scoped (active/completed) by getClients; this narrows by operational client_type.
@@ -107,11 +111,11 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
             setSelectedClientId(preselectedClient.id);
         } else if (!prefillCounselorName) {
             setSessionTypeId(SESSION_TYPES[0].id);
-            setSelectedClientId(clients[0]?.id);
+            setSelectedClientId(undefined);
         } else {
             // Slot-click flow: the mount-time initializer already chose a session type this
             // counselor qualifies for — don't stomp it back to the vanilla default.
-            setSelectedClientId(clients[0]?.id);
+            setSelectedClientId(undefined);
         }
     }, [preselectedClient, clients, prefillCounselorName]);
 
@@ -235,6 +239,11 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
         setSaveError(null);
         // Warn-and-allow: a real overlap blocks submit until staff explicitly override.
         if (blockedByConflicts) return;
+        // Type-ahead has no silent default — a 1:1 booking must name its client.
+        if (!isGroup && !selectedClientId) {
+            setSaveError('Choose a client — start typing a name to search.');
+            return;
+        }
         setIsSaving(true);
         try {
         const client = clients.find(p => p.id === selectedClientId);
@@ -440,7 +449,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                         {/* WS6: optional standing group — inherits the counselor's permanent
                             Zoom room + auto-categorizes hours. "Ad-hoc" keeps the unchanged path. */}
                         <div>
-                            <label htmlFor="group" className="block text-sm font-medium mb-1">Standing group <span className="text-slate-400 font-normal">(optional)</span></label>
+                            <label htmlFor="group" className="block text-sm font-medium mb-1">Group <span className="text-slate-400 font-normal">(optional)</span></label>
                             <select id="group" value={selectedGroupId ?? ''} onChange={e => setSelectedGroupId(e.target.value || undefined)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
                                 <option value="">— Ad-hoc session (no group) —</option>
                                 {groups.map(g => (
@@ -451,7 +460,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                             </select>
                             {selectedGroupObj && (
                                 <p className="mt-1 text-xs text-slate-500">
-                                    Inherits <b>{selectedGroupObj.counselor_name ?? 'counselor'}</b>'s permanent Zoom room · category <b>{selectedGroupObj.service_type}</b>{selectedGroupObj.counselor_zoom_link ? '' : ' · (no link on counselor)'}
+                                    Inherits <b>{selectedGroupObj.counselor_name ?? 'counselor'}</b>'s permanent Zoom room · category <b>{serviceTypeLabel(selectedGroupObj.service_type)}</b>{selectedGroupObj.counselor_zoom_link ? '' : ' · (no link on counselor)'}
                                 </p>
                             )}
                         </div>
@@ -469,9 +478,15 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 )}
                                 <div>
                                     <label htmlFor="client" className="block text-sm font-medium mb-1">Client</label>
-                                    <select id="client" value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md" disabled={!!preselectedClient}>
-                                        {visibleClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
+                                    {/* L1: type-ahead search (David's Bookings demo) — filters as
+                                        letters are typed, populates email + phone on select. */}
+                                    <ClientTypeAhead
+                                        id="client"
+                                        clients={visibleClients}
+                                        value={selectedClientId}
+                                        onChange={setSelectedClientId}
+                                        disabled={!!preselectedClient}
+                                    />
                                 </div>
                             </div>
                         )}
@@ -579,7 +594,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 {qualifiedCounselors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                             {selectedGroupObj ? (
-                                <p className="mt-1 text-xs text-slate-500">Pinned to the standing group's counselor.</p>
+                                <p className="mt-1 text-xs text-slate-500">Pinned to the group's counselor.</p>
                             ) : qualifiedNames === null ? (
                                 <p className="mt-1 text-xs text-slate-500">No roster defined for Group sessions — full roster shown (open item for David).</p>
                             ) : null}

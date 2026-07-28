@@ -110,12 +110,21 @@ interface UnitsInfo { units: number; grainMinutes: number; minutes: number | nul
 
 // Same two-axis gate as everywhere: SATOP-family program × configured service_type grain.
 // Non-SATOP / null / prospect → grain null → returns null → nothing renders.
-const computeUnits = (a: Appointment, program?: string): UnitsInfo | null => {
-  const grain = unitGrainFor(program, a.serviceType);
-  if (!grain) return null;
+// L4 (David 7/15): units are "pulled from the note" — a note's staff-entered units
+// (clinical_notes.units, L3) outrank the appointment's billableUnits; both are
+// asserted (a clinician dictated them), the schedule-derived count stays a suggestion.
+const computeUnits = (a: Appointment, program?: string, noteUnits?: number | null): UnitsInfo | null => {
   const s = parseHHMM(a.startTime), e = parseHHMM(a.endTime);
   const minutes = s !== null && e !== null && e > s ? e - s : null;
-  const grainMinutes = grain.unitMinutes as number;
+  // Staff-entered note units are an ASSERTED clinical fact and always display —
+  // regardless of the billing-grain config (grainMinutes 0 = no grain to cite).
+  // The grain gate below still governs SUGGESTED (computed) counts only.
+  const grain = unitGrainFor(program, a.serviceType);
+  const grainMinutes = (grain?.unitMinutes as number | undefined) ?? 0;
+  if (typeof noteUnits === 'number') {
+    return { units: noteUnits, grainMinutes, minutes, asserted: true };
+  }
+  if (!grain) return null;
   if (typeof a.billableUnits === 'number') {
     return { units: a.billableUnits, grainMinutes, minutes, asserted: true };
   }
@@ -143,9 +152,13 @@ const UnitsBadge: React.FC<{ info: UnitsInfo; variant: 'hero' | 'compact' }> = (
       </span>
     );
   }
-  const support = asserted
-    ? `${grainMinutes} min each · ${units * grainMinutes} min`
-    : `${grainMinutes} min each${minutes != null ? ` · ${minutes} min scheduled` : ''}`;
+  // grainMinutes 0 = note-asserted units with no configured billing grain — cite
+  // nothing rather than fabricate a minutes-per-unit figure.
+  const support = grainMinutes === 0
+    ? 'from the note'
+    : asserted
+        ? `${grainMinutes} min each · ${units * grainMinutes} min`
+        : `${grainMinutes} min each${minutes != null ? ` · ${minutes} min scheduled` : ''}`;
   return (
     <div
       className={`rounded-2xl px-5 py-4 flex items-center gap-4 ${
@@ -175,7 +188,7 @@ const UnitsBadge: React.FC<{ info: UnitsInfo; variant: 'hero' | 'compact' }> = (
 const AppointmentDetail: React.FC<{ item: SessionItem; program?: string }> = ({ item, program }) => {
   const a = item.appt!;
   const dur = derivedDuration(a);
-  const unitsInfo = computeUnits(a, program);
+  const unitsInfo = computeUnits(a, program, item.note?.units);
   const sessionLabel = sessionTypeById(a.sessionTypeId)?.label;
   const isGroup = !!a.groupId || item.note?.note_type === 'Group Session';
   const serviceParts = [a.serviceType, sessionLabel].filter(Boolean) as string[];
@@ -238,7 +251,7 @@ const ClientSessionsTab: React.FC<{ client: Client }> = ({ client }) => {
           getClientAppointments(client.id),
           supabase
             .from('clinical_notes')
-            .select('id, note_type, subjective, objective, assessment, plan, is_signed, created_at, appointment_id, therapist_id')
+            .select('id, note_type, subjective, objective, assessment, plan, is_signed, created_at, appointment_id, therapist_id, narrative, service_date, time_started, time_ended, units, problems_addressed, staff_name, staff_credentials, signed_at, signed_by_name')
             .eq('client_id', client.id)
             .order('created_at', { ascending: false }),
         ]);
@@ -327,7 +340,7 @@ const ClientSessionsTab: React.FC<{ client: Client }> = ({ client }) => {
               <div className="text-right shrink-0 flex flex-col items-end gap-1">
                 <p className="text-xs font-bold text-surface-secondary dark:text-dark-surface-secondary">{it.date.getTime() ? it.date.toLocaleDateString() : '—'}</p>
                 {it.kind === 'appointment' && it.appt && (() => {
-                  const info = computeUnits(it.appt, client.program);
+                  const info = computeUnits(it.appt, client.program, it.note?.units);
                   return info ? <UnitsBadge info={info} variant="compact" /> : null;
                 })()}
                 {it.kind === 'appointment' && it.hasNote && (

@@ -234,7 +234,7 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                     {step === 3 && (
                         <div className="space-y-6 animate-slide-in-up">
                             <h3 className="font-semibold text-lg flex items-center gap-2 text-slate-800 dark:text-slate-200 border-b pb-2 border-slate-100 dark:border-slate-800">
-                                <CreditCard className="text-primary" size={20}/> Billing Setup
+                                <CreditCard className="text-primary" size={20}/> Fee Setup
                             </h3>
                             <div className="space-y-1">
                                 <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Payment Source</label>

@@ -57,6 +57,13 @@ const TreatmentPlanTab: React.FC<TreatmentPlanTabProps> = ({ client }) => {
         }));
     };
 
+    // L5 (David 7/15): versioned UPDATE — prior plan preserved exactly as signed.
+    const openUpdateModal = (plan: TreatmentPlan) => {
+        window.dispatchEvent(new CustomEvent('open-treatment-plan-modal', {
+            detail: { mode: { kind: 'update-plan', plan } },
+        }));
+    };
+
     const handleArchive = async (plan: TreatmentPlan) => {
         if (!window.confirm(`Archive "${plan.title}"? You can start a new plan afterwards.`)) return;
         try {
@@ -82,7 +89,7 @@ const TreatmentPlanTab: React.FC<TreatmentPlanTabProps> = ({ client }) => {
     return (
         <div className="space-y-6 animate-fade-in-up">
             {activePlan ? (
-                <ActivePlanCard plan={activePlan} onEdit={() => openEditModal(activePlan)} onArchive={() => handleArchive(activePlan)} onNewPlan={openTemplateLibrary} />
+                <ActivePlanCard plan={activePlan} onEdit={() => openEditModal(activePlan)} onUpdate={() => openUpdateModal(activePlan)} onArchive={() => handleArchive(activePlan)} onNewPlan={openTemplateLibrary} />
             ) : (
                 <EmptyState onStart={openTemplateLibrary} />
             )}
@@ -110,9 +117,10 @@ const TreatmentPlanTab: React.FC<TreatmentPlanTabProps> = ({ client }) => {
 const ActivePlanCard: React.FC<{
     plan: TreatmentPlan;
     onEdit: () => void;
+    onUpdate: () => void;
     onArchive: () => void;
     onNewPlan: () => void;
-}> = ({ plan, onEdit, onArchive, onNewPlan }) => {
+}> = ({ plan, onEdit, onUpdate, onArchive, onNewPlan }) => {
     // Defensive on EVERY array read: fixture/anchor plans carry content '{}' and a
     // malformed real plan could lack any of these — `.length` on undefined was a
     // live error-boundary crash (Brandon Hale). Empty is rendered honestly below,
@@ -137,11 +145,22 @@ const ActivePlanCard: React.FC<{
                 </div>
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">{plan.title}</h2>
                 <p className="text-[11px] text-slate-400 mt-1">
-                    Applied {new Date(plan.createdAt).toLocaleDateString()}
+                    {plan.supersedesPlanId
+                        ? `Updated ${plan.updateDate ? new Date(plan.updateDate + 'T00:00:00').toLocaleDateString() : new Date(plan.createdAt).toLocaleDateString()}`
+                        : `Applied ${new Date(plan.createdAt).toLocaleDateString()}`}
+                    {plan.createdByName && ` · by ${plan.createdByName}`}
                     {plan.updatedAt !== plan.createdAt && ` · last edited ${new Date(plan.updatedAt).toLocaleDateString()}`}
                 </p>
+                {plan.progressComments && (
+                    <p className="text-xs text-slate-500 mt-2 max-w-xl whitespace-pre-wrap">
+                        <span className="font-bold text-slate-600 dark:text-slate-300">Progress: </span>{plan.progressComments}
+                    </p>
+                )}
             </div>
             <div className="flex flex-wrap gap-2">
+                <button onClick={onUpdate} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 shadow-sm transition-all" title="Versioned update — prior plan preserved exactly as signed">
+                    <FileText size={12} /> Update plan
+                </button>
                 <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
                     <Pencil size={12} /> Edit
                 </button>
@@ -252,6 +271,8 @@ const HistoryRow: React.FC<{
                     <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{plan.title}</p>
                     <p className="text-[10px] text-slate-400 uppercase tracking-widest">
                         {plan.category} · {new Date(plan.createdAt).toLocaleDateString()}
+                        {plan.createdByName && ` · ${plan.createdByName}`}
+                        {plan.clinicianSignature && ' · signed ×2'}
                     </p>
                 </div>
             </div>
@@ -273,6 +294,13 @@ const HistoryRow: React.FC<{
                 ))}
                 {plan.notes && (
                     <p className="text-xs text-slate-500 italic mt-2">Notes: {plan.notes}</p>
+                )}
+                {plan.clinicianSignature && (
+                    <p className="text-[11px] text-slate-400 mt-2">
+                        Signed: {plan.clinicianSignature} (clinician) · {plan.clientSignature} (client)
+                        {plan.signedAt && ` · ${new Date(plan.signedAt).toLocaleDateString()}`}
+                        {' '}— preserved exactly as originally signed.
+                    </p>
                 )}
             </div>
         )}

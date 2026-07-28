@@ -182,7 +182,7 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                         .order('payment_date', { ascending: false }),
                     supabase
                         .from('clinical_notes')
-                        .select('id, note_type, subjective, objective, assessment, plan, is_signed, created_at, therapist_id')
+                        .select('id, note_type, subjective, objective, assessment, plan, is_signed, created_at, therapist_id, narrative, service_date, time_started, time_ended, units, problems_addressed, staff_name, staff_credentials, signed_at, signed_by_name')
                         .eq('client_id', client.id)
                         .order('created_at', { ascending: false }),
                     supabase

@@ -350,7 +350,7 @@ const PortalDashboard: React.FC = () => {
                      <ActionCard icon={BarChart} title="Program Compliance" description="Check your SATOP progression requirements." onClick={() => navigate('/portal/compliance')} />
                      <ActionCard icon={Calendar} title="Session Schedule" description="Manage your virtual and in-person sessions." onClick={() => navigate('/portal/appointments')} />
                      <ActionCard icon={FileText} title="Document Vault" description="E-sign pending forms and review records." onClick={() => navigate('/portal/documents')} />
-                     <ActionCard icon={DollarSign} title="Financial Wallet" description="Manage payments and session ledger." onClick={() => navigate('/portal/billing')} />
+                     <ActionCard icon={DollarSign} title="Fees & Payments" description="Manage payments and session ledger." onClick={() => navigate('/portal/billing')} />
                      {/* "Ask Clara" card removed 2026-07-27 with the portal Clara unmount
                          (see layouts/PortalLayout.tsx). It reached her by clicking the
                          floating launcher via aria-label; with that button gone the

@@ -20,7 +20,7 @@ const PortalHeader: React.FC = () => {
         { name: 'Dashboard', path: '/portal/dashboard', icon: Home },
         { name: 'My Forms', path: '/portal/documents', icon: FileText },
         { name: 'Appointments', path: '/portal/appointments', icon: Calendar },
-        { name: 'Billing', path: '/portal/billing', icon: CreditCard },
+        { name: 'Fees', path: '/portal/billing', icon: CreditCard },
         { name: 'My Progress', path: '/portal/compliance', icon: BarChart },
     ];
 

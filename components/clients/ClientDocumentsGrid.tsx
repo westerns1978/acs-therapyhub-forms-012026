@@ -16,6 +16,13 @@ interface ClientDocumentsGridProps {
    * Capture menu — nothing enters uncategorized. Owned by ClientWorkspace (P2).
    */
   onCapture?: (file: File) => void;
+  /**
+   * L4 (David 7/15): pin this grid to one record category — the "Admin Documents"
+   * and "Clinical Documents" tabs each mount one locked grid. Hides the segmented
+   * filter. UNMAPPED document types stay visible under BOTH tabs (labeled
+   * Uncategorized) — never hidden by the split.
+   */
+  categoryLock?: RecordCategory;
 }
 
 // The segmented Admin/Clinical filter. 'All' shows everything (including unmapped).
@@ -118,7 +125,7 @@ const DocumentGridCard: React.FC<{ document: DocumentFile; onClick: () => void }
   );
 };
 
-const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initialDocuments, onCapture }) => {
+const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initialDocuments, onCapture, categoryLock }) => {
   const [documents, setDocuments] = useState<DocumentFile[]>(initialDocuments || []);
   const [filter, setFilter] = useState<RecordFilter>('All');
   const [selectedDocument, setSelectedDocument] = useState<DocumentFile | null>(null);
@@ -165,10 +172,15 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
     return m;
   }, [docs]);
 
-  const filteredDocuments = useMemo(
-    () => (filter === 'All' ? docs : docs.filter(d => recordCategoryOf(d.documentTypeRaw) === filter)),
-    [docs, filter],
-  );
+  const filteredDocuments = useMemo(() => {
+    // Tab-locked mode: this grid IS the Admin or Clinical tab. Unmapped types
+    // (recordCategoryOf → null) render in both tabs so the split never hides a file.
+    if (categoryLock) return docs.filter(d => {
+      const c = recordCategoryOf(d.documentTypeRaw);
+      return c === categoryLock || c === null;
+    });
+    return filter === 'All' ? docs : docs.filter(d => recordCategoryOf(d.documentTypeRaw) === filter);
+  }, [docs, filter, categoryLock]);
 
   // Group the (filtered) docs by category for the file-cabinet layout.
   const groups = useMemo(() => {
@@ -186,8 +198,10 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
             Storage: {uplinkStatus === 'connected' ? 'Connected' : 'Offline'} • {docs.length} file{docs.length === 1 ? '' : 's'}
           </p>
         </div>
-        {/* Segmented Admin / Clinical filter (P2). Fine-grained document_type stays
-            visible as the per-row chip, so nothing is lost. */}
+        {/* Segmented Admin / Clinical filter (P2) — hidden when the grid is
+            tab-locked (L4: the workspace tabs ARE the filter). Fine-grained
+            document_type stays visible as the per-row chip, so nothing is lost. */}
+        {!categoryLock && (
         <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800 p-0.5" role="tablist" aria-label="Filter records by category">
           {(['All', ...RECORD_CATEGORY_ORDER] as RecordFilter[]).map(key => {
             const active = filter === key;
@@ -206,6 +220,7 @@ const ClientDocumentsGrid: React.FC<ClientDocumentsGridProps> = ({ client, initi
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Upload ingestion node — a secondary affordance; the drop routes through the

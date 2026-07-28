@@ -72,11 +72,36 @@ would have implied it was safe to expose. It is not.
 
 ## NEXT
 
-- **Native Standard Means Test (MO 650-0216) — STAFF console, not client intake.** David 7/21:
-  too complex to hand a client; staff will run it. Auto pay-period conversion → total →
-  rate-table lookup → certification e-signature → structured determination flowing to billing,
-  Notice of Cost (MO 650-0215), completion cert (MO 650-7743).
-  Design: `docs/design/means-test-native-direction.html`
+- **MRT accrual rule — CONFIRMED BY INFERENCE, pending David's verbal confirmation (touches
+  hours).** Rule in force since 2026-07-28 (config/groupNote.ts): MRT is a modality label, not
+  an accrual category — MRT Group Education accrues as `education`, MRT Group Counseling as
+  `counseling`; the MRT prefix never changes accrual. Inferred from David's own 7/15 four-type
+  note spec (Group Ed / Group Cns / MRT Group Ed / MRT Group Cns) + Deb's MRT groups carrying
+  no Ed/Cns designation in the schedule. Get David's verbal yes and delete this bullet.
+
+- **Plan-review clock: PROPOSED DEFAULT = an explicit REVIEW EVENT (Dan's recommendation, 7/28 —
+  pending David's verbal; DO NOT BUILD YET).** Today the 90/180-day review clock anchors on a
+  treatment-plan row's `created_at`, so *writing a plan* is what discharges a *review* obligation.
+  The unsigned half of that was a defect and is already fixed (an unsigned post-2026-07-28 plan can
+  no longer re-anchor — see `canAnchorReviewClock`, complianceEngine). What remains is the policy
+  question: should a SIGNED plan update reset the clock?
+
+  **Recommendation: no — record the review as its own act.** 9 CSR requires a plan **REVIEW**, not a
+  plan **REVISION**. A counselor can review a plan and correctly conclude nothing needs changing;
+  that is a valid, complete review and should reset the clock. Anchoring on plan writes forces that
+  counselor to fabricate an edit in order to record that they did their job — backwards, and it
+  trains staff to make meaningless clinical changes to satisfy a timer.
+
+  **Shape when built:** a "Conduct plan review" action stamping reviewer + date (+ optional outcome
+  note) into its own store, whether or not the plan changes; the deadline rule anchors on the last
+  review event; **no plan write ever moves the clock**. Rejected alternative (option 1): anchor on
+  signed updates only — cheaper, but it conflates review with revision and keeps the
+  fabricate-an-edit incentive.
+
+- ~~Native Standard Means Test~~ **KILLED by David 7/28**: "leave it alone, that's a nightmare,
+  we'll do that for them." ACS runs the means test manually; the app must not build it. The
+  design doc (`docs/design/means-test-native-direction.html`) was deleted the same day. Do not
+  resurrect without a new, explicit David ask.
 
 - **Client messaging / delivery layer (Twilio SMS candidate).** David 7/21 named "verify
   communication — ensure all communications reached the target recipient and processed

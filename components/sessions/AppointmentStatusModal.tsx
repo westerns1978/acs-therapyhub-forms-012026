@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Appointment, AppointmentStatus, ServiceType, Client } from '../../types';
-import { getLastAppointment, getNextAppointment, getTherapistAppointments, getCounselors } from '../../services/api';
-import type { Counselor } from '../../services/api';
+import { getLastAppointment, getNextAppointment, getTherapistAppointments, getCounselors, getRescheduleTrail } from '../../services/api';
+import type { Counselor, RescheduleTrailRow } from '../../services/api';
 import { qualifiedCounselorsFor } from '../../config/sessionTaxonomy';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
 import { unitGrainFor, suggestedUnits } from '../../config/billableUnits';
+import { serviceTypeLabelWithAbbrev } from '../../config/serviceType';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { detectOverlaps } from '../../services/recurrence';
 import Modal from '../ui/Modal';
-import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft, Phone, Mail, Repeat, Save, Loader2, CalendarClock } from 'lucide-react';
+import { Clock, Video, MapPin, CheckCircle2, UserX, Ban, RotateCcw, Trash2, Play, AlertTriangle, DollarSign, HeartHandshake, ArrowLeft, Phone, Mail, Repeat, Save, Loader2, CalendarClock, PhoneOff } from 'lucide-react';
 
 /** The fee decision the cancel flow hands back to its parent. Outside the 24h window it's
  *  always { fee: 'none' }; inside, staff choose to assess or waive (with a logged reason). */
@@ -99,6 +100,15 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     const [rescheduleCounselorId, setRescheduleCounselorId] = useState<string | undefined>(undefined);
     const [counselors, setCounselors] = useState<Counselor[]>([]);
     useEffect(() => { if (isOpen && onReschedule) getCounselors().then(setCounselors).catch(() => setCounselors([])); }, [isOpen, onReschedule]);
+    // L1b: the reschedule trail — a session has a lifespan (David 7/28). Loaded per
+    // appointment; empty for never-moved sessions (the common case).
+    const [trail, setTrail] = useState<RescheduleTrailRow[]>([]);
+    useEffect(() => {
+        setTrail([]);
+        if (isOpen && appointment?.id) {
+            getRescheduleTrail(appointment.id).then(setTrail).catch(() => setTrail([]));
+        }
+    }, [isOpen, appointment?.id, appointment?.startTime]);
     useEffect(() => {
         setServiceType((appointment?.serviceType as ServiceType) ?? '');
         setCancelPanel(false); setWaiveOpen(false); setWaiveReason('');
@@ -493,6 +503,31 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                             </div>
                         )}
 
+                        {/* L1b: SESSION HISTORY — the reschedule trail. A session has a
+                            lifespan (David 7/28): original date/time + every move, in order.
+                            A reschedule is a continuation, unlike No Show / NCNS / Cancel. */}
+                        {trail.length > 0 && (
+                            <div className="rounded-xl border border-sky-200 dark:border-sky-800/50 bg-sky-50/60 dark:bg-sky-900/10 p-3">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-300 mb-2 flex items-center gap-1.5">
+                                    <CalendarClock size={12} /> Session history — rescheduled {trail.length}×
+                                </p>
+                                <ol className="space-y-1.5">
+                                    <li className="text-xs text-slate-600 dark:text-slate-300">
+                                        <span className="font-bold">Originally:</span>{' '}
+                                        {new Date(trail[0].fromStart).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                    </li>
+                                    {trail.map(t => (
+                                        <li key={t.id} className="text-xs text-slate-600 dark:text-slate-300">
+                                            <span className="font-bold">Moved</span>{' '}
+                                            {new Date(t.movedAt).toLocaleDateString()} →{' '}
+                                            {new Date(t.toStart).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                            {t.reason ? <span className="text-slate-400"> · {t.reason}</span> : null}
+                                        </li>
+                                    ))}
+                                </ol>
+                            </div>
+                        )}
+
                         {appointment.clientId && onStartSession && (
                             <button
                                 type="button"
@@ -512,9 +547,9 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-100"
                             >
                                 <option value="">Select category…</option>
-                                <option value="counseling">Counseling (individual + group)</option>
-                                <option value="education">Education</option>
-                                <option value="rehabilitative_support">Group rehabilitative support</option>
+                                <option value="counseling">{serviceTypeLabelWithAbbrev('counseling')} — individual + group</option>
+                                <option value="education">{serviceTypeLabelWithAbbrev('education')}</option>
+                                <option value="rehabilitative_support">{serviceTypeLabelWithAbbrev('rehabilitative_support')}</option>
                                 <option value="other">Other (non-program — does not accrue)</option>
                             </select>
                         </div>
@@ -552,6 +587,9 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                 <CheckCircle2 size={16} /> {appointment.status === 'Completed' ? 'Completed (current)' : 'Mark Completed'}
                             </button>
                             <StatusAction status="No Show" label="Mark No-Show" icon={UserX} className="bg-amber-500 hover:bg-amber-600 text-white" />
+                            {/* L1 (David 7/28): NCNS is a distinct, worse outcome than a
+                                no-show (no notice at all) — its own action + rose styling. */}
+                            <StatusAction status="No Call No Show" label="Mark No Call / No Show" icon={PhoneOff} className="bg-rose-600 hover:bg-rose-700 text-white" />
                             <button
                                 type="button"
                                 onClick={handleCancelClick}

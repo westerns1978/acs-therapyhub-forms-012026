@@ -8,6 +8,8 @@ import ClientProfileHeader from '../components/clients/ClientProfileHeader';
 import ClientDocumentsGrid from '../components/clients/ClientDocumentsGrid';
 import ClientOverviewTab from '../components/clients/ClientOverviewTab';
 import ClientFormsTab from '../components/clients/ClientFormsTab';
+import { formRecordCategoryOf } from '../config/formRecordCategory';
+import type { RecordCategory } from '../config/recordCategory';
 import TreatmentPlanTab from '../components/clients/TreatmentPlanTab';
 import ClientSessionsTab from '../components/clients/ClientSessionsTab';
 import StaffDocumentUpload from '../components/documents/StaffDocumentUpload';
@@ -363,16 +365,20 @@ const ClientWorkspace: React.FC = () => {
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: ShieldCheck },
-        // Records = the former Documents + Forms tabs merged at the view layer. A form is a
-        // document; two tabs for one concept was two places to look. Holds the old Documents
-        // position. The underlying facts stay two lanes (SIGNATURE vs DOCUMENT) — see DEFERRED #17.
-        { id: 'records', label: 'Records', icon: FileText },
+        // L4 (David 7/15): the record surface is split into the two tabs David named —
+        // "Admin Documents" and "Clinical Documents". Forms route via
+        // config/formRecordCategory.ts, uploads via config/recordCategory.ts; unmapped
+        // items render in BOTH tabs (never hidden). The underlying facts stay two
+        // lanes (SIGNATURE vs DOCUMENT) — see DEFERRED #17.
+        { id: 'admin-docs', label: 'Admin Documents', icon: FileText },
+        { id: 'clinical-docs', label: 'Clinical Documents', icon: FileText },
         { id: 'sessions', label: 'Services', icon: Video },
         // Assessment (placement engine) — all staff (is_staff), mirrors assessment_inputs RLS.
         ...(canAssess ? [{ id: 'assessment', label: 'Assessment', icon: Gauge }] : []),
-        // Billing is a staff surface — all staff (is_staff: Director/Therapist/Admin), mirrors the
-        // wsrp_2 payments/charges RLS. A Client never sees it.
-        ...(canRecordPayment ? [{ id: 'billing', label: 'Billing', icon: CreditCard }] : []),
+        // Fees = CLIENT money (David 7/28: "billing" is reserved for billing THE STATE).
+        // Staff surface — all staff (is_staff: Director/Therapist/Admin), mirrors the
+        // wsrp_2 payments/charges RLS. A Client never sees it. Tab id stays 'billing'.
+        ...(canRecordPayment ? [{ id: 'billing', label: 'Fees', icon: CreditCard }] : []),
         // Treatment Plan is clinical surface — hidden from Admin (Jess).
         ...(canSeeClinical ? [{ id: 'treatment-plan', label: 'Treatment Plan', icon: Target }] : []),
         ...(TRIAL_HIDE_CLIENT_SCHEDULING_TAB ? [] : [{ id: 'scheduling', label: 'Scheduling', icon: Zap }]),
@@ -392,17 +398,25 @@ const ClientWorkspace: React.FC = () => {
                 // to the overview while the trial flag is on.
                 if (TRIAL_HIDE_CLIENT_SCHEDULING_TAB) return null;
                 return <DispatcherChat clientId={client.id} clientName={client.name} supabase={supabase as any} onAppointmentChanged={() => loadClientData(clientId)} />;
-            case 'records':
-                // Surface merge only: the two existing components are reused verbatim, stacked
-                // under plain section headings. No merged list, no shared facts — Forms reads
-                // form_submissions (SIGNATURE), Uploaded documents reads uploaded_files (DOCUMENT).
+            case 'records':      // legacy persisted-state id → land on Admin Documents
+            case 'admin-docs':
+            case 'clinical-docs': {
+                // L4 split (David 7/15): each tab = the SAME two stacked lanes (Forms =
+                // form_submissions/SIGNATURE, Uploads = uploaded_files/DOCUMENT), filtered
+                // to its record category. Unmapped items render in both tabs — the split
+                // must never hide a record.
+                const lock: RecordCategory = activeTab === 'clinical-docs' ? 'Clinical' : 'Admin';
+                const tabForms = (formSubmissions || []).filter(s => {
+                    const c = formRecordCategoryOf(s.formId);
+                    return c === lock || c === null;
+                });
                 return (
                     <div className="space-y-8">
                         <section>
                             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3">Forms</h3>
                             {loadErrors.forms
                                 ? <ErrorFallback message="Failed to load forms." onRetry={() => loadClientData(clientId)} />
-                                : <ClientFormsTab client={client} formSubmissions={formSubmissions || []} onFormAssigned={handleFormAssigned}/>}
+                                : <ClientFormsTab client={client} formSubmissions={tabForms} onFormAssigned={handleFormAssigned}/>}
                         </section>
                         <section>
                             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
@@ -418,10 +432,11 @@ const ClientWorkspace: React.FC = () => {
                             </h3>
                             {loadErrors.documents
                                 ? <ErrorFallback message="Failed to load documents." onRetry={() => loadClientData(clientId)} />
-                                : <ClientDocumentsGrid client={client} initialDocuments={documents || []} onCapture={handleDropCapture} />}
+                                : <ClientDocumentsGrid client={client} initialDocuments={documents || []} onCapture={handleDropCapture} categoryLock={lock} />}
                         </section>
                     </div>
                 );
+            }
             case 'sessions':
                 return <ClientSessionsTab client={client} />;
             case 'assessment':

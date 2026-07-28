@@ -128,6 +128,7 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
         county: c.county ?? null,
         probation_officer: c.probationOfficer ?? c.probation_officer ?? null,
         billing_type: c.billingType ?? c.billing_type ?? null,
+        primary_counselor_id: c.primaryCounselorId ?? c.primary_counselor_id ?? null,
         avatar_url: c.avatarUrl
             ?? c.avatar_url
             ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Client')}&background=8B1E24&color=fff`,
@@ -138,6 +139,9 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
     for (const k of Object.keys(row)) {
         if (row[k] === null || row[k] === undefined) delete row[k];
     }
+    // Explicit UNSET: an empty-string primaryCounselorId means "clear the
+    // assignment" — re-add as a real NULL after the drop-nulls pass.
+    if (c.primaryCounselorId === '') row.primary_counselor_id = null;
     return row;
 };
 
@@ -169,6 +173,7 @@ const mapClientToApp = (c: any): Client => {
         caseNumber: c.caseNumber ?? c.case_number ?? '',
         clientType: c.clientType ?? c.client_type ?? undefined,
         phone: c.phone ?? c.primary_phone ?? '',
+        primaryCounselorId: c.primaryCounselorId ?? c.primary_counselor_id ?? undefined,
         program,
         programType: c.programType ?? c.program_type ?? program,
         referralSource: c.referralSource ?? c.referral_source ?? '',
@@ -382,6 +387,9 @@ const APPOINTMENT_STATUS_MAP: Record<string, Appointment['status']> = {
     cancelled: 'Canceled',
     'no show': 'No Show',
     no_show: 'No Show',
+    'no call no show': 'No Call No Show',
+    no_call_no_show: 'No Call No Show',
+    ncns: 'No Call No Show',
     rescheduled: 'Scheduled',
 };
 
@@ -491,6 +499,26 @@ export const getAppointments = async (date?: Date): Promise<Appointment[]> => {
 export const getSyncedAppointments = async (date?: Date) => (await getAppointments(date));
 export const getClientAppointments = async (id: string) => (await getAppointments()).filter(a => a.clientId === id);
 
+/** L1 (David 7/28): which of these appointments have a clinical note on file — the
+ *  calendar's note-star marker. Notes are rare, so this returns a small Set. Chunked
+ *  .in() to stay under PostgREST URL limits at clinic scale. Errors propagate to the
+ *  caller, which treats the marker as best-effort (no stars ≠ no schedule). */
+export const getNotedAppointmentIds = async (appointmentIds: string[]): Promise<Set<string>> => {
+    const out = new Set<string>();
+    const CHUNK = 200;
+    for (let i = 0; i < appointmentIds.length; i += CHUNK) {
+        const chunk = appointmentIds.slice(i, i + CHUNK);
+        if (!chunk.length) continue;
+        const { data, error } = await supabase
+            .from('clinical_notes')
+            .select('appointment_id')
+            .in('appointment_id', chunk);
+        if (error) throw error;
+        (data || []).forEach(r => { if (r.appointment_id) out.add(r.appointment_id); });
+    }
+    return out;
+};
+
 // Per-client booking glance: the most-recent PAST and the next UPCOMING appointment.
 // Matches on appointments.client_id the SAME way the contact-popup lookup does — exact
 // string equality against the client's uuid id. The column is TEXT (SECURITY_BACKLOG #7),
@@ -574,6 +602,304 @@ export const getGroupsWithCounselor = async () => {
     }));
 };
 
+// ────────────────────────────────────────────────────────────────────────────
+// L2 GROUPS (David 7/15 + 7/28; Dan-approved schema 7/28)
+// Weekly blocks render CLIENT-SIDE from groups.weekday/start_local/end_local —
+// static, recurring, zero materialization. Appointments exist only when a
+// group note is submitted (per-seat rows; the accrual view joins per client).
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface WeeklyGroup {
+    id: string;
+    program: string;          // David's verbatim block label (Grp Cns / Grp Ed / Grp Cns/RP / Group / MRT)
+    weekday: number;          // 0=Sun..6=Sat
+    startLocal: string;       // 'HH:MM:SS'
+    endLocal: string;
+    sessionKind: string;      // therapy | education | alternating | mrt
+    serviceType: string;
+    counselorId: string | null;
+    counselorName: string | null;
+}
+
+/** The 12 weekly blocks (active, weekday set) — the leader-calendar layer. */
+export const getWeeklyGroups = async (): Promise<WeeklyGroup[]> => {
+    const { data, error } = await supabase
+        .from('groups')
+        .select('id, program, weekday, start_local, end_local, session_kind, service_type, counselor_id, counselors(name)')
+        .eq('active', true)
+        .not('weekday', 'is', null);
+    if (error) { console.warn('[api] getWeeklyGroups failed:', error.message); return []; }
+    return (data || []).map((g: any) => ({
+        id: g.id,
+        program: g.program,
+        weekday: g.weekday,
+        startLocal: g.start_local,
+        endLocal: g.end_local,
+        sessionKind: g.session_kind,
+        serviceType: g.service_type,
+        counselorId: g.counselor_id ?? null,
+        counselorName: g.counselors?.name ?? null,
+    }));
+};
+
+export interface GroupEnrollmentRow {
+    id: string;
+    groupId: string;
+    clientId: string;
+    clientName: string;
+    enrolledAt: string;   // date
+}
+
+/** The standing roster for one group as of a date: active AND enrolled on/before it. */
+export const getGroupRoster = async (groupId: string, onDate: string): Promise<GroupEnrollmentRow[]> => {
+    const { data, error } = await supabase
+        .from('group_enrollments')
+        .select('id, group_id, client_id, enrolled_at, clients(name)')
+        .eq('group_id', groupId)
+        .eq('active', true)
+        .lte('enrolled_at', onDate);
+    if (error) throw error;
+    return (data || []).map((r: any) => ({
+        id: r.id, groupId: r.group_id, clientId: r.client_id,
+        clientName: r.clients?.name ?? 'Unknown client', enrolledAt: r.enrolled_at,
+    }));
+};
+
+/** One client's ACTIVE standing assignments (for the multi-select UI). */
+export const getClientGroupEnrollments = async (clientId: string): Promise<{ id: string; groupId: string; enrolledAt: string }[]> => {
+    const { data, error } = await supabase
+        .from('group_enrollments')
+        .select('id, group_id, enrolled_at')
+        .eq('client_id', clientId)
+        .eq('active', true);
+    if (error) throw error;
+    return (data || []).map((r: any) => ({ id: r.id, groupId: r.group_id, enrolledAt: r.enrolled_at }));
+};
+
+/** Enroll a client in groups from a staff-chosen START date. OPEN groups: no end
+ *  date exists anywhere (David: an end field "we're going to run into problems").
+ *  The partial unique index rejects a duplicate ACTIVE enrollment. */
+export const enrollClientInGroups = async (clientId: string, groupIds: string[], startDate: string): Promise<void> => {
+    if (!groupIds.length) return;
+    const rows = groupIds.map(gid => ({ group_id: gid, client_id: clientId, enrolled_at: startDate, active: true }));
+    const { error } = await supabase.from('group_enrollments').insert(rows);
+    if (error) throw new Error(error.message || 'Failed to enroll client');
+};
+
+/** Manual removal — the ONLY way an assignment ends. Records when, changes nothing else. */
+export const removeGroupEnrollment = async (enrollmentId: string): Promise<void> => {
+    const { error } = await supabase
+        .from('group_enrollments')
+        .update({ active: false, discharged_at: new Date().toISOString().slice(0, 10) })
+        .eq('id', enrollmentId);
+    if (error) throw new Error(error.message || 'Failed to remove enrollment');
+};
+
+export interface GroupSessionRecord {
+    id: string;
+    declaredType: string;
+    units: number;
+    sessionDate: string;
+    startedAt: string;
+    endedAt: string;
+    staffName: string;
+    narrative: string;
+    attendees: { clientId: string; clientName: string; source: string }[];
+}
+
+/** The already-submitted occurrence for a group+date, if any (one per day). */
+export const getGroupSession = async (groupId: string, sessionDate: string): Promise<GroupSessionRecord | null> => {
+    const { data, error } = await supabase
+        .from('group_sessions')
+        .select('id, declared_type, units, session_date, started_at, ended_at, staff_name, narrative, group_session_attendees(client_id, source, clients(name))')
+        .eq('group_id', groupId)
+        .eq('session_date', sessionDate)
+        .maybeSingle();
+    if (error) { console.warn('[api] getGroupSession failed:', error.message); return null; }
+    if (!data) return null;
+    return {
+        id: data.id,
+        declaredType: data.declared_type,
+        units: data.units,
+        sessionDate: data.session_date,
+        startedAt: data.started_at,
+        endedAt: data.ended_at,
+        staffName: data.staff_name,
+        narrative: data.narrative,
+        attendees: (data.group_session_attendees || []).map((a: any) => ({
+            clientId: a.client_id, clientName: a.clients?.name ?? 'Unknown client', source: a.source,
+        })),
+    };
+};
+
+export interface SubmitGroupSessionInput {
+    group: WeeklyGroup;
+    sessionDate: string;      // 'YYYY-MM-DD'
+    timeStarted: string;      // 'HH:MM'
+    timeEnded: string;        // 'HH:MM'
+    declaredTypeId: string;   // group_education | group_counseling | mrt_group_education | mrt_group_counseling
+    declaredTypeLabel: string;
+    serviceType: string;      // accrual axis mapped from the declared type
+    units: number;            // 1-12
+    narrative: string;
+    staffName: string;
+    staffCredentials?: string;
+    therapistId?: string;
+    attendees: { clientId: string; clientName: string; source: 'standing' | 'makeup' }[];
+}
+
+/**
+ * Submit a group note (L2). One group_sessions row (the clinical event), then
+ * PER ATTENDEE: one Completed appointment seat (type + date + units → the
+ * Services tab; hours accrue through client_accrued_hours) + one clinical_notes
+ * row correlated via group_session_id + one attendee row. Attendance edits here
+ * are for THIS session only — standing enrollment is never touched.
+ * The (group_id, session_date) unique constraint makes a double submit fail
+ * loudly ("already submitted") rather than double-crediting units.
+ */
+export const submitGroupSession = async (input: SubmitGroupSessionInput): Promise<{ sessionId: string; seats: number }> => {
+    if (!input.attendees.length) throw new Error('A group note needs at least one attendee.');
+    const nowIso = new Date().toISOString();
+    const { data: session, error: sessErr } = await supabase
+        .from('group_sessions')
+        .insert({
+            group_id: input.group.id,
+            counselor_id: input.group.counselorId,
+            session_date: input.sessionDate,
+            started_at: input.timeStarted,
+            ended_at: input.timeEnded,
+            declared_type: input.declaredTypeId,
+            units: input.units,
+            narrative: input.narrative,
+            staff_name: input.staffName,
+            staff_credentials: input.staffCredentials ?? null,
+            signed_at: nowIso,
+            signed_by_name: input.staffName,
+        })
+        .select('id')
+        .single();
+    if (sessErr) {
+        if ((sessErr as any).code === '23505') {
+            throw new Error('A group note for this session was already submitted — it was not submitted twice.');
+        }
+        throw new Error(sessErr.message || 'Failed to save the group session');
+    }
+
+    const startIso = new Date(`${input.sessionDate}T${input.timeStarted}:00`).toISOString();
+    const endIso = new Date(`${input.sessionDate}T${input.timeEnded}:00`).toISOString();
+    const durationMin = Math.max(0, Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000));
+    let seats = 0;
+    const seatErrors: string[] = [];
+    for (const att of input.attendees) {
+        try {
+            // Seat appointment — the accrual + Services-tab carrier.
+            const { data: appt, error: apptErr } = await supabase
+                .from('appointments')
+                .insert({
+                    client_id: att.clientId,
+                    client_name: att.clientName,
+                    counselor_id: input.group.counselorId,
+                    therapist_name: input.group.counselorName,
+                    group_id: input.group.id,
+                    title: input.declaredTypeLabel,
+                    appointment_type: input.declaredTypeLabel,
+                    session_type: 'op_group',
+                    start_time: startIso,
+                    end_time: endIso,
+                    duration_minutes: durationMin,
+                    status: 'Completed',
+                    service_type: input.serviceType,
+                    billable_units: input.units,
+                    modality: 'In-Person',
+                    notes_complete: true,
+                })
+                .select('id')
+                .single();
+            if (apptErr) throw apptErr;
+
+            const { error: attErr } = await supabase
+                .from('group_session_attendees')
+                .insert({ group_session_id: session.id, client_id: att.clientId, appointment_id: appt.id, source: att.source });
+            if (attErr) throw attErr;
+
+            const { error: noteErr } = await supabase
+                .from('clinical_notes')
+                .insert({
+                    client_id: att.clientId,
+                    appointment_id: appt.id,
+                    therapist_id: input.therapistId ?? null,
+                    note_type: 'Group Session',
+                    group_session_id: session.id,
+                    narrative: input.narrative,
+                    subjective: input.narrative, // legacy renderers read the split columns
+                    service_date: input.sessionDate,
+                    time_started: input.timeStarted,
+                    time_ended: input.timeEnded,
+                    units: input.units,
+                    staff_name: input.staffName,
+                    staff_credentials: input.staffCredentials ?? null,
+                    is_signed: true,
+                    signed_at: nowIso,
+                    signed_by_name: input.staffName,
+                    created_at: nowIso,
+                });
+            if (noteErr) throw noteErr;
+            seats += 1;
+        } catch (e: any) {
+            console.error('[api] submitGroupSession seat failed:', att.clientId, e?.message);
+            seatErrors.push(att.clientName);
+        }
+    }
+    if (seatErrors.length) {
+        throw new Error(`Group note saved, but ${seatErrors.length} seat(s) failed and were NOT credited: ${seatErrors.join(', ')}. Reopen the block to see who is recorded.`);
+    }
+    return { sessionId: session.id, seats };
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// L1b RESCHEDULE HISTORY (append-only trail — see 20260728_l1b migration)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface RescheduleTrailRow {
+    id: string;
+    fromStart: string;
+    fromEnd: string | null;
+    toStart: string;
+    toEnd: string | null;
+    reason: string | null;
+    movedAt: string;
+}
+
+export const getRescheduleTrail = async (appointmentId: string): Promise<RescheduleTrailRow[]> => {
+    const { data, error } = await supabase
+        .from('appointment_reschedules')
+        .select('id, from_start, from_end, to_start, to_end, reason, moved_at')
+        .eq('appointment_id', appointmentId)
+        .order('moved_at', { ascending: true });
+    if (error) { console.warn('[api] getRescheduleTrail failed:', error.message); return []; }
+    return (data || []).map((r: any) => ({
+        id: r.id, fromStart: r.from_start, fromEnd: r.from_end, toStart: r.to_start,
+        toEnd: r.to_end, reason: r.reason, movedAt: r.moved_at,
+    }));
+};
+
+/** Reschedule counts for the calendar's ↻ marker. Chunked like getNotedAppointmentIds. */
+export const getRescheduleCounts = async (appointmentIds: string[]): Promise<Map<string, number>> => {
+    const out = new Map<string, number>();
+    const CHUNK = 200;
+    for (let i = 0; i < appointmentIds.length; i += CHUNK) {
+        const chunk = appointmentIds.slice(i, i + CHUNK);
+        if (!chunk.length) continue;
+        const { data, error } = await supabase
+            .from('appointment_reschedules')
+            .select('appointment_id')
+            .in('appointment_id', chunk);
+        if (error) throw error;
+        (data || []).forEach(r => out.set(r.appointment_id, (out.get(r.appointment_id) ?? 0) + 1));
+    }
+    return out;
+};
+
 // authUserId is the WS1 step-A identity link (counselors.auth_user_id → auth.users.id).
 // It's how the day view resolves "which lane is the logged-in clinician's own" without a
 // fragile name match. Nullable: unlinked counselors (Bill/Debra/John/Rick) have none.
@@ -639,14 +965,32 @@ export const updateAppointment = async (id: string, patch: Partial<Appointment>)
     // write so a future reschedule-history reader has a from/to, not just a bare event.
     // Scoped to date/time changes only (not every updateAppointment call, e.g. status
     // changes) since "reschedule audit" is the only event approved for this batch.
-    let previous: { start_time: string | null; end_time: string | null; client_id: string | null } | null = null;
+    let previous: { start_time: string | null; end_time: string | null; client_id: string | null; counselor_id: string | null } | null = null;
     if (isReschedule) {
         const { data: prevRow } = await supabase
             .from('appointments')
-            .select('start_time, end_time, client_id')
+            .select('start_time, end_time, client_id, counselor_id')
             .eq('id', id)
             .single();
         previous = prevRow ?? null;
+    }
+
+    // L1b (Dan-approved 7/28): the PRODUCT trail — append-only appointment_reschedules,
+    // written BEFORE the in-place overwrite destroys the old time. Awaited (unlike the
+    // audit write below) so a trail gap can't silently open; a trail failure logs loudly
+    // but does not block the reschedule itself (the move is the user's intent).
+    if (isReschedule && previous?.start_time && row.start_time) {
+        const { error: trailErr } = await supabase.from('appointment_reschedules').insert({
+            appointment_id: id,
+            from_start: previous.start_time,
+            from_end: previous.end_time,
+            to_start: row.start_time,
+            to_end: row.end_time ?? null,
+            from_counselor_id: previous.counselor_id,
+            to_counselor_id: ('counselorId' in patch ? patch.counselorId : previous.counselor_id) ?? null,
+            moved_by: (await supabase.auth.getUser()).data?.user?.id ?? null,
+        });
+        if (trailErr) console.error('[api] reschedule trail write FAILED (move proceeds, history has a gap):', trailErr.message);
     }
 
     const { data, error } = await supabase
@@ -1150,6 +1494,18 @@ export interface SaveClinicalNoteOptions {
     noteType?: string;
     isSigned?: boolean;
     /**
+     * L3 structured fields (David 7/15; migration 20260728_l3_note_structure).
+     * All optional at the API layer — the UI enforces David's required-field
+     * rule; legacy callers keep working untouched.
+     */
+    serviceDate?: string;        // 'YYYY-MM-DD'
+    timeStarted?: string;        // 'HH:MM'
+    timeEnded?: string;          // 'HH:MM'
+    units?: number;              // 1-12, staff-entered
+    problemsAddressed?: string;  // Tx Plan problems — number or full sentence
+    staffName?: string;
+    staffCredentials?: string;
+    /**
      * Note format the therapist chose. 'SOAP' (default) keeps today's behavior.
      * 'DAP' is recorded as a "(DAP)" marker in the EXISTING note_type column and
      * stored in the existing SOAP columns (see splitDapNote). No schema change.
@@ -1175,7 +1531,26 @@ export const saveClinicalNote = async (
         is_signed: opts.isSigned ?? false,
         created_at: new Date().toISOString(),
         ...(format === 'DAP' ? splitDapNote(note) : splitSoapNote(note)),
+        // FORMATTING FIX (L3): the splitters above destroy headers and blank-line
+        // structure — that is the "Start Session note loses formatting" defect.
+        // The verbatim text now always lands in `narrative`; renderers prefer it
+        // and fall back to the split columns only for legacy rows.
+        narrative: note,
     };
+    // L3 structured fields — written only when supplied so legacy callers'
+    // rows look exactly as before.
+    if (opts.serviceDate) row.service_date = opts.serviceDate;
+    if (opts.timeStarted) row.time_started = opts.timeStarted;
+    if (opts.timeEnded) row.time_ended = opts.timeEnded;
+    if (typeof opts.units === 'number') row.units = opts.units;
+    if (opts.problemsAddressed) row.problems_addressed = opts.problemsAddressed;
+    if (opts.staffName) row.staff_name = opts.staffName;
+    if (opts.staffCredentials) row.staff_credentials = opts.staffCredentials;
+    if (opts.isSigned) {
+        // "Staff signature + date": typed-name signature stamped at sign time.
+        row.signed_at = new Date().toISOString();
+        if (opts.staffName) row.signed_by_name = opts.staffName;
+    }
     if (opts.appointmentId) {
         // Trust boundary: appointmentId can arrive via a URL query param (ActiveSession
         // reads ?appointmentId= off the route) — a stale tab or a hand-edited URL could
@@ -1794,9 +2169,13 @@ export const generateSoapNoteFromTranscript = async (
     clientName: string,
     format: 'SOAP' | 'DAP' = 'SOAP',
 ) => {
+    // PLAIN TEXT ONLY: the note renderer is whitespace-pre-wrap with no markdown
+    // pipeline, so **bold** / # headings would surface as literal characters —
+    // part of the "loses formatting" defect chain (L3, 2026-07-28).
+    const plainTextRule = 'Output PLAIN TEXT only — no markdown, no asterisks, no # headings, no bullet symbols other than a simple dash. Separate sections with a blank line.';
     const prompt = format === 'DAP'
-        ? `Construct a structured DAP progress note for ${clientName}. Use EXACTLY three sections, each beginning with its heading on its own line: "Data:", then "Assessment:", then "Plan:". Data = factual/observed session information (what the client reported and did, presentation, events); Assessment = clinical interpretation, progress toward goals, and risk; Plan = next steps, interventions, and follow-up. Content must be HIPAA-compliant. Source: ${transcript}`
-        : `Construct a structural SOAP note for ${clientName}. Content must be HIPAA-compliant. Source: ${transcript}`;
+        ? `Construct a structured DAP progress note for ${clientName}. Use EXACTLY three sections, each beginning with its heading on its own line: "Data:", then "Assessment:", then "Plan:". Data = factual/observed session information (what the client reported and did, presentation, events); Assessment = clinical interpretation, progress toward goals, and risk; Plan = next steps, interventions, and follow-up. ${plainTextRule} Content must be HIPAA-compliant. Source: ${transcript}`
+        : `Construct a structured SOAP note for ${clientName}. Use EXACTLY four sections, each beginning with its heading on its own line: "Subjective:", "Objective:", "Assessment:", "Plan:". ${plainTextRule} Content must be HIPAA-compliant. Source: ${transcript}`;
     return geminiText('gemini-2.5-flash', prompt);
 };
 
@@ -2064,6 +2443,14 @@ const mapTreatmentPlanRowToApp = (row: any): TreatmentPlan => ({
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    // L5 update-versioning fields (migration 20260728_l5_treatment_plan_updates)
+    supersedesPlanId: row.supersedes_plan_id ?? undefined,
+    updateDate: row.update_date ?? undefined,
+    progressComments: row.progress_comments ?? undefined,
+    createdByName: row.created_by_name ?? undefined,
+    clinicianSignature: row.clinician_signature ?? undefined,
+    clientSignature: row.client_signature ?? undefined,
+    signedAt: row.signed_at ?? undefined,
 });
 
 export const getTreatmentPlansForClient = async (clientId: string): Promise<TreatmentPlan[]> => {
@@ -2084,7 +2471,12 @@ export const saveTreatmentPlan = async (input: {
     estimatedDuration?: string;
     content: TreatmentPlanContent;
     notes?: string;
+    /** L5: name of the clinician initiating the plan (David 7/15). */
+    createdByName?: string;
 }): Promise<TreatmentPlan> => {
+    // created_by was never written before L5 (NULL on every app-written plan);
+    // stamp the auth uuid when a session exists, alongside the display name.
+    const { data: auth } = await supabase.auth.getUser().catch(() => ({ data: { user: null } } as any));
     const { data, error } = await supabase
         .from('treatment_plans')
         .insert({
@@ -2096,10 +2488,65 @@ export const saveTreatmentPlan = async (input: {
             content: input.content,
             notes: input.notes ?? null,
             status: 'Active',
+            created_by: auth?.user?.id ?? null,
+            created_by_name: input.createdByName ?? null,
         })
         .select()
         .single();
     if (error) throw error;
+    return mapTreatmentPlanRowToApp(data);
+};
+
+/**
+ * L5 (David 7/15): apply an UPDATE to a treatment plan. The prior plan is left
+ * byte-for-byte untouched (then archived); the update is a NEW row that becomes
+ * the primary plan, linked via supersedes_plan_id. BOTH typed-name signatures
+ * are required — enforced here as well as in the UI.
+ * Order: insert first, archive second — a failure between the two leaves two
+ * plans visible (loud, recoverable) rather than a client with no active plan.
+ */
+export const applyTreatmentPlanUpdate = async (
+    prior: TreatmentPlan,
+    input: {
+        content: TreatmentPlanContent;
+        updateDate: string;              // 'YYYY-MM-DD'
+        progressComments?: string;
+        createdByName: string;
+        clinicianSignature: string;
+        clientSignature: string;
+        notes?: string;
+        estimatedDuration?: string;
+    },
+): Promise<TreatmentPlan> => {
+    if (!input.clinicianSignature.trim() || !input.clientSignature.trim()) {
+        throw new Error('A plan update requires BOTH signatures (clinician and client).');
+    }
+    const { data: auth } = await supabase.auth.getUser().catch(() => ({ data: { user: null } } as any));
+    const { data, error } = await supabase
+        .from('treatment_plans')
+        .insert({
+            client_id: prior.clientId,
+            template_id: prior.templateId ?? null,
+            title: prior.title,
+            category: prior.category,
+            estimated_duration: (input.estimatedDuration ?? prior.estimatedDuration) ?? null,
+            content: input.content,
+            notes: input.notes ?? null,
+            status: 'Active',
+            supersedes_plan_id: prior.id,
+            update_date: input.updateDate,
+            progress_comments: input.progressComments ?? null,
+            created_by: auth?.user?.id ?? null,
+            created_by_name: input.createdByName,
+            clinician_signature: input.clinicianSignature.trim(),
+            client_signature: input.clientSignature.trim(),
+            signed_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+    if (error) throw error;
+    // Prior becomes history — content untouched, status only.
+    await updateTreatmentPlan(prior.id, { status: 'Archived' });
     return mapTreatmentPlanRowToApp(data);
 };
 

@@ -35,6 +35,19 @@
  *
  *   DEADLINE   — date-anchored obligations from services/complianceClock.
  *
+ * MONEY VOCABULARY (David, 7/28 call — his words are canonical):
+ *
+ *   BILLING    — RESERVED for billing THE STATE (Missouri DMH claims: CNS/ED
+ *                units, CIMOR). NEVER client money. A surface about what a
+ *                client pays must not say "billing".
+ *
+ *   FEES       — client payments: balances, charges, Stripe, the ledger.
+ *                Was: "Billing" (portal nav + workspace tab), "Billing &
+ *                Payments", "Financial Wallet", "Billing Setup".
+ *
+ *   CNS / ED   — Counseling / Education, the state-billing service axis.
+ *                Tokenized in config/serviceType.ts (DB CHECK lock-step).
+ *
  * Severity tokens stay where they are computed (VerdictStatus in complianceEngine,
  * AlertTier in alertsService); this module names the CONCEPTS, not the severities.
  */
@@ -45,6 +58,8 @@ export const VOCAB = {
     guardrail: { one: 'guardrail', many: 'guardrails', title: 'Clinical Guardrails' },
     readiness: { title: 'Compliance Readiness' },
     deadline: { one: 'deadline', many: 'deadlines', title: 'Compliance Deadlines' },
+    /** Client money. "Billing" is reserved for billing the state — see header. */
+    fees: { one: 'fee', many: 'fees', title: 'Fees' },
 } as const;
 
 /**

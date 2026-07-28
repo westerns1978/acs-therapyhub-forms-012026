@@ -23,6 +23,13 @@ interface CounselorDayViewProps {
      *  same-day + time-overlap). Renders the red ring/icon the old flat week grid had.
      *  Omitted = no ring, i.e. Day view's existing behavior is unchanged. */
     conflictIds?: Set<string>;
+    /** L1: appointments with a clinical note on file — the note-star marker. */
+    notedApptIds?: Set<string>;
+    /** L1b: reschedule counts — the ↻ marker. */
+    rescheduleCounts?: Map<string, number>;
+    /** L2: the weekly group blocks + the click-through to the group note. */
+    groups?: import('../../services/api').WeeklyGroup[];
+    onSelectGroup?: (group: import('../../services/api').WeeklyGroup, date: Date) => void;
     /** Step 8 week board: fixed-width lane columns + horizontal scroll instead of the
      *  default compress-to-fit. Day view leaves this unset — unchanged behavior. */
     scrollable?: boolean;
@@ -35,7 +42,7 @@ interface CounselorDayViewProps {
     onSlotClick?: (info: SlotClickInfo) => void;
 }
 
-const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt, soloLabel, conflictIds, scrollable, soloCounselorId, onSlotClick }) => {
+const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, appointments, onSelectAppt, soloLabel, conflictIds, notedApptIds, rescheduleCounts, groups, onSelectGroup, scrollable, soloCounselorId, onSlotClick }) => {
     // Appointments on this calendar day.
     const dayEvents = useMemo(
         () => appointments.filter(a => new Date(a.date).toDateString() === date.toDateString()),
@@ -106,6 +113,10 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
                             counselorName={lane.key === UNASSIGNED_LANE_KEY ? undefined : lane.label}
                             onSelectAppt={onSelectAppt}
                             conflictIds={conflictIds}
+                            notedApptIds={notedApptIds}
+                            rescheduleCounts={rescheduleCounts}
+                            groups={groups}
+                            onSelectGroup={onSelectGroup}
                             onSlotClick={onSlotClick}
                             className="border-r border-grid-line dark:border-dark-grid-line last:border-0"
                         />
