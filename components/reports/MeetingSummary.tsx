@@ -64,7 +64,7 @@ const MeetingSummary: React.FC<MeetingSummaryProps> = ({ onDone }) => {
                         </div>
                         <div>
                             <h3 className="text-lg font-bold">4. Empowering Client Portal</h3>
-                            <p className="text-base text-gray-700">Clients are given a secure portal to track their own progress, view upcoming appointments, manage documents requiring e-signature, and see their billing history. This increases client accountability and reduces administrative workload for staff.</p>
+                            <p className="text-base text-gray-700">Clients are given a secure portal to track their own progress, view upcoming appointments, manage documents requiring e-signature, and see their fee history. This increases client accountability and reduces administrative workload for staff.</p>
                         </div>
                     </div>
                 </section>

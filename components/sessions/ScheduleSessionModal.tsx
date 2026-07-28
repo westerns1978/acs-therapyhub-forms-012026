@@ -9,6 +9,7 @@ import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { programLabel } from '../../config/programVocab';
+import { serviceTypeLabel } from '../../config/serviceType';
 import { useAuth } from '../../contexts/AuthContext';
 import { MapPin, AlertTriangle, Loader2, Repeat } from 'lucide-react';
 
@@ -451,7 +452,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                             </select>
                             {selectedGroupObj && (
                                 <p className="mt-1 text-xs text-slate-500">
-                                    Inherits <b>{selectedGroupObj.counselor_name ?? 'counselor'}</b>'s permanent Zoom room · category <b>{selectedGroupObj.service_type}</b>{selectedGroupObj.counselor_zoom_link ? '' : ' · (no link on counselor)'}
+                                    Inherits <b>{selectedGroupObj.counselor_name ?? 'counselor'}</b>'s permanent Zoom room · category <b>{serviceTypeLabel(selectedGroupObj.service_type)}</b>{selectedGroupObj.counselor_zoom_link ? '' : ' · (no link on counselor)'}
                                 </p>
                             )}
                         </div>

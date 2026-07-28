@@ -19,7 +19,7 @@ const demoRoles: { role: StaffRole; name: string }[] = [
 const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
   Director: 'Full access — clinical, financial, settings.',
   Therapist: 'Clinical work — notes, treatment plans, sessions.',
-  Admin: 'Office work — intake, scheduling, billing.',
+  Admin: 'Office work — intake, scheduling, fees.',
 };
 
 const Login: React.FC = () => {

@@ -178,10 +178,10 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
                         </FieldLabel>
                     </section>
 
-                    {/* Billing & Legal */}
+                    {/* Fees & Legal — "billing" is reserved for billing the state (David 7/28) */}
                     <section className="space-y-4">
                         <h3 className="flex items-center gap-2 font-semibold text-lg text-slate-800 dark:text-slate-200 border-b pb-2 border-slate-100 dark:border-slate-800">
-                            <CreditCard className="text-primary" size={20} /> Billing & Legal
+                            <CreditCard className="text-primary" size={20} /> Fees & Legal
                         </h3>
                         <div className="grid grid-cols-2 gap-6">
                             <FieldLabel label="Case Number">

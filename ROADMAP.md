@@ -72,11 +72,10 @@ would have implied it was safe to expose. It is not.
 
 ## NEXT
 
-- **Native Standard Means Test (MO 650-0216) — STAFF console, not client intake.** David 7/21:
-  too complex to hand a client; staff will run it. Auto pay-period conversion → total →
-  rate-table lookup → certification e-signature → structured determination flowing to billing,
-  Notice of Cost (MO 650-0215), completion cert (MO 650-7743).
-  Design: `docs/design/means-test-native-direction.html`
+- ~~Native Standard Means Test~~ **KILLED by David 7/28**: "leave it alone, that's a nightmare,
+  we'll do that for them." ACS runs the means test manually; the app must not build it. The
+  design doc (`docs/design/means-test-native-direction.html`) was deleted the same day. Do not
+  resurrect without a new, explicit David ask.
 
 - **Client messaging / delivery layer (Twilio SMS candidate).** David 7/21 named "verify
   communication — ensure all communications reached the target recipient and processed

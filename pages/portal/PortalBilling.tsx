@@ -110,9 +110,9 @@ const PortalBilling: React.FC = () => {
         return (
             <PortalLayout>
                 <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
-                    <Header title="Billing & Payments" subtitle="Manage your balance, payment methods, and view history." />
+                    <Header title="Fees & Payments" subtitle="Manage your balance, payment methods, and view history." />
                     <PortalErrorCard
-                        message="Your billing information could not be loaded."
+                        message="Your fee information could not be loaded."
                         onRetry={() => setReloadKey(k => k + 1)}
                     />
                 </div>
@@ -125,7 +125,7 @@ const PortalBilling: React.FC = () => {
     return (
         <PortalLayout>
             <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
-                <Header title="Billing & Payments" subtitle="Manage your balance, payment methods, and view history." />
+                <Header title="Fees & Payments" subtitle="Manage your balance, payment methods, and view history." />
 
                 {paymentStatus === 'success' && (
                     <div className="p-4 bg-green-50 border border-green-200 rounded-2xl text-green-800">

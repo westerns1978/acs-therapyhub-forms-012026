@@ -5,6 +5,7 @@ import type { Counselor } from '../../services/api';
 import { qualifiedCounselorsFor } from '../../config/sessionTaxonomy';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
 import { unitGrainFor, suggestedUnits } from '../../config/billableUnits';
+import { serviceTypeLabelWithAbbrev } from '../../config/serviceType';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
 import { detectOverlaps } from '../../services/recurrence';
 import Modal from '../ui/Modal';
@@ -512,9 +513,9 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold text-slate-800 dark:text-slate-100"
                             >
                                 <option value="">Select category…</option>
-                                <option value="counseling">Counseling (individual + group)</option>
-                                <option value="education">Education</option>
-                                <option value="rehabilitative_support">Group rehabilitative support</option>
+                                <option value="counseling">{serviceTypeLabelWithAbbrev('counseling')} — individual + group</option>
+                                <option value="education">{serviceTypeLabelWithAbbrev('education')}</option>
+                                <option value="rehabilitative_support">{serviceTypeLabelWithAbbrev('rehabilitative_support')}</option>
                                 <option value="other">Other (non-program — does not accrue)</option>
                             </select>
                         </div>

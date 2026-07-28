@@ -139,7 +139,7 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
       setCharges((chargeRes.data as LedgerCharge[]) || []);
       setPayments((payRes.data as LedgerPayment[]) || []);
     } catch (e: any) {
-      setError(e?.message || 'Could not load billing.');
+      setError(e?.message || 'Could not load fees.');
     } finally {
       setLoading(false);
     }
