@@ -318,7 +318,7 @@ const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <div className="flex items-center justify-center min-h-screen bg-slate-100 p-4" style={{ colorScheme: 'light' }}>
         <div className="w-full max-w-lg p-8 bg-white rounded-2xl shadow-xl border border-slate-200">
             <div className="text-center mb-6">
-                <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg" alt="ACS" className="mx-auto h-12 object-contain" />
+                <img src="/branding/acs-logomark.svg" alt="ACS" className="mx-auto h-12 object-contain" />
             </div>
             {children}
         </div>

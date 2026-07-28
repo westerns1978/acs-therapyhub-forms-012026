@@ -110,4 +110,4 @@ export function buildGuardrailExplainPrompt(g: GuardrailExplainFacts): string {
 
 /** Clara's avatar — same image used across the header and portal bubble (one identity). */
 export const CLARA_AVATAR_URL =
-  'https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/clara2.png';
+  '/branding/clara.png';

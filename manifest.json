@@ -5,17 +5,17 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#8B1E24",
+  "theme_color": "#7A222E",
   "orientation": "any",
   "icons": [
     {
-      "src": "https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg",
+      "src": "/branding/acs-logomark.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg",
+      "src": "/branding/acs-logomark.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"

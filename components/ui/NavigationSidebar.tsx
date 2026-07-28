@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import GemyndFlowLogo from './GemyndFlowLogo';
+import AcsTherapyHubLogo from './AcsTherapyHubLogo';
 import {
     Home, Users, MessageSquare, Calendar, Shield,
     DollarSign, LogOut, X, BarChart3, Settings,
@@ -84,7 +84,7 @@ const NavigationSidebar: React.FC<{ isCollapsed: boolean; setIsCollapsed: (c: bo
   return (
     <aside className={`hidden lg:flex flex-col fixed top-0 left-0 h-full z-30 transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'} bg-white/80 dark:bg-dark-surface/80 backdrop-blur-2xl border-r border-white/20 dark:border-white/5 shadow-2xl`}>
       <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} p-4 mb-2 h-20`}>
-          {!isCollapsed && <GemyndFlowLogo className="h-8" />}
+          {!isCollapsed && <AcsTherapyHubLogo className="h-8" />}
           <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-surface-secondary">
               {isCollapsed ? <Activity size={20} /> : <X size={20}/>}
           </button>

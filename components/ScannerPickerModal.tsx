@@ -144,7 +144,7 @@ const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
     const result = await client.discover();
     if (!result.bridgeUrl) {
       setErrorMessage(
-        'Still not detected — make sure the Gemynd Scan tray icon is running',
+        'Still not detected — make sure the scan client tray icon (Gemynd Scan) is running',
       );
       setPhase('bridge_offline');
     } else if (result.scanners.length === 0) {

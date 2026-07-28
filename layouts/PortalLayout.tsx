@@ -14,7 +14,7 @@ const PortalHeader: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const logoUrl = "https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg";
+    const logoUrl = "/branding/acs-logomark.svg";
     
     const navLinks = [
         { name: 'Dashboard', path: '/portal/dashboard', icon: Home },

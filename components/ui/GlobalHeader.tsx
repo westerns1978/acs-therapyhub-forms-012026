@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import GemyndFlowLogo from './GemyndFlowLogo';
+import AcsTherapyHubLogo from './AcsTherapyHubLogo';
 import ThemeToggle from './ThemeToggle';
 import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
 
 // Clara's avatar — same image the portal floating bubble uses, for one identity across surfaces.
-const CLARA_AVATAR_URL = 'https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/clara2.png';
+const CLARA_AVATAR_URL = '/branding/clara.png';
 
 interface GlobalHeaderProps {
     onCommandPaletteToggle: () => void;
@@ -48,7 +48,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                         </button>
                     )}
                     <Link to="/" className="hover:opacity-80 transition-opacity">
-                        <GemyndFlowLogo />
+                        <AcsTherapyHubLogo />
                     </Link>
                 </div>
                 
@@ -139,7 +139,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
 
                     <div className="relative ml-1">
                         <button onClick={() => setProfileOpen(prev => !prev)} className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 p-1.5 rounded-2xl transition-colors">
-                            <img src={`https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=8B1E24&color=fff`} alt="User" className="w-8 h-8 rounded-xl" />
+                            <img src={`https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=7A222E&color=fff`} alt="User" className="w-8 h-8 rounded-xl" />
                         </button>
                         
                         {isProfileOpen && (

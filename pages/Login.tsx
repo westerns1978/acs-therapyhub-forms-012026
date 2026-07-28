@@ -5,7 +5,7 @@ import IValtMfaModal from '../components/IValtMfaModal';
 import { Mail, Lock, AlertTriangle, ChevronLeft, ArrowRight } from 'lucide-react';
 import type { StaffRole } from '../types';
 
-const ACS_LOGO_URL = 'https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/ACS%20Full%20Logomark.svg';
+const ACS_LOGO_URL = '/branding/acs-logomark.svg';
 
 // The three live ACS staff accounts, shown as the real people who use them.
 // Each maps to a REAL Supabase Auth account (pilot password); picking a role
