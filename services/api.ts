@@ -458,9 +458,20 @@ const mapAppToAppointmentRow = (appt: Partial<Appointment>) => {
     };
 };
 
+/**
+ * THE appointment read choke-point (K4, 2026-07-28). Demo-filtered here, which
+ * is why one call covers Dashboard's today-schedule, all four SessionManagement
+ * presentations (day / week-merged / week-byCounselor share one array), and —
+ * via getClientAppointments — the client record's Sessions tab.
+ *
+ * appointments.is_demo is DERIVED from the owning client by trigger, so this can
+ * never hide a real client's session, and `client_accrued_hours` (clients-driven
+ * SQL that does not read the column) is unaffected. Rows whose client_id is
+ * legacy text or null keep is_demo=false and still render — deliberate.
+ */
 export const getAppointments = async (date?: Date): Promise<Appointment[]> => {
     try {
-        let q = supabase.from('appointments').select('*').order('start_time', { ascending: true });
+        let q = applyDemoFilter(supabase.from('appointments').select('*')).order('start_time', { ascending: true });
         if (date) {
             const from = new Date(date); from.setHours(0, 0, 0, 0);
             const to = new Date(date); to.setHours(23, 59, 59, 999);
@@ -715,9 +726,13 @@ export const getTherapistAppointments = async (
     fromISO: string,
     toISO: string,
 ): Promise<Appointment[]> => {
-    const { data, error } = await supabase
+    // Demo-filtered (K4): this drives the double-book / reschedule-conflict scan.
+    // If it saw hidden demo rows it would report a counselor "double-booked"
+    // against a session that is nowhere on the visible calendar — the conflict
+    // set must match what staff can actually see.
+    const { data, error } = await applyDemoFilter(supabase
         .from('appointments')
-        .select('*')
+        .select('*'))
         .eq('therapist_name', therapistName)
         .gte('start_time', fromISO)
         .lte('start_time', toISO)

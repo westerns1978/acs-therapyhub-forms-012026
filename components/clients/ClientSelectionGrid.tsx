@@ -432,7 +432,14 @@ const ClientSelectionGrid: React.FC = () => {
 
     const chipCount = (key: StatusChip): number | null => {
         if (!counts) return null;
-        if (key === 'all') return counts.active + counts.completed + counts.archived;
+        // K7 (2026-07-28): "All" summed only active+completed+archived, so it
+        // rendered a total SMALLER than its own parts ("Pending 1 / Active 3 /
+        // All 3"). Not a deliberate narrower meaning — getClients({status:'all'})
+        // applies NO status predicate, so the chip's own query already returns
+        // every lifecycle state; only the badge disagreed. Summing the whole
+        // counts record makes the number match the rows the chip actually loads.
+        // Each client row has exactly one status, so this is a true row total.
+        if (key === 'all') return Object.values(counts).reduce((sum, n) => sum + n, 0);
         return counts[key];
     };
 
