@@ -68,13 +68,25 @@ const Spin: React.FC = () => (
   <div className="flex items-center justify-center py-10 text-slate-400"><Loader2 className="animate-spin" /></div>
 );
 
+// Wide window used only for the all-time context figure + the "Show all time"
+// shortcut. Payments are recorded events, so the bounds just have to enclose them.
+const ALL_TIME_FROM = '2000-01-01';
+const ALL_TIME_TO = '2999-12-31';
+
 const Financials: React.FC = () => {
-  // Money summary — month-to-date default.
+  // Money summary — month-to-date default (UNCHANGED, deliberately: month-to-date
+  // is what a Director checks day to day, and widening the default would quietly
+  // restate "revenue" as a lifetime figure).
   const [moneyFrom, setMoneyFrom] = useState(firstOfMonthLocal());
   const [moneyTo, setMoneyTo] = useState(todayLocal());
   const [summary, setSummary] = useState<MoneySummary | null>(null);
   const [loadingMoney, setLoadingMoney] = useState(true);
   const [errMoney, setErrMoney] = useState<string | null>(null);
+
+  // All-time total, fetched once. Sole purpose: distinguish "this range is empty"
+  // from "the ledger is empty". A bare $0.00 reads as broken when $2,874 exists
+  // one month back — the empty state has to say which of the two it is (Dan 7/28).
+  const [allTimeTotal, setAllTimeTotal] = useState<number | null>(null);
 
   // Daily payments by method — today default.
   const [dayFrom, setDayFrom] = useState(todayLocal());
@@ -108,6 +120,16 @@ const Financials: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, [moneyFrom, moneyTo]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc('acs_report_money', { p_from: ALL_TIME_FROM, p_to: ALL_TIME_TO });
+      if (cancelled || error) return;   // silent: this is context, never the headline
+      setAllTimeTotal(Number(((data ?? [])[0] ?? {}).total_collected ?? 0));
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,6 +189,26 @@ const Financials: React.FC = () => {
               <StatTile icon={CircleDashed} label="Unallocated" value={usd(summary.unallocated)} sub="Legacy / pre-itemization · no charge link" accent="text-slate-500 dark:text-slate-300" />
               <StatTile icon={Wallet} label="Total Collected" value={usd(summary.total)} sub="All succeeded payments" accent="text-primary dark:text-dark-primary" />
             </div>
+            {/* Empty-range state: $0.00 is CORRECT but reads as broken. Say which
+                kind of zero this is, and put the range shortcut right here. */}
+            {summary.total === 0 && (allTimeTotal ?? 0) > 0 && (
+              <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-xs border bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-900/20 dark:text-sky-200 dark:border-sky-800">
+                <CircleDashed size={14} className="mt-0.5 shrink-0" />
+                <span className="leading-relaxed">
+                  <span className="font-bold">No payments in this period.</span>{' '}
+                  The ledger holds <span className="font-bold">{usd(allTimeTotal ?? 0)}</span> all-time — it is outside the selected range, not missing.
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={() => { setMoneyFrom(ALL_TIME_FROM); setMoneyTo(ALL_TIME_TO); }}
+                    className="underline font-bold hover:text-sky-900 dark:hover:text-white"
+                  >
+                    Show all time
+                  </button>
+                  {' '}or adjust the dates above.
+                </span>
+              </div>
+            )}
             <div className={`flex items-start gap-2 rounded-xl px-4 py-2.5 text-xs font-bold border ${reconciles
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800'
               : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800'}`}>

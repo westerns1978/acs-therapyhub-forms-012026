@@ -14,7 +14,7 @@ import { isTrialHidden } from '../config/trialMode';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, Clock, Check, AlertTriangle, MapPin, PhoneOff, UserX, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, Video, Clock, Check, AlertTriangle, MapPin, PhoneOff, UserX, Star, Users } from 'lucide-react';
 import { deleteGoogleCalendarEvent } from '../services/googleCalendar';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -493,12 +493,49 @@ const SessionManagement: React.FC = () => {
                             {/* Day Columns */}
                             {weekDays.map(day => {
                                 const dayEvents = appointments.filter(a => new Date(a.date).toDateString() === day.toDateString());
+                                // L2 (Dan 7/28): the standing group blocks must appear here too.
+                                // Merged has no lanes, so it shows EVERY counselor's group for the
+                                // weekday — omitting them was FALSE AVAILABILITY: a scheduler saw an
+                                // empty Thursday morning and could book over a three-hour group.
+                                // Read-only by design (Merged is display-only — no click-to-book, no
+                                // note entry); the counselor name is labelled since there are no lanes.
+                                const dayGroups = weeklyGroups.filter(g => g.weekday === day.getDay());
                                 return (
                                     <div key={day.toISOString()} className={`relative border-r border-grid-line dark:border-dark-grid-line last:border-0 group ${isToday(day) ? 'bg-primary/[0.07] dark:bg-dark-primary/[0.08]' : ''}`}>
                                         {/* Hour Grid Lines. K5: the body columns also gain the today
                                             wash — merged view had highlighted only the HEADER cell, so
                                             the column itself never read as today even before K1. */}
                                         {hours.map(h => <div key={h} className="h-[75px] border-b border-grid-line dark:border-dark-grid-line group-hover:border-grid-line-strong dark:group-hover:border-dark-grid-line-strong transition-colors"></div>)}
+
+                                        {/* Standing group blocks — read-only occupancy. Rendered
+                                            BEFORE the appointment cards so a booked session always
+                                            draws on top of the block it sits inside. */}
+                                        {dayGroups.map(g => {
+                                            const gStart = parseTimeToMinutes(String(g.startLocal).slice(0, 5));
+                                            const gEnd = parseTimeToMinutes(String(g.endLocal).slice(0, 5));
+                                            if (Number.isNaN(gStart) || Number.isNaN(gEnd)) return null;
+                                            const top = ((gStart - WIN_START * 60) / (WIN_HOURS * 60)) * 100;
+                                            const height = ((Math.max(gEnd - gStart, 20)) / (WIN_HOURS * 60)) * 100;
+                                            return (
+                                                <div
+                                                    key={`grp-${g.id}`}
+                                                    title={`${g.program} — ${g.counselorName ?? ''} · weekly group (open it from Day or the by-counselor week)`}
+                                                    className="absolute left-1 right-1 rounded-xl p-2 border-2 border-dashed border-primary/50 bg-primary/[0.06] dark:bg-primary/[0.12] overflow-hidden pointer-events-none"
+                                                    style={{ top: `${Math.max(0, top)}%`, height: `${Math.min(height, 100 - Math.max(0, top))}%` }}
+                                                >
+                                                    <div className="flex items-center gap-1 text-primary">
+                                                        <Users size={11} className="shrink-0" />
+                                                        <p className="font-black text-xs truncate leading-tight">{g.program}</p>
+                                                    </div>
+                                                    {g.counselorName && (
+                                                        <p className="text-[10px] font-semibold truncate text-primary/80">{g.counselorName}</p>
+                                                    )}
+                                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] text-primary/80 font-semibold">
+                                                        <Clock size={10} /> {formatTime12(String(g.startLocal).slice(0, 5))} – {formatTime12(String(g.endLocal).slice(0, 5))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
 
                                         {/* Events */}
                                         {dayEvents.map(apt => {

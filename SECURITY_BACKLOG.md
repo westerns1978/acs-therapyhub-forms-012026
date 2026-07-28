@@ -765,3 +765,22 @@ Caveat for whoever sweeps: one 2026-07-28 signed row has `narrative IS NULL` (wr
 the pre-L3 code path earlier that day, not by the L2/L3 build); the L2 group-note witness
 artifacts from that session were fully reverted and are **not** in these counts
 (`group_session_id IS NOT NULL` returns 0).
+
+**That 7/28 row is now explained (traced 2026-07-28, Dan's ask).** Its body is the literal
+string `"Test Sign"` (9 chars, no narrative, no units, no staff name). `audit_logs` shows
+`note.signed` on it at 16:44:26 by **`demo.director@acs-therapyhub.com`**, followed 108 seconds
+later by `upload_link_minted` (`requested_document_type: id_copy`) and `upload_link_resolved`
+on the **same demo client** — i.e. a deliberate feature smoke test of sign-note and
+request-upload, back to back.
+
+It is **NOT** David's 7/28 testing session as first hypothesized. David described scheduling
+appointments and checking them back (*"I went in there and I scheduled all types of
+appointments and then I went back and checked"*), but **zero appointments were created on
+2026-07-28** — none in the whole day, none within ±2h of the note. His session was either on a
+different date or left no appointment rows.
+
+Attribution stops there, honestly: `demo.director@acs-therapyhub.com` is a **shared demo
+account**, so `auth.users` cannot distinguish which person was driving it. What is established:
+a deliberate test action on a demo client, not clinical content, not David's described activity.
+(This is also a live example of why item #6 — the shared-credential/staff-provisioning gap —
+matters: a signed clinical action cannot be attributed to a person.)
