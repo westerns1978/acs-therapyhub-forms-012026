@@ -70,10 +70,10 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
     // `scrollable` (week board) can wrap BOTH in a shared horizontal-scroll container without
     // touching their own markup — Day view (scrollable unset) renders them exactly as before.
     const laneHeader = (
-        <div className="grid border-b border-slate-200 dark:border-slate-700/60" style={{ gridTemplateColumns: gridCols }}>
-            <div className="p-3 border-r border-border dark:border-slate-700/50 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center self-center">GMT-05</div>
+        <div className="grid border-b border-grid-line-strong dark:border-dark-grid-line-strong" style={{ gridTemplateColumns: gridCols }}>
+            <div className="p-3 border-r border-grid-line-strong dark:border-dark-grid-line-strong text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center self-center">GMT-05</div>
             {lanes.map(lane => (
-                <div key={lane.key} className="p-3 text-center border-r border-border dark:border-slate-700/50 last:border-0">
+                <div key={lane.key} className="p-3 text-center border-r border-grid-line dark:border-dark-grid-line last:border-0">
                     <p className={`text-sm font-bold truncate ${lane.key === UNASSIGNED_LANE_KEY ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>{lane.label}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">{lane.events.length} {lane.events.length === 1 ? 'session' : 'sessions'}</p>
                 </div>
@@ -85,15 +85,18 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
         <div className="flex-1 overflow-y-auto relative custom-scrollbar">
                 <div className="grid h-[1040px]" style={{ gridTemplateColumns: gridCols }}>
                     {/* Time gutter */}
-                    <div className="border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/20">
+                    <div className="border-r border-grid-line-strong dark:border-dark-grid-line-strong bg-slate-50/50 dark:bg-slate-900/20">
                         {HOURS.map(hour => (
-                            <div key={hour} className="h-[65px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-2 pt-2 relative">
+                            <div key={hour} className="h-[65px] border-b border-grid-line dark:border-dark-grid-line text-right pr-2 pt-2 relative">
                                 <span className="text-xs font-medium text-slate-400 relative -top-3">{hour > 12 ? hour - 12 : hour} {hour >= 12 ? 'PM' : 'AM'}</span>
                             </div>
                         ))}
                     </div>
 
-                    {/* Counselor lanes */}
+                    {/* Counselor lanes. NO today-tint here: in Day view every lane is the
+                        SAME date, so tinting on isToday would wash the whole board rather
+                        than mark a column. Day view's today signal is the all-lane now-line
+                        below — the column tint belongs to the two week boards. */}
                     {lanes.map(lane => (
                         <LaneColumn
                             key={lane.key}
@@ -104,7 +107,7 @@ const CounselorDayView: React.FC<CounselorDayViewProps> = ({ date, counselors, a
                             onSelectAppt={onSelectAppt}
                             conflictIds={conflictIds}
                             onSlotClick={onSlotClick}
-                            className="border-r border-border dark:border-slate-700/50 last:border-0"
+                            className="border-r border-grid-line dark:border-dark-grid-line last:border-0"
                         />
                     ))}
 

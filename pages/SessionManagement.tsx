@@ -437,10 +437,10 @@ const SessionManagement: React.FC = () => {
                 ) : (
                 <div className="flex-1 bg-white/70 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-xl border border-border dark:border-slate-700 overflow-hidden flex flex-col min-h-[600px]">
                     {/* Header Row */}
-                    <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-700/60">
-                        <div className="p-4 border-r border-slate-100 dark:border-slate-700/30 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center pt-8">GMT-05</div>
+                    <div className="grid grid-cols-8 border-b border-grid-line-strong dark:border-dark-grid-line-strong">
+                        <div className="p-4 border-r border-grid-line-strong dark:border-dark-grid-line-strong text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center pt-8">GMT-05</div>
                         {weekDays.map(day => (
-                            <div key={day.toISOString()} className={`p-4 text-center border-r border-border dark:border-slate-700/50 last:border-0 ${isToday(day) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                            <div key={day.toISOString()} className={`p-4 text-center border-r border-grid-line dark:border-dark-grid-line last:border-0 ${isToday(day) ? 'bg-primary/[0.07] dark:bg-dark-primary/[0.08]' : ''}`}>
                                 <p className={`text-[10px] font-bold uppercase mb-2 tracking-wider ${isToday(day) ? 'text-primary' : 'text-slate-400'}`}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</p>
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center mx-auto text-xl transition-all ${isToday(day) ? 'bg-primary text-white font-bold shadow-lg shadow-primary/30 scale-110' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
                                     {day.getDate()}
@@ -453,9 +453,9 @@ const SessionManagement: React.FC = () => {
                     <div className="flex-1 overflow-y-auto relative custom-scrollbar">
                         <div className="grid grid-cols-8 h-[1200px]">
                             {/* Time Column */}
-                            <div className="border-r border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/20">
+                            <div className="border-r border-grid-line-strong dark:border-dark-grid-line-strong bg-slate-50/50 dark:bg-slate-900/20">
                                 {hours.map(hour => (
-                                    <div key={hour} className="h-[75px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-3 pt-2 relative">
+                                    <div key={hour} className="h-[75px] border-b border-grid-line dark:border-dark-grid-line text-right pr-3 pt-2 relative">
                                         <span className="text-xs font-medium text-slate-400 relative -top-3">{hour > 12 ? hour - 12 : hour} {hour >= 12 ? 'PM' : 'AM'}</span>
                                     </div>
                                 ))}
@@ -465,9 +465,11 @@ const SessionManagement: React.FC = () => {
                             {weekDays.map(day => {
                                 const dayEvents = appointments.filter(a => new Date(a.date).toDateString() === day.toDateString());
                                 return (
-                                    <div key={day.toISOString()} className="relative border-r border-border dark:border-slate-700/50 last:border-0 group">
-                                        {/* Hour Grid Lines */}
-                                        {hours.map(h => <div key={h} className="h-[75px] border-b border-slate-50 dark:border-slate-800/30 group-hover:border-slate-100 dark:group-hover:border-slate-700/50 transition-colors"></div>)}
+                                    <div key={day.toISOString()} className={`relative border-r border-grid-line dark:border-dark-grid-line last:border-0 group ${isToday(day) ? 'bg-primary/[0.07] dark:bg-dark-primary/[0.08]' : ''}`}>
+                                        {/* Hour Grid Lines. K5: the body columns also gain the today
+                                            wash — merged view had highlighted only the HEADER cell, so
+                                            the column itself never read as today even before K1. */}
+                                        {hours.map(h => <div key={h} className="h-[75px] border-b border-grid-line dark:border-dark-grid-line group-hover:border-grid-line-strong dark:group-hover:border-dark-grid-line-strong transition-colors"></div>)}
 
                                         {/* Events */}
                                         {dayEvents.map(apt => {

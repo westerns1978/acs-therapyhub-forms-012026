@@ -262,7 +262,10 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
             </div>
 
             <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-border">
+                {/* K5: was `divide-border` with NO dark: sibling, so dark mode painted
+                    the light cream border (#DFD9D1) across a charcoal card at 11.3:1 —
+                    a glaring stripe, not a rule. Both modes now on the grid tokens. */}
+                <table className="min-w-full divide-y divide-grid-line-strong dark:divide-dark-grid-line-strong">
                     <thead className="bg-surface">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium uppercase">Form Name</th>
@@ -272,7 +275,7 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                             <th className="px-6 py-3 text-right text-xs font-medium uppercase">Actions</th>
                         </tr>
                     </thead>
-                    <tbody className="bg-background divide-y divide-border">
+                    <tbody className="bg-background divide-y divide-grid-line dark:divide-dark-grid-line">
                         {formSubmissions.map(sub => {
                             // Real catalog, not the retired dbForms mock (2026-07-28).
                             const formTitle = FORM_DEFINITION_BY_ID[sub.formId]?.title

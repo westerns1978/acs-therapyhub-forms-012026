@@ -166,7 +166,7 @@ const AuditTrailTable: React.FC<AuditTrailTableProps> = ({ clients }) => {
                 </button>
             </div>
             <div className="overflow-x-auto max-h-96">
-                <table className="min-w-full divide-y divide-black/10 dark:divide-white/10">
+                <table className="min-w-full divide-y divide-grid-line-strong dark:divide-dark-grid-line-strong">
                     <thead className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl sticky top-0">
                         <tr>
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-on-surface-secondary uppercase tracking-wider">Timestamp</th>
@@ -176,7 +176,7 @@ const AuditTrailTable: React.FC<AuditTrailTableProps> = ({ clients }) => {
                             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-on-surface-secondary uppercase tracking-wider">Details</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-black/10 dark:divide-white/10">
+                    <tbody className="divide-y divide-grid-line dark:divide-dark-grid-line">
                         {isLoading ? (
                             <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-on-surface-secondary dark:text-slate-400">Loading…</td></tr>
                         ) : visibleLogs.length === 0 ? (

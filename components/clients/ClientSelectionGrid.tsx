@@ -202,7 +202,10 @@ const ClientListView: React.FC<{
     return (
         <div className="overflow-x-auto bg-white/70 dark:bg-dark-surface/70 backdrop-blur-xl border border-black/5 dark:border-white/10 rounded-xl shadow-md">
             <table className="min-w-full text-sm">
-                <thead className="border-b border-black/5 dark:border-white/10">
+                {/* K5: header rule black/5 measured 1.12:1 and the row rules black/5
+                    dark:white/5 were fainter still — a 20-row roster read as one slab.
+                    Grid tokens only; the N+1 progress fetch below is untouched. */}
+                <thead className="border-b border-grid-line-strong dark:border-dark-grid-line-strong">
                     <tr>
                         <Th k="name">Name</Th>
                         <Th k="caseNumber">Case #</Th>
@@ -223,7 +226,7 @@ const ClientListView: React.FC<{
                             <tr
                                 key={c.id}
                                 onClick={() => navigate(`/clients/${c.id}`)}
-                                className="border-b border-black/5 dark:border-white/5 last:border-0 cursor-pointer hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
+                                className="border-b border-grid-line dark:border-dark-grid-line last:border-0 cursor-pointer hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors"
                             >
                                 <td className="px-3 py-1.5">
                                     <span className="inline-flex items-center gap-2">

@@ -237,9 +237,14 @@ export const getClients = async (
 };
 
 /** Per-lifecycle counts for the grid's filter chips. One cheap select; counted
- *  client-side (single-clinic scale). Fails visibly like getClients. */
+ *  client-side (single-clinic scale). Fails visibly like getClients.
+ *
+ *  Demo-filtered (2026-07-28): this was the ONE clients-reading query the J3 sweep
+ *  missed, and it sat right next to the rows it contradicted — the chips counted
+ *  every row ("Active 21") while the cards beneath them rendered the filtered set
+ *  (3). Same shared filter as getClients, so the chips and the grid can't disagree. */
 export const getClientStatusCounts = async (): Promise<Record<ClientStatus, number>> => {
-    const { data, error } = await supabase.from('clients').select('status');
+    const { data, error } = await applyDemoFilter(supabase.from('clients').select('status'));
     if (error) {
         console.error('[api] getClientStatusCounts failed:', error);
         throw new Error(error.message || 'Failed to load client counts');

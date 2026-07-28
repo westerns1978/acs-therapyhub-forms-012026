@@ -310,7 +310,7 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-border dark:border-slate-700">
+              <tr className="border-b border-grid-line-strong dark:border-dark-grid-line-strong">
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Reference</th>
@@ -322,7 +322,7 @@ const BillingLedger: React.FC<BillingLedgerProps> = ({ clientId, canRecord = fal
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/60 dark:divide-slate-800">
+            <tbody className="divide-y divide-grid-line dark:divide-dark-grid-line">
               {payments.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-3 text-sm font-bold text-slate-500 whitespace-nowrap">{fmtDate(p.payment_date)}</td>

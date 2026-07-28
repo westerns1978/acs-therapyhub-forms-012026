@@ -244,7 +244,10 @@ const ClientSubmissionsPanel: React.FC = () => {
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800">
+              {/* K5: header rule + row rules were slate-100/slate-50 — 1.09:1 and
+                  1.04:1 on the card, i.e. an undivided block of text. On the grid
+                  tokens the header reads at 3.04:1 and the rows at 1.88:1. */}
+              <tr className="border-b border-grid-line-strong dark:border-dark-grid-line-strong">
                 <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</th>
                 <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Form</th>
                 <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
@@ -252,7 +255,7 @@ const ClientSubmissionsPanel: React.FC = () => {
                 <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+            <tbody className="divide-y divide-grid-line dark:divide-dark-grid-line">
               {filtered.map(sub => {
                 const status = normalizeSubmissionStatus(sub.status);
                 return (

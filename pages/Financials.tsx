@@ -195,13 +195,13 @@ const Financials: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-border dark:border-slate-700">
+                  <tr className="border-b border-grid-line-strong dark:border-dark-grid-line-strong">
                     <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Method</th>
                     <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Count</th>
                     <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/60 dark:divide-slate-800">
+                <tbody className="divide-y divide-grid-line dark:divide-dark-grid-line">
                   {byMethod.map((r) => (
                     <tr key={r.method ?? 'unknown'}>
                       <td className="px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200">{prettyMethod(r.method)}</td>
@@ -241,12 +241,12 @@ const Financials: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-border dark:border-slate-700">
+                  <tr className="border-b border-grid-line-strong dark:border-dark-grid-line-strong">
                     <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</th>
                     <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Outstanding</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/60 dark:divide-slate-800">
+                <tbody className="divide-y divide-grid-line dark:divide-dark-grid-line">
                   {outstanding.map((r) => (
                     <tr key={r.client_id}>
                       <td className="px-4 py-3 text-sm font-bold text-slate-700 dark:text-slate-200">{r.client_name}</td>

@@ -172,6 +172,27 @@
               hairline: {
                 DEFAULT: '#E7E3DC',
               },
+              /* K5 GRID LINES (2026-07-28). A DATA GRID needs more structure than a
+                 card edge, so it must not share a token with the card border /
+                 hairline — K1 softened those and the calendar inherited the loss.
+                 Measured before this change: the hour rules were slate-50 #FAFAF9
+                 at 1.04:1 and slate-100 #F5F5F4 at 1.09:1 on the white card. That
+                 - not the day columns (1.40:1) - is what erased the grid.
+                   grid-line        hour rows + day columns   1.88:1 light / 1.87 dark
+                   grid-line-strong counselor separators,
+                                    header underline, gutter  3.04:1 light / 3.23 dark
+                 grid-line-strong MEETS the 3:1 non-text floor. grid-line is
+                 deliberately BELOW it: it repeats 16x per column x 7 columns, and
+                 at 3:1 (~#9A938A) the board becomes a spreadsheet mesh that fights
+                 the appointment cards. One hex here raises it if that call is wrong.
+                 Dark is NOT milder than light - it measured WORSE (hour rules
+                 1.04:1, lane dividers 1.14:1) because the /30-/60 alpha borders
+                 composite almost into the card. Dark is pinned to the same ratios
+                 as light rather than the same alphas. */
+              'grid-line': {
+                DEFAULT: '#C6BCAD',
+                strong:  '#9A938A',
+              },
               // BRAND (layer 1) — sourced from the BRAND object above so the Attesta
               // fork changes ONE literal, not scattered hexes.
               primary: {
@@ -295,6 +316,12 @@
                 },
                 border: {
                     DEFAULT: '#383633',
+                },
+                // K5 — dark grid lines, pinned to the same RATIOS as the light
+                // pair (not the same alphas, which is how they got lost).
+                'grid-line': {
+                  DEFAULT: '#514C45',
+                  strong:  '#767065',
                 }
               }
             },

@@ -55,8 +55,15 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
     // Divider recipe (applied identically to header cells and body columns so vertical
     // edges line up): 2px block divider on each block after the first, 0.5px hairline
     // between days inside a block.
-    const blockDivider = (bi: number) => (bi > 0 ? 'border-l-2 border-l-slate-300 dark:border-l-slate-600' : '');
-    const dayDivider = (di: number) => (di > 0 ? 'border-l-[0.5px] border-l-slate-200 dark:border-l-slate-700/50' : '');
+    // K5: widths unchanged (2px / 0.5px) — only the COLOUR moves onto the dedicated
+    // grid tokens. The counselor-block separator is the strongest line on the board
+    // (it's what tells you whose week you're reading), so it takes grid-line-strong.
+    const blockDivider = (bi: number) => (bi > 0 ? 'border-l-2 border-l-grid-line-strong dark:border-l-dark-grid-line-strong' : '');
+    const dayDivider = (di: number) => (di > 0 ? 'border-l-[0.5px] border-l-grid-line dark:border-l-dark-grid-line' : '');
+    // Today column wash — low-alpha BRAND (was blue-50/50, which measured 1.05:1 and
+    // read as nothing). Sits UNDER the appointment cards, which are opaque service
+    // fills, so it marks the column without competing with them.
+    const todayTint = 'bg-primary/[0.07] dark:bg-dark-primary/[0.08]';
 
     const scrollerRef = useRef<HTMLDivElement>(null);
     const headerRef = useRef<HTMLDivElement>(null);
@@ -136,9 +143,9 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
                 <div className="min-w-max">
                     {/* Header row: counselor name over that counselor's weekday labels. Wheel
                         over this strip pans horizontally (see effect). */}
-                    <div ref={headerRef} className="flex sticky top-0 z-30 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700/60">
+                    <div ref={headerRef} className="flex sticky top-0 z-30 bg-white dark:bg-slate-800 border-b border-grid-line-strong dark:border-dark-grid-line-strong">
                         {/* Corner cell — sticky on BOTH axes */}
-                        <div className="sticky left-0 z-40 w-16 shrink-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700/60 flex items-end justify-center pb-2">
+                        <div className="sticky left-0 z-40 w-16 shrink-0 bg-white dark:bg-slate-800 border-r border-grid-line-strong dark:border-dark-grid-line-strong flex items-end justify-center pb-2">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">GMT-05</span>
                         </div>
                         {blocks.map((block, bi) => (
@@ -149,7 +156,7 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
                                 </div>
                                 <div className="flex">
                                     {weekDays.map((day, di) => (
-                                        <div key={day.toISOString()} className={`shrink-0 py-1.5 text-center ${dayDivider(di)} ${isToday(day) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`} style={{ width: DAY_COL_PX }}>
+                                        <div key={day.toISOString()} className={`shrink-0 py-1.5 text-center ${dayDivider(di)} ${isToday(day) ? todayTint : ''}`} style={{ width: DAY_COL_PX }}>
                                             <p className={`text-[10px] font-bold uppercase tracking-wider ${isToday(day) ? 'text-primary' : 'text-slate-400'}`}>
                                                 {day.toLocaleDateString('en-US', { weekday: 'short' })} {day.getDate()}
                                             </p>
@@ -164,9 +171,9 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
                     <div className="flex" style={{ height: GRID_HEIGHT_PX }}>
                         {/* Time gutter — sticky against horizontal scroll; opaque so cards
                             slide beneath it, not through it. */}
-                        <div className="sticky left-0 z-20 w-16 shrink-0 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700/60">
+                        <div className="sticky left-0 z-20 w-16 shrink-0 bg-slate-50 dark:bg-slate-900 border-r border-grid-line-strong dark:border-dark-grid-line-strong">
                             {HOURS.map(hour => (
-                                <div key={hour} className="h-[65px] border-b border-slate-100 dark:border-slate-700/30 text-right pr-2 pt-2 relative">
+                                <div key={hour} className="h-[65px] border-b border-grid-line dark:border-dark-grid-line text-right pr-2 pt-2 relative">
                                     <span className="text-xs font-medium text-slate-400 relative -top-3">{hour > 12 ? hour - 12 : hour} {hour >= 12 ? 'PM' : 'AM'}</span>
                                 </div>
                             ))}
@@ -184,7 +191,7 @@ const CounselorWeekView: React.FC<CounselorWeekViewProps> = ({ weekDays, counsel
                                         conflictIds={conflictIds}
                                         onSlotClick={onSlotClick}
                                         showNowLine={isToday(day)}
-                                        className={`shrink-0 ${dayDivider(di)} ${isToday(day) ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''}`}
+                                        className={`shrink-0 ${dayDivider(di)} ${isToday(day) ? todayTint : ''}`}
                                         style={{ width: DAY_COL_PX }}
                                     />
                                 ))}

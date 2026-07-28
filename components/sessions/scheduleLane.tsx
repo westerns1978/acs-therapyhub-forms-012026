@@ -179,8 +179,11 @@ export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorI
             style={style}
             onClick={onSlotClick ? handleLaneClick : undefined}
         >
-            {/* Hour gridlines */}
-            {HOURS.map(h => <div key={h} className="h-[65px] border-b border-slate-50 dark:border-slate-800/30"></div>)}
+            {/* Hour gridlines. K5: were slate-50 / slate-800-at-30% — 1.04:1 on both
+                cards, i.e. not actually drawn. On the shared grid-line token they
+                read at 1.88:1 light / 1.87:1 dark. This atom is why the fix reaches
+                Day AND by-counselor Week from one edit. */}
+            {HOURS.map(h => <div key={h} className="h-[65px] border-b border-grid-line dark:border-dark-grid-line"></div>)}
 
             {/* Appointment blocks */}
             {events.map(apt => {
