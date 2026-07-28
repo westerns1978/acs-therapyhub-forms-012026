@@ -416,7 +416,7 @@ const ClientWorkspace: React.FC = () => {
                             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3">Forms</h3>
                             {loadErrors.forms
                                 ? <ErrorFallback message="Failed to load forms." onRetry={() => loadClientData(clientId)} />
-                                : <ClientFormsTab client={client} formSubmissions={tabForms} onFormAssigned={handleFormAssigned}/>}
+                                : <ClientFormsTab client={client} formSubmissions={tabForms} onFormAssigned={handleFormAssigned} determinedLevel={clientDeterminedLevel}/>}
                         </section>
                         <section>
                             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">

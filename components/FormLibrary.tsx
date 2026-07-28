@@ -260,7 +260,12 @@ export const FormLibrary: React.FC<FormLibraryProps> = ({ onSelectForm }) => {
         <AssignFormModal 
             isOpen={!!assigningForm} 
             onClose={() => setAssigningForm(null)} 
-            onFormAssigned={() => {}} 
+            // Was `() => {}` — a genuine no-op: the modal stayed open after a
+            // successful assign with no acknowledgement, which reads as "nothing
+            // happened" and invites a second click (and a duplicate row, since
+            // assignForm has no uniqueness constraint). Closing IS the feedback
+            // here; this page renders no per-client assignment state to refetch.
+            onFormAssigned={() => setAssigningForm(null)}
             clients={clients}
             forms={[{ id: assigningForm.id, title: assigningForm.title, category: 'Intake', description: assigningForm.description, format: 'electronic' }]}
         />

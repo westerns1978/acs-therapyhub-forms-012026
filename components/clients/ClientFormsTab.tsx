@@ -4,7 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Client, FormSubmission, Form, RecoveryPlanData } from '../../types';
 import Card from '../ui/Card';
 import { SignedFileLink, SignedFileFrame } from '../ui/SignedFile';
-import { Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, PencilLine, Printer } from 'lucide-react';
+import { Eye, X, AlertTriangle, CheckCircle, ShieldCheck, FileText, ExternalLink, Loader2, PencilLine, Printer, FilePlus } from 'lucide-react';
+import AssignFormsToClientModal from '../forms/AssignFormsToClientModal';
+import type { SatopLevel } from '../../config/satopFees';
 import { approveFormSubmission } from '../../services/api';
 import { normalizeSubmissionStatus, SUBMISSION_STATUS_LABELS } from '../../config/formSubmissionStatus';
 import { useAuth } from '../../contexts/AuthContext';
@@ -17,6 +19,9 @@ interface ClientFormsTabProps {
   client: Client;
   formSubmissions: FormSubmission[];
   onFormAssigned: () => void;
+  /** Signed-determination level — drives which forms the assign modal badges as
+   *  REQUIRED. null = not established, so nothing is marked required. */
+  determinedLevel?: SatopLevel | null;
 }
 
 // Status comparisons go through normalizeSubmissionStatus — the DB carries both
@@ -246,7 +251,8 @@ const ViewSubmissionModal: React.FC<{
     );
 };
 
-const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions, onFormAssigned }) => {
+const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions, onFormAssigned, determinedLevel = null }) => {
+    const [assignOpen, setAssignOpen] = useState(false);
     const navigate = useNavigate();
     const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
     const [reviewingSubmission, setReviewingSubmission] = useState<FormSubmission | null>(null);
@@ -257,8 +263,16 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
 
     return (
         <Card>
-             <div className="mb-4">
+             <div className="mb-4 flex items-center justify-between gap-3 flex-wrap">
                 <h3 className="text-xl font-bold">Assigned Forms</h3>
+                {/* Client-scoped assign. Deliberately NOT the Forms Library's
+                    multi-client picker: this one cannot reach another chart. */}
+                <button
+                    onClick={() => setAssignOpen(true)}
+                    className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-primary-focus transition-colors shadow-sm"
+                >
+                    <FilePlus size={14} /> Assign forms
+                </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -356,6 +370,15 @@ const ClientFormsTab: React.FC<ClientFormsTabProps> = ({ client, formSubmissions
                     onApproved={onFormAssigned}
                 />
             )}
+
+            <AssignFormsToClientModal
+                isOpen={assignOpen}
+                onClose={() => setAssignOpen(false)}
+                client={client}
+                determinedLevel={determinedLevel}
+                formSubmissions={formSubmissions}
+                onAssigned={onFormAssigned}
+            />
         </Card>
     );
 };
