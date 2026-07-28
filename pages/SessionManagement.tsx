@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { getAppointments, getClients, getCounselors, deleteAppointment, updateAppointment, updateAppointmentStatus, assessLateCancellationFee, cancelSeries, deleteSeries, getNotedAppointmentIds } from '../services/api';
-import type { Counselor } from '../services/api';
+import { getAppointments, getClients, getCounselors, deleteAppointment, updateAppointment, updateAppointmentStatus, assessLateCancellationFee, cancelSeries, deleteSeries, getNotedAppointmentIds, getWeeklyGroups, getRescheduleCounts } from '../services/api';
+import type { Counselor, WeeklyGroup } from '../services/api';
+import GroupNoteModal from '../components/sessions/GroupNoteModal';
 import { Appointment, AppointmentStatus, Client, isStaffRole, ServiceType } from '../types';
 import ScheduleSessionModal from '../components/sessions/ScheduleSessionModal';
 import CounselorDayView from '../components/sessions/CounselorDayView';
@@ -50,6 +51,11 @@ const SessionManagement: React.FC = () => {
     // L1 (David 7/28): appointments with a clinical note on file → star marker on the
     // block. Best-effort — a miss means no stars, never a blank schedule.
     const [notedApptIds, setNotedApptIds] = useState<Set<string>>(new Set());
+    // L1b: reschedule counts → ↻ marker. Best-effort, same posture.
+    const [rescheduleCounts, setRescheduleCounts] = useState<Map<string, number>>(new Map());
+    // L2: David's 12 weekly group blocks — static layer on the leader lanes.
+    const [weeklyGroups, setWeeklyGroups] = useState<WeeklyGroup[]>([]);
+    const [selectedGroupBlock, setSelectedGroupBlock] = useState<{ group: WeeklyGroup; date: Date } | null>(null);
 
     // Opens the live session (ActiveSession → wrap-up → saved note) for this
     // appointment's client. Only reachable when the appointment carries a clientId.
@@ -243,10 +249,17 @@ const SessionManagement: React.FC = () => {
                 setAppointments(apts);
                 setClients(cls);
                 setCounselors(cnsl);
-                // Note stars load after the schedule paints — best-effort, non-blocking.
+                // Note stars + reschedule counts + group blocks load after the schedule
+                // paints — best-effort, non-blocking.
                 getNotedAppointmentIds(apts.map(a => a.id))
                     .then(setNotedApptIds)
                     .catch(err => console.warn('[SessionManagement] note markers unavailable:', err));
+                getRescheduleCounts(apts.map(a => a.id))
+                    .then(setRescheduleCounts)
+                    .catch(err => console.warn('[SessionManagement] reschedule markers unavailable:', err));
+                getWeeklyGroups()
+                    .then(setWeeklyGroups)
+                    .catch(err => console.warn('[SessionManagement] weekly groups unavailable:', err));
             } catch (err) {
                 // getAppointments rethrows on a real DB error (no mock fallback). Surface a
                 // visible error + Retry rather than a hung spinner or fabricated rows.
@@ -432,6 +445,9 @@ const SessionManagement: React.FC = () => {
                     onSelectAppt={setSelectedAppt}
                     conflictIds={conflictIds}
                     notedApptIds={notedApptIds}
+                    rescheduleCounts={rescheduleCounts}
+                    groups={weeklyGroups}
+                    onSelectGroup={(group, date) => setSelectedGroupBlock({ group, date })}
                     onSlotClick={info => { setSlotPrefill(info); setScheduleModalOpen(true); }}
                 />
                 ) : weekStyle === 'byCounselor' ? (
@@ -442,6 +458,9 @@ const SessionManagement: React.FC = () => {
                     onSelectAppt={setSelectedAppt}
                     conflictIds={conflictIds}
                     notedApptIds={notedApptIds}
+                    rescheduleCounts={rescheduleCounts}
+                    groups={weeklyGroups}
+                    onSelectGroup={(group, date) => setSelectedGroupBlock({ group, date })}
                     onSlotClick={info => { setSlotPrefill(info); setScheduleModalOpen(true); }}
                 />
                 ) : (
@@ -630,6 +649,16 @@ const SessionManagement: React.FC = () => {
                 onReschedule={canManage ? handleReschedule : undefined}
                 onCancelSeries={canManage && selectedAppt?.seriesId ? handleCancelSeries : undefined}
                 onDeleteSeries={canManage && selectedAppt?.seriesId ? handleDeleteSeries : undefined}
+            />
+
+            {/* L2: clicking a weekly group block opens its GROUP NOTE for that date —
+                pre-populated with the standing roster; submit credits every attendee. */}
+            <GroupNoteModal
+                isOpen={!!selectedGroupBlock}
+                onClose={() => setSelectedGroupBlock(null)}
+                group={selectedGroupBlock?.group ?? null}
+                date={selectedGroupBlock?.date ?? null}
+                onSubmitted={() => setRetryKey(k => k + 1)}
             />
         </div>
     );

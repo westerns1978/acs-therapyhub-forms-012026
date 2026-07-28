@@ -10,7 +10,8 @@ import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
 import ClientAvatar from './ClientAvatar';
 import ClientTypeBadge from './ClientTypeBadge';
-import { CalendarPlus, FilePlus, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock, Phone, Mail } from 'lucide-react';
+import GroupAssignmentModal from './GroupAssignmentModal';
+import { CalendarPlus, FilePlus, Pencil, Play, UserCheck, Loader2, AlertTriangle, CalendarClock, Phone, Mail, UsersRound } from 'lucide-react';
 import { placeAndActivate, getCounselors } from '../../services/api';
 import { CLARA_AVATAR_URL } from '../../services/claraPrompts';
 
@@ -117,6 +118,8 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
   const isProspect = client.status === 'prospect';
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  // L2: standing group assignment modal (Modal portals to body — no transform trap).
+  const [groupsModalOpen, setGroupsModalOpen] = useState(false);
   const handlePlaceActivate = async () => {
     setPlaceError(null);
     setPlacing(true);
@@ -284,6 +287,13 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                 >
                     <CalendarPlus size={15} /> Schedule
                 </button>
+                {/* L2: standing group assignment — multi-select, start date, no end date. */}
+                <button
+                    onClick={() => setGroupsModalOpen(true)}
+                    className="flex items-center gap-2 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                >
+                    <UsersRound size={15} /> Groups
+                </button>
                 {/* Opens EditClientModal owned by MainLayout. Available to all
                     roles; the modal itself locks clinical fields for Admin. */}
                 <button
@@ -320,6 +330,8 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
         </div>
       </div>
 
+      {/* L2: standing group assignment — open groups, start date, no end date. */}
+      <GroupAssignmentModal isOpen={groupsModalOpen} onClose={() => setGroupsModalOpen(false)} client={client} />
     </div>
   );
 };

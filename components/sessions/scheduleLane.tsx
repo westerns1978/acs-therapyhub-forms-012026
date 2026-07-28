@@ -1,9 +1,10 @@
 import React from 'react';
 import { Appointment } from '../../types';
+import type { WeeklyGroup } from '../../services/api';
 import { getAppointmentStatusStyle } from './AppointmentStatusModal';
 import { parseTimeToMinutes, formatTime12, minutesToTimeLabel } from '../../config/time';
 import { serviceCardClass, sessionTypeById } from '../../config/sessionTaxonomy';
-import { Clock, Video, AlertTriangle, MapPin, PhoneOff, UserX, Star } from 'lucide-react';
+import { Clock, Video, AlertTriangle, MapPin, PhoneOff, UserX, Star, Users, RotateCw } from 'lucide-react';
 
 // Shared schedule-lane atom, extracted verbatim from CounselorDayView so the Day board
 // and the by-counselor Week board render the SAME column: same visible window, same
@@ -138,6 +139,15 @@ interface LaneColumnProps {
     /** Appointments with a clinical note on file — renders the note star (L1, David 7/28).
      *  Notes are rare, so the star is a heads-up marker. Omitted = no stars. */
     notedApptIds?: Set<string>;
+    /** L1b: reschedule counts per appointment — renders the ↻ marker. */
+    rescheduleCounts?: Map<string, number>;
+    /** L2: the 12 weekly group blocks. This column renders the ones whose
+     *  counselor matches its lane AND whose weekday matches its date — STATIC,
+     *  recurring, computed client-side (no appointment rows exist until a group
+     *  note is submitted). Omitted = no group layer. */
+    groups?: WeeklyGroup[];
+    /** L2: click a group block → open its group note for this column's date. */
+    onSelectGroup?: (group: WeeklyGroup, date: Date) => void;
     /** Fires when staff click an EMPTY point in the lane (cards stopPropagation). Omitted = no affordance. */
     onSlotClick?: (info: SlotClickInfo) => void;
     /** Border/width classes supplied by the host grid (Day: 1px lane dividers; Week: day/block dividers). */
@@ -149,7 +159,7 @@ interface LaneColumnProps {
     showNowLine?: boolean;
 }
 
-export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorId, counselorName, onSelectAppt, conflictIds, notedApptIds, onSlotClick, className, style, showNowLine }) => {
+export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorId, counselorName, onSelectAppt, conflictIds, notedApptIds, rescheduleCounts, groups, onSelectGroup, onSlotClick, className, style, showNowLine }) => {
     // Step 9: empty-slot click -> prefilled booking. Reads the click's vertical position
     // within the lane, snaps to the nearest 30 min, and reports it plus the lane's counselor
     // (if any). Appointment cards stopPropagation() so clicking one opens ITS detail, never
@@ -188,6 +198,40 @@ export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorI
                 Day AND by-counselor Week from one edit. */}
             {HOURS.map(h => <div key={h} className="h-[65px] border-b border-grid-line dark:border-dark-grid-line"></div>)}
 
+            {/* L2 group blocks — David's standing weekly blocks, rendered STATICALLY on
+                the leader's lane from groups.weekday/start_local/end_local. Distinct
+                look (dashed border, Users icon): a block is a recurring commitment, not
+                a booked appointment. Click → the group note for this date. */}
+            {(groups ?? [])
+                .filter(g => g.counselorId && g.counselorId === counselorId && g.weekday === date.getDay())
+                .map(g => {
+                    const startMin = parseMinutes(String(g.startLocal).slice(0, 5));
+                    const endMin = Math.max(parseMinutes(String(g.endLocal).slice(0, 5)), startMin + 20);
+                    const top = ((startMin - DAY_START_HOUR * 60) / WINDOW_MIN) * 100;
+                    const height = ((endMin - startMin) / WINDOW_MIN) * 100;
+                    return (
+                        <div
+                            key={`grp-${g.id}`}
+                            role={onSelectGroup ? 'button' : undefined}
+                            tabIndex={onSelectGroup ? 0 : undefined}
+                            onClick={e => { if (onSelectGroup) { e.stopPropagation(); onSelectGroup(g, date); } }}
+                            onKeyDown={e => { if (onSelectGroup && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); onSelectGroup(g, date); } }}
+                            title={`${g.program} — ${g.counselorName ?? ''} · weekly group${onSelectGroup ? ' (click to open the group note)' : ''}`}
+                            className={`absolute left-1 right-1 rounded-xl p-2 border-2 border-dashed border-primary/50 bg-primary/[0.06] dark:bg-primary/[0.12] overflow-hidden ${onSelectGroup ? 'cursor-pointer hover:bg-primary/[0.12] hover:z-10 transition-colors' : ''}`}
+                            style={{ top: `${Math.max(0, top)}%`, height: `${Math.min(height, 100 - Math.max(0, top))}%` }}
+                        >
+                            <div className="flex items-center gap-1 text-primary">
+                                <Users size={11} className="shrink-0" />
+                                <p className="font-black text-xs truncate leading-tight">{g.program}</p>
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5 text-[10px] text-primary/80 font-semibold">
+                                <Clock size={10} /> {formatTime12(String(g.startLocal).slice(0, 5))} – {formatTime12(String(g.endLocal).slice(0, 5))}
+                            </div>
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-primary/60 mt-0.5 truncate">Weekly group</p>
+                        </div>
+                    );
+                })}
+
             {/* Appointment blocks — L1 (David 7/28): session type, client name, and the
                 IN-PERSON marker must all read WITHOUT hover. In-person is rare and loud:
                 amber double-border + filled MapPin chip, never a text suffix. Missed
@@ -202,6 +246,7 @@ export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorI
                 const isConflict = !!conflictIds?.has(apt.id);
                 const isInPerson = apt.modality === 'In-Person';
                 const hasNote = !!notedApptIds?.has(apt.id);
+                const moves = rescheduleCounts?.get(apt.id) ?? 0;
                 const typeLabel = sessionTypeById(apt.sessionTypeId)?.label ?? apt.type;
                 return (
                     <div
@@ -216,6 +261,11 @@ export const LaneColumn: React.FC<LaneColumnProps> = ({ date, events, counselorI
                     >
                         <div className={`w-1 absolute left-0 top-0 bottom-0 ${s.bar}`}></div>
                         <span className="absolute top-1 right-1 z-10 flex items-center gap-0.5">
+                            {moves > 0 && (
+                                <span title={`Rescheduled ${moves}×  — open for the full trail`} className="inline-flex items-center gap-0.5 text-[9px] font-black text-sky-700 dark:text-sky-300">
+                                    <RotateCw size={10} />{moves > 1 ? moves : ''}
+                                </span>
+                            )}
                             {hasNote && (
                                 <span title="Note on file for this session">
                                     <Star size={11} className="text-yellow-500 fill-yellow-300" />

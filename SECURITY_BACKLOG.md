@@ -723,3 +723,20 @@ avatar-prompt ownership rule applies). Recorded so it isn't lost: **flag to the 
 class already noted in #13 (67 non-ACS RLS-disabled tables); called out separately because `invoices`
 additionally carries explicit `anon` write grants, i.e. unauthenticated read/write, not just
 shared-authenticated.
+
+---
+
+## 20. `clinical_notes.therapist_id` NULL on every app-written note — 12 SIGNED notes have no author of record (2026-07-28)
+
+Census (2026-07-28, live): 23 notes total. The 4 Feb/May rows are the 20260518 demo seed and
+carry a therapist_id. **All 19 app-written rows (Jun–Jul 2026) have `therapist_id IS NULL`,
+including 12 with `is_signed = true`** (Jun: 5 unsigned + 4 signed, Jul: 2 unsigned + 8 signed —
+all NULL). Root cause: no caller of `saveClinicalNote` passed `opts.therapistId` until the L3
+build (2026-07-28), which now writes therapist_id + staff_name/credentials + signed_by_name on
+new notes.
+
+**DO NOT backfill or infer a clinician for the historical 19** (Dan, 7/28): a signed note
+attributed to the wrong person is worse than one attributed to nobody. The honest render path
+already exists — ClinicalNoteView shows the role "Clinician" when no signer name is on the row.
+Disposition of the 12 authorless SIGNED notes (re-attest by their real authors vs. leave as-is
+with a known-gap memo) is a David/compliance decision, not a code fix.

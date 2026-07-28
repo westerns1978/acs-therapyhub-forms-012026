@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Appointment, AppointmentStatus, ServiceType, Client } from '../../types';
-import { getLastAppointment, getNextAppointment, getTherapistAppointments, getCounselors } from '../../services/api';
-import type { Counselor } from '../../services/api';
+import { getLastAppointment, getNextAppointment, getTherapistAppointments, getCounselors, getRescheduleTrail } from '../../services/api';
+import type { Counselor, RescheduleTrailRow } from '../../services/api';
 import { qualifiedCounselorsFor } from '../../config/sessionTaxonomy';
 import { LATE_CANCELLATION_FEE } from '../../config/satopFees';
 import { unitGrainFor, suggestedUnits } from '../../config/billableUnits';
@@ -100,6 +100,15 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
     const [rescheduleCounselorId, setRescheduleCounselorId] = useState<string | undefined>(undefined);
     const [counselors, setCounselors] = useState<Counselor[]>([]);
     useEffect(() => { if (isOpen && onReschedule) getCounselors().then(setCounselors).catch(() => setCounselors([])); }, [isOpen, onReschedule]);
+    // L1b: the reschedule trail — a session has a lifespan (David 7/28). Loaded per
+    // appointment; empty for never-moved sessions (the common case).
+    const [trail, setTrail] = useState<RescheduleTrailRow[]>([]);
+    useEffect(() => {
+        setTrail([]);
+        if (isOpen && appointment?.id) {
+            getRescheduleTrail(appointment.id).then(setTrail).catch(() => setTrail([]));
+        }
+    }, [isOpen, appointment?.id, appointment?.startTime]);
     useEffect(() => {
         setServiceType((appointment?.serviceType as ServiceType) ?? '');
         setCancelPanel(false); setWaiveOpen(false); setWaiveReason('');
@@ -491,6 +500,31 @@ const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
                                 >
                                     <Save size={14} /> Save new time
                                 </button>
+                            </div>
+                        )}
+
+                        {/* L1b: SESSION HISTORY — the reschedule trail. A session has a
+                            lifespan (David 7/28): original date/time + every move, in order.
+                            A reschedule is a continuation, unlike No Show / NCNS / Cancel. */}
+                        {trail.length > 0 && (
+                            <div className="rounded-xl border border-sky-200 dark:border-sky-800/50 bg-sky-50/60 dark:bg-sky-900/10 p-3">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-sky-700 dark:text-sky-300 mb-2 flex items-center gap-1.5">
+                                    <CalendarClock size={12} /> Session history — rescheduled {trail.length}×
+                                </p>
+                                <ol className="space-y-1.5">
+                                    <li className="text-xs text-slate-600 dark:text-slate-300">
+                                        <span className="font-bold">Originally:</span>{' '}
+                                        {new Date(trail[0].fromStart).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                    </li>
+                                    {trail.map(t => (
+                                        <li key={t.id} className="text-xs text-slate-600 dark:text-slate-300">
+                                            <span className="font-bold">Moved</span>{' '}
+                                            {new Date(t.movedAt).toLocaleDateString()} →{' '}
+                                            {new Date(t.toStart).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                            {t.reason ? <span className="text-slate-400"> · {t.reason}</span> : null}
+                                        </li>
+                                    ))}
+                                </ol>
                             </div>
                         )}
 

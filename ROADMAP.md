@@ -72,6 +72,13 @@ would have implied it was safe to expose. It is not.
 
 ## NEXT
 
+- **MRT accrual rule — CONFIRMED BY INFERENCE, pending David's verbal confirmation (touches
+  hours).** Rule in force since 2026-07-28 (config/groupNote.ts): MRT is a modality label, not
+  an accrual category — MRT Group Education accrues as `education`, MRT Group Counseling as
+  `counseling`; the MRT prefix never changes accrual. Inferred from David's own 7/15 four-type
+  note spec (Group Ed / Group Cns / MRT Group Ed / MRT Group Cns) + Deb's MRT groups carrying
+  no Ed/Cns designation in the schedule. Get David's verbal yes and delete this bullet.
+
 - ~~Native Standard Means Test~~ **KILLED by David 7/28**: "leave it alone, that's a nightmare,
   we'll do that for them." ACS runs the means test manually; the app must not build it. The
   design doc (`docs/design/means-test-native-direction.html`) was deleted the same day. Do not
