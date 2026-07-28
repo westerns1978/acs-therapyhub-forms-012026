@@ -71,14 +71,16 @@
        * tinted toward the brand hue. Character target: institutional warm paper —
        * closer to a legal document than a SaaS dashboard.
        *
-       * Ink slots are contrast-verified on the J4 surfaces (card #FFFFFF and
-       * the parchment page #F0EAE1; dark card #252019):
-       *   danger  600 #A63A22 brick   6.5 card / 5.4 page   (AA)
-       *   warning 600 #955B06 ochre   5.6 card / 4.6 page   (AA)
-       *   success 600 #4D6A52 sage    6.0 card / 5.0 page   (AA)
-       *   neutral 500 #635C57 stone   6.6 card / 5.5 page   (AA)
-       * Dark inks are the -400 slots (4.9-6.9 on the dark card). Fill/border
-       * slots (50-300) are non-text and clear 3:1 against their own ink.
+       * Ink slots are contrast-verified on the K1 surfaces (card #FFFFFF,
+       * page #F5F3EF; dark card #232221, dark raised #2C2B29 — the Card
+       * component's dark surface, so dark inks must clear AA on BOTH):
+       *   danger  600 #A63A22 brick   6.5 card / 5.8 page   (AA)
+       *   warning 600 #955B06 ochre   5.6 card / 5.0 page   (AA)
+       *   success 600 #4D6A52 sage    6.0 card / 5.4 page   (AA)
+       *   neutral 500 #635C57 stone   6.6 card / 5.9 page   (AA)
+       * Dark inks are the -400 slots (4.6-6.8 on raised #2C2B29, the binding
+       * surface). Fill/border slots (50-300) are non-text and clear 3:1
+       * against their own ink.
        *
        * NOTE ON BLUE: deliberately ABSENT. Blue was doing almost entirely
        * NON-status work in this app (Zoom/telehealth affordances, the calendar
@@ -92,13 +94,15 @@
       // separates from BRAND #7A222E on BOTH axes: ~20° of hue and a full
       // lightness step. Still clearly redder + darker than the HIGH-tier
       // terracotta (#9C5A2B) — verified side-by-side before shipping.
-      const BRICK = { 50:'#FBF3F0', 100:'#F6E3DD', 200:'#ECC7BC', 300:'#DDA28F', 400:'#CB7A5F', 500:'#B95A3D', 600:'#A63A22', 700:'#8B2F1B', 800:'#712818', 900:'#5A2215', 950:'#31110A' };
-      // 600/700 darkened for the J4 parchment page (#A16207 measured 4.12:1 there).
+      // 400 lightened for K1 (#CB7A5F measured 4.37:1 on the raised dark card #2C2B29).
+      const BRICK = { 50:'#FBF3F0', 100:'#F6E3DD', 200:'#ECC7BC', 300:'#DDA28F', 400:'#D08163', 500:'#B95A3D', 600:'#A63A22', 700:'#8B2F1B', 800:'#712818', 900:'#5A2215', 950:'#31110A' };
+      // 600/700 darkened when the page warmed (#A16207 measured 4.12:1 on the old
+      // parchment); re-verified on the K1 page #F5F3EF — 600 now 5.0:1 there.
       const OCHRE = { 50:'#FCF8EE', 100:'#F7EED4', 200:'#EEDCA8', 300:'#E0C173', 400:'#CDA345', 500:'#B4841F', 600:'#955B06', 700:'#7A4A08', 800:'#6B410B', 900:'#56350C', 950:'#2F1C05' };
       const SAGE  = { 50:'#F3F6F3', 100:'#E3EBE4', 200:'#C7D8CA', 300:'#A3BCA8', 400:'#7A9A81', 500:'#5F7F66', 600:'#4D6A52', 700:'#405845', 800:'#354739', 900:'#2C3A2F', 950:'#171F19' };
       // 500 darkened twice from stock #78716C: it carries the small uppercase meta
-      // labels, and each page-background warm-up (cream, then the J4 parchment
-      // #F0EAE1) lowered its ratio. #635C57 clears AA on parchment with margin.
+      // labels, and each page-background warm-up lowered its ratio. #635C57 clears
+      // AA on the K1 page #F5F3EF with margin (5.9:1).
       const STONE = { 50:'#FAFAF9', 100:'#F5F5F4', 200:'#E7E5E4', 300:'#D6D3D1', 400:'#A8A29E', 500:'#635C57', 600:'#57534E', 700:'#44403C', 800:'#292524', 900:'#1C1917', 950:'#0C0A09' };
       // Terracotta sits between ochre and brick for the HIGH alert tier, so the
       // 4-tier ladder stays legible without reintroducing a saturated orange.
@@ -128,37 +132,45 @@
               // Overridden at the token so the ~625 raw text-slate-400/500 sites move at once
               // WITHOUT a per-component sweep. Both clear AA (≥4.5:1) on cream #F8F7F4.
               // Value text stays on slate-700/800 (already ~7:1) — untouched by design.
-              /* J4 DARK TEMPERATURE (2026-07-28): the whole slate ramp is repointed
-                 at warm stone. Light mode was warm cream while dark mode was navy —
-                 two different products; and every dark surface in the app is a raw
-                 dark:bg-slate-800/900. Warming the ramp HERE moves all ~2,700 slate
-                 call sites (dark cards, light headings, borders, muted text) to warm
-                 charcoal in one file. 900/800 are deliberately the dark surface-1/2
-                 values so dark:bg-slate-900 cards land exactly on the elevation
-                 scale. 400/500 remain the contrast-raised secondary-text slots (AA
-                 on the parchment page bg). */
+              /* K1 SPLIT RAMP (2026-07-28): the J4 single warm repoint was right for
+                 SURFACES and wrong for TYPE — warm surfaces + warm text read as mud
+                 in dark mode. The one slate key now carries TWO ramps:
+                 · SURFACE slots (600–950, literal hex): stay warm but chroma-cut —
+                   dark:bg-slate-900 card #232221, 800 raised #2C2B29, 700 border
+                   #383633, all heavy opacity-modifier users so they must stay
+                   parseable hexes.
+                 · TEXT slots (400/500, mode-flipping rgb vars): light keeps the
+                   contrast-raised meta grays; dark flips to near-neutral warm gray
+                   (#A8A4A0 / #9B9792) so the 92 dark:text-slate-4/500 sites and the
+                   unprefixed strays (guardrail citations etc.) stop rendering
+                   #6E6862 brown-on-charcoal (~2.5:1). <alpha-value> keeps
+                   ring-slate-500/20-style modifiers working. Vars live in the
+                   :root/.dark block below. */
               slate: {
                 50: '#FAFAF9',
                 100: '#F5F5F4',
                 200: '#E7E5E4',
-                300: '#D6D3D1',
-                400: '#6E6862',
-                500: '#5D5852',
-                600: '#4A453F',
-                700: '#3A362F',
-                800: '#2E2820',
-                900: '#252019',
-                950: '#161310',
+                300: '#D3D0CD',
+                400: 'rgb(var(--th-slate-400) / <alpha-value>)',
+                500: 'rgb(var(--th-slate-500) / <alpha-value>)',
+                600: '#474441',
+                700: '#383633',
+                800: '#2C2B29',
+                900: '#232221',
+                950: '#141312',
               },
               // In-card / between-row hairline (ui-elevate-p1). Warm tan-gray that reads as
               // structure without competing with the Card border (#D6CFC2, left alone).
-              /* J4 ELEVATION (light): surface-0 page #F0EAE1, surface-1 card
-                 #FFFFFF, surface-2 raised #FFFFFF + shadow. The old page #F8F7F4
-                 sat 1.03:1 against white cards and the hairline 1.15:1 — both
-                 invisible, so when Batch I removed the tinted fills nothing
-                 separated surfaces anymore. Value does the work, not hue. */
+              /* K1 CHROMA BUDGET (light, 2026-07-28): the J4 page #F0EAE1 was
+                 nameable — "beige" — and at viewport scale read as aged paper.
+                 RULE: if a page background can be NAMED as a color, it is over
+                 budget; warmth should be detectable, not nameable. Page chroma cut
+                 ~65% to #F5F3EF (card stays #FFFFFF). The lost page-to-card ratio
+                 (1.20 → 1.11) is recovered by the border (#DFD9D1) and the
+                 shadow-whisper token on flat surface-1 tiles — NOT by
+                 re-saturating the page. Hairline desaturated with it. */
               hairline: {
-                DEFAULT: '#E2D8CA',
+                DEFAULT: '#E7E3DC',
               },
               // BRAND (layer 1) — sourced from the BRAND object above so the Attesta
               // fork changes ONE literal, not scattered hexes.
@@ -183,7 +195,7 @@
                 content: BRAND.content
               },
               background: {
-                DEFAULT: '#F0EAE1',
+                DEFAULT: '#F5F3EF',
               },
               surface: {
                 DEFAULT: '#FFFFFF',        // opaque: translucent white blurred into the parchment
@@ -207,7 +219,8 @@
               },
               'surface-secondary-content': 'var(--th-on-surface-secondary)',
               // Explicit dark-pair partner used as `dark:text-dark-surface-secondary-content`.
-              'dark-surface-secondary-content': '#94A3B8',
+              // K1: was cool slate #94A3B8 — now the near-neutral dark secondary.
+              'dark-surface-secondary-content': '#A8A4A0',
               // ── Semantic status tokens ───────────────────────────────────────
               // The app's tone grammar. Status-grammar call sites use THESE names.
               //   success  — met / paid / signed / resolved      → sage
@@ -233,17 +246,35 @@
               emerald: STATUS_RAMPS.emerald,
               green:   STATUS_RAMPS.green,
               orange:  STATUS_RAMPS.orange,
-              // `blue` is intentionally NOT pinned — it fell out of the status
-              // system and keeps Tailwind's default so telehealth/Zoom cues, the
-              // calendar "today" highlight, AI-provenance panels and file-type
-              // chips are untouched by a status re-tone.
-              border: {
-                DEFAULT: '#D6CCBC',
+              // `blue` carries NO status meaning (see the layer-2 note) — it is the
+              // utility lane for telehealth/Zoom cues, the calendar "today"
+              // highlight, AI-provenance panels and file-type chips. K1: stock
+              // Tailwind blue ran noticeably hotter than everything around it in
+              // dark mode (dark:text-blue-400 #60A5FA against the quiet warm
+              // ramps), so the family is re-toned to an institutional steel blue —
+              // still unmistakably blue, now in chroma range with the rest. Full
+              // scale spelled out because extend replaces a color family wholesale.
+              blue: {
+                50:  '#F0F5F9',
+                100: '#DEE9F2',
+                200: '#C2D7E7',
+                300: '#9DBCD8',
+                400: '#7FA2C0',   // dark ink slot — 5.3:1 on raised #2C2B29
+                500: '#47719A',   // light text slot (CaseloadChart) — 5.1:1 on card
+                600: '#3D6485',
+                700: '#35566F',
+                800: '#2C475C',
+                900: '#24394A',
+                950: '#1A2833',
               },
-              /* J4 ELEVATION (dark): page #1A1714 / card #252019 / raised #2E2820 /
-                 border #3A322A — warm charcoal matching maroon-on-parchment. The old
-                 #020617 page and rgba(15,23,42,.8) card sat ~2% apart at the bottom
-                 of the range: no visible step at all. */
+              border: {
+                DEFAULT: '#DFD9D1',
+              },
+              /* K1 ELEVATION (dark, 2026-07-28): chroma-cut from the J4 browns —
+                 page #191817 / card #232221 / raised #2C2B29 / border #383633.
+                 Warm, but no longer nameable as brown. Text is DECOUPLED from
+                 surface warmth: content #EDEBE8 / secondary #A8A4A0 are
+                 near-neutral warm gray, not the surface hue. */
               dark: {
                 primary: {
                   DEFAULT: BRAND.dark,
@@ -254,16 +285,16 @@
                   DEFAULT: BRAND.dark,
                 },
                 background: {
-                  DEFAULT: '#1A1714',
+                  DEFAULT: '#191817',
                 },
                 surface: {
-                  DEFAULT: '#252019',
-                  raised: '#2E2820',
-                  content: '#F2EFE9',
-                  secondary: '#A8A29E'
+                  DEFAULT: '#232221',
+                  raised: '#2C2B29',
+                  content: '#EDEBE8',
+                  secondary: '#A8A4A0'
                 },
                 border: {
-                    DEFAULT: '#3A322A',
+                    DEFAULT: '#383633',
                 }
               }
             },
@@ -286,6 +317,10 @@
               'xl': '24px',
             },
             boxShadow: {
+              // K1: whisper shadow for FLAT surface-1 tiles (stat tiles etc.) —
+              // recovers the page-to-card separation the chroma cut spent,
+              // without re-saturating the page. Cards proper keep shadow-card.
+              'whisper': '0 1px 2px rgba(0, 0, 0, 0.04)',
               // Layered soft shadow so cards lift off the page (tight + wide). Strengthened
               // in polish-v2 for clearer definition against the warm bg.
               'card': '0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.08)',
@@ -305,10 +340,18 @@
       :root {
         --th-on-surface: #292524;
         --th-on-surface-secondary: #5D5852;
+        /* K1 split-ramp text slots (RGB triplets — consumed via
+           rgb(var() / <alpha-value>) in the slate config above, so opacity
+           modifiers keep working). Light = the contrast-raised meta grays. */
+        --th-slate-400: 110 104 98;   /* #6E6862 */
+        --th-slate-500: 93 88 82;     /* #5D5852 */
       }
       .dark {
-        --th-on-surface: #F2EFE9;
-        --th-on-surface-secondary: #A8A29E;
+        --th-on-surface: #EDEBE8;
+        --th-on-surface-secondary: #A8A4A0;
+        /* Dark = near-neutral warm gray, decoupled from the warm surfaces. */
+        --th-slate-400: 168 164 160;  /* #A8A4A0 */
+        --th-slate-500: 155 151 146;  /* #9B9792 */
       }
     </style>
 <link rel="stylesheet" href="/index.css">

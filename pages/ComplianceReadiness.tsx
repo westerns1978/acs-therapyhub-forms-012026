@@ -18,7 +18,7 @@ const VERDICT_LABEL: Record<'warning' | 'violation', string> = { warning: 'Warni
 const StatTile: React.FC<{ label: string; value: number; rule?: string; ink?: string }> = ({ label, value, rule, ink }) => {
   const live = value > 0 && !!rule;
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 ${live ? 'pl-5' : ''}`}>
+    <div className={`relative overflow-hidden rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-whisper p-4 ${live ? 'pl-5' : ''}`}>
       {live && <span className={`absolute left-0 top-0 bottom-0 w-[3px] ${rule}`} />}
       <p className={`text-3xl font-black tabular-nums ${live ? ink : 'text-neutral-500 dark:text-neutral-400'}`}>{value}</p>
       <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-400 mt-1">{label}</p>
@@ -141,7 +141,7 @@ const ComplianceReadiness: React.FC = () => {
       >
         <div className="space-y-2">
           {notEnforceable.length > 0 ? notEnforceable.map(n => (
-            <div key={n.ruleId} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 border border-black/5 dark:border-white/5">
+            <div key={n.ruleId} className="flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-hairline dark:border-slate-700/60">
               <HelpCircle className="shrink-0 mt-0.5 text-slate-400" size={16} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">

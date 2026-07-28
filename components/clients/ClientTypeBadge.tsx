@@ -18,7 +18,7 @@ const ClientTypeBadge: React.FC<{ type?: string | null; className?: string }> = 
   if (!type) {
     return (
       <span
-        className={`inline-flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-400/20 px-2 py-0.5 text-xs font-semibold ${className}`}
+        className={`inline-flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-400/40 px-2 py-0.5 text-xs font-semibold ${className}`}
         title="Client type not tagged — needs review"
       >
         <AlertTriangle size={12} className="shrink-0 opacity-80" />
@@ -30,8 +30,11 @@ const ClientTypeBadge: React.FC<{ type?: string | null; className?: string }> = 
     <span
       className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-semibold ${
         flagged
-          ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200/70 dark:border-amber-400/20'
-          : 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-200/70 dark:border-indigo-400/20'
+          ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-200/70 dark:border-amber-400/40'
+          : // K1: the /15 fill + /20 border made the chip nearly invisible on the
+            // dark card — raise fill, border, and text a step so the pill reads
+            // as a pill in dark mode too.
+            'bg-indigo-50 dark:bg-indigo-400/20 text-indigo-700 dark:text-indigo-200 border-indigo-200/70 dark:border-indigo-400/40'
       } ${className}`}
       title={flagged ? `Client type: ${clientTypeLabel(type)} — needs review (pre-David straw-man token)` : `Client type: ${clientTypeLabel(type)}`}
     >

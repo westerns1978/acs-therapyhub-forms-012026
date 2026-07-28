@@ -55,7 +55,7 @@ const StatTile: React.FC<{
             {sub && <div className={`text-[10px] font-semibold mt-0.5 ${TONE_TEXT[subTone]}`}>{sub}</div>}
         </>
     );
-    const cls = `relative overflow-hidden text-left rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 px-4 py-3 ${accent ? 'pl-5' : ''}`;
+    const cls = `relative overflow-hidden text-left rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-whisper px-4 py-3 ${accent ? 'pl-5' : ''}`;
     return onClick
         ? <button onClick={onClick} className={`${cls} hover:bg-neutral-50 dark:hover:bg-slate-800/60 transition-colors`}>{body}</button>
         : <div className={cls}>{body}</div>;
@@ -272,7 +272,10 @@ const Dashboard: React.FC = () => {
                             <div>
                                 <h4 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-primary transition-colors truncate" title={apt.clientName || apt.title}>{apt.clientName || apt.title}</h4>
                                 <div className="flex items-center gap-4 mt-1.5">
-                                    <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-500">{apt.type}</span>
+                                    {/* K1: dark fill was slate-800 — identical to the Card's own dark
+                                        surface, so the pill vanished and the (then-brown) slate-500
+                                        text floated unreadable. One elevation step up makes it a pill. */}
+                                    <span className="text-[10px] font-semibold bg-slate-100 dark:bg-slate-700/60 px-2 py-0.5 rounded-md text-slate-500">{apt.type}</span>
                                     {/* Telehealth is a MODALITY cue, not brand or status — it lives in the
     deliberate non-status blue lane (J4c; the retired `secondary` token
     now routes to brand, which would mislabel this as an action). */}
@@ -328,7 +331,7 @@ const Dashboard: React.FC = () => {
                             tabIndex={0}
                             onClick={() => navigate(`/clients/${g.clientId}`)}
                             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/clients/${g.clientId}`); } }}
-                            className="relative w-full text-left flex items-start gap-3 p-3.5 pl-4 border border-slate-100 dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors cursor-pointer overflow-hidden"
+                            className="relative w-full text-left flex items-start gap-3 p-3.5 pl-4 border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 rounded-xl hover:bg-neutral-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer overflow-hidden"
                         >
                             <span className={`absolute left-0 top-0 bottom-0 w-1 ${bar}`}></span>
                             <AlertTriangle className={`shrink-0 mt-0.5 ${accent}`} size={15} />
@@ -340,7 +343,7 @@ const Dashboard: React.FC = () => {
                                 {/* Contextual Clara — explains this exact flag, seeded only from the verdict. */}
                                 <button
                                     onClick={e => { e.stopPropagation(); explainFlagWithClara(g); }}
-                                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline"
+                                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary dark:text-dark-primary hover:underline"
                                 >
                                     <img src={CLARA_AVATAR_URL} alt="" className="w-4 h-4 rounded-full object-cover" />
                                     Ask Clara to explain this guardrail
@@ -370,7 +373,7 @@ const Dashboard: React.FC = () => {
                     <button
                         key={p.id}
                         onClick={() => navigate(`/clients/${p.id}`)}
-                        className="relative w-full text-left flex items-start gap-3 p-3.5 pl-4 border border-hairline dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/40 transition-colors cursor-pointer overflow-hidden"
+                        className="relative w-full text-left flex items-start gap-3 p-3.5 pl-4 border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 rounded-xl hover:bg-neutral-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer overflow-hidden"
                     >
                         {/* Neutral/maroon accent — this is a queue awaiting a decision, not a violation. */}
                         <span className="absolute left-0 top-0 bottom-0 w-1 bg-primary/70"></span>
@@ -569,7 +572,7 @@ const Dashboard: React.FC = () => {
                                     { label: 'Elevated', n: alertSummary.elevated, dot: 'bg-warning-600 dark:bg-warning-400', ink: 'text-warning-700 dark:text-warning-400' },
                                     { label: 'Moderate', n: alertSummary.moderate, dot: 'bg-neutral-500 dark:bg-neutral-400', ink: 'text-neutral-600 dark:text-neutral-300' },
                                 ]).map(t => (
-                                    <div key={t.label} className="p-4 rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900">
+                                    <div key={t.label} className="p-4 rounded-2xl border border-hairline dark:border-slate-700/60 bg-white dark:bg-slate-900 shadow-whisper">
                                         <div className={`text-3xl font-black tabular-nums tracking-tighter ${t.n > 0 ? t.ink : 'text-neutral-400 dark:text-neutral-600'}`}>{t.n}</div>
                                         <div className="flex items-center gap-1.5 mt-1">
                                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.n > 0 ? t.dot : 'bg-neutral-300 dark:bg-neutral-700'}`} />
