@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import AcsTherapyHubLogo from './AcsTherapyHubLogo';
 import ThemeToggle from './ThemeToggle';
-import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu } from 'lucide-react';
+import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu, FlaskConical } from 'lucide-react';
+import { useDemoVisibility } from '../../hooks/useDemoVisibility';
 
 // Clara's avatar — same image the portal floating bubble uses, for one identity across surfaces.
 const CLARA_AVATAR_URL = '/branding/clara.png';
@@ -27,6 +28,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
     const navigate = useNavigate();
     const [isProfileOpen, setProfileOpen] = useState(false);
     const [isCreateMenuOpen, setCreateMenuOpen] = useState(false);
+    const { showDemo } = useDemoVisibility();
 
     const handleLogout = () => {
         logout();
@@ -50,6 +52,20 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
                     <Link to="/" className="hover:opacity-80 transition-opacity">
                         <AcsTherapyHubLogo />
                     </Link>
+                    {/* Demo-data badge — persistent, on EVERY screen, whenever the
+                        per-user "Show demo data" setting is on. Sample clients are
+                        mixed into every list when this is lit, so the mode must never
+                        be a guess. Amber + dot, deliberately unmissable in a
+                        screenshot; it is not a status chip and borrows no status hue. */}
+                    {showDemo && (
+                        <span
+                            title="Sample clients are visible. Turn this off in Settings → Show demo data."
+                            className="inline-flex items-center gap-1.5 rounded-full border border-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2.5 py-1 text-[11px] font-black uppercase tracking-widest text-amber-900 dark:text-amber-200 shadow-sm"
+                        >
+                            <FlaskConical size={12} className="shrink-0" />
+                            Demo data
+                        </span>
+                    )}
                 </div>
                 
                 <div className="hidden sm:flex flex-1 justify-center px-4 max-w-xl mx-auto">

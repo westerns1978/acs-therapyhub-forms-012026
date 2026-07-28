@@ -34,7 +34,8 @@
 -- to CONFIRM a candidate, never to sweep a population unattended.
 --
 -- Ids are PINNED from the dry-run SELECT printed in-session. NO deletes.
--- Rows stay reachable via ?demo=1 through config/demoData.ts applyDemoFilter().
+-- Rows stay reachable via the per-user "Show demo data" setting (Settings)
+-- through config/demoData.ts applyDemoFilter().
 --
 -- DOWN-PATH (exact reverse; all three were is_demo=false before this ran):
 --   UPDATE clients SET is_demo = false WHERE id IN (

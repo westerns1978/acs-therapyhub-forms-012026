@@ -79,7 +79,8 @@ const ClientSubmissionsPanel: React.FC = () => {
 
       const clientMap = new Map((clients || []).map(c => [c.id, c.name]));
       // ONE shared demo policy (config/demoData): submissions belonging to a
-      // flagged demo client leave the queue with them unless ?demo=1.
+      // flagged demo client leave the queue with them unless the per-user
+      // "Show demo data" setting is on (Settings → Demo data).
       const demoIds = new Set((clients || []).filter(c => (c as any).is_demo).map(c => c.id));
 
       const enriched = (subs || [])

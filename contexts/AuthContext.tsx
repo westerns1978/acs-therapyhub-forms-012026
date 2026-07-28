@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AuthContextType, User, StaffRole } from '../types';
 import { supabase } from '../services/supabase';
+import { initDemoVisibility } from '../config/demoData';
 import {
   mapSupabaseUser,
   signInWithPassword,
@@ -27,6 +28,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 1. Hydrate from any persisted session (survives reloads).
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
+      // Prime the per-user demo-visibility store BEFORE any page queries, so
+      // applyDemoFilter (called from plain service fns with no React context)
+      // reads this user's setting rather than a stale one. See config/demoData.
+      initDemoVisibility(session?.user?.id ?? null);
       setUser(session?.user ? mapSupabaseUser(session.user) : null);
       setLoading(false);
     });
@@ -34,6 +39,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 2. Keep in sync with sign-in / sign-out / token refresh. Keep this
     //    callback synchronous (no awaited supabase calls) per SDK guidance.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      initDemoVisibility(session?.user?.id ?? null);   // re-key on sign-in/sign-out
       setUser(session?.user ? mapSupabaseUser(session.user) : null);
       setLoading(false);
     });

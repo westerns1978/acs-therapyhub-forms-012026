@@ -14,7 +14,8 @@
 --   7e7681e4-f5a2-4675-8a50-85c5ae777679  (active   2026-07-15, staff-walk batch)
 --
 -- Ids are PINNED (J3 convention) so the migration can never catch a row the
--- dry run didn't show. NO deletes; rows stay queryable via ?demo=1 through
+-- dry run didn't show. NO deletes; rows stay queryable via the per-user "Show demo
+-- data" setting (Settings) through
 -- config/demoData.ts applyDemoFilter().
 --
 -- STILL HELD (real clinical activity — human call, not auto-flagged):

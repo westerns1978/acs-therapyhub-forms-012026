@@ -17,7 +17,8 @@ import {
     clearZoomLink,
     getConnectedZoomAccountEmail,
 } from '../services/zoom';
-import { Loader2, Check, Wifi, WifiOff, Terminal, Video } from 'lucide-react';
+import { Loader2, Check, Wifi, WifiOff, Terminal, Video, FlaskConical } from 'lucide-react';
+import { useDemoVisibility } from '../hooks/useDemoVisibility';
 
 // NOTE (pre-provisioning honesty pass, 2026-06-11): a dead `IntegrationCard`
 // component used to live here — a setTimeout-driven fake OAuth ("Verifying
@@ -186,6 +187,48 @@ const DatabaseHealthCard = () => {
     );
 }
 
+/**
+ * "Show demo data" — the ONE control for demo-row visibility (replaced the
+ * `?demo=1` URL parameter, 2026-07-28). Per-user, persisted, default OFF.
+ * Turning it on lights the header's "Demo data" badge on every screen.
+ */
+const DemoDataCard: React.FC = () => {
+    const { showDemo, setShowDemo } = useDemoVisibility();
+    return (
+        <Card title="Demo data" subtitle="Sample clients for training and demonstration — not real records.">
+            <label className="flex items-start justify-between gap-4 cursor-pointer">
+                <span className="min-w-0">
+                    <span className="block font-bold text-sm text-slate-800 dark:text-slate-100">Show demo data</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Adds sample clients, sessions, and notes to every list so the app can be shown
+                        or practised on. They are clearly marked and are never real client records.
+                        While this is on, a <span className="font-bold">Demo data</span> badge stays in
+                        the header. Off by default; the setting is yours alone.
+                    </span>
+                </span>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={showDemo}
+                    aria-label="Show demo data"
+                    onClick={() => setShowDemo(!showDemo)}
+                    className={`relative shrink-0 mt-0.5 h-6 w-11 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                        showDemo ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                >
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${showDemo ? 'left-[1.375rem]' : 'left-0.5'}`} />
+                </button>
+            </label>
+            {showDemo && (
+                <p className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                    <FlaskConical size={14} className="shrink-0 mt-px" />
+                    Demo data is visible. Lists include sample clients alongside real ones.
+                </p>
+            )}
+        </Card>
+    );
+};
+
 const Settings: React.FC = () => {
     const [zoomPMI, setZoomPMI] = useState(localStorage.getItem('zoom_pmi') || '');
 
@@ -238,6 +281,7 @@ const Settings: React.FC = () => {
                     </Card>
                 </div>
                  <div className="space-y-6">
+                    <DemoDataCard />
                     <DatabaseHealthCard />
                     {/* "System Administration / Reset Application Data" card REMOVED
                         (pre-provisioning honesty pass, 2026-06-11): the button only
