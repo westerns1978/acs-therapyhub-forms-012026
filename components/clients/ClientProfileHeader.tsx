@@ -4,6 +4,7 @@ import { Client, Appointment, CLIENT_STATUS_LABELS, needsStatusReview } from '..
 import type { SatopLevel } from '../../config/satopFees';
 import { formatTime12 } from '../../config/time';
 import { normalizeProgram } from '../../config/programVocab';
+import { isTrialHidden } from '../../config/trialMode';
 import type { ClientProgress } from '../../services/displayProgress';
 import type { ProgramCardState } from '../../services/complianceEngine';
 import { useAuth } from '../../contexts/AuthContext';
@@ -89,7 +90,9 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
   const navigate = useNavigate();
   const { user } = useAuth();
   // A live session writes a CLINICAL note — Director/Therapist only (not Admin/Jessica).
-  const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist');
+  // …and not while /session is trial-hidden, or "Start transcribed session"
+  // would just bounce to the dashboard (see config/trialMode.ts).
+  const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist') && !isTrialHidden('/session');
 
   // Front-door conversion: a prospect (pre-placement) gets a "Place & Activate"
   // action instead of the normal clinical buttons. The gate (a SIGNED placement

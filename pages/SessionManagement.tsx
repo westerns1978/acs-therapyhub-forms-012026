@@ -9,6 +9,7 @@ import { parseTimeToMinutes, formatTime12 } from '../config/time';
 import { serviceCardClass } from '../config/sessionTaxonomy';
 import { normalizeCounselorName, laneCounselorIdFor } from '../components/sessions/scheduleLane';
 import { timeRangesOverlap } from '../services/recurrence';
+import { isTrialHidden } from '../config/trialMode';
 import AppointmentStatusModal, { getAppointmentStatusStyle } from '../components/sessions/AppointmentStatusModal';
 import type { CancelFeeDecision } from '../components/sessions/AppointmentStatusModal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -23,7 +24,9 @@ const SessionManagement: React.FC = () => {
     const canManage = isStaffRole(user?.role);
     // Status actions are staff-wide (office work), but starting a live session writes
     // a CLINICAL note — restrict that entry to Director/Therapist (not Admin/Jessica).
-    const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist');
+    // …and not while /session is trial-hidden, or this button would just bounce
+    // the user to the dashboard (see config/trialMode.ts).
+    const canStartSession = !!user && (user.role === 'Director' || user.role === 'Therapist') && !isTrialHidden('/session');
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
     const [counselors, setCounselors] = useState<Counselor[]>([]);

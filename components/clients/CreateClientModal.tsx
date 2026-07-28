@@ -252,8 +252,12 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                                 <div>
                                     <h4 className="font-bold text-green-800 dark:text-green-300 text-lg">Ready for Intake</h4>
                                     <p className="text-green-700 dark:text-green-400/80 mt-1 text-sm leading-relaxed">
-                                        You are about to create a new client file for <strong>{formData.firstName} {formData.lastName}</strong>. 
-                                        An automated welcome email with portal access instructions will be sent to <strong>{formData.email}</strong>.
+                                        {/* The "automated welcome email" claim was removed 2026-07-27:
+                                            this app has no email capability at all (no provider, no
+                                            edge function, only mailto: links), so staff were told the
+                                            client had been onboarded when nothing was sent. */}
+                                        You are about to create a new client file for <strong>{formData.firstName} {formData.lastName}</strong>.
+                                        Portal access is not sent automatically — invite <strong>{formData.email}</strong> separately.
                                     </p>
                                 </div>
                             </div>

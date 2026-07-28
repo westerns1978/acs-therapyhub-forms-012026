@@ -1,8 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import SynapseChatPopover from '../components/ai/SynapseChatPopover';
-import { useClara } from '../contexts/ClaraContext';
 import { supabase } from '../services/supabase';
 import { Menu, X, Home, FileText, Calendar, CreditCard, BarChart, LogOut } from 'lucide-react';
 
@@ -135,10 +133,6 @@ const PortalHeader: React.FC = () => {
 };
 
 const PortalLayout: React.FC<PortalLayoutProps> = ({ children }) => {
-  // Clara v2: state lives in the app-level ClaraProvider — portal pages each
-  // instantiate their own PortalLayout, so local state died on every navigation.
-  const clara = useClara();
-
   return (
     <div className="flex flex-col min-h-screen bg-surface dark:bg-slate-950">
       <div className="absolute inset-0 -z-10 h-full w-full bg-white bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] dark:bg-slate-950 dark:bg-[radial-gradient(rgba(255,255,255,0.1)_1px,transparent_1px)]"></div>
@@ -151,16 +145,16 @@ const PortalLayout: React.FC<PortalLayoutProps> = ({ children }) => {
         &copy; {new Date().getFullYear()} Assessment & Counseling Solutions. All rights reserved.
       </footer>
 
-      {/* Floating Clara Button for Clients */}
-      <button
-        onClick={clara.toggle}
-        className="fixed bottom-8 right-8 z-40 w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ease-in-out hover:scale-110 hover:shadow-indigo-500/50 focus:outline-none focus:ring-4 focus:ring-indigo-300" 
-        aria-label="Open Clara AI Assistant"
-      >
-          <img src="https://storage.googleapis.com/gemynd-public/projects/acs-therapyhub/clara2.png" alt="Clara AI" className="w-full h-full object-cover rounded-full border-2 border-white/20" />
-      </button>
-
-      <SynapseChatPopover variant="floating" />
+      {/* Clara is UNMOUNTED on the client portal (2026-07-27 honesty pass).
+          Her client-mode persona offered help with "your program, appointments,
+          forms, payment information" while ClaraContext injects ZERO client data
+          (buildInstruction returns the persona string only) and client mode's only
+          tool is google_search. So a client asking "when is my next appointment?"
+          got a fluent answer sourced from nothing, or from the open web — to a
+          court-mandated audience. Scoping her prompt and grounding her in real
+          client data is a real build, not a copy tweak; until then she does not
+          ship to clients. Staff-side Clara (MainLayout) is unaffected — she is
+          grounded differently and her navigate_to_page tool is real. */}
     </div>
   );
 };

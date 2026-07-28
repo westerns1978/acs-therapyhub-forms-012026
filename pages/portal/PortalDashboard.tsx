@@ -324,7 +324,11 @@ const PortalDashboard: React.FC = () => {
                      <ActionCard icon={Calendar} title="Session Schedule" description="Manage your virtual and in-person sessions." onClick={() => navigate('/portal/appointments')} />
                      <ActionCard icon={FileText} title="Document Vault" description="E-sign pending forms and review records." onClick={() => navigate('/portal/documents')} />
                      <ActionCard icon={DollarSign} title="Financial Wallet" description="Manage payments and session ledger." onClick={() => navigate('/portal/billing')} />
-                     <ActionCard icon={Brain} title="Ask Clara" description="Get help with your program questions." onClick={() => document.querySelector<HTMLButtonElement>('[aria-label*="Clara"]')?.click()} />
+                     {/* "Ask Clara" card removed 2026-07-27 with the portal Clara unmount
+                         (see layouts/PortalLayout.tsx). It reached her by clicking the
+                         floating launcher via aria-label; with that button gone the
+                         querySelector would return null and the card would silently do
+                         nothing. Restore both together, or neither. */}
                 </div>
             </div>
             <ResourceFinderModal isOpen={isResourceModalOpen} onClose={() => setIsResourceModalOpen(false)} />

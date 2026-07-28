@@ -130,7 +130,15 @@ function App() {
                     ? <Navigate to="/dashboard" replace />
                     : <ProtectedRoute><CommunicationCenter /></ProtectedRoute>} />
                   <Route path="/session-management" element={<ProtectedRoute><SessionManagement /></ProtectedRoute>} />
-                  <Route path="/session/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ActiveSession /></RequireRole>} />
+                  {/* ActiveSession's wrap-up wizard reports success over two empty-body
+                      writers (charge, client task) and books an unchosen 10:00 AM
+                      appointment — hidden for the team test; see config/trialMode.ts.
+                      NOTE: this hides ONLY /session/:clientId. The Green Room route
+                      below (/session/:appointmentId/green-room) is a real read-only
+                      surface and stays live. */}
+                  <Route path="/session/:clientId" element={isTrialHidden('/session')
+                    ? <Navigate to="/dashboard" replace />
+                    : <RequireRole roles={['Director', 'Therapist']}><ActiveSession /></RequireRole>} />
                   {/* Green Room — real pre-session prep surface (read-only), keyed off the appointment id. */}
                   <Route path="/session/:appointmentId/green-room" element={<RequireRole roles={['Director', 'Therapist']}><GreenRoom /></RequireRole>} />
                   <Route path="/forms" element={<ProtectedRoute><Forms /></ProtectedRoute>} />
@@ -152,7 +160,13 @@ function App() {
                     : <RequireRole roles={['Director', 'Therapist']}><ProgramCompliance /></RequireRole>} />
                   <Route path="/compliance-assistant" element={<RequireRole roles={['Director', 'Therapist']}><ComplianceAssistant /></RequireRole>} />
                   <Route path="/assessments/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><AsamAssessment /></RequireRole>} />
-                  <Route path="/compliance" element={<RequireRole roles={['Director', 'Therapist']}><Compliance /></RequireRole>} />
+                  {/* Compliance page numbers are all mock-derived — the score tile renders a
+                      permanent 100% off a NaN guard and Bulk Export pairs real client names
+                      with zeroes; hidden for the team test (see config/trialMode.ts). The
+                      honest surface is /compliance-readiness. */}
+                  <Route path="/compliance" element={isTrialHidden('/compliance')
+                    ? <Navigate to="/dashboard" replace />
+                    : <RequireRole roles={['Director', 'Therapist']}><Compliance /></RequireRole>} />
                   <Route path="/program-plan/:clientId" element={<RequireRole roles={['Director', 'Therapist']}><ProgramPlan /></RequireRole>} />
                   <Route path="/treatment-plan-library" element={<RequireRole roles={['Director', 'Therapist']}><TreatmentPlanLibrary /></RequireRole>} />
                   <Route path="/risk-monitor" element={<RequireRole roles={['Director', 'Therapist']}><RiskMonitor /></RequireRole>} />

@@ -119,7 +119,6 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   }
 
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  const isDemo = isDemoClient(client);
 
   // Labeled fill-in field (mirrors the official paper form). A real value sits on
   // the rule line; an unknown field renders as an empty labeled line so the form
@@ -156,11 +155,17 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   doc.setFontSize(14);
   doc.text('SATOP COMPLETION CERTIFICATE', PAGE_W / 2, y + 4, { align: 'center' });
   y += 22;
-  if (isDemo) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...MAROON);
-    doc.text('DEMONSTRATION SAMPLE — NOT A VALID STATE CERTIFICATE', PAGE_W / 2, y, { align: 'center' });
-    y += 14;
-  }
+  // UNCONDITIONAL (2026-07-27 honesty pass). This banner used to render only for
+  // is_demo clients — so 19 of 34 client records printed a clean-looking state
+  // certificate. Nothing on this form is verified end-to-end today: the completion
+  // gate's "required forms signed" check reads a status string that is written
+  // unconditionally on submit (see complianceEngine.ts fetchSignedFormIds), and no
+  // signature artifact is bound to any signer identity. Until signature capture and
+  // verification are real, EVERY certificate this system prints is a sample.
+  // Do not re-add an is_demo branch here.
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...MAROON);
+  doc.text('DEMONSTRATION SAMPLE — NOT A VALID STATE CERTIFICATE', PAGE_W / 2, y, { align: 'center' });
+  y += 14;
   doc.setDrawColor(...SLATE); doc.setLineWidth(1); doc.line(MARGIN, y, PAGE_W - MARGIN, y);
   y += 22;
 
@@ -168,7 +173,11 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   const provider = 'Assessment & Counseling Solutions';
   const dob: string | null = client.dob ?? null;
   const phone: string | null = client.primary_phone ?? client.phone ?? null;
-  const completionDate = client.program_end_date ?? client.programEndDate ?? new Date().toISOString();
+  // No new Date() fallback: an unrecorded completion date prints BLANK, like every
+  // other unknown field on this form. It previously fell back to today, which put a
+  // fabricated completion date on a state form for the 17 of 19 non-demo clients
+  // whose program_end_date is null.
+  const completionDate: string | null = client.program_end_date ?? client.programEndDate ?? null;
   const half = CONTENT_W / 2;
   const third = CONTENT_W / 3;
 
@@ -192,9 +201,9 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   field('Qualified Professional', null, MARGIN, y, half - 8);
   field('Phone', null, MARGIN + half, y, half / 2 - 8);
   // A real certificate number is assigned by the certifying OMU, never by this app.
-  // For a demo record we stamp a clearly non-real value so it can't be confused
-  // with an issued certificate; for a real record the field stays blank to fill in.
-  field('Certificate Number', isDemo ? 'SAMPLE-DEMO-0001' : null, MARGIN + half + half / 2, y, half / 2); y += 30;
+  // Always blank — the field contract above is "NEVER invents a value", and the
+  // unconditional banner + watermark already prevent this from reading as issued.
+  field('Certificate Number', null, MARGIN + half + half / 2, y, half / 2); y += 30;
 
   // III. OFFENDER STATUS
   y = section('III.  Offender Status', y);
@@ -204,7 +213,7 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   y = section('IV.  SATOP Completion Information', y);
   field('Program Completed', completion.programLabel, MARGIN, y, CONTENT_W); y += 28;
   field('Provider Site', provider, MARGIN, y, half - 8);
-  field('Completion Date', fmtDate(completionDate), MARGIN + half, y, half); y += 28;
+  field('Completion Date', completionDate ? fmtDate(completionDate) : null, MARGIN + half, y, half); y += 28;
   field('Other Approved Program (Non-SATOP)', null, MARGIN, y, CONTENT_W); y += 30;
 
   // V. COURT INFORMATION (IF APPLICABLE)
@@ -216,7 +225,7 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   // Provenance note + official form identifiers.
   doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(...GREY);
   doc.text(
-    doc.splitTextToSize('Populated fields reflect ACS TherapyHub records verified by the deterministic compliance engine. Blank fields are not captured by the system and must be completed by the certifying Offender Management Unit. No identity or court data is system-generated.', CONTENT_W),
+    doc.splitTextToSize('Populated fields are drawn from ACS TherapyHub records. System-generated draft. Not an issued certificate — not for submission to the Department of Revenue or a court. Blank fields are not captured by the system and must be completed by the certifying Offender Management Unit. No identity or court data is system-generated.', CONTENT_W),
     MARGIN, 738
   );
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...SLATE);
@@ -224,7 +233,9 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   doc.text('DMH 9409', PAGE_W - MARGIN, 775, { align: 'right' });
 
   // Stamp the SAMPLE watermark last so it overlays the whole certificate.
-  if (isDemo) sampleWatermark(doc);
+  // UNCONDITIONAL, same reasoning as the banner above — every certificate printed
+  // today is a sample. Do not re-gate this on is_demo.
+  sampleWatermark(doc);
 
   return doc;
 }
@@ -419,7 +430,7 @@ export async function downloadClientRecordPacket(
     `Generated: ${fmtDate(new Date().toISOString())}`,
     '',
     complete
-      ? 'PACKET TYPE: COMPLETION RECORD — the compliance engine confirms all completion criteria are met; the SATOP Completion Certificate is included.'
+      ? 'PACKET TYPE: COMPLETION RECORD — the recorded completion criteria are met. The enclosed SATOP Completion Certificate is a DRAFT SAMPLE, not valid for submission: signatures are not verified by this system.'
       : `PACKET TYPE: CURRENT RECORD / STATUS — program is NOT yet complete, so no completion certificate is included.${completion.unmetReasons.length ? ' Outstanding: ' + completion.unmetReasons.join('; ') : ''}`,
     '',
     'CONTENTS:',
