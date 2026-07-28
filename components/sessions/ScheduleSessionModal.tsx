@@ -449,7 +449,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                         {/* WS6: optional standing group — inherits the counselor's permanent
                             Zoom room + auto-categorizes hours. "Ad-hoc" keeps the unchanged path. */}
                         <div>
-                            <label htmlFor="group" className="block text-sm font-medium mb-1">Standing group <span className="text-slate-400 font-normal">(optional)</span></label>
+                            <label htmlFor="group" className="block text-sm font-medium mb-1">Group <span className="text-slate-400 font-normal">(optional)</span></label>
                             <select id="group" value={selectedGroupId ?? ''} onChange={e => setSelectedGroupId(e.target.value || undefined)} className="w-full p-2 border border-border dark:border-slate-600 bg-transparent rounded-md">
                                 <option value="">— Ad-hoc session (no group) —</option>
                                 {groups.map(g => (
@@ -594,7 +594,7 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
                                 {qualifiedCounselors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                             {selectedGroupObj ? (
-                                <p className="mt-1 text-xs text-slate-500">Pinned to the standing group's counselor.</p>
+                                <p className="mt-1 text-xs text-slate-500">Pinned to the group's counselor.</p>
                             ) : qualifiedNames === null ? (
                                 <p className="mt-1 text-xs text-slate-500">No roster defined for Group sessions — full roster shown (open item for David).</p>
                             ) : null}
