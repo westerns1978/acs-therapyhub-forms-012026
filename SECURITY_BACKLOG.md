@@ -784,3 +784,46 @@ account**, so `auth.users` cannot distinguish which person was driving it. What 
 a deliberate test action on a demo client, not clinical content, not David's described activity.
 (This is also a live example of why item #6 — the shared-credential/staff-provisioning gap —
 matters: a signed clinical action cannot be attributed to a person.)
+
+---
+
+## 21. Audit log had ZERO coverage of a real-chart write incident (2026-07-28)
+
+**What happened.** An erroneous bulk assign (a "Select All" in the Forms Library's
+multi-client picker) wrote `form_submissions` rows to **two real client charts**.
+It was caught and reverted the same session.
+
+**The concrete cost.** Recovery was verifiable *only* because the surviving
+legitimate rows carried `assigned_at` timestamps that predated the erroneous
+write by ~7 minutes and were never rewritten. **Had the error landed inside the
+same minute as legitimate activity, the two sets would have been
+indistinguishable, and the revert could not have been performed with
+confidence** — there would have been no way to tell a good row from a bad one.
+
+**The audit log contributed nothing.** It recorded neither the erroneous write,
+nor either of the two deletions that reverted it. A query of `audit_logs` across
+the incident window returns a single unrelated `client.updated` event. The log
+can neither corroborate nor contradict the account of what happened; the only
+evidence was the row state itself.
+
+**Coverage at the time of the incident**
+- Instrumented: `note.signed`, `client.updated`, `client.archived`,
+  `appointment.rescheduled`, `upload_link_minted`, `upload_link_resolved`.
+- **Uninstrumented:** form assignment, form deletion, group enrollment and
+  removal, determination signing, treatment-plan create and update.
+
+**Remediation (same day).** The five uninstrumented paths above were instrumented
+— see the audit-coverage pass — with a deliberate split on failure handling:
+clinically/compliance-significant events (`determination.signed`,
+`plan.created`, `plan.updated`) now FAIL LOUDLY if the audit write fails, rather
+than completing silently unaudited; administrative events stay fire-and-forget so
+an audit outage cannot block care delivery.
+
+**Residual, not fixed here:** "fails loudly" is not atomic rollback. The clinical
+row is written first, then audited; if the audit fails the caller throws with an
+explicit "written but UNAUDITED — reconcile" message. True atomicity needs the
+write and its audit row in one transaction (an RPC). `placement_determinations`
+is append-only by design, so its write cannot be rolled back at all — loud
+failure is the only available posture there. Also unfixed: `audit_logs` has no
+`client_id` column, so per-client audit reporting depends on callers putting
+`client_id` in `details` (all new events below do).

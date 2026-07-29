@@ -42,3 +42,56 @@ export const logAudit = async (input: LogAuditInput): Promise<void> => {
         console.error('[auditLog] write threw (non-fatal):', err);
     }
 };
+
+/**
+ * LOUD variant — for CLINICALLY / COMPLIANCE-significant events only
+ * (determination.signed, plan.created, plan.updated). Added 2026-07-28 after an
+ * erroneous write reached two real charts and the ledger held nothing about it
+ * (SECURITY_BACKLOG #21).
+ *
+ * Fire-and-forget is right for administrative events — an audit outage must not
+ * block care delivery. It is WRONG for a signed determination or a treatment
+ * plan: those must never complete silently unaudited, because the audit row is
+ * the only durable evidence the act occurred and who performed it.
+ *
+ * HONEST LIMITATION — this is loud failure, NOT atomic rollback. The clinical row
+ * is written first and audited second, so a failure here means the write LANDED
+ * and is UNAUDITED; the thrown error says exactly that so the operator can
+ * reconcile. True atomicity needs the write and its audit row in one transaction
+ * (a SECURITY DEFINER RPC). It is not merely unimplemented for determinations —
+ * `placement_determinations` is append-only by design, so its write cannot be
+ * rolled back at all; loud failure is the only posture available there.
+ */
+export const logAuditOrThrow = async (input: LogAuditInput): Promise<void> => {
+    let failure: string | null = null;
+    try {
+        const { error } = await supabase.from('audit_logs').insert({
+            user_id: input.actor,
+            action: input.action,
+            entity_type: input.entity_type,
+            entity_id: input.entity_id,
+            created_at: input.timestamp,
+            details: input.details ?? {},
+        });
+        if (error) failure = error.message;
+    } catch (err) {
+        failure = err instanceof Error ? err.message : String(err);
+    }
+    if (failure) {
+        console.error(`[auditLog] REQUIRED audit write failed for ${input.action}:`, failure);
+        throw new Error(
+            `The record was saved but its audit entry FAILED — this ${input.action} is UNAUDITED ` +
+            `(${input.entity_type} ${input.entity_id}). Reconcile before relying on it. Cause: ${failure}`,
+        );
+    }
+};
+
+/** Resolve the acting user id, or null when there is no session to attribute to. */
+export const currentActorId = async (): Promise<string | null> => {
+    try {
+        const { data } = await supabase.auth.getUser();
+        return data?.user?.id ?? null;
+    } catch {
+        return null;
+    }
+};

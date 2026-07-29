@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Card from '../ui/Card';
 import { supabase } from '../../services/supabase';
+import { logAuditOrThrow } from '../../services/auditLog';
 import { useAuth } from '../../contexts/AuthContext';
 import { isClinicianRole } from '../../types';
 import type { SatopLevel } from '../../config/satopFees';
@@ -413,7 +414,7 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
         signed_by: { id: uid, name: user?.name ?? null },
       };
 
-      const { error: insErr } = await supabase.from('placement_determinations').insert({
+      const { data: insRow, error: insErr } = await supabase.from('placement_determinations').insert({
         client_id: client.id,
         assessment_input_id: basisId,
         engine_recommended_level: result.recommendedFloor,
@@ -423,8 +424,30 @@ const AssessmentTab: React.FC<Props> = ({ client }) => {
         deviation_reason: disposition === 'escalated' ? reason.trim() : null,
         determined_by: uid,
         supersedes_id: current?.id ?? null, // append-only supersede; null for the first
-      });
+      }).select('id').single();
       if (insErr) throw insErr;
+
+      // AUDIT: determination.signed — COMPLIANCE SIGNIFICANT, LOUD
+      // (SECURITY_BACKLOG #21). This determination sets the client's level, which
+      // drives required hours AND the required-forms gate — it must never exist
+      // without a record of who signed it. placement_determinations is append-only,
+      // so a failed audit CANNOT be rolled back; logAuditOrThrow surfaces that
+      // explicitly instead of returning a clean success on an unaudited signature.
+      const signedAtIso = new Date().toISOString();
+      await logAuditOrThrow({
+        actor: uid,
+        action: 'determination.signed',
+        entity_type: 'placement_determinations',
+        entity_id: insRow.id,
+        timestamp: signedAtIso,
+        details: {
+          client_id: client.id,
+          level: determinedLevel,
+          signed_at: signedAtIso,
+          disposition,
+          supersedes_id: current?.id ?? null,
+        },
+      });
 
       setEscalateLevel('');
       setEscalateReason('');

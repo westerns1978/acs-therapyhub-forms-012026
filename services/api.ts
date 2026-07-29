@@ -15,7 +15,7 @@ import { programForLevel } from '../config/programVocab';
 import { LATE_CANCELLATION_FEE } from '../config/satopFees';
 import { parseTimeToMinutes } from '../config/time';
 import { generateWeeklyOccurrences } from './recurrence';
-import { logAudit } from './auditLog';
+import { logAudit, logAuditOrThrow, currentActorId } from './auditLog';
 import { maybeForceFail } from '../config/failureHarness';
 import { applyDemoFilter } from '../config/demoData';
 
@@ -682,17 +682,54 @@ export const getClientGroupEnrollments = async (clientId: string): Promise<{ id:
 export const enrollClientInGroups = async (clientId: string, groupIds: string[], startDate: string): Promise<void> => {
     if (!groupIds.length) return;
     const rows = groupIds.map(gid => ({ group_id: gid, client_id: clientId, enrolled_at: startDate, active: true }));
-    const { error } = await supabase.from('group_enrollments').insert(rows);
+    const { data, error } = await supabase.from('group_enrollments').insert(rows).select('id, group_id');
     if (error) throw new Error(error.message || 'Failed to enroll client');
+
+    // AUDIT: group.enrolled — ADMINISTRATIVE, fire-and-forget. One event per group
+    // so a 4-group assignment is four attributable facts, not one.
+    const at = new Date().toISOString();
+    currentActorId().then(actor => {
+        if (!actor) return;
+        for (const r of data ?? []) {
+            void logAudit({
+                actor,
+                action: 'group.enrolled',
+                entity_type: 'group_enrollments',
+                entity_id: r.id,
+                timestamp: at,
+                details: { client_id: clientId, group_id: r.group_id, enrolled_at: startDate },
+            });
+        }
+    });
 };
 
 /** Manual removal — the ONLY way an assignment ends. Records when, changes nothing else. */
 export const removeGroupEnrollment = async (enrollmentId: string): Promise<void> => {
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from('group_enrollments')
         .update({ active: false, discharged_at: new Date().toISOString().slice(0, 10) })
-        .eq('id', enrollmentId);
+        .eq('id', enrollmentId)
+        .select('id, client_id, group_id')
+        .maybeSingle();
     if (error) throw new Error(error.message || 'Failed to remove enrollment');
+
+    // AUDIT: group.unenrolled — ADMINISTRATIVE, fire-and-forget. Removal is the ONLY
+    // way a standing assignment ends, so it is the event worth being able to answer
+    // "who took this client out of this group, and when".
+    if (data) {
+        const at = new Date().toISOString();
+        currentActorId().then(actor => {
+            if (!actor) return;
+            void logAudit({
+                actor,
+                action: 'group.unenrolled',
+                entity_type: 'group_enrollments',
+                entity_id: data.id,
+                timestamp: at,
+                details: { client_id: data.client_id, group_id: data.group_id },
+            });
+        });
+    }
 };
 
 export interface GroupSessionRecord {
@@ -2000,6 +2037,23 @@ export const assignForm = async (formId: string, clientIds: string[], dueDate: D
         console.error('[api] assignForm failed:', error);
         throw new Error(error.message || 'Failed to assign form');
     }
+
+    // AUDIT: form.assigned — ADMINISTRATIVE, fire-and-forget (SECURITY_BACKLOG #21).
+    // One event per client, so a bulk assign is attributable per chart rather than as
+    // one opaque batch — that is precisely what was missing during the 7/28 incident.
+    currentActorId().then(actor => {
+        if (!actor) return;
+        for (const row of data ?? []) {
+            void logAudit({
+                actor,
+                action: 'form.assigned',
+                entity_type: 'form_submissions',
+                entity_id: row.id,
+                timestamp: now,
+                details: { client_id: row.client_id, form_id: formId, assigned_at: now },
+            });
+        }
+    });
     return data;
 };
 export const getAiSuggestions = async (context: any) => (dbAiSuggestions || []).filter(s => s.contextId === context.clientId || s.contextId === context.documentId);
@@ -2494,6 +2548,22 @@ export const saveTreatmentPlan = async (input: {
         .select()
         .single();
     if (error) throw error;
+
+    // AUDIT: plan.created — CLINICALLY SIGNIFICANT, LOUD (SECURITY_BACKLOG #21).
+    // A treatment plan must never exist without a record of who authored it; if the
+    // ledger write fails the caller is told the plan landed UNAUDITED rather than
+    // being shown a clean success.
+    const actor = await currentActorId();
+    if (actor) {
+        await logAuditOrThrow({
+            actor,
+            action: 'plan.created',
+            entity_type: 'treatment_plans',
+            entity_id: data.id,
+            timestamp: new Date().toISOString(),
+            details: { client_id: input.clientId, plan_id: data.id, supersedes_plan_id: null },
+        });
+    }
     return mapTreatmentPlanRowToApp(data);
 };
 
@@ -2545,8 +2615,29 @@ export const applyTreatmentPlanUpdate = async (
         .select()
         .single();
     if (error) throw error;
-    // Prior becomes history — content untouched, status only.
-    await updateTreatmentPlan(prior.id, { status: 'Archived' });
+
+    // AUDIT: plan.updated — CLINICALLY SIGNIFICANT, LOUD. Emitted for the NEW row,
+    // carrying supersedes_plan_id so the version chain is reconstructable from the
+    // ledger alone. Raised BEFORE the archive so a failed audit leaves the prior plan
+    // still Active — i.e. the client is never left with zero active plans by an audit
+    // outage. Consequence if it throws: two Active plans, which is loud and
+    // recoverable, rather than a silent unaudited supersession.
+    const actor = await currentActorId();
+    if (actor) {
+        await logAuditOrThrow({
+            actor,
+            action: 'plan.updated',
+            entity_type: 'treatment_plans',
+            entity_id: data.id,
+            timestamp: new Date().toISOString(),
+            details: { client_id: prior.clientId, plan_id: data.id, supersedes_plan_id: prior.id },
+        });
+    }
+
+    // Prior becomes history — content untouched, status only. skipAudit: the
+    // supersession is already recorded by the plan.updated event above; a second
+    // event for the archive would read as an independent edit of the old plan.
+    await updateTreatmentPlan(prior.id, { status: 'Archived' }, { skipAudit: true });
     return mapTreatmentPlanRowToApp(data);
 };
 
@@ -2558,7 +2649,11 @@ export const updateTreatmentPlan = async (
         content: TreatmentPlanContent;
         status: TreatmentPlanStatus;
         notes: string;
-    }>
+    }>,
+    /** skipAudit is for ONE internal caller: applyTreatmentPlanUpdate's archive of the
+     *  superseded plan, which is already covered by its own plan.updated event. Never
+     *  pass it from UI code — an unaudited plan edit is exactly what #21 is about. */
+    opts: { skipAudit?: boolean } = {},
 ): Promise<TreatmentPlan> => {
     const row: Record<string, any> = { updated_at: new Date().toISOString() };
     if (changes.title !== undefined) row.title = changes.title;
@@ -2573,6 +2668,27 @@ export const updateTreatmentPlan = async (
         .select()
         .single();
     if (error) throw error;
+
+    // AUDIT: plan.updated — CLINICALLY SIGNIFICANT, LOUD. Covers the in-place edit
+    // and archive paths (the versioned supersession audits itself above).
+    if (!opts.skipAudit) {
+        const actor = await currentActorId();
+        if (actor) {
+            await logAuditOrThrow({
+                actor,
+                action: 'plan.updated',
+                entity_type: 'treatment_plans',
+                entity_id: data.id,
+                timestamp: new Date().toISOString(),
+                details: {
+                    client_id: data.client_id,
+                    plan_id: data.id,
+                    supersedes_plan_id: data.supersedes_plan_id ?? null,
+                    changed_fields: Object.keys(changes),
+                },
+            });
+        }
+    }
     return mapTreatmentPlanRowToApp(data);
 };
 
