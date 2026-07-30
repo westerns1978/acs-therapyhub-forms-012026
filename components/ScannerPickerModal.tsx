@@ -36,8 +36,7 @@ const PROTOCOL_LABEL: Record<ScannerProtocol, string> = {
 
 // FlowHub Bridge (Gemynd Scan) Windows installer. 0.1.4 HTTP-default build.
 // Single-line change when the bridge version bumps.
-const BRIDGE_INSTALLER_URL =
-  'https://storage.googleapis.com/gemynd-public/projects/flowhub/gemynd-scan-client-setup-0.1.4.exe';
+import { INSTALLER_URL as BRIDGE_INSTALLER_URL } from '../config/installer';
 
 const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
   isOpen,
