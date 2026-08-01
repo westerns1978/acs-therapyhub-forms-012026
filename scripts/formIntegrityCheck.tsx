@@ -252,7 +252,7 @@ const at = (p: string) => path.join(process.cwd(), p);
  * covers nothing new is not free — it is another file to regenerate on every
  * intentional render change.
  */
-const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; covers: string }[] = [
+const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; covers: string; committedAt?: string }[] = [
   {
     slug: 'authorization-release (legacy dotted shape)',
     def: AUTHORIZATION_RELEASE_DEFINITION,
@@ -295,6 +295,20 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     baseline: 'scripts/fixtures/printpreview-emergency-contact-witnesssig.baseline.html',
     covers: 'the witness variant of the second signature block — a different heading ("Witness Acknowledgment") than the staff variant, so it is a distinct branch',
   },
+  {
+    // THE §10a REGRESSION GUARD. committedAt is deliberately a DIFFERENT instant from
+    // the frozen clock (2026-05-11 vs the harness's 2026-07-16), which is the only way
+    // to tell a correct render from the bug: when both dates are "now" they are
+    // indistinguishable. This baseline must show 5/11/2026 in BOTH the header and the
+    // signature block. If a future change reverts PrintPreview to calling new Date()
+    // in the signature block, that line becomes 7/16/2026 and this fixture goes red.
+    slug: 'consent-treatment (REPRINT — committedAt honoured in both stamps)',
+    def: CONSENT_FORM_DEFINITION,
+    data: 'scripts/fixtures/print-consent-treatment-objectmap-staffsig.json',
+    baseline: 'scripts/fixtures/printpreview-consent-treatment-reprint-committedat.baseline.html',
+    committedAt: '2026-05-11T15:30:00.000Z',
+    covers: '§10a — a REPRINT must stamp the record date, not today. Header AND signature block must both read 5/11/2026 despite the frozen clock being 7/16/2026',
+  },
 ];
 
 /**
@@ -329,7 +343,7 @@ const UPDATING = process.env.UPDATE_PRINTPREVIEW_BASELINE === '1';
 for (const fx of PRINT_FIXTURES) {
   const formData = JSON.parse(fs.readFileSync(at(fx.data), 'utf8'));
   const rendered = renderToStaticMarkup(
-    React.createElement(PrintPreview, { formData, formDefinition: fx.def }),
+    React.createElement(PrintPreview, { formData, formDefinition: fx.def, committedAt: fx.committedAt }),
   );
   if (UPDATING) {
     fs.writeFileSync(at(fx.baseline), BASELINE_HEADER.replace('{{COVERS}}', fx.covers) + rendered);

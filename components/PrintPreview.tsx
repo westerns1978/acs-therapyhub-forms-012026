@@ -43,6 +43,23 @@ const PrintField: React.FC<{ label: string; value: any, type?: string, options?:
 };
 
 export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefinition, committedAt }) => {
+  /**
+   * THE ONLY CLOCK READ IN THIS COMPONENT. Every date this document prints must
+   * derive from `recordDate` — do NOT call new Date() again further down.
+   *
+   * Why this is load-bearing: a reprint (SubmissionViewer passes committedAt)
+   * must show when the record was COMMITTED, not when it was reprinted. 83f4826
+   * established that for the header and left the signature block calling
+   * new Date() directly, so reprinting a June record in August printed
+   * "COMMITTED RECORD: 6/14/2026" beside "SYSTEM TIMESTAMPED: 8/1/2026" — and
+   * the second one sits under the staff-verification heading, where it reads as
+   * the date a staff member witnessed the signature. On a document that reaches
+   * courts and probation officers that is a false assertion, not a cosmetic
+   * mismatch. Fixed 2026-08-01; docs/design/forms-revision-080126.md §10a.
+   *
+   * Resolving once also removes the midnight-straddle variant: two separate
+   * reads could land on different days.
+   */
   const recordDate = committedAt ? new Date(committedAt) : new Date();
   return (
     <div className="p-12 bg-white text-black font-sans min-h-screen">
@@ -96,7 +113,10 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
             <div className="border-b-2 border-gray-900 pb-2">
               <p className="font-serif text-2xl italic">{formData.staffSignature || formData.witnessSignature}</p>
             </div>
-            <p className="text-[9px] text-gray-400 font-bold uppercase">SYSTEM TIMESTAMPED: {new Date().toLocaleString()}</p>
+            {/* recordDate, NOT new Date() — see the comment on recordDate. A reprint
+                must not restamp this block with today; it reads as the date the
+                signature was witnessed. */}
+            <p className="text-[9px] text-gray-400 font-bold uppercase">SYSTEM TIMESTAMPED: {recordDate.toLocaleString()}</p>
           </div>
         )}
       </div>
