@@ -42,6 +42,27 @@ export interface FormRegistryEntry {
    * field and not derived. See docs/design/forms-revision-080126.md §9.
    */
   pdfSlug?: string;
+  /**
+   * How many pages this form's blank PDF twin is expected to be — the page-count
+   * assertion of the manifest pattern (docs/design/manifest-reconciliation-pattern.md).
+   *
+   * WHY IT LIVES ON THE REGISTRY: the manifest is the form assignment, and the
+   * registry is what an assignment is created from. Declaring the expected length
+   * next to `pdfSlug` keeps "what document" and "how long it should be" in one place.
+   *
+   * WHAT IT BUYS: a returning scanned form can be reconciled against an expectation
+   * instead of classified. A short return (page 2 of 3 missing) becomes a detectable
+   * event rather than a silently-filed partial record. Absence is the exposure a
+   * classifier structurally cannot see, and for a DMH / 42 CFR Part 2 audit that is
+   * the whole risk surface.
+   *
+   * DECLARATION ONLY, and unset everywhere on purpose. Nothing reads this yet: there
+   * is no reconciliation logic, no gate, and no UI. Page counts are not knowable
+   * until blank-template mode actually generates the PDFs, and a guessed count is
+   * worse than none — it would assert a shortfall that isn't real, or mask one that
+   * is. Populate it from generated output, never by estimate.
+   */
+  expectedPages?: number;
 }
 
 /** Public href for a form's blank PDF twin. The ONE place the path shape lives. */

@@ -30,6 +30,11 @@ const CLIENT_FORMS = CLIENT_REGISTRY_FORMS.map((f) => ({
   description: f.description || '',
   required: f.requiredForCompletion,
   pdfSlug: f.pdfSlug,
+  // Carried but not yet consumed: nothing here reads expectedPages today. It is
+  // projected now so that when manifest reconciliation lands it is already
+  // available, rather than reappearing as the same silent-drop bug this comment
+  // exists to prevent. See docs/design/manifest-reconciliation-pattern.md.
+  expectedPages: f.expectedPages,
 }));
 
 /**
