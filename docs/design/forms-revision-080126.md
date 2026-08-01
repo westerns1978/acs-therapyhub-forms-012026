@@ -489,11 +489,28 @@ reprinted *and then deleted* would leave no trace, and a document printed from a
 session that never persisted would likewise be invisible. Both are unlikely given zero
 committed rows have ever existed, but neither is disprovable from the data.
 
-**The audit gap this exposed is now closed (`11b8b73`).** `form.printed` is written at
-the `printRecord()` chokepoint, fire-and-forget, carrying `client_id`, `form_id`,
-`form_name`, `committed_at` and `reprint: true`. Reprint provenance is answerable from
-the first real client record forward. What it still cannot tell you is recorded as §10b
-below — the log is good, not total, and the difference is written down.
+**The audit gap this exposed is addressed in code (`11b8b73`)** — `form.printed` writes
+at the `printRecord()` chokepoint, fire-and-forget, carrying `client_id`, `form_id`,
+`form_name`, `committed_at` and `reprint: true`. What it still cannot tell you is
+recorded as §10b. **⚠️ But it is NOT yet confirmed working in production — see §10c: a
+live test on 2026-08-01 produced zero audit rows from two prints.** Do not treat reprint
+provenance as answerable until §10c is resolved.
+
+**Live confirmation of the §10a fix itself is PENDING (next-day reprint).** The record
+used for the live test (Bela Lugosi, `emergency-contact`, submission
+`725cc235-afa5-455c-ac47-61f6b2dcaebb`) was committed 2026-08-01 23:15 UTC and reprinted
+the same day. A same-day reprint **cannot distinguish the fixed code from the buggy
+code**: `committedAt` and `new Date()` are both today, so both versions render identical
+dates. Backdating `submitted_at` was explicitly declined — the record is not to be
+mutated. A reprint on 2026-08-02 or later is the live check.
+
+**Until then the `committedAt` fixture is the authoritative proof.**
+`printpreview-consent-treatment-reprint-committedat` pins a record date (2026-05-11)
+distinct from the harness clock (2026-07-16) and asserts both stamps read the record
+date; reverting the fix turns that fixture, and only that fixture, red. That is a
+stronger guarantee than a single manual reprint would give, and it runs on every
+`check:forms`. The pending live check adds production confirmation, not correctness
+evidence.
 
 ---
 
@@ -585,6 +602,52 @@ request becomes an auditable server event) or accepting that the ledger covers
 *application-initiated prints of committed records* and saying exactly that when asked.
 The second is the honest, cheap position and is what the system claims today.
 
+
+### 10c. OPEN DEFECT — `form.printed` wrote nothing in production
+
+**Found 2026-08-01 by live test. Not diagnosed to root cause; NOT fixed in this pass.**
+
+**What happened.** Emergency Contact was committed on Bela Lugosi
+(`725cc235-afa5-455c-ac47-61f6b2dcaebb`) and then printed **twice** — once from the
+Client Forms tab (`ClientFormsTab`) and once from the Client Submissions panel
+(`ClientSubmissionsPanel`). Expected two `form.printed` rows. **`audit_logs` contains
+zero.** No rows at all in the surrounding six hours.
+
+**What is ruled out.**
+
+| Hypothesis | Status |
+|---|---|
+| The commit failed | ❌ ruled out — row is `status='Completed'`, `submitted_at=2026-08-01 23:15:02Z` |
+| The fix wasn't deployed | ❌ ruled out — `form.printed` is present in the **live** bundle `assets/SubmissionViewer-CopFI558.js`, fetched and grepped from production |
+| One call site is uninstrumented | ❌ ruled out as the explanation — *both* produced nothing, so the cause is common to both, not per-site |
+
+**Remaining candidates, none yet confirmed.** All three fail silently, which is the
+design (`logAudit` swallows every error), and none leaves a trace to query:
+
+1. **Stale loaded bundle — most likely.** The app is a SPA. A tab opened *before* the
+   deploy keeps running the old chunk and never re-fetches `index.html`, so the old
+   uninstrumented `printRecord` would execute. This fits the evidence exactly: both
+   sites silent, code verifiably live. **Discriminating test: hard-reload
+   (Ctrl+Shift+R), print again, re-query.** Cheapest first move.
+2. **`currentActorId()` returned null** → the `if (!actor) return` guard skips the write
+   entirely. Happens when `supabase.auth.getUser()` has no resolvable session.
+3. **RLS rejected the insert.** The policy is
+   `audit_logs_insert_staff: private.is_staff() AND user_id = auth.uid()`. A signed-in
+   user without the staff role in app_metadata is rejected, and `logAudit` console.errors
+   it without surfacing anything.
+
+**The deeper problem this exposes, independent of which cause it turns out to be.**
+Fire-and-forget was chosen so an audit outage could never withhold a record from a
+clinician — that reasoning still holds. But it means **a permanently broken audit path
+is indistinguishable from an audit path that is simply never exercised**: both produce an
+empty table. The compliance value of `form.printed` depends entirely on it actually
+writing, and nothing currently reports that it isn't. Fixing the immediate cause is not
+sufficient; this needs a way to know the path works — a startup self-check, a visible
+console warning on failure, or a periodic "prints logged vs prints expected"
+reconciliation. Worth deciding when 10c is fixed, not later.
+
+**Consequence:** §10a's audit-gap closure is provisional. Print provenance is NOT yet
+answerable in production.
 
 ## 11. Decisions taken, and what's still open
 
