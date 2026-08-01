@@ -1,0 +1,13 @@
+{
+  "clientName": "Fixture Client E",
+  "clientEmail": "fixture-e@example.invalid",
+  "contactName": "Fixture Contact",
+  "relationship": "Sibling",
+  "primaryPhone": "555-0100",
+  "secondaryPhone": "555-0101",
+  "permissionToContact": true,
+  "disclosureChoice": true,
+  "clientSignature": "Fixture Client E",
+  "witnessSignature": "Fixture Witness",
+  "date": "2026-05-11"
+}

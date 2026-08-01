@@ -1,0 +1,28 @@
+{
+  "clientName": "Fixture Client B",
+  "clientEmail": "fixture-b@example.invalid",
+  "admissionDate": "2026-01-05",
+  "dischargeDate": "2026-04-20",
+  "referralSource": "Self-referred",
+  "diagnosis": "F10.10",
+  "reasonForAdmission": "Voluntary admission following an employer referral.",
+  "servicesProvided": {
+    "groupCounseling": false,
+    "individualCounseling": true,
+    "groupEducation": false
+  },
+  "problem1_plan": "Establish a sober support network.",
+  "problem1_outcome": "Sponsor obtained; attending twice weekly.",
+  "problem2_plan": "Identify relapse triggers.",
+  "problem2_outcome": "Trigger list completed with counselor.",
+  "problem3_plan": "",
+  "problem3_outcome": "",
+  "reasonForDischarge": "Successful",
+  "otherReason": "LEGACY PRE-PREDICATE VALUE — stored before otherReason became conditional. reasonForDischarge is 'Successful', so this field is HIDDEN, yet the committed record must still print it: the paper may not disagree with the JSONB. If this line stops appearing in the baseline, shouldPrintField's legacy rule has been broken.",
+  "prognosis": "Good.",
+  "medicalStatus": "Stable.",
+  "recommendedFollowUp": "Continuing recovery plan review at 90 days.",
+  "counselorSignature": "Fixture Counselor",
+  "counselorCredentials": "QMHP",
+  "signatureDate": "2026-04-20"
+}

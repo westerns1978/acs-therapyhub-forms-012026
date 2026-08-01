@@ -1,0 +1,23 @@
+{
+  "clientName": "Fixture Client C",
+  "clientEmail": "fixture-c@example.invalid",
+  "phoneClarity": 5,
+  "phoneResponsiveness": 4,
+  "phoneHelpfulness": 3,
+  "assessmentConvenience": 5,
+  "assessmentCommunication": 4,
+  "assessmentConnection": 2,
+  "groupConvenience": 3,
+  "groupParticipation": 4,
+  "groupHelpfulness": 5,
+  "groupTechnology": 1,
+  "oneOnOneConvenience": 4,
+  "oneOnOneConnection": 5,
+  "oneOnOneListening": 5,
+  "oneOnOneHelpfulness": 4,
+  "feltRespected": true,
+  "wouldRecommend": true,
+  "likelyToRefer": false,
+  "referralExplanation": "Scheduling was easy; connection quality was the weak point.",
+  "additionalComments": "Ratings span 1-5 deliberately, including the min and max, so a coercion regression shows up as a changed digit rather than a uniform value that hides it."
+}

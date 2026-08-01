@@ -39,6 +39,25 @@
  *    lands is the app, not the form. Nothing at runtime can tell the difference;
  *    only a disk check before shipping can.
  */
+/**
+ * PINNED TIMEZONE. PrintPreview renders dates with toLocaleDateString and the
+ * signature block with toLocaleString — both read the AMBIENT timezone, so a
+ * committed baseline would otherwise encode whichever zone the machine that
+ * generated it happened to be in. The date-only header hid this (7/16/2026 is
+ * the same in most zones); the signature block does not (7:00:00 AM in Chicago,
+ * 12:00:00 PM in UTC, from the same instant), so gate 3 would go red on CI or on
+ * a colleague's laptop for a reason unrelated to the code.
+ *
+ * America/Chicago because ACS is in St. Louis — the zone a commit time on their
+ * paperwork actually means something in.
+ *
+ * Set here rather than as a `TZ=… ` prefix in the npm script because that syntax
+ * does not work under cmd.exe, and this repo deliberately stays cross-platform
+ * without cross-env (see scripts/deploy.mjs). Node applies a runtime assignment
+ * to process.env.TZ immediately; verified against an ambient TZ=UTC run.
+ */
+process.env.TZ = 'America/Chicago';
+
 import React from 'react';
 import { requiredFieldErrors } from '../config/formValidation';
 import { resolveFieldValue, setByPath } from '../config/fieldPath';
@@ -212,9 +231,71 @@ global.Date = class extends RealDate {
 // Deferred require so the frozen clock is active when the component renders.
 const { renderToStaticMarkup } = require('react-dom/server');
 const { PrintPreview } = require('../components/PrintPreview');
-const row47431370 = require('./fixtures/row-47431370.json');
+const fs = require('fs');
+const path = require('path');
 // Resolve from cwd (npm scripts run at repo root) — the bundle's __dirname is node_modules/.cache.
-const BASELINE_PATH = require('path').join(process.cwd(), 'scripts/fixtures/printpreview-47431370.baseline.html');
+const at = (p: string) => path.join(process.cwd(), p);
+
+/**
+ * THE FIXTURE TABLE. Each entry is one committed-record render pinned byte-for-byte.
+ *
+ * Chosen for RENDER-BRANCH COVERAGE, not one-per-form: PrintField has six value
+ * branches and PrintPreview three structural ones, and they cluster in very few
+ * forms. discharge-summary is the only form carrying select, checkbox-group AND
+ * visibleWhen; telehealth-feedback is the only source of 'rating'. Forms whose
+ * branches are already covered elsewhere (meeting-report's object map, duplicated
+ * by consent-treatment's; satop-checklist's dotted ids, duplicated by
+ * authorization-release's) are deliberately NOT fixtured — a fixture that
+ * exercises no new path is maintenance cost with no coverage gain.
+ *
+ * Adding a form here is cheap (the whole gate runs in ~1.5s). Adding one that
+ * covers nothing new is not free — it is another file to regenerate on every
+ * intentional render change.
+ */
+const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; covers: string }[] = [
+  {
+    slug: 'authorization-release (legacy dotted shape)',
+    def: AUTHORIZATION_RELEASE_DEFINITION,
+    data: 'scripts/fixtures/row-47431370.json',
+    baseline: 'scripts/fixtures/printpreview-47431370.baseline.html',
+    covers: 'flat-dotted legacy keys + nested empties (the must-never-re-blank path); text/tel/boolean',
+  },
+  {
+    slug: 'discharge-summary (select + checkbox-group + conditional VISIBLE)',
+    def: DISCHARGE_SUMMARY_DEFINITION,
+    data: 'scripts/fixtures/print-discharge-summary-conditional-visible.json',
+    baseline: 'scripts/fixtures/printpreview-discharge-summary-conditional-visible.baseline.html',
+    covers: "select option→label, checkbox-group option→label join, visibleWhen VISIBLE branch (reasonForDischarge='Other' → otherReason prints)",
+  },
+  {
+    slug: 'discharge-summary (legacy value under a HIDDEN conditional)',
+    def: DISCHARGE_SUMMARY_DEFINITION,
+    data: 'scripts/fixtures/print-discharge-summary-legacy-hidden-value.json',
+    baseline: 'scripts/fixtures/printpreview-discharge-summary-legacy-hidden-value.baseline.html',
+    covers: "shouldPrintField's legacy rule: reasonForDischarge='Successful' hides otherReason, but a stored pre-predicate value MUST still print — censoring it would make paper disagree with the JSONB",
+  },
+  {
+    slug: 'telehealth-feedback (rating)',
+    def: TELEHEALTH_FEEDBACK_DEFINITION,
+    data: 'scripts/fixtures/print-telehealth-feedback-rating.json',
+    baseline: 'scripts/fixtures/printpreview-telehealth-feedback-rating.baseline.html',
+    covers: "rating → 'n/5' (sole source in the catalog); the numeric-vs-string trap from 2026-07-16",
+  },
+  {
+    slug: 'consent-treatment (object boolean-map + STAFF signature block)',
+    def: CONSENT_FORM_DEFINITION,
+    data: 'scripts/fixtures/print-consent-treatment-objectmap-staffsig.json',
+    baseline: 'scripts/fixtures/printpreview-consent-treatment-objectmap-staffsig.baseline.html',
+    covers: "legacy 'object' boolean-map → join-truthy ('Mon, Thu'); the staffSignature block — which contains PrintPreview's SECOND clock call and was never once rendered by this gate before 2026-08-01",
+  },
+  {
+    slug: 'emergency-contact (WITNESS signature block)',
+    def: EMERGENCY_CONTACT_DEFINITION,
+    data: 'scripts/fixtures/print-emergency-contact-witnesssig.json',
+    baseline: 'scripts/fixtures/printpreview-emergency-contact-witnesssig.baseline.html',
+    covers: 'the witness variant of the second signature block — a different heading ("Witness Acknowledgment") than the staff variant, so it is a distinct branch',
+  },
+];
 
 /**
  * The baseline file carries a provenance header so nobody mistakes a generated
@@ -226,33 +307,44 @@ const BASELINE_HEADER = [
   '<!--',
   '  GENERATED FILE — do not hand-edit.',
   '',
-  '  Frozen-clock render of PrintPreview for authorization-release row 47431370.',
+  '  Frozen-clock, pinned-timezone (America/Chicago) render of PrintPreview.',
   '  Gate 3 of `npm run check:forms` compares the live render against everything',
   '  below this comment, byte for byte, to catch unintended drift in how a',
   '  COMMITTED clinical record prints.',
   '',
+  '  THIS FIXTURE EXISTS TO COVER:',
+  '    {{COVERS}}',
+  '',
   '  Regenerate ONLY for a render change you have established is intentional:',
   '      UPDATE_PRINTPREVIEW_BASELINE=1 npm run check:forms',
   '  Then say in the commit message what changed and why it is correct. Moving',
-  '  this baseline to silence a red gate, without that justification, defeats the',
+  '  a baseline to silence a red gate, without that justification, defeats the',
   '  entire point of the gate.',
   '-->',
   '',
 ].join('\n');
 const stripHeader = (s: string): string => s.replace(/^<!--[\s\S]*?-->\n\n?/, '');
 
-const rendered = renderToStaticMarkup(
-  React.createElement(PrintPreview, { formData: row47431370, formDefinition: AUTHORIZATION_RELEASE_DEFINITION }),
-);
-
-if (process.env.UPDATE_PRINTPREVIEW_BASELINE === '1') {
-  require('fs').writeFileSync(BASELINE_PATH, BASELINE_HEADER + rendered);
-  console.log(`WROTE baseline (${rendered.length} chars of markup). Justify the change in your commit message.`);
-} else {
-  const baseline = stripHeader(require('fs').readFileSync(BASELINE_PATH, 'utf8'));
-  if (rendered === baseline) console.log(`ok    PrintPreview byte-identical to baseline (${rendered.length} chars)`);
-  else fail(`PrintPreview drift: rendered ${rendered.length} chars vs baseline ${baseline.length}. Establish WHY it changed before touching the baseline; regenerate only for an intentional change (UPDATE_PRINTPREVIEW_BASELINE=1 npm run check:forms).`);
+const UPDATING = process.env.UPDATE_PRINTPREVIEW_BASELINE === '1';
+for (const fx of PRINT_FIXTURES) {
+  const formData = JSON.parse(fs.readFileSync(at(fx.data), 'utf8'));
+  const rendered = renderToStaticMarkup(
+    React.createElement(PrintPreview, { formData, formDefinition: fx.def }),
+  );
+  if (UPDATING) {
+    fs.writeFileSync(at(fx.baseline), BASELINE_HEADER.replace('{{COVERS}}', fx.covers) + rendered);
+    console.log(`WROTE ${fx.slug} (${rendered.length} chars)`);
+    continue;
+  }
+  if (!fs.existsSync(at(fx.baseline))) {
+    fail(`${fx.slug} :: no baseline at ${fx.baseline} — generate it with UPDATE_PRINTPREVIEW_BASELINE=1 npm run check:forms`);
+    continue;
+  }
+  const baseline = stripHeader(fs.readFileSync(at(fx.baseline), 'utf8'));
+  if (rendered === baseline) console.log(`ok    ${fx.slug} — byte-identical (${rendered.length} chars)`);
+  else fail(`${fx.slug} :: PrintPreview drift — rendered ${rendered.length} chars vs baseline ${baseline.length}. Establish WHY it changed before touching the baseline; regenerate only for an intentional change (UPDATE_PRINTPREVIEW_BASELINE=1 npm run check:forms).`);
 }
+if (UPDATING) console.log('Justify every regenerated baseline in your commit message.');
 
 console.log('\n=== 4) PDF TWIN EXISTENCE (registry pdfSlug → public/forms/) ===');
 {

@@ -1,0 +1,28 @@
+{
+  "clientName": "Fixture Client D",
+  "clientEmail": "fixture-d@example.invalid",
+  "groupDays": {
+    "Mon": true,
+    "Tue": false,
+    "Wed": false,
+    "Thu": true,
+    "Fri": false
+  },
+  "groupTimeFrom": "9:00 AM",
+  "groupTimeTo": "12:15 PM",
+  "understandsAttendancePolicy": true,
+  "agreesToFee": true,
+  "understandsCancellationPolicy": true,
+  "understandsExcusedAbsences": true,
+  "agreesToAbstinence": true,
+  "consentsToTesting": true,
+  "understandsConsequences": true,
+  "acknowledgesMarijuanaPolicy": true,
+  "disclosedMedications": "None reported.",
+  "disclosesControlledSubstances": false,
+  "disclosesMedicalIssues": false,
+  "agreesToSupportGroups": true,
+  "clientSignature": "Fixture Client D",
+  "staffSignature": "Fixture QMHP",
+  "date": "2026-05-11"
+}
