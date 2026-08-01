@@ -214,12 +214,45 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const { PrintPreview } = require('../components/PrintPreview');
 const row47431370 = require('./fixtures/row-47431370.json');
 // Resolve from cwd (npm scripts run at repo root) — the bundle's __dirname is node_modules/.cache.
-const baseline = require('fs').readFileSync(require('path').join(process.cwd(), 'scripts/fixtures/printpreview-47431370.baseline.html'), 'utf8');
+const BASELINE_PATH = require('path').join(process.cwd(), 'scripts/fixtures/printpreview-47431370.baseline.html');
+
+/**
+ * The baseline file carries a provenance header so nobody mistakes a generated
+ * artifact for something hand-authored. It is NOT part of the comparison — the
+ * header is stripped before the byte check, and rewritten verbatim on regeneration
+ * (no timestamps, so the file does not churn).
+ */
+const BASELINE_HEADER = [
+  '<!--',
+  '  GENERATED FILE — do not hand-edit.',
+  '',
+  '  Frozen-clock render of PrintPreview for authorization-release row 47431370.',
+  '  Gate 3 of `npm run check:forms` compares the live render against everything',
+  '  below this comment, byte for byte, to catch unintended drift in how a',
+  '  COMMITTED clinical record prints.',
+  '',
+  '  Regenerate ONLY for a render change you have established is intentional:',
+  '      UPDATE_PRINTPREVIEW_BASELINE=1 npm run check:forms',
+  '  Then say in the commit message what changed and why it is correct. Moving',
+  '  this baseline to silence a red gate, without that justification, defeats the',
+  '  entire point of the gate.',
+  '-->',
+  '',
+].join('\n');
+const stripHeader = (s: string): string => s.replace(/^<!--[\s\S]*?-->\n\n?/, '');
+
 const rendered = renderToStaticMarkup(
   React.createElement(PrintPreview, { formData: row47431370, formDefinition: AUTHORIZATION_RELEASE_DEFINITION }),
 );
-if (rendered === baseline) console.log(`ok    PrintPreview byte-identical to baseline (${rendered.length} chars)`);
-else fail(`PrintPreview drift: rendered ${rendered.length} chars vs baseline ${baseline.length}. If this change is INTENTIONAL and gated, regenerate the baseline.`);
+
+if (process.env.UPDATE_PRINTPREVIEW_BASELINE === '1') {
+  require('fs').writeFileSync(BASELINE_PATH, BASELINE_HEADER + rendered);
+  console.log(`WROTE baseline (${rendered.length} chars of markup). Justify the change in your commit message.`);
+} else {
+  const baseline = stripHeader(require('fs').readFileSync(BASELINE_PATH, 'utf8'));
+  if (rendered === baseline) console.log(`ok    PrintPreview byte-identical to baseline (${rendered.length} chars)`);
+  else fail(`PrintPreview drift: rendered ${rendered.length} chars vs baseline ${baseline.length}. Establish WHY it changed before touching the baseline; regenerate only for an intentional change (UPDATE_PRINTPREVIEW_BASELINE=1 npm run check:forms).`);
+}
 
 console.log('\n=== 4) PDF TWIN EXISTENCE (registry pdfSlug → public/forms/) ===');
 {
