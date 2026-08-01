@@ -35,7 +35,11 @@ export const SuccessScreen: React.FC<SuccessScreenProps> = ({ formData, formDefi
         </div>
         <div className="flex items-center gap-3 p-3 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
             <div className="p-2 bg-blue-500/10 text-blue-500 rounded-xl"><ExternalLink size={16}/></div>
-            <p className="text-xs font-bold text-blue-600 dark:text-blue-400">A high-fidelity copy has been attached to your patient file.</p>
+            {/* "client", not "patient" — ACS is a counseling and SATOP provider, not a
+                medical practice. Every other surface, and David's own forms, say client.
+                The storage bucket is still named therapyhub-patient-files; that is an
+                infrastructure identifier nobody sees, and renaming it would break storage. */}
+            <p className="text-xs font-bold text-blue-600 dark:text-blue-400">A high-fidelity copy has been attached to your client file.</p>
         </div>
       </div>
 
