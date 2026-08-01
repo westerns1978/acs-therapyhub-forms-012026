@@ -21,7 +21,35 @@ export interface FormRegistryEntry {
   audience: FormAudience;           // 'client' surfaces in the portal; 'staff' is staff-only
   requiredForCompletion: boolean;   // counts toward the cert gate (the core 6)
   description?: string;
+  /**
+   * Filename stem of this form's blank PDF twin in `public/forms/` — the shareable,
+   * no-PHI copy. `pdfUrlFor()` derives the href; nothing stores a full URL, so a wrong
+   * origin or an off-site link cannot reach either surface.
+   *
+   * PRESENCE IS THE SWITCH. Unset = no PDF exists, and BOTH surfaces render nothing:
+   * the staff "Copy PDF link" action (components/FormLibrary.tsx) and the client
+   * "Download PDF" button (pages/portal/PortalDocuments.tsx) are each gated on it.
+   * That is what keeps a retired form, and a form whose revision hasn't shipped, from
+   * offering a link to a file that isn't there.
+   *
+   * SET IT ONLY WHEN THE PDF IS COMMITTED. `npm run check:forms` gate 4 asserts
+   * public/forms/<pdfSlug>.pdf exists on disk and fails the run if it doesn't — because
+   * Firebase's catch-all rewrite answers a missing file with a 200 + SPA shell, not a
+   * 404, so a typo would ship as a link that silently renders the app.
+   *
+   * Slug convention is `= id`; the two registration forms are the deliberate exception
+   * (`satop-registration-form`, `registration-form`), which is why this is an explicit
+   * field and not derived. See docs/design/forms-revision-080126.md §9.
+   */
+  pdfSlug?: string;
 }
+
+/** Public href for a form's blank PDF twin. The ONE place the path shape lives. */
+export const pdfPathFor = (pdfSlug: string): string => `/forms/${pdfSlug}.pdf`;
+
+/** Absolute URL for sharing (staff copy-link) — needs a browser origin. */
+export const pdfUrlFor = (pdfSlug: string): string =>
+  `${window.location.origin}${pdfPathFor(pdfSlug)}`;
 
 export const FORM_REGISTRY: FormRegistryEntry[] = [
   // ── Core required (client-signed) — the 3.206(13)(F) cert-gate set ──────────

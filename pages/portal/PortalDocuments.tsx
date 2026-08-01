@@ -7,11 +7,11 @@ import Header from '../../components/ui/Header';
 import Card from '../../components/ui/Card';
 import { supabase } from '../../services/supabase';
 import { usePortalClient } from '../../hooks/usePortalClient';
-import { FileText, CheckCircle2, Clock, ArrowRight, Upload, X, Loader2, FileUp, ExternalLink, Camera } from 'lucide-react';
+import { FileText, CheckCircle2, Clock, ArrowRight, Upload, X, Loader2, FileUp, ExternalLink, Camera, Download } from 'lucide-react';
 import { submitPaperForm } from '../../services/api';
 import Modal from '../../components/ui/Modal';
 import MobileDocumentUpload from '../../components/portal/MobileDocumentUpload';
-import { CLIENT_REGISTRY_FORMS } from '../../config/formRegistry';
+import { CLIENT_REGISTRY_FORMS, pdfPathFor } from '../../config/formRegistry';
 import { SignedFileLink } from '../../components/ui/SignedFile';
 import PortalErrorCard from '../../components/ui/PortalErrorCard';
 
@@ -19,13 +19,44 @@ import PortalErrorCard from '../../components/ui/PortalErrorCard';
 // Required-core is INTRINSIC (requiredForCompletion) — a required form with no assignment
 // row still appears, so completion can't be dodged by never assigning. Completion is
 // matched on form_id (now `text`, backfilled) — never the free-text form_name.
+//
+// This projection DROPS every registry field it doesn't name, so anything the rows below
+// need must be listed here — `pdfSlug` included, or the Download PDF button silently
+// never renders with nothing to explain why.
 const CLIENT_FORMS = CLIENT_REGISTRY_FORMS.map((f) => ({
   id: f.id,
   name: f.title,
   category: f.category,
   description: f.description || '',
   required: f.requiredForCompletion,
+  pdfSlug: f.pdfSlug,
 }));
+
+/**
+ * Blank-PDF fallback for a client who can't get through the e-form. Renders ONLY when the
+ * form has a pdfSlug (no PDF → no button; a link to a missing file would return Firebase's
+ * 200 + SPA shell, not a 404).
+ *
+ * Sits immediately left of the Upload control on purpose: download the blank, fill it by
+ * hand, send it back through the button right next to it. The title text names that
+ * round-trip so the return path isn't left implicit.
+ */
+const PdfDownloadButton: React.FC<{ pdfSlug?: string; formName: string }> = ({ pdfSlug, formName }) => {
+  if (!pdfSlug) return null;
+  return (
+    <a
+      href={pdfPathFor(pdfSlug)}
+      download
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Download a blank PDF to print and fill in by hand — then send it back with Upload Paper Copy"
+      aria-label={`Download blank PDF of ${formName}`}
+      className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+    >
+      <Download size={18} />
+    </a>
+  );
+};
 
 const PaperUploadModal: React.FC<{ 
     isOpen: boolean, 
@@ -264,6 +295,7 @@ const PortalDocuments: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <PdfDownloadButton pdfSlug={form.pdfSlug} formName={form.name} />
                                         <button
                                             onClick={() => setUploadingForm(form)}
                                             className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
@@ -303,6 +335,7 @@ const PortalDocuments: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <PdfDownloadButton pdfSlug={form.pdfSlug} formName={form.name} />
                                         <button
                                             onClick={() => setUploadingForm(form)}
                                             className="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"

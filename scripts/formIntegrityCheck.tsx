@@ -29,6 +29,15 @@
  *    shape that must never re-blank), rendered with a frozen clock and compared
  *    byte-for-byte against the checked-in baseline. Regenerate the baseline
  *    ONLY on an intentional, gated committed-record change.
+ *
+ * 4. PDF TWIN EXISTENCE: every FORM_REGISTRY entry carrying a `pdfSlug` must have
+ *    public/forms/<pdfSlug>.pdf on disk. This gate exists because the failure it
+ *    catches is INVISIBLE at runtime: firebase.json rewrites `**` to /index.html,
+ *    and Firebase consults that rewrite whenever no static file matched — so a
+ *    missing or misspelled PDF is answered with HTTP 200 and the SPA shell, not a
+ *    404. The staff copy-link and the client download would both "work", and what
+ *    lands is the app, not the form. Nothing at runtime can tell the difference;
+ *    only a disk check before shipping can.
  */
 import React from 'react';
 import { requiredFieldErrors } from '../config/formValidation';
@@ -50,6 +59,7 @@ import { MEETING_REPORT_DEFINITION } from '../components/forms/MeetingReportForm
 import { DISCHARGE_SUMMARY_DEFINITION } from '../components/forms/DischargeSummaryForm';
 import { CHART_CHECKLIST_DEFINITION } from '../components/forms/ChartChecklistForm';
 import { SESSION_ATTENDANCE_DEFINITION } from '../components/forms/SessionAttendanceForm';
+import { FORM_REGISTRY } from '../config/formRegistry';
 import groundTruth from './fixtures/form-submissions-ground-truth.json';
 
 const ALL: any[] = [
@@ -210,6 +220,27 @@ const rendered = renderToStaticMarkup(
 );
 if (rendered === baseline) console.log(`ok    PrintPreview byte-identical to baseline (${rendered.length} chars)`);
 else fail(`PrintPreview drift: rendered ${rendered.length} chars vs baseline ${baseline.length}. If this change is INTENTIONAL and gated, regenerate the baseline.`);
+
+console.log('\n=== 4) PDF TWIN EXISTENCE (registry pdfSlug → public/forms/) ===');
+{
+  const fs = require('fs');
+  const path = require('path');
+  const withPdf = FORM_REGISTRY.filter((f) => f.pdfSlug);
+  if (!withPdf.length) {
+    console.log('ok    no registry entry declares a pdfSlug yet — nothing to verify');
+  } else {
+    for (const entry of withPdf) {
+      // cwd-relative: npm scripts run at the repo root (same reason gate 3 resolves
+      // its baseline that way — the esbuild bundle's __dirname is node_modules/.cache).
+      const rel = path.join('public', 'forms', `${entry.pdfSlug}.pdf`);
+      if (fs.existsSync(path.join(process.cwd(), rel))) {
+        console.log(`ok    ${entry.id} → /forms/${entry.pdfSlug}.pdf`);
+      } else {
+        fail(`${entry.id} :: pdfSlug='${entry.pdfSlug}' but ${rel} does NOT exist — the link would serve a 200 + SPA shell, not a 404. Commit the PDF or unset pdfSlug.`);
+      }
+    }
+  }
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL GREEN');
 process.exit(failures ? 1 : 0);

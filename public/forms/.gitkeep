@@ -1,0 +1,19 @@
+Blank PDF twins of the ACS forms are served from here.
+
+Vite copies public/ into dist/ verbatim, and firebase.json serves dist/, so a file
+committed here is reachable at https://<host>/forms/<name>.pdf. Firebase resolves
+exact-match static content BEFORE the "**" -> /index.html rewrite, so these are
+served as real files and the SPA catch-all never sees them.
+
+The corollary is the trap: a MISSING or misspelled PDF falls through to that
+catch-all and is answered with HTTP 200 and the app shell, not a 404 — a broken
+link looks like a strange app bug rather than an absent file. `npm run check:forms`
+gate 4 guards against exactly that: every registry entry with a `pdfSlug` must have
+a matching <pdfSlug>.pdf in this directory or the check fails.
+
+Filenames must match the `pdfSlug` of the corresponding config/formRegistry.ts
+entry. Slug convention is `= id`, with the two registration forms as the
+deliberate exception (satop-registration-form, registration-form).
+
+Empty for now by design — PDFs land per form, each with its own form's revision,
+never before it. See docs/design/forms-revision-080126.md section 9.

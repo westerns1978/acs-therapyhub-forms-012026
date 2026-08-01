@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FormDefinition } from '../types';
 import { FormDetailModal } from './FormDetailModal';
-import { Search, Star, Info, Plus, Play, CheckCircle, Filter, Zap, LayoutGrid, Clock, ShieldCheck, UserPlus } from 'lucide-react';
+import { Search, Star, Info, Plus, Play, CheckCircle, Filter, Zap, LayoutGrid, Clock, ShieldCheck, UserPlus, Link2, Check } from 'lucide-react';
 import { getClients } from '../services/api';
 import { Client } from '../types';
 import AssignFormModal from './forms/AssignFormModal';
@@ -11,6 +11,12 @@ import AssignFormModal from './forms/AssignFormModal';
 // Definitions come from the ONE shared index (config/formDefinitions, 2026-07-28)
 // so this list and the submission viewers cannot drift — the #36 catalog hazard.
 import { FORM_DEFINITION_BY_ID } from '../config/formDefinitions';
+// PDF twin metadata lives on FORM_REGISTRY (the catalog), which this surface does NOT
+// iterate — it renders FORM_DEFINITION_BY_ID. Resolving by id keeps the registry the
+// single source of truth for pdfSlug WITHOUT consolidating the two catalogs (that's
+// DEFERRED #36, deliberately still open). A form absent from the registry, or present
+// with no pdfSlug, simply renders no link.
+import { FORM_REGISTRY_BY_ID, pdfUrlFor } from '../config/formRegistry';
 
 export type View = 'library' | 'satop-intake' | 'recovery-plan' | 'consent-treatment' | 'meeting-report' | 'emergency-contact' | 'discharge-summary' | 'telehealth-feedback' | 'satop-checklist' | 'authorization-release' | 'chart-checklist' | 'session-attendance' | 'hipaa-ack' | 'telehealth-consent' | 'late-cancellation';
 
@@ -44,6 +50,24 @@ const FormCard: React.FC<{
   // unscoped key.
   const draft = null;
   const progress = 0;
+
+  // Blank PDF twin, resolved from the registry by id (see the import note). Unset
+  // pdfSlug → no action rendered at all; there is no disabled/greyed state, because a
+  // link to a file that does not exist would return Firebase's 200 + SPA shell.
+  const pdfSlug = FORM_REGISTRY_BY_ID[definition.id]?.pdfSlug;
+  const [copied, setCopied] = useState(false);
+  const copyPdfLink = async () => {
+    if (!pdfSlug) return;
+    try {
+      await navigator.clipboard.writeText(pdfUrlFor(pdfSlug));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard denied (insecure context / permission). Say so rather than
+      // showing the success tick for a copy that did not happen.
+      window.prompt('Copy this link:', pdfUrlFor(pdfSlug));
+    }
+  };
 
   return (
     <motion.div
@@ -115,6 +139,20 @@ const FormCard: React.FC<{
         >
           <UserPlus size={14} /> Assign
         </button>
+        {pdfSlug && (
+          <button
+            onClick={copyPdfLink}
+            title="Copy a link to the blank PDF — paste it into a text or email to the client"
+            aria-label={`Copy PDF link for ${definition.title}`}
+            className={`px-4 py-4 border rounded-2xl shadow-sm transition-all transform hover:scale-[1.02] flex items-center justify-center active:scale-95 ${
+              copied
+                ? 'bg-emerald-500 text-white border-emerald-500'
+                : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:text-primary'
+            }`}
+          >
+            {copied ? <Check size={14} /> : <Link2 size={14} />}
+          </button>
+        )}
       </div>
     </motion.div>
   );
