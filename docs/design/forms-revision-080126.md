@@ -46,7 +46,7 @@ The docx is a flat bulleted list (form name, then its changes). Reproduced verba
 Grouping note: the docx is visually flat (each bullet is its own Word list), so the
 "Change name to Client Status Report" line sits directly under Chart Review, which David
 also calls "not needed" — delete-vs-rename as written is contradictory. **Resolved by
-decision D1 (§10): Chart Review is soft-retired and no "Client Status Report" form is
+decision D1 (§11): Chart Review is soft-retired and no "Client Status Report" form is
 created.** The line is recorded above for provenance only; it is not actioned.
 
 ## 2. The six PDF markups — legibility report
@@ -390,7 +390,62 @@ filter retired entries out anyway (§6 Phase 0), so the gating is belt-and-brace
 no PDF file, no registry value, no special case. `satop-intake` is treated the same way for
 a different reason — out of scope, not retired.
 
-## 10. Decisions taken, and what's still open
+## 10. DEFERRED — gate 3's fixture covers one form out of fourteen
+
+**Not built. Logged 2026-08-01 while fixing the stale baseline (`72663c4`).**
+
+`check:forms` gate 3 is the guard that protects how a **committed clinical record**
+prints — the artifact that reaches courts, probation officers, and DMH. It works by
+rendering `PrintPreview` under a frozen clock and comparing byte-for-byte against
+`scripts/fixtures/printpreview-47431370.baseline.html`.
+
+**What it covers today:** exactly one render — `authorization-release`, row
+`47431370`. That fixture was chosen well: it is a mixed-shape legacy row (flat dotted
+keys carrying data alongside nested empties), so it exercises the path-resolution
+behaviour that must never re-blank. It genuinely caught the 7/28 drift.
+
+**What it does not cover:** the other thirteen forms, and every field type absent from
+that one row. `authorization-release` is `text` / `tel` / `boolean` only. Nothing in
+the gate exercises:
+
+| Uncovered | Where it lives | Why it matters |
+|---|---|---|
+| `object` boolean-maps | `meeting-report.meetingType` | `PrintField` has a dedicated branch (joins truthy keys); a regression prints nothing or `[object Object]` |
+| `checkbox-group` + `select` option-label mapping | consent, discharge-summary | Prints human labels, not machine tokens — the 2026-07-16 fix |
+| `rating` (`n/5`) | `telehealth-feedback` | Its own `PrintField` branch |
+| `visibleWhen` / `shouldPrintField` | `discharge-summary` | The legacy-value print rule — the one place paper is allowed to disagree with a new record |
+| Multi-section layouts | `recovery-plan`, `satop-intake` | Section grouping, not just field rows |
+
+A regression in any of those ships green. That is a real hole, and it widens as soon as
+blank-template mode lands, because that work adds a **second** render path through the
+same component — the exact change this gate exists to police, aimed mostly at forms it
+cannot see.
+
+**Two shapes of fix:**
+
+1. **More fixtures — one row per archetype.** Add ~4 baselines chosen by field-type
+   coverage rather than by form: an `object` map (`meeting-report`), an options-mapped
+   form (`consent-treatment` or `discharge-summary`), a `rating` form
+   (`telehealth-feedback`), and a conditional-visibility form (`discharge-summary`
+   again, for `shouldPrintField`). Same mechanism, no new machinery — the regeneration
+   path added in `72663c4` already generalises.
+2. **Broad render sweep.** Render all 14 definitions against synthetic data and assert
+   invariants (no `[object Object]`, no `undefined`, every required field label present)
+   rather than byte-equality.
+
+**Recommendation: (1), and not (2).** Byte-equality is what makes this gate honest —
+it caught a 290-char delta that no invariant assertion would have flagged, since the
+output stayed perfectly well-formed. A sweep trades that precision for breadth and
+would have been green through the entire 7/28 drift. Option 1 keeps byte-equality and
+buys coverage by picking rows for what they exercise, and it costs four fixtures plus
+a loop, not a new test framework. Option 2 is worth revisiting only if fixture
+maintenance becomes the bottleneck.
+
+**Sequencing:** do this *before* blank-template mode, not after. Adding a second render
+path while the guard sees one-fourteenth of the surface is the wrong order — the
+fixtures are cheap now and become regression triage later.
+
+## 11. Decisions taken, and what's still open
 
 ### Decided — Dan, 2026-08-01 (not open; do not re-raise)
 
@@ -410,12 +465,12 @@ a different reason — out of scope, not retired.
 3. CRP relapse-steps list carried no R/O marks — mirror the R×3+O pattern of the other lists?
 4. HIPAA printout p.2 and Orientation Checklist pp.2–3 weren't scanned — any annotations there?
 5. Approve the `'static'` display-only field type for the Consent narratives (§8b). *(Soft-retire is settled by D1.)*
-6. **Deploy gating for `check:forms`.** It is not wired into `npm run build` or
-   `scripts/deploy.mjs` (which runs lint → build → deploy only), so gate 4 fails only when
-   the check is run by hand. Wiring it into `deploy.mjs` would make it a real deploy gate —
-   **but gate 3 is currently RED at HEAD** (PrintPreview drift, 7729 vs 8019 chars,
-   pre-existing and unrelated to this work), so wiring it in today would block all deploys.
-   Sequence: resolve the gate-3 drift, then wire `check:forms` into the deploy chain.
+6. ~~**Deploy gating for `check:forms`.**~~ **RESOLVED 2026-08-01.** The gate-3 drift was
+   diagnosed as a stale baseline and fixed (`72663c4`), then `check:forms` was wired into
+   `scripts/deploy.mjs` (`d849be3`). The chain is now lint → check:forms → build → deploy,
+   negative-tested against the real command: a bogus `pdfSlug` aborts the deploy before the
+   build runs and before firebase is invoked. **Newly open in its place: the fixture
+   coverage gap, §10.**
 
 ### Still open — for David
 
