@@ -390,60 +390,104 @@ filter retired entries out anyway (§6 Phase 0), so the gating is belt-and-brace
 no PDF file, no registry value, no special case. `satop-intake` is treated the same way for
 a different reason — out of scope, not retired.
 
-## 10. DEFERRED — gate 3's fixture covers one form out of fourteen
+## 10. Gate 3 fixture coverage — largely closed, with named gaps remaining
 
-**Not built. Logged 2026-08-01 while fixing the stale baseline (`72663c4`).**
+**Logged 2026-08-01 (`72663c4`); mostly addressed the same day by `fd86135`. NOT closed
+— see "still uncovered" below.**
 
-`check:forms` gate 3 is the guard that protects how a **committed clinical record**
-prints — the artifact that reaches courts, probation officers, and DMH. It works by
-rendering `PrintPreview` under a frozen clock and comparing byte-for-byte against
-`scripts/fixtures/printpreview-47431370.baseline.html`.
+`check:forms` gate 3 protects how a **committed clinical record** prints — the artifact
+that reaches courts, probation officers, and DMH. It renders `PrintPreview` under a
+frozen clock and pinned timezone, comparing byte-for-byte against checked-in baselines.
 
-**What it covers today:** exactly one render — `authorization-release`, row
-`47431370`. That fixture was chosen well: it is a mixed-shape legacy row (flat dotted
-keys carrying data alongside nested empties), so it exercises the path-resolution
-behaviour that must never re-blank. It genuinely caught the 7/28 drift.
+### Covered as of `fd86135` — 6 renders
 
-**What it does not cover:** the other thirteen forms, and every field type absent from
-that one row. `authorization-release` is `text` / `tel` / `boolean` only. Nothing in
-the gate exercises:
+| Fixture | Branches it pins |
+|---|---|
+| `printpreview-47431370` *(authorization-release)* | flat-dotted legacy keys + nested empties (the must-never-re-blank path); `text` / `tel` / `boolean` |
+| `discharge-summary-conditional-visible` | `select` option→label, `checkbox-group` option→label join, `visibleWhen` **visible** branch |
+| `discharge-summary-legacy-hidden-value` | `shouldPrintField`'s legacy rule — a stored value under a **hidden** conditional must still print |
+| `telehealth-feedback-rating` | `rating` → `n/5`, spanning 1–5 |
+| `consent-treatment-objectmap-staffsig` | `object` boolean-map → join-truthy; the **staff** signature block |
+| `emergency-contact-witnesssig` | the **witness** signature block (distinct heading) |
 
-| Uncovered | Where it lives | Why it matters |
-|---|---|---|
-| `object` boolean-maps | `meeting-report.meetingType` | `PrintField` has a dedicated branch (joins truthy keys); a regression prints nothing or `[object Object]` |
-| `checkbox-group` + `select` option-label mapping | consent, discharge-summary | Prints human labels, not machine tokens — the 2026-07-16 fix |
-| `rating` (`n/5`) | `telehealth-feedback` | Its own `PrintField` branch |
-| `visibleWhen` / `shouldPrintField` | `discharge-summary` | The legacy-value print rule — the one place paper is allowed to disagree with a new record |
-| Multi-section layouts | `recovery-plan`, `satop-intake` | Section grouping, not just field rows |
+Also fixed in that pass: the gate now pins `TZ=America/Chicago`, because the signature
+block renders a *time* and therefore read the ambient zone — the first machine to
+generate a baseline would otherwise have baked its own timezone into a committed file.
+Verified green under ambient `TZ=UTC` and `TZ=Asia/Tokyo`.
 
-A regression in any of those ships green. That is a real hole, and it widens as soon as
-blank-template mode lands, because that work adds a **second** render path through the
-same component — the exact change this gate exists to police, aimed mostly at forms it
-cannot see.
+**Correction to this item as originally written:** it listed "multi-section layouts
+(`recovery-plan`, `satop-intake`)" as an uncovered branch. That was wrong.
+`PrintPreview` has no section concept — it renders a flat `.map` over
+`fieldDefinitions` plus a fixed header and signature block, and never reads
+`FormDefinition.steps`. The gap was inferred from the form components without checking
+the print path. There is nothing there to cover.
 
-**Two shapes of fix:**
+**Deliberately not fixtured:** `meeting-report` (its `meetingType` map goes through the
+identical branch as consent's `groupDays`) and `satop-checklist` (its dotted ids are the
+same branch as authorization-release's). A fixture exercising no new path is maintenance
+cost with no coverage gain.
 
-1. **More fixtures — one row per archetype.** Add ~4 baselines chosen by field-type
-   coverage rather than by form: an `object` map (`meeting-report`), an options-mapped
-   form (`consent-treatment` or `discharge-summary`), a `rating` form
-   (`telehealth-feedback`), and a conditional-visibility form (`discharge-summary`
-   again, for `shouldPrintField`). Same mechanism, no new machinery — the regeneration
-   path added in `72663c4` already generalises.
-2. **Broad render sweep.** Render all 14 definitions against synthetic data and assert
-   invariants (no `[object Object]`, no `undefined`, every required field label present)
-   rather than byte-equality.
+### Still uncovered — the item stays open
 
-**Recommendation: (1), and not (2).** Byte-equality is what makes this gate honest —
-it caught a 290-char delta that no invariant assertion would have flagged, since the
-output stayed perfectly well-formed. A sweep trades that precision for breadth and
-would have been green through the entire 7/28 drift. Option 1 keeps byte-equality and
-buys coverage by picking rows for what they exercise, and it costs four fixtures plus
-a loop, not a new test framework. Option 2 is worth revisiting only if fixture
-maintenance becomes the bottleneck.
+1. **Per-form output is not pinned for the nine unfixtured forms.** Branch coverage is
+   now good; *form* coverage is not. A regression that drops or reorders a field in
+   `recovery-plan`, `satop-intake`, `hipaa-ack`, `telehealth-consent`, `satop-checklist`,
+   `late-cancellation`, `meeting-report`, `chart-checklist`, or `session-attendance`
+   still ships green, because no baseline contains those documents' text. Closing this
+   means one fixture per remaining form — cheap (the gate runs in ~1.5s) but nine more
+   files to regenerate on every intentional render change. Worth doing before
+   blank-template mode if that work touches shared layout rather than only adding a mode.
 
-**Sequencing:** do this *before* blank-template mode, not after. Adding a second render
-path while the guard sees one-fourteenth of the surface is the wrong order — the
-fixtures are cheap now and become regression triage later.
+2. **The frozen clock masks the two-timestamp defect below.** The fixtures prove the
+   signature block *renders*; they cannot prove it renders the *right* time, because
+   under a frozen clock the buggy and correct values are identical. See §10a.
+
+3. **The `object` non-boolean-map path** (a stored object whose values are not booleans)
+   has no fixture. It appears unreachable from current definitions — no form declares an
+   `object` field holding a non-boolean map — so this is noted for completeness rather
+   than as a live risk.
+
+### 10a. DEFERRED — one render can print two different dates
+
+**Reported 2026-08-01 during the fixture work. Not fixed; no code changed.**
+
+[PrintPreview.tsx](../../components/PrintPreview.tsx) reads the clock **twice**, and the
+two reads do not agree:
+
+- Line 46 — `const recordDate = committedAt ? new Date(committedAt) : new Date();`
+  The header (line 60, `COMMITTED RECORD:`) honours `committedAt`.
+- Line 99 — `SYSTEM TIMESTAMPED: {new Date().toLocaleString()}`
+  The signature block **ignores `committedAt` entirely** and always stamps *now*.
+
+`committedAt` is supplied on the reprint path by
+[SubmissionViewer.tsx:142](../../components/forms/SubmissionViewer.tsx). So reprinting a
+record committed 2026-06-14, on 2026-08-01, produces one document reading:
+
+```
+COMMITTED RECORD: 6/14/2026          ← correct, the actual commit date
+SYSTEM TIMESTAMPED: 8/1/2026, …      ← today, printed beside the staff signature
+```
+
+**Failure mode.** The restamped date sits directly under the "Staff Verification" /
+"Witness Acknowledgment" heading, where it reads as *when the signature was witnessed*.
+A reprint therefore asserts that a staff member verified the record on a date they did
+not — on a document that goes to a court or a probation officer. The internally
+inconsistent pair is also exactly what an auditor would flag.
+
+This is the same defect `83f4826` fixed for the header; its own comment says *"a reprint
+must not restamp today as the commit date."* The fix was applied to `recordDate` and line
+99 was left reading the clock directly — the fix is half-applied, not absent.
+
+A lesser variant exists on the live-commit path (no `committedAt`): lines 46 and 99 are
+two separate reads, so a render straddling midnight prints two different dates. Rare, but
+the same class.
+
+**Shape of the fix (not done here):** have line 99 derive from `recordDate` rather than
+call `new Date()`. Note this changes rendered output, so it will turn gate 3 red by
+design — the two signature-block baselines must be regenerated in the same commit, with
+the justification recorded. **Adding a fixture that passes `committedAt`** would make the
+defect visible in a baseline today; that was deliberately not done, since it would pin
+the wrong behaviour into a checked-in file.
 
 ## 11. Decisions taken, and what's still open
 
