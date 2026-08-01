@@ -438,16 +438,63 @@ cost with no coverage gain.
    files to regenerate on every intentional render change. Worth doing before
    blank-template mode if that work touches shared layout rather than only adding a mode.
 
-2. **The frozen clock masks the two-timestamp defect below.** The fixtures prove the
-   signature block *renders*; they cannot prove it renders the *right* time, because
-   under a frozen clock the buggy and correct values are identical. See §10a.
+2. ~~**The frozen clock masks the two-timestamp defect below.**~~ **RESOLVED
+   (`87a4e08`).** The defect is fixed and guarded by a `committedAt` fixture whose
+   record date differs from the harness clock — the only construct that can tell a
+   correct render from the buggy one. See §10a, now closed. Gate 3 covers **7** renders.
 
 3. **The `object` non-boolean-map path** (a stored object whose values are not booleans)
    has no fixture. It appears unreachable from current definitions — no form declares an
    `object` field holding a non-boolean map — so this is noted for completeness rather
    than as a live risk.
 
-### 10a. DEFERRED — one render can print two different dates
+### 10a. CLOSED — one render could print two different dates
+
+**Reported 2026-08-01 during the fixture work (`3df6b4f`); FIXED the same day
+(`87a4e08`). Closed, with a regression guard. Blast radius: zero documents.**
+
+**Fix:** the signature block now derives from `recordDate` instead of calling
+`new Date()`. The single resolution point already existed at line 46 — the bug was
+a call site bypassing it — so the resolve-once approach *was* the minimal fix; no
+refactor was required. `recordDate` now carries a comment stating it is the only
+clock read in the component. This also removes the midnight-straddle variant.
+
+**Recon result:** the whole print/record/export surface was swept on the assumption
+there might be a third site. There isn't. `MeetingSummary.tsx:43` and
+`pdfDocuments.ts:332,430` print `Generated: <now>` on documents that genuinely are
+generated now; `cimorPacket.ts:86` formats a passed-in date and already says "no
+`new Date()` of 'now'"; `pdfDocuments.ts:176` explicitly refuses a now-fallback so an
+unrecorded completion date prints blank. The distinction is not *reads the clock* but
+*presents the clock as a property of the record* — only the signature block did that.
+
+**Regression guard:** `printpreview-consent-treatment-reprint-committedat`, a fixture
+whose `committedAt` (2026-05-11) differs from the harness's frozen clock (2026-07-16),
+asserting both stamps read 5/11/2026. This was necessary because **the frozen clock
+masks the bug**: with no `committedAt`, the buggy and correct renders are byte-identical
+— which is why the two existing signature-block baselines did *not* change when the fix
+landed, contrary to what §10 predicted. Verified by reverting the fix: that fixture, and
+only that fixture, goes red.
+
+**Blast radius — no document is affected.** Reprints are **not audited**: `audit_logs`
+contains no print, view, or export action, so a reprint count is *not knowable* from the
+database. The exposure is instead bounded structurally: `form_submissions` holds 7 rows,
+**all** with `status = 'Not Started'` and `submitted_at IS NULL`. No record has ever been
+committed, and `SubmissionViewer` only reprints committed records — so there has never
+been anything to reprint. No document carrying a false verification date exists, in a
+client's hands or a court's.
+
+Two caveats on that conclusion, stated rather than buried: it rests on the current
+contents of the shared Supabase project (`ldzzlndsspkyohvzfiiu`) — a record committed and
+reprinted *and then deleted* would leave no trace, and a document printed from a local
+session that never persisted would likewise be invisible. Both are unlikely given zero
+committed rows have ever existed, but neither is disprovable from the data. **If reprint
+provenance ever needs to be answerable, a `form.printed` audit action is the missing
+piece** — worth adding before the first real client record is committed, not after.
+
+---
+
+<details>
+<summary>Original report, retained for the record</summary>
 
 **Reported 2026-08-01 during the fixture work. Not fixed; no code changed.**
 
@@ -488,6 +535,14 @@ design — the two signature-block baselines must be regenerated in the same com
 the justification recorded. **Adding a fixture that passes `committedAt`** would make the
 defect visible in a baseline today; that was deliberately not done, since it would pin
 the wrong behaviour into a checked-in file.
+
+*(Correction on that last paragraph, recorded after the fix: the prediction that the two
+signature-block baselines would go red was **wrong**. Without `committedAt` the frozen
+clock makes the buggy and correct renders byte-identical, so they did not change at all.
+The `committedAt` fixture was not merely a nice-to-have — it is the only construct that
+can distinguish the two, and therefore the only possible regression guard.)*
+
+</details>
 
 ## 11. Decisions taken, and what's still open
 
