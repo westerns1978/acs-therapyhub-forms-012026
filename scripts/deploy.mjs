@@ -7,7 +7,21 @@
  * guard will block anything that doesn't come through here. Dependency-free and
  * cross-platform (no cross-env needed).
  *
- * TYPECHECKS, THEN BUILDS, THEN DEPLOYS. Both gates abort before any upload.
+ * TYPECHECKS, CHECKS FORMS, THEN BUILDS, THEN DEPLOYS. Every gate aborts before
+ * any upload.
+ *
+ * FORM INTEGRITY (added 2026-08-01). `npm run check:forms` verifies the four form
+ * gates — submittability, ground-truth replay, committed-record render drift, and
+ * that every registry pdfSlug has its PDF on disk. It ran only by hand, so its
+ * guarantees were advisory: gate 4 in particular is worthless unless it blocks a
+ * release, because the failure it catches is invisible in production. Firebase
+ * rewrites `**` to /index.html and only consults rewrites when no static file
+ * matched, so a missing or misspelled PDF answers HTTP 200 with the app shell
+ * instead of a 404 — the link "works" and serves the wrong thing. Nothing at
+ * runtime can detect that; only this check, before upload, can.
+ *
+ * It runs BEFORE the build: it needs no bundle, and there is no point spending a
+ * build on a tree whose form config is already inconsistent.
  *
  * BUILD (added 2026-07-27). firebase.json's `predeploy` hook runs only the
  * cross-deploy guard — it does NOT build. So `npm run deploy` used to upload
@@ -44,10 +58,14 @@ const run = (label, cmd, args, extraEnv = {}) => {
 // 1. Typecheck. vite build won't do it, and it is the cheapest failure.
 run('typechecking (tsc --noEmit)', 'npm', ['run', 'lint']);
 
-// 2. Build. Must succeed, or we never reach the upload.
+// 2. Form integrity. Cheap, bundle-free, and the only place a missing PDF twin
+//    or a drifted committed-record render can be caught before it ships.
+run('checking form integrity (npm run check:forms)', 'npm', ['run', 'check:forms']);
+
+// 3. Build. Must succeed, or we never reach the upload.
 run('building dist/ from the current working tree', 'npm', ['run', 'build']);
 
-// 3. Deploy. The predeploy guard re-checks DEPLOY_TARGET + firebase.json.
+// 4. Deploy. The predeploy guard re-checks DEPLOY_TARGET + firebase.json.
 run(`deploying to hosting:${SITE}`, 'npx', ['firebase', 'deploy', '--only', `hosting:${SITE}`], {
   DEPLOY_TARGET: SITE,
 });
