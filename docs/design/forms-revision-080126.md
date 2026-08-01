@@ -487,9 +487,13 @@ Two caveats on that conclusion, stated rather than buried: it rests on the curre
 contents of the shared Supabase project (`ldzzlndsspkyohvzfiiu`) — a record committed and
 reprinted *and then deleted* would leave no trace, and a document printed from a local
 session that never persisted would likewise be invisible. Both are unlikely given zero
-committed rows have ever existed, but neither is disprovable from the data. **If reprint
-provenance ever needs to be answerable, a `form.printed` audit action is the missing
-piece** — worth adding before the first real client record is committed, not after.
+committed rows have ever existed, but neither is disprovable from the data.
+
+**The audit gap this exposed is now closed (`11b8b73`).** `form.printed` is written at
+the `printRecord()` chokepoint, fire-and-forget, carrying `client_id`, `form_id`,
+`form_name`, `committed_at` and `reprint: true`. Reprint provenance is answerable from
+the first real client record forward. What it still cannot tell you is recorded as §10b
+below — the log is good, not total, and the difference is written down.
 
 ---
 
@@ -543,6 +547,44 @@ The `committedAt` fixture was not merely a nice-to-have — it is the only const
 can distinguish the two, and therefore the only possible regression guard.)*
 
 </details>
+
+### 10b. DEFERRED — three things `form.printed` cannot record
+
+**Logged 2026-08-01 alongside the `form.printed` build (`11b8b73`). Not defects in that
+work — limits of it.** Written down now so that "is the print log complete?" has an
+honest answer on file rather than an optimistic one produced under pressure.
+
+**1. It cannot record WHICH VERSION of a form was printed.** There is no version concept
+anywhere in the system — not on `FormDefinition` (types.ts), not on `FormRegistryEntry`
+(config/formRegistry.ts), not in the database. So a print of the Consent for Treatment
+logs *that* form, not the revision of it that was on the paper. Once the Phase 1–3 form
+revisions land, two prints months apart can show materially different documents under an
+identical audit row.
+
+This is the **same gap** `docs/design/manifest-reconciliation-pattern.md` flags as version
+pinning: *"a form printed six months ago is v3, not v7. Reconciliation must accept the
+historical version and record which one was signed."* It should be resolved **as part of
+versioning**, not bolted onto the audit payload — a `form_version` field invented to
+satisfy a log column would be a number with no authority behind it, which is worse than
+its absence. When versioning exists, `form.printed` gains the field for free.
+
+**2. Browser-native Ctrl+P is unloggable.** It never reaches `printRecord()`. It does not
+currently produce the record layout — the `print-record-only` body class is only applied
+by `printRecord()`, so Ctrl+P prints the surrounding page — but it is a real path that
+puts a rendering on paper without an audit row.
+
+**3. The in-session pre-commit print is unloggable.** `BaseFormTemplate` renders
+`PrintPreview` inside a `hidden print:block` div with no button and no chokepoint. There
+is no submission id at that point — the record has not been committed — so there is
+nothing to attribute an event to. It is a draft, not a record, which is why this is a
+limit rather than a defect.
+
+**No client-side instrumentation can close (2) or (3).** Both are browser-initiated or
+pre-persistence. Closing them would need either a server-rendered print path (the print
+request becomes an auditable server event) or accepting that the ledger covers
+*application-initiated prints of committed records* and saying exactly that when asked.
+The second is the honest, cheap position and is what the system claims today.
+
 
 ## 11. Decisions taken, and what's still open
 
