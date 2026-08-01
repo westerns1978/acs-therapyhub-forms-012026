@@ -371,7 +371,15 @@ const ClientSubmissionsPanel: React.FC = () => {
                 Close
               </button>
               <button
-                onClick={printRecord}
+                // Wrapped, NOT `onClick={printRecord}` — a bare reference would pass the
+                // MouseEvent as the audit context and the print would silently go unlogged.
+                onClick={() => printRecord({
+                  submissionId: selectedSubmission.id,
+                  clientId: selectedSubmission.client_id,
+                  formId: selectedSubmission.form_id,
+                  formName: selectedSubmission.form_name,
+                  committedAt: selectedSubmission.submitted_at,
+                })}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-sm font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
               >
                 <Printer size={15} /> Print / Save as PDF

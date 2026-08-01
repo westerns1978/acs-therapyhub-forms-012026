@@ -22,6 +22,7 @@ import { resolveFieldValue } from '../../config/fieldPath';
 import { shouldPrintField } from '../../config/fieldVisibility';
 import { definitionForSubmission } from '../../config/formDefinitions';
 import { PrintPreview } from '../PrintPreview';
+import { logAudit, currentActorId } from '../../services/auditLog';
 
 // Bookkeeping keys that are metadata, not answers — never rendered as fields.
 const INTERNAL_KEYS = new Set(['formId', 'is_paper_upload', 'requires_review', 'reviewed_at', 'reviewed_by']);
@@ -145,7 +146,70 @@ export const RecordPrintRoot: React.FC<SubmissionViewerProps & { committedAt?: s
   );
 };
 
-export const printRecord = () => {
+/**
+ * What a print event records. METADATA ONLY — never answer content: audit_logs is
+ * staff-wide SELECT, and a 42 CFR Part 2 record's answers must not be duplicated
+ * into a second, more widely readable table. Ids and dates are enough to answer
+ * "who printed which record, when, bearing what date".
+ */
+export interface PrintAuditContext {
+  /** form_submissions.id — becomes entity_id. No id, no audit row (nothing to attribute). */
+  submissionId?: string | null;
+  /** REQUIRED to be useful. audit_logs has no client_id column, so details.client_id is
+   *  the ONLY way this event is per-client reportable — which is the whole point. */
+  clientId?: string | null;
+  formId?: string | null;
+  formName?: string | null;
+  /** The date the printed document actually bore, so a disputed printout can be
+   *  reconciled against what was on the paper (see §10a). */
+  committedAt?: string | null;
+}
+
+/**
+ * Print / Save-as-PDF for a COMMITTED record, and the one chokepoint where that is
+ * audited (`form.printed`).
+ *
+ * FIRE-AND-FORGET, deliberately `logAudit` and never `logAuditOrThrow`: a clinician
+ * standing at a printer does not care about our logging, and an audit outage must
+ * never withhold a record from them. Every failure path is swallowed inside logAudit
+ * and console.error'd.
+ *
+ * FIRED BEFORE window.print() AND NOT AWAITED. window.print() blocks the main thread,
+ * so the write completes after the dialog closes — that is fine, and the ordering is
+ * intentional: a print cancelled at the dialog still logs. This OVER-counts relative to
+ * paper actually produced, which is the correct direction of error. An under-counting
+ * log asserts a record was not rendered when it may have been; in a Part 2 accounting
+ * context that is worse than no log at all. The document was on screen either way.
+ *
+ * NOT COVERED, and no client-side instrumentation can cover them — see
+ * docs/design/forms-revision-080126.md §10b:
+ *   - browser-native Ctrl+P (never reaches this function),
+ *   - the in-session pre-commit print in BaseFormTemplate (a draft; no submission
+ *     id exists yet, so there is nothing to attribute).
+ */
+export const printRecord = (ctx?: PrintAuditContext) => {
+  if (ctx?.submissionId) {
+    // Resolve the actor, then write. Not awaited — see the ordering note above.
+    void currentActorId().then(actor => {
+      if (!actor) return;
+      void logAudit({
+        actor,
+        action: 'form.printed',
+        entity_type: 'form_submissions',
+        entity_id: ctx.submissionId as string,
+        timestamp: new Date().toISOString(),
+        details: {
+          client_id: ctx.clientId ?? null,
+          form_id: ctx.formId ?? null,
+          form_name: ctx.formName ?? null,
+          committed_at: ctx.committedAt ?? null,
+          // Explicit rather than implied by the chokepoint: if a fresh-commit print
+          // path is ever instrumented, this field already discriminates the two.
+          reprint: true,
+        },
+      });
+    });
+  }
   document.body.classList.add('print-record-only');
   try {
     window.print();
