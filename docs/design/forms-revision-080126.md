@@ -740,6 +740,15 @@ regression. But it is structurally blind to everything that happens after HTML:
 | Pagination / page breaks / `@page` margins | No layout engine; the fixture has no pages |
 | Print isolation (`print-record-only` toggling `#root` vs `#record-print-root`) | Depends on a runtime class toggle and CSS, neither of which exists in a string render |
 | Anything in the browser's print pipeline | Out of process entirely |
+| **The bytes of any referenced asset** | The baselines pin `src="/branding/acs-logomark.svg"` — the *path*. Restyle, recolour, or replace that SVG and every fixture stays byte-identical while the printed record changes |
+
+That last row is the same blindness class as the pink glyph, arrived at from the other
+direction: §10e-2 showed a graphic appearing where the HTML said none should be; this
+says a graphic could *change* while the HTML swears nothing did. It is not theoretical —
+the 2026-08-02 brand snap (`beb8e86`) altered the app's entire red on the reasoning that
+the logomark was already correct. Had that pass concluded the opposite and restyled the
+asset instead, the printed record's letterhead would have changed colour with all seven
+fixtures green and no gate raising a hand.
 
 **So a defect that makes a court-bound document unreadable can ship with every gate
 green** — which is exactly what happened in §10e. This is not a gap in the fixtures'
