@@ -1,0 +1,28 @@
+{
+  "clientName": "Fixture Client O",
+  "clientEmail": "fixture-o@example.invalid",
+  "admissionDate": "2026-03-02",
+  "dischargeDate": "2026-06-14",
+  "referralSource": "Circuit Court",
+  "diagnosis": "F10.20",
+  "reasonForAdmission": "Court-ordered assessment following a first DWI offense.",
+  "servicesProvided": {
+    "groupCounseling": true,
+    "individualCounseling": false,
+    "groupEducation": true
+  },
+  "problem1_plan": "Attend all scheduled group sessions.",
+  "problem1_outcome": "Attended 11 of 12 sessions.",
+  "problem2_plan": "Complete a continuing recovery plan.",
+  "problem2_outcome": "Completed and signed.",
+  "problem3_plan": "",
+  "problem3_outcome": "",
+  "reasonForDischarge": "Successful",
+  "otherReason": "",
+  "prognosis": "Good.",
+  "medicalStatus": "No acute concerns reported.",
+  "recommendedFollowUp": "Continue outpatient counseling.",
+  "counselorSignature": "",
+  "counselorCredentials": "QMHP",
+  "signatureDate": "2026-06-14"
+}

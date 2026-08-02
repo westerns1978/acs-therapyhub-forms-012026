@@ -285,6 +285,32 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     covers: "shouldPrintField's legacy rule: reasonForDischarge='Successful' hides otherReason, but a stored pre-predicate value MUST still print — censoring it would make paper disagree with the JSONB",
   },
   {
+    // THE COUNTER-SIGNATURE ALARM BRANCH (2026-08-01), the mirror of the hipaa-ack
+    // fixture below. The counter block renders on declaration-or-value, and — measured
+    // before the change — every one of the sixteen other fixtures satisfies it through
+    // the VALUE: the forms declaring a counter-signature all carry one in their data,
+    // and the forms with no counter value declare no counter field. The two sets were
+    // exactly disjoint, so the declaration half moved NO baseline and would have shipped
+    // with nothing pinning it at all.
+    //
+    // discharge-summary is the right carrier twice over. It is the compliance document
+    // the rule exists for — a discharge awaiting counselor sign-off, where "not yet
+    // counter-signed" must not look like "this form has no staff line". And it declares
+    // NO client signature, so the footer here contains the counter block alone: a
+    // structural shape no other fixture has.
+    //
+    // It also pins the HEADING, which is the half that silently breaks. The old heading
+    // was inferred from whichever value was truthy; with no value that chain falls
+    // through to its last arm, so this record would have printed "Witness
+    // Acknowledgment" over a counselor's empty signature rule. The heading now travels
+    // with the declared id, and this baseline is what holds it there.
+    slug: 'discharge-summary (counter-signature DECLARED but unsigned)',
+    def: DISCHARGE_SUMMARY_DEFINITION,
+    data: 'scripts/fixtures/print-discharge-summary-awaiting-countersignature.json',
+    baseline: 'scripts/fixtures/printpreview-discharge-summary-awaiting-countersignature.baseline.html',
+    covers: 'a compliance record awaiting counter-signature: the block renders from the DEFINITION with N/A rather than vanishing, captioned "Counselor Verification" from the declared id and not the value-inferred fall-through, and carrying NO "SYSTEM TIMESTAMPED" line because nothing was witnessed (§10a); also the counter-block-only footer shape (discharge-summary declares no client signature)',
+  },
+  {
     slug: 'telehealth-feedback (rating)',
     def: TELEHEALTH_FEEDBACK_DEFINITION,
     data: 'scripts/fixtures/print-telehealth-feedback-rating.json',

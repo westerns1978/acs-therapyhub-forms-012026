@@ -22,10 +22,22 @@ interface PrintPreviewProps {
  */
 const CLIENT_SIGNATURE_IDS = ['signature', 'clientSignature'] as const;
 
-/** The counter-signature ids — see the counter-signature note further down. */
-const COUNTER_SIGNATURE_IDS = [
-  'staffSignature', 'counselorSignature', 'therapistSignature', 'witnessSignature',
+/**
+ * The counter-signature ids and the heading each one prints, in precedence order —
+ * see the counter-signature note further down for why there are four names for one
+ * concept. The heading MUST travel with the id: once the block renders on declaration
+ * as well as on value (below), an unsigned form has no value to infer the heading
+ * from, and a falling-through ternary captioned every unsigned document
+ * "Witness Acknowledgment" regardless of which line it actually has.
+ */
+const COUNTER_SIGNATURE_BLOCKS = [
+  { id: 'staffSignature', heading: 'Staff Verification' },
+  { id: 'counselorSignature', heading: 'Counselor Verification' },
+  { id: 'therapistSignature', heading: 'Therapist Verification' },
+  { id: 'witnessSignature', heading: 'Witness Acknowledgment' },
 ] as const;
+
+const COUNTER_SIGNATURE_IDS = COUNTER_SIGNATURE_BLOCKS.map((b) => b.id);
 
 /**
  * Field ids the ATTESTATION BLOCKS at the foot of the document render. They are
@@ -144,15 +156,39 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
    *
    * Both decisions are deliberate. A reader comparing them should find the same test
    * applied, not two conventions. */
+  const declaredIds = new Set(formDefinition.fieldDefinitions.map((f) => f.id));
+
   const clientSignature = CLIENT_SIGNATURE_IDS.map((id) => formData[id]).find(Boolean);
-  const declaresClientSignature = formDefinition.fieldDefinitions.some(
-    (f) => (CLIENT_SIGNATURE_IDS as readonly string[]).includes(f.id),
-  );
+  const declaresClientSignature = CLIENT_SIGNATURE_IDS.some((id) => declaredIds.has(id));
   const showClientCertificate = Boolean(clientSignature) || declaresClientSignature;
 
-  const counterSignature = formData.staffSignature || formData.counselorSignature
-    || formData.therapistSignature || formData.witnessSignature;
-  const showCounterSignature = Boolean(counterSignature);
+  /* THE COUNTER-SIGNATURE VISIBILITY RULE — declaration-or-value, the same shape the
+   * client certificate got above. On a compliance document the ABSENCE of a required
+   * counter-signature is information the reader needs: a block that appears only once
+   * signed makes "not yet counter-signed" and "this form has no staff line at all"
+   * look identical on paper, and the probation officer or judge reading it cannot tell
+   * which they are holding. Printing the heading with N/A distinguishes them. Same
+   * principle as clientName printing N/A unconditionally — an absence that is
+   * ALARMING must be shown, not omitted.
+   *
+   * THIS PARTIALLY REVERSES D-i FOR THIS BLOCK ONLY, and a future reader must not read
+   * it as undoing D-i. D-i's actual fix was removing the DUPLICATE field row — a
+   * signature printing twice, once as an ordinary answer and again in its block. That
+   * stands, untouched: every counter-signature id is still skipped in the field loop
+   * and still renders exactly once. What D-i also did, as a side effect rather than as
+   * its point, was make the block itself disappear when unsigned. That side effect is
+   * what is undone here.
+   *
+   * WHICH id supplies the heading: the one that is SIGNED if any is, otherwise the one
+   * the definition DECLARES. Inferring it from the value alone (the old ternary chain)
+   * silently captioned every unsigned form "Witness Acknowledgment", because with no
+   * value the chain falls through to its last arm — so an unsigned discharge summary,
+   * which has a counselor line and no witness line, would have printed the wrong role
+   * over the empty signature rule. */
+  const counterSigned = COUNTER_SIGNATURE_BLOCKS.find((b) => formData[b.id]);
+  const counterDeclared = COUNTER_SIGNATURE_BLOCKS.find((b) => declaredIds.has(b.id));
+  const counterBlock = counterSigned ?? counterDeclared;
+  const showCounterSignature = Boolean(counterBlock);
 
   return (
     <div className="p-12 bg-white text-black font-sans min-h-screen">
@@ -244,21 +280,24 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
          *  Four names for one concept is a naming problem, not four concepts. Resolving
          *  it here is the narrow fix; consolidating the field ids across the forms is
          *  the real one and is NOT attempted in this pass. */}
-        {showCounterSignature && (
+        {counterBlock && (
           <div className="space-y-4">
-            <h2 className="text-[10px] font-black uppercase tracking-widest text-gray-500">{
-              formData.staffSignature ? 'Staff Verification'
-              : formData.counselorSignature ? 'Counselor Verification'
-              : formData.therapistSignature ? 'Therapist Verification'
-              : 'Witness Acknowledgment'
-            }</h2>
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-gray-500">{counterBlock.heading}</h2>
             <div className="border-b-2 border-gray-900 pb-2">
-              <p className="font-serif text-2xl italic">{counterSignature}</p>
+              <p className="font-serif text-2xl italic">{formData[counterBlock.id] || 'N/A'}</p>
             </div>
             {/* recordDate, NOT new Date() — see the comment on recordDate. A reprint
                 must not restamp this block with today; it reads as the date the
-                signature was witnessed. */}
+                signature was witnessed.
+                ONLY WHEN SIGNED, for that same reason. Once the block renders on
+                declaration too, an unsigned counter-signature would otherwise carry
+                "SYSTEM TIMESTAMPED: <date>" under an N/A signature rule — a witness
+                time for an event that did not happen. That is the §10a defect class
+                exactly (a date on a court-facing document asserting something untrue),
+                and it would be introduced BY making the block visible when unsigned. */}
+            {counterSigned && (
             <p className="text-[9px] text-gray-400 font-bold uppercase">SYSTEM TIMESTAMPED: {recordDate.toLocaleString()}</p>
+            )}
           </div>
         )}
       </div>
