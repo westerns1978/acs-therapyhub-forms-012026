@@ -22,7 +22,17 @@ import type { DocumentFile } from '../types';
 // Shared jsPDF "kit" — brand palette + letter geometry. Exported so a separate
 // renderer (e.g. services/paymentReceipt.ts) can reuse the SAME plumbing instead
 // of forking it; nothing here is cert-specific.
-export const MAROON: [number, number, number] = [139, 30, 36]; // #8B1E24 (ACS brand)
+/**
+ * BRAND red as jsPDF RGB. MUST track BRAND.DEFAULT in index.html — jsPDF cannot read
+ * a CSS variable, so this is a blessed static copy in the same sense as the meta
+ * theme-color and manifest.json theme_color. If the brand changes, change it here too.
+ *
+ * Was [139, 30, 36] (#8B1E24) until 2026-08-02 — a maroon retired on 2026-07-28 and
+ * never updated here, so every GENERATED pdf (CIMOR packets, payment receipts) shipped
+ * two brand generations behind. The name is kept as MAROON only to avoid churning 12
+ * call sites across two renderers; the value is the vermillion #C62828.
+ */
+export const MAROON: [number, number, number] = [198, 40, 40]; // #C62828 (ACS brand red)
 export const SLATE: [number, number, number] = [71, 85, 105];
 export const GREY: [number, number, number] = [148, 163, 184];
 

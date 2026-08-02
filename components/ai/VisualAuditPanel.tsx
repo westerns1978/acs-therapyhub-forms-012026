@@ -93,7 +93,7 @@ const VisualAuditPanel: React.FC<VisualAuditPanelProps> = ({
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 pointer-events-auto">
           <button 
             onClick={captureFrame}
-            className="p-4 bg-[#8B1E24] hover:bg-[#70181D] text-white rounded-full shadow-xl hover:scale-110 transition-all border border-white/20 group"
+            className="p-4 bg-primary hover:bg-primary-focus text-white rounded-full shadow-xl hover:scale-110 transition-all border border-white/20 group"
           >
             <Camera size={24} className="group-active:scale-90 transition-transform" />
           </button>

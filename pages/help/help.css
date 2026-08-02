@@ -2,7 +2,9 @@
  * Styling for rendered user-guide markdown on the public /help pages.
  * Tailwind here is the CDN core (no typography plugin), so we style the
  * generated HTML ourselves using the app's theme tokens (see tailwind.config in
- * index.html): primary maroon #8B1E24, dark-mode primary #F87171, slate text.
+ * index.html). Brand colours come from the --brand CSS vars the BRAND block in
+ * index.html publishes -- NO brand hex lives in this file (it used to carry the
+ * long-retired maroon #8B1E24, two generations behind, 2026-08-02).
  * Dark mode is driven by the `.dark` class on <html> (ThemeProvider).
  */
 
@@ -62,17 +64,17 @@
   margin: 0 0 1.1em;
 }
 .help-content a {
-  color: #8b1e24;
+  color: var(--brand, #C62828);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
 }
 .help-content a:hover {
-  color: #70181d;
+  color: var(--brand-focus, #B71C1C);
 }
 .dark .help-content a {
-  color: #f87171;
+  color: var(--brand-dark, #E57373);
 }
 .dark .help-content a:hover {
   color: #fca5a5;
@@ -103,9 +105,10 @@
 .help-content blockquote {
   margin: 1.3em 0;
   padding: 0.85em 1.1em;
-  border-left: 4px solid #8b1e24;
+  border-left: 4px solid var(--brand, #C62828);
   border-radius: 0.6rem;
-  background: rgba(139, 30, 36, 0.06);
+  background: rgba(198, 40, 40, 0.06); /* fallback for engines without color-mix */
+  background: color-mix(in srgb, var(--brand, #C62828) 6%, transparent);
 }
 .help-content blockquote p {
   margin: 0.4em 0;

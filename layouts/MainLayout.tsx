@@ -134,11 +134,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   return (
     <div className="flex min-h-screen relative overflow-hidden bg-background dark:bg-dark-background transition-colors duration-500">
-      {/* Dominant ACS Maroon/Indigo Aurora Background */}
-      <div 
-        className="fixed inset-0 -z-[1] opacity-70 dark:opacity-40 pointer-events-none animate-aurora" 
+      {/* Ambient brand aurora. Both stops were stale hardcodes until 2026-08-02:
+          rgba(139,30,36) was the maroon retired on 2026-07-28, and rgba(79,70,229)
+          was the indigo `secondary` retired in J4c — neither survived their own
+          migrations because rgba() decimal form is invisible to a hex grep. Now
+          derived from --brand so it re-tints with the brand. */}
+      <div
+        className="fixed inset-0 -z-[1] opacity-70 dark:opacity-40 pointer-events-none animate-aurora"
         style={{
-          backgroundImage: 'radial-gradient(circle at 30% 30%, rgba(139, 30, 36, 0.12) 0%, rgba(79, 70, 229, 0.08) 40%, transparent 100%)',
+          backgroundImage: 'radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--brand, #C62828) 12%, transparent) 0%, color-mix(in srgb, var(--brand, #C62828) 8%, transparent) 40%, transparent 100%)',
           backgroundSize: '150% 150%',
           zIndex: -1
         }}

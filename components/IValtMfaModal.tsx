@@ -92,7 +92,7 @@ const IValtMfaModal: React.FC<IValtMfaModalProps> = ({ isOpen, onClose, onSucces
   return (
     <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-3xl z-[100] flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-900 rounded-[3.5rem] shadow-2xl w-full max-w-sm overflow-hidden border border-white/10 animate-fade-in-up">
-        <div className={`p-10 text-white text-center transition-all duration-700 ${isFailed ? 'bg-red-600' : isSuccess ? 'bg-emerald-600' : 'bg-gradient-to-b from-[#8B1E24] to-[#601026]'}`}>
+        <div className={`p-10 text-white text-center transition-all duration-700 ${isFailed ? 'bg-red-600' : isSuccess ? 'bg-emerald-600' : 'bg-gradient-to-b from-primary to-primary-focus'}`}>
           <div className="mx-auto w-24 h-24 bg-white/10 rounded-[2.5rem] flex items-center justify-center mb-6 backdrop-blur-md border border-white/20 shadow-inner">
             {isFailed ? (
               <Lock className="w-12 h-12 text-white" />
