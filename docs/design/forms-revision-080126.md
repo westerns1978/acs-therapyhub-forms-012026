@@ -944,6 +944,47 @@ image and no gate would see it) and `public/sw.js`.
    build runs and before firebase is invoked. **Newly open in its place: the fixture
    coverage gap, §10.**
 
+### Questions raised BY the Phase 1 build (2026-08-02) — send to David together
+
+Every one of these is a place the build made a choice a human should confirm. None
+blocked delivery; all are cheap to reverse.
+
+**D-a. Consent ¶5 — two typos transcribed verbatim.** ACS's paper reads "for a long
+as I remain in treatment" (for *as* long) and "These is a fee for the screen" (*There*
+is). Both were transcribed exactly rather than corrected: this is the operative
+wording of an agreement clients sign, so fixing it is ACS's call. Say the word and
+they are two string edits.
+
+**D-b. CRP relapse-steps R/O — a decision, not a reading.** Its four lines carry NO
+marks on the scan while its question is marked R; the six preceding lists are all
+R·R·R·O. Dan chose to mirror R·R·R·O (pattern established). David should see that this
+was chosen, not read off the paper. One `required` flag per line to reverse.
+
+**D-c. Orientation Checklist — placement of the fee acknowledgement.** His circled
+"Add:" sits in the margin beside "Program rules"/"All my questions were answered" and
+is not tied to a line. Placed after "Program rules and expectations explained". The
+order of an acknowledgement list is a signing sequence, so it should be confirmed
+rather than inferred from where the pen landed.
+
+**D-d. Orientation Checklist — pages 2–3 were never scanned.** The package contains
+page 1 of a 3-page printout. Any markup on the other two pages is unseen.
+
+**D-e. HIPAA — the validation message was left alone.** The acknowledgement now reads
+"…received or been advised of…", but the on-failure message still says "You must
+acknowledge receipt of the Notice." That text is operator-facing and never part of the
+signed record, so it was not changed unasked. Harmonise?
+
+**D-f. Consent ¶1 — group day/time fields are optional.** The paper shows them as
+blanks to fill. They remain `required: false` because making them mandatory was not
+part of the instruction. Should a client be able to sign the agreement without
+recording their group schedule?
+
+**D-g. PrintPreview's fixed header now prints "CLIENT EMAIL / N/A" on new
+authorization-release records.** Deleting the email field removed the input, but that
+header is global to all 14 forms and reads formData.clientEmail directly. Whether an
+empty email should be omitted there is a template decision affecting every form, not
+part of "delete the email field".
+
 ### Still open — for David
 
 1. SATOP Registration "all fields mandatory": does that include SSN and Driver's License # (sensitive; everything else on the sheet is plainly mandatory)?
