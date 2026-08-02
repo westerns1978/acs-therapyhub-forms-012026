@@ -297,6 +297,18 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     covers: 'the witness variant of the second signature block — a different heading ("Witness Acknowledgment") than the staff variant, so it is a distinct branch',
   },
   {
+    // Phase 1c. The last CERT-GATE form without print coverage. Its seven
+    // acknowledgements are the 42 CFR Part 2 / telehealth disclosures, so what this
+    // record prints is the evidence the client was informed — and it went through a
+    // whole phase in which three separate print defects surfaced with nothing
+    // watching it.
+    slug: 'telehealth-consent (cert-gate acknowledgements)',
+    def: TELEHEALTH_CONSENT_DEFINITION,
+    data: 'scripts/fixtures/print-telehealth-consent-certgate.json',
+    baseline: 'scripts/fixtures/printpreview-telehealth-consent-certgate.baseline.html',
+    covers: 'all seven telehealth disclosure acknowledgements verbatim on a committed record; the STAFF signature block; a cert-gate form previously unguarded',
+  },
+  {
     // Phase 1b. hipaa-ack, meeting-report and satop-checklist all had their
     // committed-record output CHANGED in Phase 1 with nothing pinning it. These three
     // fixtures close that: each covers a form David revised, so the revised wording is

@@ -1,0 +1,13 @@
+{
+  "clientName": "Fixture Client J",
+  "understandsWithdrawAnytime": true,
+  "understandsRisks": true,
+  "understandsNoRecording": true,
+  "understandsPrivacyLimits": true,
+  "understandsCrisisHigherCare": true,
+  "understandsReconnectProtocol": true,
+  "consentsToTelehealth": true,
+  "clientSignature": "Fixture Client J",
+  "staffSignature": "Fixture QMHP",
+  "signatureDate": "2026-06-14"
+}
