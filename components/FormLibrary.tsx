@@ -16,7 +16,7 @@ import { FORM_DEFINITION_BY_ID } from '../config/formDefinitions';
 // single source of truth for pdfSlug WITHOUT consolidating the two catalogs (that's
 // DEFERRED #36, deliberately still open). A form absent from the registry, or present
 // with no pdfSlug, simply renders no link.
-import { FORM_REGISTRY_BY_ID, pdfUrlFor } from '../config/formRegistry';
+import { FORM_REGISTRY_BY_ID, pdfUrlFor, isRetiredForm } from '../config/formRegistry';
 
 export type View = 'library' | 'satop-intake' | 'recovery-plan' | 'consent-treatment' | 'meeting-report' | 'emergency-contact' | 'discharge-summary' | 'telehealth-feedback' | 'satop-checklist' | 'authorization-release' | 'chart-checklist' | 'session-attendance' | 'hipaa-ack' | 'telehealth-consent' | 'late-cancellation';
 
@@ -26,11 +26,18 @@ interface FormLibraryProps {
 
 // Every library id doubles as its View token; 'meeting-report' etc. included.
 // Derived from the shared index — adding a form there surfaces it here.
-const allForms = (Object.keys(FORM_DEFINITION_BY_ID) as View[]).map(id => ({
-  id,
-  definition: FORM_DEFINITION_BY_ID[id],
-  view: id as View,
-}));
+// Retired forms are withdrawn HERE — this is the staff surface where a form is
+// chosen to fill or assign, and the only live picker for the two staff-audience
+// retirements (chart-checklist, session-attendance; David 2026-08-02). Their
+// definitions stay in FORM_DEFINITION_BY_ID on purpose so existing submissions
+// still render real labels; only the card disappears. See FormRegistryEntry.retired.
+const allForms = (Object.keys(FORM_DEFINITION_BY_ID) as View[])
+  .filter(id => !isRetiredForm(id))
+  .map(id => ({
+    id,
+    definition: FORM_DEFINITION_BY_ID[id],
+    view: id as View,
+  }));
 
 const FormCard: React.FC<{
   form: { definition: FormDefinition<any>; view: View };

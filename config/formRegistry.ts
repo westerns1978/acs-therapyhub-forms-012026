@@ -63,6 +63,24 @@ export interface FormRegistryEntry {
    * is. Populate it from generated output, never by estimate.
    */
   expectedPages?: number;
+  /**
+   * SOFT RETIREMENT. The form is withdrawn from every surface a human can pick it
+   * from, but its registry entry and its FormDefinition REMAIN so historical
+   * submissions keep resolving a real title and rendering real field labels.
+   *
+   * A hard delete would be wrong here: `form_submissions.form_id` is free text with
+   * no FK, `assignForm` does not reject unknown ids, and removing a definition drops
+   * every past row for that form to key-based fallback rendering. A retired clinical
+   * record must still print as what it was.
+   *
+   * FILTER (hide) vs LOOKUP (keep) is the whole distinction:
+   *   FILTER  — FormLibrary cards, the assign picker, the portal list. Anywhere a
+   *             person chooses a form to fill or assign.
+   *   KEEP    — ClientFormsTab / packetReadiness / formRecordCategory / assignForm's
+   *             metadata read. Anywhere an id is resolved to a label for a row that
+   *             already exists. Filtering these would blank the names of real records.
+   */
+  retired?: boolean;
 }
 
 /** Public href for a form's blank PDF twin. The ONE place the path shape lives. */
@@ -97,8 +115,13 @@ export const FORM_REGISTRY: FormRegistryEntry[] = [
   // ── Staff-authored / clinical (not portal, not gate) ───────────────────────
   { id: 'treatment-plan',        title: 'Individual Comprehensive Treatment Plan', category: 'Treatment', audience: 'staff', requiredForCompletion: false },
   { id: 'discharge-summary',     title: 'Clinical Discharge Summary',            category: 'Clinical',  audience: 'staff', requiredForCompletion: false },
-  { id: 'chart-checklist',       title: 'Chart Review',                          category: 'Clinical',  audience: 'staff', requiredForCompletion: false },
-  { id: 'session-attendance',    title: 'Session Attendance',                    category: 'Clinical',  audience: 'staff', requiredForCompletion: false },
+  // RETIRED 2026-08-02 — David: "Chart Review – Not needed and similar to another
+  // form". Dan's decision D1: soft-retire only; the "Client Status Report" rename in
+  // David's note is deliberately NOT actioned. Zero submissions ever existed.
+  { id: 'chart-checklist',       title: 'Chart Review',                          category: 'Clinical',  audience: 'staff', requiredForCompletion: false, retired: true },
+  // RETIRED 2026-08-02 — David: "Session Attendance – not needed, delete".
+  // Zero submissions ever existed.
+  { id: 'session-attendance',    title: 'Session Attendance',                    category: 'Clinical',  audience: 'staff', requiredForCompletion: false, retired: true },
 ];
 
 export const FORM_REGISTRY_BY_ID: Record<string, FormRegistryEntry> =
@@ -108,8 +131,15 @@ export const FORM_REGISTRY_BY_ID: Record<string, FormRegistryEntry> =
  *  hard-reject unknown ids: non-SATOP program intakes still persist, just unmatched.) */
 export const isRegistryForm = (id: string): boolean => id in FORM_REGISTRY_BY_ID;
 
-/** Client-facing forms (portal). */
-export const CLIENT_REGISTRY_FORMS = FORM_REGISTRY.filter((f) => f.audience === 'client');
+/** Client-facing forms (portal) — retired forms are never offered. */
+export const CLIENT_REGISTRY_FORMS = FORM_REGISTRY.filter((f) => f.audience === 'client' && !f.retired);
+
+/** Forms a person may still CHOOSE to fill or assign. Use this for any picker;
+ *  use FORM_REGISTRY / FORM_REGISTRY_BY_ID when resolving an id that already exists. */
+export const ASSIGNABLE_REGISTRY_FORMS = FORM_REGISTRY.filter((f) => !f.retired);
+
+/** Is this form withdrawn from the pickers? Historical rows still resolve normally. */
+export const isRetiredForm = (id: string): boolean => FORM_REGISTRY_BY_ID[id]?.retired === true;
 
 // Required-for-completion form ids by SATOP level — mirrors REQUIRED_HOURS_BY_LEVEL.
 // All four levels map to the same core 6 today; the per-level shape is the hook for
