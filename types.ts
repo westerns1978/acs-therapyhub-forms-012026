@@ -247,21 +247,19 @@ export interface RecoveryPlanData {
 export interface ConsentForTreatmentData {
   clientName: string;
   clientEmail: string;
+  // ¶1 fill-ins. groupDays stays a boolean map (Dan, 2026-08-02): more expressive
+  // than the paper's two blanks, prevents free-text garbage, prints as "Mon, Thu".
   groupDays: { [key: string]: boolean };
   groupTimeFrom: string;
   groupTimeTo: string;
-  understandsAttendancePolicy: boolean;
-  agreesToFee: boolean;
-  understandsCancellationPolicy: boolean;
-  understandsExcusedAbsences: boolean;
-  agreesToAbstinence: boolean;
-  consentsToTesting: boolean;
-  understandsConsequences: boolean;
-  acknowledgesMarijuanaPolicy: boolean;
-  disclosedMedications: string;
-  disclosesControlledSubstances: boolean;
-  disclosesMedicalIssues: boolean;
-  agreesToSupportGroups: boolean;
+  // The eleven per-paragraph booleans (understandsAttendancePolicy, agreesToFee,
+  // understandsCancellationPolicy, understandsExcusedAbsences, agreesToAbstinence,
+  // consentsToTesting, understandsConsequences, acknowledgesMarijuanaPolicy,
+  // disclosedMedications, disclosesControlledSubstances, disclosesMedicalIssues,
+  // agreesToSupportGroups) were REMOVED 2026-08-02. They paraphrased the paper's
+  // narrative clauses into summaries and made the record assert affirmations the
+  // client never separately gave. The clauses are now `static` prose; consent is the
+  // signature. Legacy rows may still carry these keys — they simply do not render.
   clientSignature: string;
   staffSignature: string;
   date: string;

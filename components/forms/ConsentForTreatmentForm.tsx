@@ -1,143 +1,101 @@
 
 import React from 'react';
-import { FormDefinition, ConsentForTreatmentData, FormErrors, FormSectionProps } from '../../types';
-import { FormField } from '../FormField';
-import { CheckboxGroup } from '../CheckboxGroup';
-import { Checkbox } from '../Checkbox';
+import { FormDefinition, ConsentForTreatmentData, FormErrors } from '../../types';
+
+/**
+ * CONSENT FOR TREATMENT AND RESPONSIBILITY AGREEMENT
+ *
+ * REBUILT 2026-08-02 to follow ACS's paper form. David's instruction was "Need to
+ * include full narratives / See submitted paper form for wording", and the paper is
+ * eight numbered narrative paragraphs with ONE signature block — there is no
+ * per-paragraph checkbox on it.
+ *
+ * The previous version paraphrased those paragraphs into eleven short boolean
+ * acknowledgements ("I acknowledge that regular attendance is mandatory…"). Those
+ * are GONE. They were not on the paper, they compressed legally operative text into
+ * summaries, and they made the record assert eleven separate affirmations the client
+ * never separately gave. The narrative text is now `static` (display-only prose,
+ * types.ts) and the client agrees to the agreement ONCE by signing, exactly as on
+ * paper.
+ *
+ * ¶ TEXT IS TRANSCRIBED VERBATIM, including two typos present on ACS's paper
+ * ("for a long as I remain in treatment", "These is a fee for the screen"). They are
+ * NOT silently corrected: this is the operative wording of a signed agreement, and
+ * rewriting it is ACS's call, not ours. Flagged for David.
+ *
+ * ¶5's discharge clause uses Dan's settled wording (decision D4, 2026-08-01):
+ * "…client will be discharged and/or may be recommended to the next higher treatment
+ * level." — the one place the paper's margin annotation was resolved by decision.
+ *
+ * ¶1 is the ONE paragraph not verbatim: on paper it is a fill-in sentence
+ * ("I will attend group sessions on ___ and ___, from ___am/pm to ___am/pm"), which
+ * cannot render as prose and inputs at once. It introduces the three fields instead.
+ *
+ * The dead Step1..Step5 components are deleted rather than updated. BaseFormTemplate
+ * renders fieldDefinitions only (DEFERRED #40), so they were unreachable, and leaving
+ * them would have left the superseded checkbox wording in the same file as the
+ * narrative that replaced it.
+ */
 
 const initialState: ConsentForTreatmentData = {
   clientName: '', clientEmail: '',
   // Pre-populate a real SATOP Level IV schedule so the field renders as a
-  // readable string ("Mon, Thu" via the form template's object coercion)
-  // instead of an empty value or [object Object].
+  // readable string ("Mon, Thu") instead of an empty value or [object Object].
   groupDays: { 'Mon': true, 'Tue': false, 'Wed': false, 'Thu': true, 'Fri': false },
   groupTimeFrom: '9:00 AM',
   groupTimeTo: '12:15 PM',
-  understandsAttendancePolicy: false, agreesToFee: false, understandsCancellationPolicy: false,
-  understandsExcusedAbsences: false, agreesToAbstinence: false, consentsToTesting: false,
-  understandsConsequences: false, acknowledgesMarijuanaPolicy: false, disclosedMedications: '',
-  disclosesControlledSubstances: false, disclosesMedicalIssues: false, agreesToSupportGroups: false,
-  clientSignature: '', staffSignature: '', date: new Date().toISOString().split('T')[0]
-};
-
-const Step1: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, setFormData, errors }) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-  return (
-    <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Your information</h3>
-      <FormField id="clientName" label="Client legal name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
-      <FormField id="clientEmail" label="Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} />
-
-      <div className="pt-4">
-        <label className="text-sm font-black uppercase tracking-widest text-slate-500 mb-4 block">Group schedule</label>
-        <CheckboxGroup 
-          id="groupDays"
-          label=""
-          options={[
-            { id: 'Mon', label: 'Mon' }, { id: 'Tue', label: 'Tue' },
-            { id: 'Wed', label: 'Wed' }, { id: 'Thu', label: 'Thu' }, { id: 'Fri', label: 'Fri' }
-          ]}
-          values={formData.groupDays}
-          onChange={(id) => setFormData({...formData, groupDays: { ...formData.groupDays, [id]: !formData.groupDays[id] }})}
-        />
-      </div>
-    </div>
-  );
-};
-
-const Step2: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, setFormData, errors }) => {
-  return (
-    <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Attendance and fees</h3>
-      <Checkbox id="understandsAttendancePolicy" label="I acknowledge that regular attendance is mandatory for certification." checked={formData.understandsAttendancePolicy} onChange={(val) => setFormData({...formData, understandsAttendancePolicy: val})} error={errors.understandsAttendancePolicy} />
-      <Checkbox id="agreesToFee" label="I agree to the $40 missed session fee for any non-excused absence." checked={formData.agreesToFee} onChange={(val) => setFormData({...formData, agreesToFee: val})} error={errors.agreesToFee} />
-      <Checkbox id="understandsCancellationPolicy" label="I acknowledge that 24-hour notice is required for cancellation." checked={formData.understandsCancellationPolicy} onChange={(val) => setFormData({...formData, understandsCancellationPolicy: val})} error={errors.understandsCancellationPolicy} />
-    </div>
-  );
-};
-
-const Step3: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, setFormData, errors }) => {
-  return (
-    <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Treatment commitments</h3>
-      <Checkbox id="agreesToAbstinence" label="I agree to maintain full abstinence from all non-prescribed substances." checked={formData.agreesToAbstinence} onChange={(val) => setFormData({...formData, agreesToAbstinence: val})} error={errors.agreesToAbstinence} />
-      <Checkbox id="consentsToTesting" label="I consent to random toxicology screening as part of this protocol." checked={formData.consentsToTesting} onChange={(val) => setFormData({...formData, consentsToTesting: val})} error={errors.consentsToTesting} />
-      <Checkbox id="acknowledgesMarijuanaPolicy" label="I acknowledge that medical marijuana use requires valid clinical documentation." checked={formData.acknowledgesMarijuanaPolicy} onChange={(val) => setFormData({...formData, acknowledgesMarijuanaPolicy: val})} error={errors.acknowledgesMarijuanaPolicy} />
-    </div>
-  );
-};
-
-const Step4: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, setFormData, errors }) => {
-  return (
-    <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Disclosures</h3>
-      <FormField id="disclosedMedications" label="Medications you're currently taking" type="textarea" value={formData.disclosedMedications} onChange={(e) => setFormData({...formData, disclosedMedications: e.target.value})} error={errors.disclosedMedications} />
-      <Checkbox id="disclosesControlledSubstances" label="I disclosed any use of controlled substances within the last 30 days." checked={formData.disclosesControlledSubstances} onChange={(val) => setFormData({...formData, disclosesControlledSubstances: val})} error={errors.disclosesControlledSubstances} />
-      <Checkbox id="agreesToSupportGroups" label="I agree to attend verified 12-step or support group modules." checked={formData.agreesToSupportGroups} onChange={(val) => setFormData({...formData, agreesToSupportGroups: val})} error={errors.agreesToSupportGroups} />
-    </div>
-  );
-};
-
-const Step5: React.FC<FormSectionProps<ConsentForTreatmentData>> = ({ formData, setFormData, errors }) => {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-  return (
-    <div className="space-y-6 animate-fade-in-up">
-      <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Signatures</h3>
-      <FormField id="clientSignature" label="Client signature" value={formData.clientSignature} onChange={handleChange} error={errors.clientSignature} />
-      <FormField id="staffSignature" label="Staff signature (witness/QMHP)" value={formData.staffSignature} onChange={handleChange} error={errors.staffSignature} />
-      <FormField id="date" label="Date" type="date" value={formData.date} onChange={handleChange} error={errors.date} />
-    </div>
-  );
+  clientSignature: '', staffSignature: '', date: new Date().toISOString().split('T')[0],
 };
 
 export const CONSENT_FORM_DEFINITION: FormDefinition<ConsentForTreatmentData> = {
   id: 'consent-treatment',
   title: 'Consent for Treatment',
-  description: 'Legal authorization and clinical policy acknowledgment for ACS programs. Required for SATOP Level IV.',
+  description: 'Treatment and responsibility agreement for ACS SATOP/SROP/Chemical Dependency programs.',
   category: 'Legal',
   tags: ['Required', 'SATOP'],
-  difficulty: 'Moderate',
-  estimatedTime: '10 min',
+  difficulty: 'Simple',
+  estimatedTime: '5 min',
   initialState,
   validateStep: (data) => {
-
+    // Only what the paper actually requires a person to provide: who they are, their
+    // signature, and the date. Every former per-paragraph acknowledgement rule is
+    // gone with the checkboxes that carried it.
     const errs: FormErrors<ConsentForTreatmentData> = {};
     if (!data.clientName) errs.clientName = 'Required.';
-    if (!data.understandsAttendancePolicy) errs.understandsAttendancePolicy = 'Policy acknowledgment required.';
-    if (!data.agreesToFee) errs.agreesToFee = 'Fee acknowledgment required.';
-    if (!data.understandsCancellationPolicy) errs.understandsCancellationPolicy = 'Policy acknowledgment required.';
-    if (!data.agreesToAbstinence) errs.agreesToAbstinence = 'Policy acknowledgment required.';
-    if (!data.consentsToTesting) errs.consentsToTesting = 'Policy acknowledgment required.';
-    if (!data.acknowledgesMarijuanaPolicy) errs.acknowledgesMarijuanaPolicy = 'Policy acknowledgment required.';
     if (!data.clientSignature) errs.clientSignature = 'Signature required.';
     if (!data.date) errs.date = 'Date is required.';
-
     return errs;
   },
   fieldDefinitions: [
     { id: 'clientName', label: 'Client legal name', type: 'text', required: true },
     { id: 'clientEmail', label: 'Email', type: 'email', required: true },
-    { id: 'groupDays', label: 'Group schedule', type: 'object', required: false },
-    { id: 'groupTimeFrom', label: 'Group Time From', type: 'text', required: false },
-    { id: 'groupTimeTo', label: 'Group Time To', type: 'text', required: false },
-    { id: 'understandsAttendancePolicy', label: 'I acknowledge that regular attendance is mandatory for certification.', type: 'boolean', required: true },
-    { id: 'agreesToFee', label: 'I agree to the $40 missed session fee for any non-excused absence.', type: 'boolean', required: true },
-    { id: 'understandsCancellationPolicy', label: 'I acknowledge that 24-hour notice is required for cancellation.', type: 'boolean', required: true },
-    { id: 'understandsExcusedAbsences', label: 'I understand that excused absences require documentation.', type: 'boolean', required: false },
-    { id: 'agreesToAbstinence', label: 'I agree to maintain full abstinence from all non-prescribed substances.', type: 'boolean', required: true },
-    { id: 'consentsToTesting', label: 'I consent to random toxicology screening as part of this protocol.', type: 'boolean', required: true },
-    { id: 'understandsConsequences', label: 'I understand the consequences of non-compliance.', type: 'boolean', required: false },
-    { id: 'acknowledgesMarijuanaPolicy', label: 'I acknowledge that medical marijuana use requires valid clinical documentation.', type: 'boolean', required: true },
-    { id: 'disclosedMedications', label: "Medications you're currently taking", type: 'textarea', required: false },
-    { id: 'disclosesControlledSubstances', label: 'I disclosed any use of controlled substances within the last 30 days.', type: 'boolean', required: false },
-    { id: 'disclosesMedicalIssues', label: 'I disclosed any medical issues relevant to my treatment.', type: 'boolean', required: false },
-    { id: 'agreesToSupportGroups', label: 'I agree to attend verified 12-step or support group modules.', type: 'boolean', required: false },
+
+    { id: 'narrativeHeading', type: 'static', label: 'SATOP/SROP/CHEMICAL DEPENDENCY PROGRAM — CONSENT FOR TREATMENT AND RESPONSIBILITY AGREEMENT' },
+
+    // ¶1 — the only non-verbatim paragraph; it introduces the fill-ins below.
+    { id: 'clause1', type: 'static', label: '1. I will attend group sessions on the day(s) and time indicated below.' },
+    { id: 'groupDays', label: 'Group session day(s)', type: 'object', required: false },
+    { id: 'groupTimeFrom', label: 'Group time from', type: 'text', required: false },
+    { id: 'groupTimeTo', label: 'Group time to', type: 'text', required: false },
+
+    { id: 'clause2', type: 'static', label: '2. Attendance at all sessions is expected and we understand that life happens. Inconsistent attendance and/or 3 or more missed sessions may result in an unsuccessful discharge. There are no refunds for unsuccessful discharges, and you will be required to restart your program from the beginning, including the associated fees.\n*Communication with ACS regarding missed services and life situations is always a good idea and will reduce the likelihood of an unsuccessful discharge.' },
+
+    { id: 'clause3', type: 'static', label: '3. Program fees being paid in full is a requirement for successful discharge. Non-payment of fees may delay your completion or result in an unsuccessful discharge.' },
+
+    { id: 'clause4', type: 'static', label: '4. A $40 cancellation fee will be assessed for individual sessions that are missed or cancelled less than 24 hours in advance. Exceptions for emergencies will be granted at the discretion of ACS management.' },
+
+    { id: 'clause5', type: 'static', label: '5. I am making a commitment to abstain from all mood-altering substances, including alcohol in any form including Nyquil, cough meds etc., for a long as I remain in treatment. I consent to random breathalyzers and/or urine drug screens. These is a fee for the screen depending on the type required. The fee will not be greater than $30. If a chemical screen is positive for a non-prescribed substance including alcohol, client will be discharged and/or may be recommended to the next higher treatment level. Marijuana is a drug – not an herb.' },
+
+    { id: 'clause6', type: 'static', label: '6. If I am prescribed medications, I will inform my counselor of the type, dose and name of the doctor prescribing the medication. If I am prescribed a controlled substance, I will provide proof of said prescription within two weeks of entering my treatment program.' },
+
+    { id: 'clause7', type: 'static', label: '7. If there are medical issues that are considered to be a significant risk or if there are psychological problems which may impair the ability to progress in the program, admission or continuation in the program may be delayed until a physician clears the condition. I may go to my physician of choice at my expense.' },
+
+    { id: 'clause8', type: 'static', label: '8. I will actively participate in program activities and follow the plan of treatment. Attendance at a self-help recovery-oriented support group is required.' },
+
+    { id: 'emergencyNotice', type: 'static', label: 'In case of a personal emergency please call 314-849-2800. We will respond as quickly as possible. If this is a life-threatening emergency, please go to the nearest hospital emergency department.' },
+
     { id: 'clientSignature', label: 'Client signature', type: 'text', required: true },
-    { id: 'staffSignature', label: 'Staff signature (witness/QMHP)', type: 'text', required: false },
-    { id: 'date', label: 'Date', type: 'date', required: true }
-  ]
+    { id: 'date', label: 'Date', type: 'date', required: true },
+    { id: 'staffSignature', label: 'Staff signature', type: 'text', required: false },
+  ],
 };
