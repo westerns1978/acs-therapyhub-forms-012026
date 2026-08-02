@@ -212,37 +212,28 @@ export interface LateCancellationData {
 
 export interface RecoveryPlanData {
   clientName: string;
-  dateOfBirth: string;
-  caseNumber: string;
-  dateOfPlan: string;
-  clientEmail: string;
   remainSober: boolean | null;
-  problemsToAddress: string;
-  howToAddressProblems: string;
-  peoplePlacesThingsToAvoid: string;
-  changesNoticed: string;
+  // Four numbered lines per paper question (1-3 required, 4 optional) — David's
+  // handwritten R/O markup. Replaces the old one-textarea-per-question shape, which
+  // accepted a single word where the paper asks for three.
+  problems1: string; problems2: string; problems3: string; problems4: string;
+  address1: string; address2: string; address3: string; address4: string;
+  avoid1: string; avoid2: string; avoid3: string; avoid4: string;
+  changes1: string; changes2: string; changes3: string; changes4: string;
   whatToDoIfWantToUse: string;
-  relapsePreventionSteps: string;
-  whoSupportsRecovery: string;
-  meetingsToAttend: string;
+  relapse1: string; relapse2: string; relapse3: string; relapse4: string;
+  support1: string; support2: string; support3: string; support4: string;
+  meetingsPerWeek: string;
   sponsorDate: string;
   prescribedMedications: boolean | null;
   clearOnDosing: boolean | null;
-  dailyRecoveryActivities: string;
-  signature: string;
-  acknowledgment: boolean;
-  primaryGoals: string;
-  goalMotivations: string;
-  supportPeople: Array<{ name: string; relationship: string; contact: string; role: string }>;
-  supportGroups: string;
-  therapistName: string;
-  therapistContact: string;
-  triggers: string;
-  copingSkills: string;
-  emergencyContacts: string;
-  actionSteps: Array<{ step: string; targetDate: string; completed: boolean }>;
-  signatureDataUrl: string;
+  daily1: string; daily2: string; daily3: string; daily4: string;
+  referral1Organization: string; referral1ContactNumber: string; referral1ContactPerson: string;
+  referral2Organization: string; referral2ContactNumber: string; referral2ContactPerson: string;
+  clientSignature: string; clientDate: string;
+  counselorSignature: string; counselorDate: string;
 }
+
 
 export interface ConsentForTreatmentData {
   clientName: string;

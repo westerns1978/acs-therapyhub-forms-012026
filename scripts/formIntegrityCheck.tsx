@@ -297,6 +297,19 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     covers: 'the witness variant of the second signature block — a different heading ("Witness Acknowledgment") than the staff variant, so it is a distinct branch',
   },
   {
+    // Added with the CRP rebuild (2026-08-02). This form previously had NO print
+    // coverage at all while being the largest change in Phase 1 — 40 fields, the
+    // numbered-line pattern, a conditional, and a static notice. Its data deliberately
+    // leaves the optional line 4 EMPTY on five of seven lists and fills it on one, so
+    // the baseline pins both states: a required line that must print, and an optional
+    // line that legitimately does not.
+    slug: 'recovery-plan (numbered lines, conditional, static notice)',
+    def: RECOVERY_PLAN_DEFINITION,
+    data: 'scripts/fixtures/print-recovery-plan-numbered-lines.json',
+    baseline: 'scripts/fixtures/printpreview-recovery-plan-numbered-lines.baseline.html',
+    covers: 'the R·R·R·O numbered-line pattern across 7 questions; visibleWhen VISIBLE (clearOnDosing shown because prescribedMedications=true); a `static` field on a committed record; empty optional lines rendering as N/A',
+  },
+  {
     // THE §10a REGRESSION GUARD. committedAt is deliberately a DIFFERENT instant from
     // the frozen clock (2026-05-11 vs the harness's 2026-07-16), which is the only way
     // to tell a correct render from the bug: when both dates are "now" they are
