@@ -1,0 +1,19 @@
+{
+  "clientName": "Fixture Client I",
+  "clientEmail": "fixture-i@example.invalid",
+  "orientationDate": "2026-06-02",
+  "checklist": {
+    "clientRights": true,
+    "grievanceProcedure": true,
+    "confidentiality": true,
+    "hoursAndAppointments": true,
+    "crisisProcedures": true,
+    "programRules": true,
+    "feesAdvised": true,
+    "questionsAnswered": true,
+    "agreesToTreatment": true
+  },
+  "clientSignature": "Fixture Client I",
+  "staffSignature": "Fixture QMHP",
+  "signatureDate": "2026-06-02"
+}

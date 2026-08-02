@@ -1,0 +1,21 @@
+{
+  "clientName": "Fixture Client H",
+  "groupName": "Tuesday Night Big Book",
+  "location": "St. Luke's parish hall, Affton",
+  "dateAttended": "2026-06-09",
+  "timeAttended": "7:00 PM",
+  "meetingType": {
+    "aa": true,
+    "na": false,
+    "speaker": false,
+    "discussion": true,
+    "bigBook": true,
+    "step": false,
+    "open": true,
+    "closed": false
+  },
+  "meetingSubject": "",
+  "whatApplied": "I am going to call someone before the weekend instead of waiting until Monday group.",
+  "whatLearned": "Other people plan for the hard days in advance rather than reacting to them.",
+  "chairpersonSignature": "LEGACY KEY — the chairperson signature field was deleted 2026-08-02 (David: \"DELETE Chairman Signature field\"). Retained in this fixture ON PURPOSE: a stored key with no matching fieldDefinition must NOT print. If this text ever appears in the baseline, the renderer has started emitting orphaned keys."
+}

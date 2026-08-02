@@ -297,6 +297,31 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     covers: 'the witness variant of the second signature block — a different heading ("Witness Acknowledgment") than the staff variant, so it is a distinct branch',
   },
   {
+    // Phase 1b. hipaa-ack, meeting-report and satop-checklist all had their
+    // committed-record output CHANGED in Phase 1 with nothing pinning it. These three
+    // fixtures close that: each covers a form David revised, so the revised wording is
+    // now what the gate enforces.
+    slug: 'hipaa-ack (revised acknowledgement wording)',
+    def: HIPAA_ACK_DEFINITION,
+    data: 'scripts/fixtures/print-hipaa-ack-revised-wording.json',
+    baseline: 'scripts/fixtures/printpreview-hipaa-ack-revised-wording.baseline.html',
+    covers: 'the settled acknowledgement text ("received or been advised of", no effective-date clause); the smallest form in the catalog, and one with no clientEmail field — so it also pins the corrected header behaviour',
+  },
+  {
+    slug: 'meeting-report (object boolean-map + orphaned legacy key)',
+    def: MEETING_REPORT_DEFINITION,
+    data: 'scripts/fixtures/print-meeting-report-typemap.json',
+    baseline: 'scripts/fixtures/printpreview-meeting-report-typemap.baseline.html',
+    covers: "meetingType's object boolean-map joining truthy keys ('Aa, Discussion, Big Book, Open'); AND that the deleted chairpersonSignature — still present in the row as a legacy key — does NOT print, since a stored key with no fieldDefinition must never render",
+  },
+  {
+    slug: 'satop-checklist (dotted ids + all 9 acknowledgements)',
+    def: SATOP_CHECKLIST_DEFINITION,
+    data: 'scripts/fixtures/print-satop-checklist-dotted-ids.json',
+    baseline: 'scripts/fixtures/printpreview-satop-checklist-dotted-ids.baseline.html',
+    covers: "nested checklist.* dotted-id resolution on a committed record, all five of David's reworded items, and the new feesAdvised acknowledgement",
+  },
+  {
     // Added with the CRP rebuild (2026-08-02). This form previously had NO print
     // coverage at all while being the largest change in Phase 1 — 40 fields, the
     // numbered-line pattern, a conditional, and a static notice. Its data deliberately
