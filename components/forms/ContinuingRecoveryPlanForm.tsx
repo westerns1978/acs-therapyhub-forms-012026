@@ -55,15 +55,27 @@ const initialState: RecoveryPlanData = {
   counselorSignature: '', counselorDate: '',
 };
 
-/** Four numbered lines for one paper question: 1-3 required, 4 optional. */
+/**
+ * One paper question: the prompt ONCE as prose, then four numbered lines beneath it —
+ * 1-3 required, 4 optional. Exactly the paper's layout.
+ *
+ * CORRECTS b9ae218, which put the full question text into EVERY line's label
+ * ("<200 chars> — 1.", "— 2.", …). That printed each prompt FOUR times, so a committed
+ * record repeated seven long questions 28 times; on a sparsely-filled record the
+ * fourth repetition existed only to say "N/A". ACS's paper shows the prompt once.
+ *
+ * The prompt is a `static` field (afb4e7a) — display-only, emits no stored key, so
+ * this costs nothing in the payload.
+ */
 const numberedLines = (
   prefix: string,
   question: string,
-): { id: string; label: string; type: 'text'; required: boolean }[] => [
-  { id: `${prefix}1`, label: `${question} — 1.`, type: 'text', required: true },
-  { id: `${prefix}2`, label: `${question} — 2.`, type: 'text', required: true },
-  { id: `${prefix}3`, label: `${question} — 3.`, type: 'text', required: true },
-  { id: `${prefix}4`, label: `${question} — 4. (optional)`, type: 'text', required: false },
+): { id: string; label: string; type: 'text' | 'static'; required?: boolean }[] => [
+  { id: `${prefix}Prompt`, label: question, type: 'static' },
+  { id: `${prefix}1`, label: '1.', type: 'text', required: true },
+  { id: `${prefix}2`, label: '2.', type: 'text', required: true },
+  { id: `${prefix}3`, label: '3.', type: 'text', required: true },
+  { id: `${prefix}4`, label: '4. (optional)', type: 'text', required: false },
 ];
 
 const Q_PROBLEMS = 'Make a list of the problems that you need to address in your ongoing recovery. This can include your family, legal, social, physical, leisure, work or spiritual, etc.';
