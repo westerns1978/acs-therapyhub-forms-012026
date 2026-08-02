@@ -643,17 +643,33 @@ with a tab open across a deploy is running old code with no signal, and the firs
 symptom here was a *silently missing compliance record*. Worth a version-check + "a new
 version is available, reload" prompt before ACS is doing real work in long-lived tabs.
 
-**⚠️ `details.committed_at` is stored in the wrong format — NEW DEFECT, not fixed.**
-It reads `"Sat Aug 01 2026 18:15:02 GMT-0500 (Central Daylight Time)"` — a JS
-`Date.toString()`, not ISO 8601. Cause: `ClientFormsTab` passes
-`String(submission.submittedAt)` where `submittedAt` is a `Date`
-([ClientFormsTab.tsx:234](../../components/clients/ClientFormsTab.tsx)), so `String()`
-yields the locale/timezone-formatted human string. **The two call sites disagree:**
-`ClientSubmissionsPanel` passes `selectedSubmission.submitted_at`, a raw ISO string from
-Supabase, so the same field would be stored in a different format depending on which
-button was used. In an append-only ledger that is not sortable, not comparable, and
-embeds the printing machine's locale. Fix is to normalize to ISO at the boundary; the
-rows already written cannot be corrected (no UPDATE policy, by design).
+**`details.ip_address` is null on every row, and cannot be filled client-side.**
+`logAudit` never sets it, and there is no way for browser JavaScript to learn its own
+public IP — the only client-side route is calling a third-party echo service, which would
+leak the fact of a Part 2 record access to an outside party to populate an audit field.
+That is not a trade worth making. Postgres `inet_client_addr()` is no help either: it
+returns PostgREST's address, not the end user's. **The one viable path is server-side** —
+a column default or trigger reading
+`current_setting('request.headers', true)::json->>'x-forwarded-for'`, which PostgREST
+populates. Not built. Recorded as a **known limitation** so the null column is explained
+rather than looking like an oversight when an auditor asks.
+
+**⚠️ `details.committed_at` was stored in the wrong format — FIXED in `62a5709`.**
+Cause: `ClientFormsTab` passed `String(submission.submittedAt)` where `submittedAt` is a
+`Date`, yielding the locale/timezone-bearing human string; `ClientSubmissionsPanel`
+passed Supabase's raw ISO string. Two formats in one append-only column, neither sortable
+against the other.
+
+Normalisation now happens **at the `printRecord` chokepoint, not at the call sites**, so a
+third caller cannot reintroduce the split; unparseable input stores `null` rather than a
+garbage string.
+
+**⚠️ THE ONE ROW ALREADY WRITTEN CANNOT BE CORRECTED** — `audit_logs` has no UPDATE
+policy and no UPDATE grant, by design. Stated explicitly so a future reader is not
+confused: audit row `8c45c261-32f7-41a6-b542-e1f550d3cb3f` holds
+`committed_at = "Sat Aug 01 2026 18:15:02 GMT-0500 (Central Daylight Time)"`. That is the
+**only** row in this format; every row written after `62a5709` is ISO 8601. It is not a
+second live format and nothing should be built to parse it.
 
 **Still unverified live: the `ClientSubmissionsPanel` call site.** It has never produced
 a row — the only successful print came from `ClientFormsTab`. Its instrumentation is
@@ -729,6 +745,14 @@ regression. But it is structurally blind to everything that happens after HTML:
 green** — which is exactly what happened in §10e. This is not a gap in the fixtures'
 execution; it is the boundary of the technique.
 
+**§10e-2 is the live example, and it is worth being precise about why.** A stray graphic
+reached a printed court-bound record while `tsc`, all four `check:forms` gates, and seven
+byte-exact print fixtures were green — and every one of them was *correct*. The HTML the
+fixtures pin is genuinely unchanged; the defect lives entirely in what happens to that
+HTML afterwards. No amount of strengthening the existing gates would have caught it,
+which is the argument for the different instrument described above rather than more
+fixtures.
+
 Closing it needs a different instrument: a headless-Chrome print-to-PDF of a known
 record, compared against a reference (text extraction for content, or a rasterized
 image diff for layout). That is a real piece of infrastructure — a browser in CI — and
@@ -736,36 +760,78 @@ should be scoped deliberately rather than bolted on. Until it exists, **print ou
 verified by a human looking at a PDF, and that fact should be stated rather than
 assumed.**
 
-### 10e. OPEN DEFECT — garbled text on printed output (UNDER INVESTIGATION)
+### 10e. Printed-output findings — one operational, one still open
 
-**Reported 2026-08-02 from a live print. Root cause NOT established; nothing changed.**
+**Reported 2026-08-02 from a live print; PDF analysed by Dan. The two symptoms turned
+out to have different causes, and only one is ours.**
 
-Symptoms on the printed PDF of Bela Lugosi's Emergency Contact record:
-- a block of unreadable mojibake at the bottom of **both** pages,
-- a stray **pink** icon glyph beside the DATE label on page 2.
+#### 10e-1. RESOLVED (not a code defect) — the "mojibake" is a print-driver artifact
 
-This reaches courts and probation officers, so it is treated as severity-high.
+Both pages **rasterise visually clean at 200 DPI**. Nothing is garbled on the page. The
+garbling appears only under *text extraction*, because the PDF was produced through the
+**Adobe PDF printer driver**, not Chrome's built-in Save-as-PDF:
 
-**What the source rules out.** The record layout itself cannot produce either symptom:
-`PrintPreview` renders text, one `<img>`, and no icons or emoji at all — verifiable in
-the committed fixture baselines. The print-isolation CSS is also correct as written
-(`#record-print-root { display: none }` at rest; in print with `print-record-only`,
-`#root` hidden and the portal shown). No `@font-face` or icon font is declared in
-`public/index.css` or `index.html`.
+```
+pdffonts : T1, T2 — Type 3, Custom encoding, emb=yes, uni=NO
+Creator  : PScript5.dll Version 5.2.2
+Producer : Acrobat Distiller 26.0 (Windows)
+```
 
-**Leading hypothesis: print isolation released too early, so the APP printed rather than
-(or alongside) the record.** `printRecord()` removes `print-record-only` in a `finally`
-immediately after `window.print()`. If `window.print()` returns before rasterization —
-which it can, notably on the Save-as-PDF path — the class is gone while the page is
-still being captured, `#root` becomes visible again, and app chrome is what lands on
-paper. This would explain a *pink lucide icon* (there are none in the record layout, many
-in the app) and repeating page-bottom content. It does not yet explain mojibake
-specifically, which is why this is a hypothesis and not a finding.
+PScript5 re-encodes fonts as Type 3 with **no ToUnicode CMap**, so there is no
+extractable text layer. The app's print CSS is fine and no code change is warranted.
 
-**Not diagnosable from source alone.** Confirming it needs the artifact: the PDF itself,
-or the browser's print preview with `print-record-only` held on. Requested from Dan.
-Recording the hypothesis here so it is not silently re-derived, and to keep it clearly
-marked as unconfirmed.
+**But it is a real operational limitation, not a non-issue.** A PDF produced this way is
+**not searchable, not copyable, and invisible to assistive technology**. For an archive
+of court-bound records that matters: a document that cannot be searched or read by a
+screen reader is materially worse as a record, even though it looks correct on paper.
+
+**Staff guidance: print via Chrome's built-in "Save as PDF" destination, not "Adobe
+PDF".** ⚠️ **We cannot enforce this from the application.** The print destination is
+chosen in the browser's own dialog, entirely outside the page's control — there is no
+API to require, detect, or even observe which driver was used. This is documentation and
+training, not something a future change can close. Worth stating plainly to ACS rather
+than leaving as tribal knowledge.
+
+#### 10e-2. OPEN — the stray pink glyph
+
+Confirmed at high resolution: a small pink/red icon glyph in the **left margin beside the
+DATE label on page 2**. No icon belongs in the record layout.
+
+**What it almost certainly IS — identified.** The ACS logomark. It is the *only* source
+of colour in the entire printed document:
+
+- `PrintPreview` references exactly one image, `/branding/acs-logomark.svg`
+  ([PrintPreview.tsx:69](../../components/PrintPreview.tsx)).
+- That asset contains `fill="#C62828"` — a strong red that reads as pink at small size —
+  alongside `fill="#2B2B2B"`.
+- The print stylesheet forces `color: #000 !important` on `body *`
+  ([index.css:77-83](../../public/index.css)) — but **`color` does not override an SVG's
+  `fill` attribute**. So the logomark's red is the one colour that survives into print,
+  which is exactly why the stray element is pink while every glyph on the page is black.
+
+**Why a copy lands beside DATE on page 2 is NOT established.** Two mechanisms remain, and
+the evidence does not separate them:
+
+1. **Print-isolation race (fixed in `62a5709`, but unconfirmed as the cause).**
+   `printRecord()` released `print-record-only` in a `finally` immediately after
+   `window.print()`, which can return before rasterisation completes on the
+   Save-as-PDF path. `#root` would become visible mid-capture and app chrome — which
+   uses this same logomark — could land on the page. **Argument against:** if `#root`
+   had reappeared we would expect substantially more app content than a single icon.
+2. **The same Adobe PScript5 pipeline implicated in 10e-1.** It demonstrably mangles
+   font encoding; image placement is handled by the same driver, and an SVG
+   rasterised/positioned incorrectly by it would produce precisely this — one stray
+   graphic, correct content everywhere else.
+
+**The race was fixed regardless**, because it is a genuine defect on its own merits
+(details in `62a5709`, including the `afterprint` failsafe and the bounded risk if
+`afterprint` never fires). **That fix is NOT claimed to close 10e-2.**
+
+**Discriminating test, not yet run:** reprint the same record through **Chrome's Save as
+PDF** rather than the Adobe driver. If the glyph disappears, cause (2) — a driver
+artifact, closable only by the same staff guidance as 10e-1. If it persists on the fixed
+build, cause (1) is refuted too and the layout needs direct inspection under print
+emulation.
 
 ## 11. Decisions taken, and what's still open
 
