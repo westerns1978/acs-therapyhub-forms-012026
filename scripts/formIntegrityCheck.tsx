@@ -347,6 +347,25 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     covers: 'the settled acknowledgement text ("received or been advised of", no effective-date clause); the smallest form in the catalog, and one with no clientEmail field — so it also pins the corrected header behaviour',
   },
   {
+    // THE ALARM BRANCH of the client-certificate gate (2026-08-01). The gate renders the
+    // block when a value exists OR the definition declares a client signature field, and
+    // every other fixture satisfies it through the VALUE. This one satisfies it only
+    // through the DECLARATION: hipaa-ack declares clientSignature, the record's is empty,
+    // so the certificate must still print — loudly, as N/A.
+    //
+    // Without this fixture the `OR` half is unpinned: collapsing the rule to plain
+    // value-presence (the clientEmail rule, copied one form too far) would go green on all
+    // sixteen other baselines while silently deleting the evidence that a form REQUIRING a
+    // client signature was committed without one. That is the alarm the clientName comment
+    // exists to protect, and an unsigned HIPAA acknowledgement is exactly the record where
+    // it must not be swallowed.
+    slug: 'hipaa-ack (client signature DECLARED but empty — the alarm branch)',
+    def: HIPAA_ACK_DEFINITION,
+    data: 'scripts/fixtures/print-hipaa-ack-declared-but-unsigned.json',
+    baseline: 'scripts/fixtures/printpreview-hipaa-ack-declared-but-unsigned.baseline.html',
+    covers: 'the client certificate printing N/A because the DEFINITION declares clientSignature even though the record carries no value — the half of the gate that keeps an unsigned form alarming instead of silently dropping the block',
+  },
+  {
     slug: 'meeting-report (object boolean-map + orphaned legacy key)',
     def: MEETING_REPORT_DEFINITION,
     data: 'scripts/fixtures/print-meeting-report-typemap.json',
