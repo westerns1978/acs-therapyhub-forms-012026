@@ -86,9 +86,30 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
         </div>
       </div>
 
+      {/* THE ASYMMETRY HERE IS DELIBERATE — do not "fix" it into symmetry.
+       *
+       * Client Name is UNCONDITIONAL: if a committed clinical record somehow has no
+       * client name on it, that must print loudly as N/A, not vanish. An absent name
+       * is alarming; silently omitting the row would hide the alarm.
+       *
+       * Client Email renders ONLY when a value is present. Nine of the fourteen forms
+       * do not declare a clientEmail field at all (authorization-release stopped
+       * declaring it in 5535f0c, per David), and this header sits OUTSIDE the
+       * fieldDefinitions loop — so every one of those records printed "CLIENT EMAIL /
+       * N/A" on a document that goes to courts and POs.
+       *
+       * WHY NOT GATE ON "the definition declares the field" instead — the tidier-looking
+       * option: because it would stop printing FOUR real stored emails, including row
+       * 47431370's legacy TBecker@gomail.com. Removing a field from a form does NOT
+       * remove it from rows already committed, and this codebase already settled that
+       * principle in shouldPrintField (config/fieldVisibility.ts): the committed record
+       * must show what is actually IN the record — censoring a legacy value at print
+       * would make the paper disagree with the JSONB. Value-presence honours that;
+       * field-presence violates it.
+       */}
       <div className="grid grid-cols-2 gap-x-12 mb-10 p-6 bg-gray-50 rounded-2xl border border-gray-100">
         <PrintField label="Client Name" value={formData.clientName} />
-        <PrintField label="Client Email" value={formData.clientEmail} />
+        {formData.clientEmail ? <PrintField label="Client Email" value={formData.clientEmail} /> : null}
       </div>
 
       <div className="space-y-6">
