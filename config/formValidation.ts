@@ -30,6 +30,10 @@ export const requiredFieldErrors = (
     // A hidden field is not enforced — the renderer and this validator consult
     // the SAME isFieldVisible() on the same data (config/fieldVisibility.ts), so
     // "required but invisible + unresolvable" cannot happen.
+    // 'static' is document prose, not a question — it can never be answered, so it
+    // can never be required. Skipped before the required check so that a definition
+    // which mistakenly marks a paragraph required cannot make the form unsubmittable.
+    if (field.type === 'static') continue;
     if (!field.required || !isFieldVisible(field, data)) continue;
     const v = resolveFieldValue(data, field.id);
     let empty: boolean;

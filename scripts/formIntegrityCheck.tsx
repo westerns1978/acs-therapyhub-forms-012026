@@ -122,6 +122,7 @@ const producibleValues = (field: FieldDefinition, initialValue: any): any[] => {
       return opts.map((k) => ({ ...(isBooleanMap(initialValue) ? initialValue : {}), [k]: true }));
     }
     case 'readonly': return [];                                                   // no editor — nothing producible
+    case 'static': return [];                                                     // document prose — no value exists
     default: return [coerceTextInput(kind, 'test value 1234')];                   // text family → coerceTextInput
   }
 };

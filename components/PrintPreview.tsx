@@ -14,6 +14,14 @@ interface PrintPreviewProps {
 }
 
 const PrintField: React.FC<{ label: string; value: any, type?: string, options?: { value: string; label: string }[] }> = ({ label, value, type, options }) => {
+  // Display-only prose prints as the paragraph it is — no label chrome, no value
+  // row, no "N/A". This is document text (Consent's numbered narrative clauses),
+  // so on a committed record it must read exactly as it does on ACS's paper.
+  if (type === 'static') {
+    return (
+      <p className="text-sm text-black leading-relaxed mb-3 break-inside-avoid whitespace-pre-wrap">{label}</p>
+    );
+  }
   let displayValue: string;
   // Options-aware label mapping for the NEW types only ('select' /
   // 'checkbox-group') — committed records should print human labels

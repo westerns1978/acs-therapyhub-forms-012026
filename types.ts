@@ -136,7 +136,15 @@ export type FieldDefinition = {
   //   never traverses into it. 'object' is the legacy map type: renders as a derived
   //   checkbox group when the value is a boolean map, read-only otherwise — NEVER as a
   //   text input (that clobbered the map with prose; see consent row 9d440526).
-  type: 'text' | 'number' | 'textarea' | 'tel' | 'date' | 'rating' | 'boolean' | 'object' | 'email' | 'password' | 'select' | 'checkbox-group';
+  // 'static' = DISPLAY-ONLY PROSE. Renders its label as a paragraph and emits NOTHING:
+  //   no editor, no stored key, never required. Added 2026-08-02 for Consent for
+  //   Treatment, whose paper form is eight numbered narrative paragraphs the client
+  //   agrees to ONCE by signing at the bottom — there is no per-paragraph checkbox on
+  //   ACS's paper. Modelling them as booleans would write eight fabricated
+  //   affirmations into a clinical record; modelling them as text would invite an
+  //   answer to a question nobody asked. Use ONLY for text that is part of the
+  //   document, never to label a field.
+  type: 'text' | 'number' | 'textarea' | 'tel' | 'date' | 'rating' | 'boolean' | 'object' | 'email' | 'password' | 'select' | 'checkbox-group' | 'static';
   min?: number;
   max?: number;
   placeholder?: string;

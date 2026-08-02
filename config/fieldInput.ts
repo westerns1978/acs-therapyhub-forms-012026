@@ -16,7 +16,7 @@
 import type { FieldDefinition } from '../types';
 
 /** The distinct editor families BaseFormTemplate renders. */
-export type EditorKind = 'text' | 'numeric' | 'boolean' | 'select' | 'checkbox-group' | 'readonly';
+export type EditorKind = 'text' | 'numeric' | 'boolean' | 'select' | 'checkbox-group' | 'readonly' | 'static';
 
 /** Is this value the {key: boolean} map a CheckboxGroup stores? */
 export const isBooleanMap = (v: any): v is Record<string, boolean> =>
@@ -31,6 +31,11 @@ export const isBooleanMap = (v: any): v is Record<string, boolean> =>
  */
 export const editorKindFor = (field: Pick<FieldDefinition, 'type'>, value: any): EditorKind => {
   switch (field.type) {
+    // Display-only prose. Distinct from 'readonly' on purpose: 'readonly' means "a
+    // value exists but no editor can safely produce it"; 'static' means there is no
+    // value at all and never will be. Keeping them separate stops a static paragraph
+    // from ever being treated as an unanswerable field.
+    case 'static': return 'static';
     case 'select': return 'select';
     case 'checkbox-group': return 'checkbox-group';
     case 'object': return isBooleanMap(value) ? 'checkbox-group' : 'readonly';

@@ -324,6 +324,16 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                             : [];
                         const mapValue: Record<string, boolean> = isBooleanMap(rawValue) ? rawValue : {};
                         const inputType = inputTypeFor(field.type);
+                        // Display-only prose: part of the document, not a question. No
+                        // <label>, no control, no asterisk — rendering it as a labelled
+                        // field would read as something awaiting an answer.
+                        if (kind === 'static') {
+                            return (
+                                <p key={field.id} className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                                    {field.label}
+                                </p>
+                            );
+                        }
                         return (
                             <div key={field.id}>
                                 <label htmlFor={field.id} className="block text-sm font-medium text-slate-700 dark:text-slate-300">
