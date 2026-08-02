@@ -136,11 +136,30 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
           </div>
           <p className="text-[9px] text-gray-400 font-bold uppercase">ELECTRONICALLY COMMITTED VIA THERAPYHUB AUTH</p>
         </div>
-        {(formData.staffSignature || formData.witnessSignature) && (
+        {/* THE COUNTER-SIGNATURE. Four field names across the catalog mean the same
+         *  thing — the non-client person who signed:
+         *    staffSignature      consent-treatment, satop-checklist, telehealth-consent
+         *    counselorSignature  recovery-plan, discharge-summary
+         *    therapistSignature  chart-checklist
+         *    witnessSignature    emergency-contact
+         *  This gate checked only staff/witness, so a Counselor or Therapist signature
+         *  rendered as an ordinary text row while a Staff one got the attestation
+         *  block — the same signature treated as data on some clinical records and as a
+         *  signature on others, decided by which noun a form happened to use.
+         *
+         *  Four names for one concept is a naming problem, not four concepts. Resolving
+         *  it here is the narrow fix; consolidating the field ids across the forms is
+         *  the real one and is NOT attempted in this pass. */}
+        {(formData.staffSignature || formData.counselorSignature || formData.therapistSignature || formData.witnessSignature) && (
           <div className="space-y-4">
-            <h2 className="text-[10px] font-black uppercase tracking-widest text-gray-500">{formData.staffSignature ? 'Staff Verification' : 'Witness Acknowledgment'}</h2>
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-gray-500">{
+              formData.staffSignature ? 'Staff Verification'
+              : formData.counselorSignature ? 'Counselor Verification'
+              : formData.therapistSignature ? 'Therapist Verification'
+              : 'Witness Acknowledgment'
+            }</h2>
             <div className="border-b-2 border-gray-900 pb-2">
-              <p className="font-serif text-2xl italic">{formData.staffSignature || formData.witnessSignature}</p>
+              <p className="font-serif text-2xl italic">{formData.staffSignature || formData.counselorSignature || formData.therapistSignature || formData.witnessSignature}</p>
             </div>
             {/* recordDate, NOT new Date() — see the comment on recordDate. A reprint
                 must not restamp this block with today; it reads as the date the
