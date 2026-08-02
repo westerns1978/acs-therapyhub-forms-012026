@@ -769,6 +769,45 @@ should be scoped deliberately rather than bolted on. Until it exists, **print ou
 verified by a human looking at a PDF, and that fact should be stated rather than
 assumed.**
 
+### 10d-i. The gap class: "form lacks the field AND lacks a value"
+
+**Logged 2026-08-02 after a defect reached a printed clinical record with every gate
+green.** Worth naming precisely, because neither condition alone was visible — it was
+the *combination*.
+
+`PrintPreview` draws Client Name and Client Email in a **fixed header outside the
+fieldDefinitions loop**. Nine of the fourteen forms never declared a `clientEmail`
+field, so every one of their committed records printed **"CLIENT EMAIL / N/A"** — on
+documents that reach courts and probation officers. Removing the field from
+authorization-release (`5535f0c`, at David's instruction) did not and could not fix
+it, because the header never read the definition in the first place.
+
+**Why no gate saw it.** Every existing fixture masked the condition, each for a
+different reason:
+
+| Fixture | Why it couldn't show the defect |
+|---|---|
+| consent-treatment, satop-checklist, telehealth-feedback | their forms *declare* clientEmail — value present, row correct |
+| authorization-release (`47431370`) | form no longer declares it, but the legacy row *has* a stored email — row correct |
+| discharge-summary ×2, emergency-contact | forms don't declare it, but the fixture data I authored *supplied* one anyway — row correct |
+
+So the defect needed a fixture whose form lacked the field **and** whose data lacked a
+value. That combination existed in exactly one place, and only from `b9ae218` —
+`recovery-plan`, built for entirely unrelated reasons (David's numbered lines). **The
+defect was caught by accident.** Had that fixture not been built last commit, the
+`N/A` row would have shipped.
+
+**The generalisable point:** fixture data authored by the same person who authored the
+form tends to be *complete* — every field populated, because that is the natural way to
+write an example. Complete data cannot exercise absent-value paths. A fixture set can
+have good breadth across forms and still be systematically blind to what a *sparse*
+record prints. Worth deliberately including under-filled rows, not just representative
+ones.
+
+Fixed in `bb08a4c` (render the email row only when a value is present; Client Name
+stays unconditional by deliberate asymmetry — see §11 and the comment at the render
+site). Coverage raised from 8 fixtures to 11 in `68f6898`.
+
 ### 10e. Printed-output findings — one operational, one still open
 
 **Reported 2026-08-02 from a live print; PDF analysed by Dan. The two symptoms turned
@@ -979,11 +1018,18 @@ blanks to fill. They remain `required: false` because making them mandatory was 
 part of the instruction. Should a client be able to sign the agreement without
 recording their group schedule?
 
-**D-g. PrintPreview's fixed header now prints "CLIENT EMAIL / N/A" on new
-authorization-release records.** Deleting the email field removed the input, but that
-header is global to all 14 forms and reads formData.clientEmail directly. Whether an
-empty email should be omitted there is a template decision affecting every form, not
-part of "delete the email field".
+**D-g. ~~PrintPreview's fixed header prints "CLIENT EMAIL / N/A"~~ — RESOLVED
+2026-08-02 (`bb08a4c`), no input needed.** David said delete the field and it still
+printed; that is a defect, not a question. The email row now renders only when a value
+is present. Client Name deliberately stays unconditional. Gap class recorded as §10d-i.
+
+**D-h. Meeting type prints raw storage keys on the committed record.** The Support
+Group Meeting Report shows `aa, discussion, bigBook, open` where it should read
+`AA, Discussion, Big Book, Open`. Cause: `meetingType` uses the legacy `object` field
+type, and PrintPreview's option→label mapping covers only `select` and
+`checkbox-group`. Pre-existing and unrelated to David's revisions, so not changed
+during Phase 1 — but it is machine tokens on a document going to courts and POs, and
+worth his call on whether to fix now or with the wider label work.
 
 ### Still open — for David
 
