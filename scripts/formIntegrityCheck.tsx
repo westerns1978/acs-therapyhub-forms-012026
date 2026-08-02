@@ -5,7 +5,7 @@
  *
  *   npm run check:forms
  *
- * Three gates, exit code 1 if any fails:
+ * Five gates, exit code 1 if any fails:
  *
  * 1. SUBMITTABILITY INVARIANT (all 14 forms, from code alone — needs no rows):
  *    for every REQUIRED field, does there EXIST a value the rendered editor can
@@ -38,6 +38,15 @@
  *    404. The staff copy-link and the client download would both "work", and what
  *    lands is the app, not the form. Nothing at runtime can tell the difference;
  *    only a disk check before shipping can.
+ *
+ * 5. SIGNATURE FIELD REGISTRATION: the two halves of PrintPreview's SIGNATURE_FIELD_IDS
+ *    contract, which D-i made load-bearing. (a) every signature-ish field any of the 14
+ *    definitions declares must BE in the set — otherwise it prints as an ordinary data
+ *    row, the defect D-i fixed for counselor/therapist. (b) every id in the set must be
+ *    RENDERED by an attestation block — otherwise, since membership removes the field
+ *    from the print loop, the signature vanishes from the record entirely. (b) is
+ *    probed by rendering, not by a second list, so it cannot go stale. The definition
+ *    of "signature-ish" is stated at the gate.
  */
 /**
  * PINNED TIMEZONE. PrintPreview renders dates with toLocaleDateString and the
@@ -231,7 +240,7 @@ global.Date = class extends RealDate {
 } as DateConstructor;
 // Deferred require so the frozen clock is active when the component renders.
 const { renderToStaticMarkup } = require('react-dom/server');
-const { PrintPreview } = require('../components/PrintPreview');
+const { PrintPreview, SIGNATURE_FIELD_IDS } = require('../components/PrintPreview');
 const fs = require('fs');
 const path = require('path');
 // Resolve from cwd (npm scripts run at repo root) — the bundle's __dirname is node_modules/.cache.
@@ -469,6 +478,95 @@ console.log('\n=== 4) PDF TWIN EXISTENCE (registry pdfSlug → public/forms/) ==
       }
     }
   }
+}
+
+console.log('\n=== 5) SIGNATURE FIELD REGISTRATION (definitions ↔ PrintPreview) ===');
+{
+  /**
+   * WHAT COUNTS AS A SIGNATURE FIELD — the rule, stated so it can be argued with.
+   *
+   * An id is signature-ish iff BOTH hold:
+   *   (a) the LAST dot-separated segment of the id ends with the word "signature",
+   *       case-insensitively — /signature$/i; and
+   *   (b) the field's type can carry a typed name (anything except 'boolean' and
+   *       'static').
+   *
+   * (a) is the whole of the naming argument: "signature" as the TERMINAL noun is what
+   * makes a name mean a signature. clientSignature, staffSignature, and a future
+   * guardianSignature or supervisorSignature are all head-noun 'signature' and are
+   * caught. Where "signature" is a QUALIFIER there is always another word after it —
+   * signatureDate is a date, signaturePad is a control — so the terminal test excludes
+   * them without an exception list. The date fields this gate must not fire on are
+   * excluded for two different reasons and both are load-bearing: signatureDate
+   * because 'signature' is not terminal, clientDate / counselorDate because they do
+   * not contain the word at all.
+   *
+   * Split on '.' first because ids in this catalog are genuinely dotted
+   * (satop-checklist's checklist.*), so a nested attestations.clientSignature must be
+   * caught by its leaf, not missed because the full id ends in a path.
+   *
+   * (b) removes the one realistic false positive of a pure name rule: a boolean like
+   * requiresSignature / needsStaffSignature is a flag ABOUT a signature, not one — and
+   * a boolean cannot hold a name, so the attestation block would print "true" over the
+   * signature line. 'static' emits no stored key at all. Everything else stays in:
+   * the bias is deliberately toward catching, because the two errors are not
+   * symmetric. A false positive is a red gate and a five-second argument. A miss is
+   * the D-i defect shipping again — a real signature printed as an ordinary data row
+   * on a document that goes to courts and probation officers.
+   *
+   * KNOWN LIMIT, stated rather than papered over: the rule reads ids, so a signature
+   * field named off-convention (id 'clientAttestation' with label "Client signature")
+   * is invisible to it. The gate enforces the naming discipline it can see; it does
+   * not invent one.
+   */
+  const SIGNATURE_EXEMPT_TYPES = new Set(['boolean', 'static']);
+  const isSignatureIsh = (f: FieldDefinition): boolean =>
+    /signature$/i.test(f.id.split('.').pop() ?? '') && !SIGNATURE_EXEMPT_TYPES.has(f.type);
+
+  // 5a. DECLARED → REGISTERED. An unregistered signature prints as a data row.
+  let unregistered = 0;
+  const registered: string[] = [];
+  for (const def of ALL) {
+    for (const f of def.fieldDefinitions as FieldDefinition[]) {
+      if (!isSignatureIsh(f)) continue;
+      if (SIGNATURE_FIELD_IDS.has(f.id)) { registered.push(`${def.id}:${f.id}`); continue; }
+      unregistered++;
+      fail(
+        `${def.id} :: '${f.id}' [${f.type}] is a signature field but is NOT in ` +
+        `SIGNATURE_FIELD_IDS (components/PrintPreview.tsx) — it would print as an ` +
+        `ordinary data row instead of in an attestation block, which is the D-i defect. ` +
+        `Adding it is a TWO-PLACE change: put the id in SIGNATURE_FIELD_IDS *and* make ` +
+        `a block render it, or it will vanish from the printed record instead (5b below ` +
+        `enforces the second half). If '${f.id}' is not a signature, rename it — the ` +
+        `rule is that a field whose name's head noun is "signature" is one.`,
+      );
+    }
+  }
+  if (!unregistered) console.log(`ok    every declared signature field is registered (${registered.length}: ${registered.join(', ')})`);
+
+  // 5b. REGISTERED → RENDERED. The other half, and the reason 5a is safe to enforce:
+  // being in the set REMOVES a field from the loop, so an id the blocks do not read
+  // disappears from the record entirely. Probed behaviourally rather than by a second
+  // hand-written list — render with an EMPTY fieldDefinitions so the field loop cannot
+  // contribute, put a sentinel in the one id under test, and require it in the output.
+  // The only path to the sentinel is an attestation block actually reading that id.
+  const PROBE_DEF = { id: 'probe', title: 'Signature Probe', fieldDefinitions: [], initialState: {}, validateStep: () => ({}) };
+  let unrendered = 0;
+  for (const id of Array.from(SIGNATURE_FIELD_IDS as Set<string>)) {
+    const sentinel = `SENTINEL_${id}_SENTINEL`;
+    const html = renderToStaticMarkup(
+      React.createElement(PrintPreview, { formData: { [id]: sentinel }, formDefinition: PROBE_DEF }),
+    );
+    if (html.includes(sentinel)) continue;
+    unrendered++;
+    fail(
+      `'${id}' is in SIGNATURE_FIELD_IDS but NO attestation block renders it — it is ` +
+      `skipped in the field loop and printed nowhere, so this id VANISHES from the ` +
+      `committed record. Add it to a block's gate AND its value chain in ` +
+      `components/PrintPreview.tsx, or remove it from SIGNATURE_FIELD_IDS.`,
+    );
+  }
+  if (!unrendered) console.log(`ok    every registered id is rendered by a block (${SIGNATURE_FIELD_IDS.size} probed)`);
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nALL GREEN');

@@ -14,6 +14,20 @@ interface PrintPreviewProps {
 }
 
 /**
+ * The ids the CLIENT attestation block reads, in precedence order. 'signature' is the
+ * legacy name — no current definition declares it, but committed rows still carry it,
+ * so it must keep resolving. Also the definition of "this form has a client
+ * signature": the block's empty-state gate tests the fieldDefinitions against THIS
+ * list, so what the block reads and what counts as declaring one cannot drift apart.
+ */
+const CLIENT_SIGNATURE_IDS = ['signature', 'clientSignature'] as const;
+
+/** The counter-signature ids — see the counter-signature note further down. */
+const COUNTER_SIGNATURE_IDS = [
+  'staffSignature', 'counselorSignature', 'therapistSignature', 'witnessSignature',
+] as const;
+
+/**
  * Field ids the ATTESTATION BLOCKS at the foot of the document render. They are
  * skipped in the field loop so a signature appears ONCE, as a signature — previously
  * every signature printed TWICE, once as an ordinary answer row and again in its
@@ -22,14 +36,20 @@ interface PrintPreviewProps {
  * SAFETY DEPENDS ON THIS LIST MATCHING THE BLOCK GATES BELOW. Every id here must be
  * rendered by a block; an id skipped here but missing from the gates would DISAPPEAR
  * from the printed record entirely. That is why adding a sixth name for "signature"
- * is now a two-place change — see the counter-signature note further down.
+ * is a two-place change: the id list above, and the block that renders it.
+ *
+ * BOTH HALVES ARE NOW ENFORCED, not just documented — gate 5 of `npm run check:forms`
+ * fails if a definition declares a signature-ish field missing from this set (it would
+ * print as an ordinary data row), and separately if an id in this set is not actually
+ * rendered by a block (it would vanish). Exported for that gate: the check must read
+ * the real set, because a hand-copied duplicate would go green while drifting.
  *
  * Dates are deliberately absent: signatureDate / clientDate / counselorDate are data,
  * not signatures, and keep printing as ordinary rows.
  */
-const SIGNATURE_FIELD_IDS = new Set([
-  'signature', 'clientSignature',                                    // client block
-  'staffSignature', 'counselorSignature', 'therapistSignature', 'witnessSignature', // counter block
+export const SIGNATURE_FIELD_IDS: ReadonlySet<string> = new Set<string>([
+  ...CLIENT_SIGNATURE_IDS,
+  ...COUNTER_SIGNATURE_IDS,
 ]);
 
 const PrintField: React.FC<{ label: string; value: any, type?: string, options?: { value: string; label: string }[] }> = ({ label, value, type, options }) => {
