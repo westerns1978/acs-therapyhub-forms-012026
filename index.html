@@ -71,7 +71,30 @@
        *
        * CONTRAST: white on #C62828 is 5.6:1 — AA at every text size, not AAA.
        * AAA on button fills was never a requirement here, and ACS ships exactly
-       * this contrast on their own site. */
+       * this contrast on their own site.
+       *
+       * ┌─ BLESSED STATIC COPIES ────────────────────────────────────────────────
+       * │ These CANNOT read --brand (a <meta>, a JSON file, a jsPDF RGB triple, a
+       * │ URL query param, a CSS var fallback). Each is tagged BRAND-STATIC-COPY.
+       * │
+       * │   grep -rn "BRAND-STATIC-COPY" --exclude-dir=node_modules --exclude-dir=dist
+       * │
+       * │ ONE grep finds every one regardless of notation — which matters, because
+       * │ two sites survived the last two brand migrations purely because they were
+       * │ written as rgba() decimals and a hex grep could not see them.
+       * │
+       * │   index.html          <meta name="theme-color">        #RRGGBB
+       * │   manifest.json       theme_color (+ _comment_ sibling) #RRGGBB
+       * │   public/index.css    var() fallbacks x3               #RRGGBB
+       * │   pages/WebsitePortalBridge.tsx  var() fallbacks x2     #RRGGBB
+       * │   services/pdfDocuments.ts  MAROON                      [r, g, b]
+       * │   components/ui/GlobalHeader.tsx  ui-avatars URL param  RRGGBB (no '#')
+       * │
+       * │ ENFORCED: `npm run check:brand` parses BRAND.DEFAULT from this block and
+       * │ asserts every site above matches it in its own notation. It runs in the
+       * │ deploy chain, so a half-finished brand change cannot ship.
+       * └────────────────────────────────────────────────────────────────────────
+       */
       const BRAND = {
         DEFAULT: '#C62828',   // the ACS mark red — matches acs-logomark.svg + stlacs.com
         focus:   '#B71C1C',   // pressed / hover-darken

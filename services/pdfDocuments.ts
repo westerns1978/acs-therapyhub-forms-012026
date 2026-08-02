@@ -23,7 +23,7 @@ import type { DocumentFile } from '../types';
 // renderer (e.g. services/paymentReceipt.ts) can reuse the SAME plumbing instead
 // of forking it; nothing here is cert-specific.
 /**
- * BRAND red as jsPDF RGB. MUST track BRAND.DEFAULT in index.html — jsPDF cannot read
+ * BRAND-STATIC-COPY. BRAND red as jsPDF RGB. MUST track BRAND.DEFAULT in index.html — jsPDF cannot read
  * a CSS variable, so this is a blessed static copy in the same sense as the meta
  * theme-color and manifest.json theme_color. If the brand changes, change it here too.
  *

@@ -155,7 +155,9 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
 
                     <div className="relative ml-1">
                         <button onClick={() => setProfileOpen(prev => !prev)} className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 p-1.5 rounded-2xl transition-colors">
-                            <img src={`https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=7A222E&color=fff`} alt="User" className="w-8 h-8 rounded-xl" />
+                            {/* BRAND-STATIC-COPY: ui-avatars takes a bare hex in a URL param,
+                                so it cannot read --brand. Must track BRAND.DEFAULT (no '#'). */}
+                            <img src={`https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=C62828&color=fff`} alt="User" className="w-8 h-8 rounded-xl" />
                         </button>
                         
                         {isProfileOpen && (

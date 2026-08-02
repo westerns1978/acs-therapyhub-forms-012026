@@ -40,6 +40,7 @@ const FONTS_HREF = 'https://fonts.googleapis.com/css2?family=Anuphan:wght@300;40
 // BRAND, not a private marketing red (J4b): reads the CSS vars the BRAND
 // block in index.html publishes, so the web CTA and the app's buttons are
 // the same red and Attesta re-brands both with one edit.
+// BRAND-STATIC-COPY: var fallbacks, must track BRAND.DEFAULT / BRAND.focus.
 const RED = 'var(--brand, #C62828)';
 const RED_DARK = 'var(--brand-focus, #B71C1C)';
 const RED_SOFT = '#f4dfdc';

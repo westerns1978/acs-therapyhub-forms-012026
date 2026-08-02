@@ -7,7 +7,7 @@
  * guard will block anything that doesn't come through here. Dependency-free and
  * cross-platform (no cross-env needed).
  *
- * TYPECHECKS, CHECKS FORMS, THEN BUILDS, THEN DEPLOYS. Every gate aborts before
+ * TYPECHECKS, CHECKS BRAND + FORMS, THEN BUILDS, THEN DEPLOYS. Every gate aborts before
  * any upload.
  *
  * FORM INTEGRITY (added 2026-08-01). `npm run check:forms` verifies the four form
@@ -58,14 +58,20 @@ const run = (label, cmd, args, extraEnv = {}) => {
 // 1. Typecheck. vite build won't do it, and it is the cheapest failure.
 run('typechecking (tsc --noEmit)', 'npm', ['run', 'lint']);
 
-// 2. Form integrity. Cheap, bundle-free, and the only place a missing PDF twin
+// 2. Brand consistency. Cheapest gate here — plain regex over text files, no
+//    bundle. Brand colour has drifted twice, and both times a static copy that
+//    cannot read --brand was left behind (once shipping a retired colour into
+//    GENERATED pdfs for five days). Grep could not reliably find them; this can.
+run('checking brand consistency (npm run check:brand)', 'npm', ['run', 'check:brand']);
+
+// 3. Form integrity. Cheap, bundle-free, and the only place a missing PDF twin
 //    or a drifted committed-record render can be caught before it ships.
 run('checking form integrity (npm run check:forms)', 'npm', ['run', 'check:forms']);
 
-// 3. Build. Must succeed, or we never reach the upload.
+// 4. Build. Must succeed, or we never reach the upload.
 run('building dist/ from the current working tree', 'npm', ['run', 'build']);
 
-// 4. Deploy. The predeploy guard re-checks DEPLOY_TARGET + firebase.json.
+// 5. Deploy. The predeploy guard re-checks DEPLOY_TARGET + firebase.json.
 run(`deploying to hosting:${SITE}`, 'npx', ['firebase', 'deploy', '--only', `hosting:${SITE}`], {
   DEPLOY_TARGET: SITE,
 });

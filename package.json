@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "build:guide": "node scripts/build-user-guide.mjs",
+    "check:brand": "node scripts/brandConsistencyCheck.mjs",
     "check:forms": "esbuild scripts/formIntegrityCheck.tsx --bundle --format=cjs --platform=node --external:fs --external:path --loader:.tsx=tsx --loader:.json=json --outfile=node_modules/.cache/formIntegrityCheck.cjs --log-level=error && node node_modules/.cache/formIntegrityCheck.cjs",
     "deploy": "node scripts/deploy.mjs"
   },

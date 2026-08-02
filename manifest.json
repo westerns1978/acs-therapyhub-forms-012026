@@ -5,6 +5,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
+  "_comment_theme_color": "BRAND-STATIC-COPY: must track BRAND.DEFAULT in index.html",
   "theme_color": "#C62828",
   "orientation": "any",
   "icons": [

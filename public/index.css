@@ -29,8 +29,9 @@
  * `focus:outline-none` utilities already sprinkled through the components.
  * ────────────────────────────────────────────────────────────────────────────── */
 /* Brand values come from the BRAND block in index.html via CSS variables
-   (--brand / --brand-dark, set on <html> before first paint) — no brand hex
-   lives in this file. The fallbacks only cover a hypothetical var failure. */
+   (--brand / --brand-dark, set on <html> before first paint). The literals below
+   are BRAND-STATIC-COPY fallbacks covering a hypothetical var failure — they must
+   track BRAND.DEFAULT / BRAND.dark. */
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--brand, #C62828);
   outline-offset: 2px;
