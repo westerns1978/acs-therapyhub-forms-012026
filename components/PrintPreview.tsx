@@ -37,7 +37,12 @@ const PrintField: React.FC<{ label: string; value: any, type?: string, options?:
   } else if (typeof value === 'boolean') {
     displayValue = value ? 'Yes' : 'No';
   } else if (typeof value === 'object' && value !== null) {
-    displayValue = Object.keys(value).filter(k => value[k]).join(', ');
+    // Legacy 'object' boolean-map. Map keys to option labels WHEN the definition
+    // declares them, falling back to the raw key otherwise — so meeting-report's
+    // meetingType prints "AA, Discussion, Big Book" instead of the storage keys, while
+    // consent's groupDays (keys 'Mon'..'Fri', no options declared) is untouched.
+    displayValue = Object.keys(value).filter(k => value[k])
+      .map(k => options?.find(o => o.value === k)?.label ?? k).join(', ');
   } else {
     displayValue = value || 'N/A';
   }
@@ -124,7 +129,7 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
               strips them), so a non-empty hidden value is a pre-predicate row and
               the record must show it. config/fieldVisibility.ts. */}
           if (!shouldPrintField(field, formData)) return null;
-          return <PrintField key={field.id} label={field.label} value={resolveFieldValue(formData, field.id)} type={field.type} options={(field.type === 'select' || field.type === 'checkbox-group') ? field.options : undefined} />
+          return <PrintField key={field.id} label={field.label} value={resolveFieldValue(formData, field.id)} type={field.type} options={(field.type === 'select' || field.type === 'checkbox-group' || field.type === 'object') ? field.options : undefined} />
         })}
       </div>
 

@@ -66,7 +66,23 @@ export const MEETING_REPORT_DEFINITION: FormDefinition<MeetingReportData> = {
     { id: 'location', label: 'Location/venue', type: 'text', required: true },
     { id: 'dateAttended', label: 'Date attended', type: 'date', required: true },
     { id: 'timeAttended', label: 'Time attended', type: 'text', required: false },
-    { id: 'meetingType', label: 'Meeting type', type: 'object', required: true },
+    {
+      id: 'meetingType', label: 'Meeting type', type: 'object', required: true,
+      // Human labels for the stored keys. They previously existed ONLY inside the dead
+      // ReportSection component, so nothing that actually renders — not the live form,
+      // not the committed-record print — could reach them, and a printed report read
+      // "aa, discussion, bigBook, open". Declared here, on the definition that renders.
+      options: [
+        { value: 'aa', label: 'AA' },
+        { value: 'na', label: 'NA' },
+        { value: 'speaker', label: 'Speaker' },
+        { value: 'discussion', label: 'Discussion' },
+        { value: 'bigBook', label: 'Big Book' },
+        { value: 'step', label: 'Step' },
+        { value: 'open', label: 'Open' },
+        { value: 'closed', label: 'Closed' },
+      ],
+    },
     { id: 'meetingSubject', label: 'Meeting subject', type: 'textarea', required: false },
     { id: 'whatApplied', label: 'How will you apply this?', type: 'textarea', required: true },
     { id: 'whatLearned', label: 'What did you learn?', type: 'textarea', required: true }
