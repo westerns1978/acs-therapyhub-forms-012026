@@ -7,7 +7,7 @@ import { Checkbox } from '../Checkbox';
 const initialContact = { name: '', address: '', city: '', state: '', zip: '', phone: '' };
 
 const initialState: AuthorizationForReleaseData = {
-  clientName: '', clientEmail: '', authorizeDMH: false, authorizeRevenue: false,
+  clientName: '', authorizeDMH: false, authorizeRevenue: false,
   courtInfo: { ...initialContact }, attorneyInfo: { ...initialContact },
   probationOfficerInfo: { ...initialContact }, otherInfo: { ...initialContact },
   acknowledgesFederalRegulations: false, understandsRevocation: false, understandsExpiration: false,
@@ -22,7 +22,6 @@ const Step1: React.FC<FormSectionProps<AuthorizationForReleaseData>> = ({ formDa
     <div className="space-y-6 animate-fade-in-up">
       <h3 className="text-sm font-black uppercase tracking-[0.3em] text-slate-400 mb-8">Client information</h3>
       <FormField id="clientName" label="Client name" value={formData.clientName} onChange={handleChange} error={errors.clientName} />
-      <FormField id="clientEmail" label="Email" type="email" value={formData.clientEmail} onChange={handleChange} error={errors.clientEmail} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
         <Checkbox label="Authorize completion notice to Missouri DMH" checked={formData.authorizeDMH} onChange={(v) => setFormData({...formData, authorizeDMH: v})} error={errors.authorizeDMH} />
         <Checkbox label="Authorize completion notice to Missouri DOR (reinstates driving privileges)" checked={formData.authorizeRevenue} onChange={(v) => setFormData({...formData, authorizeRevenue: v})} error={errors.authorizeRevenue} />
@@ -106,7 +105,6 @@ export const AUTHORIZATION_RELEASE_DEFINITION: FormDefinition<AuthorizationForRe
   },
   fieldDefinitions: [
     { id: 'clientName', label: 'Client name', type: 'text', required: true },
-    { id: 'clientEmail', label: 'Email', type: 'email', required: true },
     { id: 'authorizeDMH', label: 'I authorize ACS to send my program completion notice to the Missouri Department of Mental Health (DMH).', type: 'boolean', required: true },
     { id: 'authorizeRevenue', label: 'I authorize ACS to send my program completion notice to the Missouri Department of Revenue (DOR) — the basis for reinstating my driving privileges.', type: 'boolean', required: true },
     { id: 'courtInfo.name', label: 'Court name/agency', type: 'text', required: false },

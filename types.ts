@@ -371,7 +371,8 @@ interface ContactInfo { name: string; address: string; city: string; state: stri
 
 export interface AuthorizationForReleaseData {
   clientName: string;
-  clientEmail: string;
+  // clientEmail REMOVED 2026-08-02 (David: "DELETE email field"). Legacy committed
+  // rows may still carry the key; PrintPreview's fixed header reads it directly.
   authorizeDMH: boolean;
   authorizeRevenue: boolean;
   courtInfo: ContactInfo;
