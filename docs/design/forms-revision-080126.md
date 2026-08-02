@@ -801,7 +801,52 @@ API to require, detect, or even observe which driver was used. This is documenta
 training, not something a future change can close. Worth stating plainly to ACS rather
 than leaving as tribal knowledge.
 
-#### 10e-2. OPEN — the stray pink glyph
+#### 10e-2. CLOSED — the stray pink glyph was leaked app chrome
+
+**Identified 2026-08-02. Fixed by `62a5709`, which had already shipped for other
+reasons. What changed was the EVIDENCE, not the code.**
+
+**Page 2 was never part of the record.** The image count settles it. The printed PDF
+carries **one** image on page 1 and **three** on page 2. `PrintPreview` references
+exactly one image (the logomark) — consistent with page 1 being the record. The
+application shell carries exactly **three** persistent images:
+
+1. `/branding/acs-logo.svg` — sidebar (`AcsTherapyHubLogo`)
+2. `/branding/clara.png` — header (`CLARA_AVATAR_URL`)
+3. the `ui-avatars.com` PNG — header user avatar
+
+Three for three. The Emergency Contact record fit on **one** page; page 2 was the app
+UI, and the pink glyph is one lucide icon inside it.
+
+**Mechanism:** page 1 rasterised while `print-record-only` was applied, then
+`printRecord`'s `finally` removed the class mid-capture, `#root` became visible, and
+the remaining page rasterised as app chrome. That is precisely the race `62a5709`
+fixed by holding the class until `afterprint`.
+
+**The fix was correctly NOT credited when it shipped**, and that distinction is worth
+preserving. At the time, the honest position was "this is a real race worth fixing on
+its own merits, but it is NOT confirmed as the cause of the glyph" — and the leading
+hypothesis was actively argued against, on the reasoning that a reappearing `#root`
+should have produced far more than a single icon. That reasoning was sound and the
+conclusion was still wrong: the record was one page, so the leak had only one page of
+chrome to show. **The code did not change between "unconfirmed" and "closed"; only the
+evidence did.** Claiming the fix at the time would have been right by luck, and would
+have taught the next reader that a plausible mechanism is proof.
+
+**Two corrections of record.** The glyph was first identified as the ACS logomark on
+the reasoning that `#C62828` was the document's only colour source — wrong; it is
+`#FEB3B3`. The driver explanation was then over-weighted after `10e-1` proved PScript5
+was mangling fonts — also wrong; that was a real artifact, but a different one.
+
+**Not claimed:** the specific icon is unnamed. The page was identified, not the glyph.
+Naming it needs the PDF's image extraction and does not change the remedy — removing
+page 2 removes the glyph. **Verification: reprint on the live build; page 2 should be
+absent entirely.**
+
+<details>
+<summary>Original report, retained for the record</summary>
+
+#### 10e-2 (original). OPEN — the stray pink glyph
 
 Confirmed at high resolution: a small pink/red icon glyph in the **left margin beside the
 DATE label on page 2**. No icon belongs in the record layout.
@@ -841,6 +886,36 @@ PDF** rather than the Adobe driver. If the glyph disappears, cause (2) — a dri
 artifact, closable only by the same staff guidance as 10e-1. If it persists on the fixed
 build, cause (1) is refuted too and the layout needs direct inspection under print
 emulation.
+
+</details>
+
+### 10f. A value gate and a reachability gate are different things
+
+**Logged 2026-08-02 after the same failure shape landed twice.**
+
+Both incidents share a structure worth naming, because on this host **a missing static
+asset does not fail loudly — it fails by looking fine.** `firebase.json` rewrites `**`
+to `/index.html` and Firebase consults rewrites only when no static file matched, so a
+file that was never deployed answers **HTTP 200 with the SPA shell**, not a 404.
+
+| Incident | The value was correct | …but |
+|---|---|---|
+| PDF twins (§9a, gate 4) | `pdfSlug` named the right file | a typo'd or missing PDF served the app instead — anticipated in advance, which is why gate 4 exists |
+| `manifest.json` (`832da5c`) | `theme_color` was `#C62828`, asserted green by `check:brand` | the file sat at the repo root, was never copied into `dist/`, and had **never been served at all** |
+
+The second one is the sharper lesson: **a gate was diligently verifying a literal inside
+a file no browser ever fetched.** Value correctness and reachability are independent
+properties, and asserting the first says nothing about the second. `check:brand` now has
+two modes — values + source placement before the build, real `dist/` presence after it.
+
+**The generalisable rule: for anything served as a static asset, assert that it SHIPS,
+not merely that its contents are right.** The corollary is that this cannot be checked
+before the build, so any such gate needs a post-build step — which is why the deploy
+chain is now six stages rather than five.
+
+Worth applying next to: the `/branding/*` assets (referenced by `PrintPreview`,
+`PortalLayout`, `MobileDrawer` and others — a missing logomark would print a broken
+image and no gate would see it) and `public/sw.js`.
 
 ## 11. Decisions taken, and what's still open
 
