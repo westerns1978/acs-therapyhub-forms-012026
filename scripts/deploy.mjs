@@ -71,7 +71,14 @@ run('checking form integrity (npm run check:forms)', 'npm', ['run', 'check:forms
 // 4. Build. Must succeed, or we never reach the upload.
 run('building dist/ from the current working tree', 'npm', ['run', 'build']);
 
-// 5. Deploy. The predeploy guard re-checks DEPLOY_TARGET + firebase.json.
+// 5. Reachability, POST-BUILD. Value correctness and reachability are different
+//    properties: check:brand above verified a hex inside manifest.json for five
+//    days while that file was never served at all (repo root, not public/, so Vite
+//    never copied it and Firebase answered /manifest.json with the SPA shell at
+//    HTTP 200). Only a built dist/ can answer "does this actually ship".
+run('verifying built assets are reachable (check:brand --dist)', 'node', ['scripts/brandConsistencyCheck.mjs', '--dist']);
+
+// 6. Deploy. The predeploy guard re-checks DEPLOY_TARGET + firebase.json.
 run(`deploying to hosting:${SITE}`, 'npx', ['firebase', 'deploy', '--only', `hosting:${SITE}`], {
   DEPLOY_TARGET: SITE,
 });
