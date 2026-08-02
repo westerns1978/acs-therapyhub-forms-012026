@@ -360,6 +360,8 @@ export interface SatopChecklistData {
   checklist: {
     clientRights: boolean; grievanceProcedure: boolean; confidentiality: boolean;
     hoursAndAppointments: boolean; crisisProcedures: boolean; programRules: boolean;
+    // feesAdvised ADDED 2026-08-02 — David's circled "Add:" on the orientation markup.
+    feesAdvised: boolean;
     questionsAnswered: boolean; agreesToTreatment: boolean;
   };
   clientSignature: string;

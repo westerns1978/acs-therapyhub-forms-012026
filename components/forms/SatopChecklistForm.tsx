@@ -9,6 +9,7 @@ const initialState: SatopChecklistData = {
   checklist: {
     clientRights: false, grievanceProcedure: false, confidentiality: false,
     hoursAndAppointments: false, crisisProcedures: false, programRules: false,
+    feesAdvised: false,
     questionsAnswered: false, agreesToTreatment: false
   },
   clientSignature: '', staffSignature: '', signatureDate: new Date().toISOString().split('T')[0]
@@ -35,12 +36,12 @@ const ChecklistSection: React.FC<FormSectionProps<SatopChecklistData>> = ({ form
 
       <div className="p-8 bg-slate-50 dark:bg-slate-950/50 rounded-[2.5rem] border border-black/5 dark:border-white/5 space-y-4 shadow-inner">
         <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-6">Orientation acknowledgments</h3>
-        <Checkbox label="Client Bill of Rights received and reviewed." checked={formData.checklist.clientRights} onChange={() => toggleCheck('clientRights')} />
-        <Checkbox label="Grievance procedure reviewed." checked={formData.checklist.grievanceProcedure} onChange={() => toggleCheck('grievanceProcedure')} />
-        <Checkbox label="Confidentiality and HIPAA policies reviewed." checked={formData.checklist.confidentiality} onChange={() => toggleCheck('confidentiality')} />
+        <Checkbox label="Client Rights Explained." checked={formData.checklist.clientRights} onChange={() => toggleCheck('clientRights')} />
+        <Checkbox label="Grievance procedure explained." checked={formData.checklist.grievanceProcedure} onChange={() => toggleCheck('grievanceProcedure')} />
+        <Checkbox label="Confidentiality explained." checked={formData.checklist.confidentiality} onChange={() => toggleCheck('confidentiality')} />
         <Checkbox label="Program schedule and attendance policy accepted." checked={formData.checklist.hoursAndAppointments} onChange={() => toggleCheck('hoursAndAppointments')} />
-        <Checkbox label="Crisis response and emergency contacts reviewed." checked={formData.checklist.crisisProcedures} onChange={() => toggleCheck('crisisProcedures')} />
-        <Checkbox label="Program rules reviewed." checked={formData.checklist.programRules} onChange={() => toggleCheck('programRules')} />
+        <Checkbox label="Emergency contacts reviewed." checked={formData.checklist.crisisProcedures} onChange={() => toggleCheck('crisisProcedures')} />
+        <Checkbox label="Program rules and expectations explained." checked={formData.checklist.programRules} onChange={() => toggleCheck('programRules')} />
         <Checkbox label="All my questions were answered." checked={formData.checklist.questionsAnswered} onChange={() => toggleCheck('questionsAnswered')} />
         <Checkbox label="I agree to begin treatment." checked={formData.checklist.agreesToTreatment} onChange={() => toggleCheck('agreesToTreatment')} />
       </div>
@@ -83,12 +84,13 @@ export const SATOP_CHECKLIST_DEFINITION: FormDefinition<SatopChecklistData> = {
     { id: 'clientName', label: 'Client name', type: 'text', required: true },
     { id: 'clientEmail', label: 'Client email', type: 'email', required: false },
     { id: 'orientationDate', label: 'Orientation date', type: 'date', required: true },
-    { id: 'checklist.clientRights', label: 'Client Bill of Rights received and reviewed.', type: 'boolean', required: true },
-    { id: 'checklist.grievanceProcedure', label: 'Grievance procedure reviewed.', type: 'boolean', required: true },
-    { id: 'checklist.confidentiality', label: 'Confidentiality and HIPAA policies reviewed.', type: 'boolean', required: true },
+    { id: 'checklist.clientRights', label: 'Client Rights Explained.', type: 'boolean', required: true },
+    { id: 'checklist.grievanceProcedure', label: 'Grievance procedure explained.', type: 'boolean', required: true },
+    { id: 'checklist.confidentiality', label: 'Confidentiality explained.', type: 'boolean', required: true },
     { id: 'checklist.hoursAndAppointments', label: 'Program schedule and attendance policy accepted.', type: 'boolean', required: true },
-    { id: 'checklist.crisisProcedures', label: 'Crisis response and emergency contacts reviewed.', type: 'boolean', required: true },
-    { id: 'checklist.programRules', label: 'Program rules reviewed.', type: 'boolean', required: true },
+    { id: 'checklist.crisisProcedures', label: 'Emergency contacts reviewed.', type: 'boolean', required: true },
+    { id: 'checklist.programRules', label: 'Program rules and expectations explained.', type: 'boolean', required: true },
+    { id: 'checklist.feesAdvised', label: 'I have been advised of all fees associated with my care.', type: 'boolean', required: true },
     { id: 'checklist.questionsAnswered', label: 'All my questions were answered.', type: 'boolean', required: true },
     { id: 'checklist.agreesToTreatment', label: 'I agree to begin treatment.', type: 'boolean', required: true },
     { id: 'clientSignature', label: 'Client signature', type: 'text', required: true },
