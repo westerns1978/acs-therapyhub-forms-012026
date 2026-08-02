@@ -88,7 +88,11 @@ export const FORM_REGISTRY: FormRegistryEntry[] = [
   { id: 'late-cancellation',     title: 'Late Cancellation Policy',              category: 'Legal',     audience: 'client', requiredForCompletion: false },
   // AA/NA meeting report — client-submittable (Consent clause 7). Recurring self-help
   // count, NOT a binary gate item (deferred to a future count-criterion, like hours).
-  { id: 'meeting-report',        title: 'AA/NA Group Meeting Report',            category: 'Treatment', audience: 'client', requiredForCompletion: false },
+  // Title reconciled to the component's 2026-08-02 (was 'AA/NA Group Meeting Report'
+  // here while MeetingReportForm rendered 'Support Group Meeting Report' — the two
+  // catalogs disagreed, DEFERRED #36). David's Forms.docx calls it "Support Group
+  // Meeting Report", so the component's title is the correct one and this follows it.
+  { id: 'meeting-report',        title: 'Support Group Meeting Report',          category: 'Treatment', audience: 'client', requiredForCompletion: false },
 
   // ── Staff-authored / clinical (not portal, not gate) ───────────────────────
   { id: 'treatment-plan',        title: 'Individual Comprehensive Treatment Plan', category: 'Treatment', audience: 'staff', requiredForCompletion: false },

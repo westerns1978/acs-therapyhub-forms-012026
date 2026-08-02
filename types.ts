@@ -280,7 +280,7 @@ export interface MeetingReportData {
   meetingSubject: string;
   whatApplied: string;
   whatLearned: string;
-  chairpersonSignature: string;
+  // chairpersonSignature REMOVED 2026-08-02 (David: "DELETE Chairman Signature field").
 }
 
 export interface EmergencyContactData {

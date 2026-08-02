@@ -7,7 +7,7 @@ import { CheckboxGroup } from '../CheckboxGroup';
 const initialState: MeetingReportData = {
   clientName: '', groupName: '', location: '', dateAttended: '', timeAttended: '',
   meetingType: { aa: false, na: false, speaker: false, discussion: false, bigBook: false, step: false, open: false, closed: false },
-  meetingSubject: '', whatApplied: '', whatLearned: '', chairpersonSignature: ''
+  meetingSubject: '', whatApplied: '', whatLearned: ''
 };
 
 const ReportSection: React.FC<FormSectionProps<MeetingReportData>> = ({ formData, setFormData, errors }) => {
@@ -40,7 +40,6 @@ const ReportSection: React.FC<FormSectionProps<MeetingReportData>> = ({ formData
 
       <FormField id="whatLearned" label="What did you learn?" type="textarea" value={formData.whatLearned} onChange={handleChange} error={errors.whatLearned} />
       <FormField id="whatApplied" label="How will you apply this?" type="textarea" value={formData.whatApplied} onChange={handleChange} error={errors.whatApplied} />
-      <FormField id="chairpersonSignature" label="Chairperson signature" value={formData.chairpersonSignature} onChange={handleChange} error={errors.chairpersonSignature} />
     </div>
   );
 };
@@ -59,7 +58,6 @@ export const MEETING_REPORT_DEFINITION: FormDefinition<MeetingReportData> = {
     const errs: FormErrors<MeetingReportData> = {};
     if (!data.clientName) errs.clientName = 'Required.';
     if (!data.groupName) errs.groupName = 'Required.';
-    if (!data.chairpersonSignature) errs.chairpersonSignature = 'Signature is required.';
     return errs;
   },
   fieldDefinitions: [
@@ -71,7 +69,6 @@ export const MEETING_REPORT_DEFINITION: FormDefinition<MeetingReportData> = {
     { id: 'meetingType', label: 'Meeting type', type: 'object', required: true },
     { id: 'meetingSubject', label: 'Meeting subject', type: 'textarea', required: false },
     { id: 'whatApplied', label: 'How will you apply this?', type: 'textarea', required: true },
-    { id: 'whatLearned', label: 'What did you learn?', type: 'textarea', required: true },
-    { id: 'chairpersonSignature', label: 'Chairperson signature', type: 'text', required: true }
+    { id: 'whatLearned', label: 'What did you learn?', type: 'textarea', required: true }
   ]
 };
