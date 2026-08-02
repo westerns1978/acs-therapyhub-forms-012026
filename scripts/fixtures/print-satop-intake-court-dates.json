@@ -1,0 +1,13 @@
+{
+  "clientName": "Fixture Client L",
+  "dob": "1988-03-11",
+  "clientPhone": "555-0173",
+  "clientEmail": "fixture-l@example.invalid",
+  "caseNumber": "21SL-CR04412",
+  "offenseDate": "2026-01-18",
+  "convictionDate": "2026-03-04",
+  "programType": "12-week",
+  "referralSource": "",
+  "previousSatop": false,
+  "paymentMethod": "Self-pay"
+}

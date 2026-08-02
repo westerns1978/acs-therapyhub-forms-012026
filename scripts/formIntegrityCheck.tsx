@@ -297,6 +297,24 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     covers: 'the witness variant of the second signature block — a different heading ("Witness Acknowledgment") than the staff variant, so it is a distinct branch',
   },
   {
+    // Phase 1d. The last two live forms without print coverage. satop-intake is out of
+    // scope for David's revisions (Dan's D2) but still assignable and still printing;
+    // late-cancellation is client-facing. Neither was guarded while three print defects
+    // were found and fixed around them.
+    slug: 'satop-intake (court dates + boolean false)',
+    def: SATOP_INTAKE_DEFINITION,
+    data: 'scripts/fixtures/print-satop-intake-court-dates.json',
+    baseline: 'scripts/fixtures/printpreview-satop-intake-court-dates.baseline.html',
+    covers: 'offence/conviction dates and a court case number on a committed record; previousSatop=false pinning that a required boolean answered FALSE prints "No" rather than reading as unanswered; an empty optional referralSource as N/A',
+  },
+  {
+    slug: 'late-cancellation (fee policy acknowledgement)',
+    def: LATE_CANCELLATION_DEFINITION,
+    data: 'scripts/fixtures/print-late-cancellation-fee-policy.json',
+    baseline: 'scripts/fixtures/printpreview-late-cancellation-fee-policy.baseline.html',
+    covers: 'the $40 late-cancellation policy text, which is INTERPOLATED from LATE_CANCELLATION_FEE — so a change to that constant moves this baseline and cannot silently alter what a client is shown to have agreed to',
+  },
+  {
     // Phase 1c. The last CERT-GATE form without print coverage. Its seven
     // acknowledgements are the 42 CFR Part 2 / telehealth disclosures, so what this
     // record prints is the evidence the client was informed — and it went through a
