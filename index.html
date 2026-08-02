@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src *;">
     <title>ACS TherapyHub</title>
-    <meta name="theme-color" content="#7A222E" />
+    <!-- Blessed static copy of BRAND.DEFAULT — a <meta> cannot read the JS object
+         below. Keep in step with it (and with manifest.json theme_color). -->
+    <meta name="theme-color" content="#C62828" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="TherapyHub">
@@ -38,24 +40,44 @@
        * touch the status ramps below, because status meaning is not tenant-specific.
        * The focus-visible ring in /index.css is brand too and swaps with it.
        * ══════════════════════════════════════════════════════════════════════ */
-      /* THE RED BUDGET (2026-07-28) — three reds, one job each:
-       *   MARK   — the ACS logo vermillion. Lives in the logo ASSET only, never a
-       *            UI color, never restyled from here.
-       *   BRAND  — below. Muted, slightly COOLER than the logo: buttons, active
-       *            nav, links, focus ring. What Attesta overrides.
-       *   DANGER — the BRICK ramp in the STATUS block: warmer/hotter than brand,
-       *            violations and critical ONLY.
-       * Role separation is enforced in component code: BRAND never renders as a
-       * status rule/dot/badge; DANGER never renders on a button or nav item.
-       * The old BRAND #7A222E sat 11° of hue from danger #9A3324 at near-equal
-       * lightness — the sidebar active state and the violations rule read as the
-       * SAME red, so a violation looked like branding. */
+      /* THE RED BUDGET (rewritten 2026-08-02) — two reds, one job each:
+       *   BRAND  — #C62828, the ACS mark red. Buttons, active nav, links, focus
+       *            ring, AND the logomark: they are the SAME red on purpose.
+       *            What Attesta overrides.
+       *   DANGER — the BRICK ramp in the STATUS block (#A63A22): violations and
+       *            critical ONLY.
+       *
+       * WHY THIS REPLACED THE 2026-07-28 VERSION. That block asserted the logo
+       * vermillion "lives in the logo ASSET only, never a UI color" and set BRAND
+       * to a cooler, darker burgundy (#7A222E) derived from that rule. The premise
+       * was false when written: stlacs.com uses #C62828 as its primary UI color
+       * today — CTA buttons, the phone button, the nav treatment. The client
+       * already treats the mark red as a UI red. The website is the brand
+       * authority; the red budget was an internal design opinion that contradicted
+       * it, so the budget lost. Our own /branding/acs-logomark.svg carries
+       * fill="#C62828" and was always correct — the UI tokens had drifted off it.
+       *
+       * SEPARATION IS BY ROLE, NOT BY HUE DISTANCE. Enforced in component code:
+       * BRAND never renders as a status rule/dot/badge; DANGER never renders on a
+       * button or nav item. Do not "fix" a perceived clash by re-tinting either
+       * one — check the call site's role instead.
+       *
+       * RESIDUAL RISK, STATED NOT HIDDEN: BRAND #C62828 sits ~11° of hue from
+       * DANGER #A63A22 — the same gap the old comment flagged as confusable. That
+       * flag described a pair at near-equal LIGHTNESS AND CHROMA; this pair differs
+       * strongly in both (brand is markedly brighter and more saturated), so it is
+       * a different failure mode than the one that produced "a violation looked
+       * like branding". The risk is not zero and is accepted deliberately.
+       *
+       * CONTRAST: white on #C62828 is 5.6:1 — AA at every text size, not AAA.
+       * AAA on button fills was never a requirement here, and ACS ships exactly
+       * this contrast on their own site. */
       const BRAND = {
-        DEFAULT: '#7A222E',   // deep burgundy — cooler + darker than the logo mark
-        focus:   '#611B25',   // pressed / hover-darken
-        content: '#FFFFFF',   // text on brand
-        dark:    '#D999A1',   // warm rose — legible on the warm-charcoal dark surfaces
-        darkFocus: '#C9808A',
+        DEFAULT: '#C62828',   // the ACS mark red — matches acs-logomark.svg + stlacs.com
+        focus:   '#B71C1C',   // pressed / hover-darken
+        content: '#FFFFFF',   // text on brand (5.6:1 on DEFAULT — AA)
+        dark:    '#E57373',   // legible on the warm-charcoal dark surfaces (4.7:1 on raised #2C2B29)
+        darkFocus: '#EF5350',
       };
       // Single source for CSS too (the /index.css focus ring reads these vars) —
       // no brand hex may live outside this block.
@@ -90,10 +112,13 @@
        * default blue, free to keep doing non-status work. The status system has
        * no "info" hue: actionable states take BRAND, passive states take NEUTRAL.
        * ══════════════════════════════════════════════════════════════════════ */
-      // DANGER — warmed one step past the old brick (600 #9A3324 → #A63A22) so it
-      // separates from BRAND #7A222E on BOTH axes: ~20° of hue and a full
-      // lightness step. Still clearly redder + darker than the HIGH-tier
-      // terracotta (#9C5A2B) — verified side-by-side before shipping.
+      // DANGER — warmed one step past the old brick (600 #9A3324 → #A63A22).
+      // NOTE (2026-08-02): the "~20° of hue from BRAND" this comment used to claim
+      // described the retired burgundy #7A222E. Against the current BRAND #C62828
+      // the gap is ~11° of hue; separation now rests on lightness + chroma and on
+      // ROLE enforcement in component code, not on hue distance. See the RED BUDGET
+      // block above — do not re-tint either red to widen the gap.
+      // Still clearly redder + darker than the HIGH-tier terracotta (#9C5A2B).
       // 400 lightened for K1 (#CB7A5F measured 4.37:1 on the raised dark card #2C2B29).
       const BRICK = { 50:'#FBF3F0', 100:'#F6E3DD', 200:'#ECC7BC', 300:'#DDA28F', 400:'#D08163', 500:'#B95A3D', 600:'#A63A22', 700:'#8B2F1B', 800:'#712818', 900:'#5A2215', 950:'#31110A' };
       // 600/700 darkened when the page warmed (#A16207 measured 4.12:1 on the old
