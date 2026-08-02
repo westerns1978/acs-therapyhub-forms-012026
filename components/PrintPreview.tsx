@@ -13,6 +13,25 @@ interface PrintPreviewProps {
   committedAt?: string | Date;
 }
 
+/**
+ * Field ids the ATTESTATION BLOCKS at the foot of the document render. They are
+ * skipped in the field loop so a signature appears ONCE, as a signature — previously
+ * every signature printed TWICE, once as an ordinary answer row and again in its
+ * block (verified on telehealth-consent for staff and hipaa-ack for the client).
+ *
+ * SAFETY DEPENDS ON THIS LIST MATCHING THE BLOCK GATES BELOW. Every id here must be
+ * rendered by a block; an id skipped here but missing from the gates would DISAPPEAR
+ * from the printed record entirely. That is why adding a sixth name for "signature"
+ * is now a two-place change — see the counter-signature note further down.
+ *
+ * Dates are deliberately absent: signatureDate / clientDate / counselorDate are data,
+ * not signatures, and keep printing as ordinary rows.
+ */
+const SIGNATURE_FIELD_IDS = new Set([
+  'signature', 'clientSignature',                                    // client block
+  'staffSignature', 'counselorSignature', 'therapistSignature', 'witnessSignature', // counter block
+]);
+
 const PrintField: React.FC<{ label: string; value: any, type?: string, options?: { value: string; label: string }[] }> = ({ label, value, type, options }) => {
   // Display-only prose prints as the paragraph it is — no label chrome, no value
   // row, no "N/A". This is document text (Consent's numbered narrative clauses),
@@ -120,6 +139,8 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
       <div className="space-y-6">
         {formDefinition.fieldDefinitions.map(field => {
           if (field.id === 'clientName' || field.id === 'clientEmail') return null;
+          // Rendered by the attestation blocks at the foot of the document, not here.
+          if (SIGNATURE_FIELD_IDS.has(field.id)) return null;
           {/* SAME resolver as the live renderer (config/fieldPath.ts) — if these
               ever diverge, a committed record can render differently from what
               the client saw and signed. Literal-first keeps legacy flat-dotted
