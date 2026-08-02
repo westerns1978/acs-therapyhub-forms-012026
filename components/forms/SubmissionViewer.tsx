@@ -187,6 +187,21 @@ export interface PrintAuditContext {
  *   - the in-session pre-commit print in BaseFormTemplate (a draft; no submission
  *     id exists yet, so there is nothing to attribute).
  */
+/**
+ * Normalise a timestamp to ISO 8601 for the audit ledger. Done HERE, at the
+ * chokepoint, rather than at the call sites — the two callers were already
+ * disagreeing (ClientFormsTab passed String(Date), yielding the locale-bearing
+ * "Sat Aug 01 2026 18:15:02 GMT-0500 (Central Daylight Time)"; ClientSubmissionsPanel
+ * passed Supabase's raw ISO string), which put two formats in one append-only column.
+ * Normalising at the boundary means a third caller cannot reintroduce the split.
+ * Unparseable input stores null rather than a garbage string.
+ */
+const toIsoOrNull = (v?: string | null): string | null => {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+};
+
 export const printRecord = (ctx?: PrintAuditContext) => {
   if (ctx?.submissionId) {
     // Resolve the actor, then write. Not awaited — see the ordering note above.
@@ -202,7 +217,7 @@ export const printRecord = (ctx?: PrintAuditContext) => {
           client_id: ctx.clientId ?? null,
           form_id: ctx.formId ?? null,
           form_name: ctx.formName ?? null,
-          committed_at: ctx.committedAt ?? null,
+          committed_at: toIsoOrNull(ctx.committedAt),
           // Explicit rather than implied by the chokepoint: if a fresh-commit print
           // path is ever instrumented, this field already discriminates the two.
           reprint: true,
@@ -210,10 +225,42 @@ export const printRecord = (ctx?: PrintAuditContext) => {
       });
     });
   }
+
+  /**
+   * HOLD THE ISOLATION CLASS UNTIL THE BROWSER SAYS PRINTING IS DONE.
+   *
+   * This used to be `try { window.print() } finally { remove() }`. That assumes
+   * window.print() blocks until rasterisation completes. It does not always: on the
+   * Save-as-PDF path the call can return while the page is still being captured, so
+   * the class came off mid-capture, `#root` became visible again, and app chrome could
+   * land on the printed page. `afterprint` is the event that actually means "the print
+   * pipeline is finished with the document".
+   *
+   * RISK IF `afterprint` NEVER FIRES: the class would stick. Two things bound that.
+   * First, the blast radius is small — every rule keyed on `print-record-only` lives
+   * inside `@media print` (public/index.css), so a stuck class has NO on-screen effect
+   * whatsoever; the only consequence is that a later browser-native Ctrl+P would print
+   * the record instead of the page. Second, the 60s failsafe below removes it anyway.
+   * `cleanup` is idempotent and detaches its own listener, so whichever path runs first
+   * wins and the other is a no-op.
+   */
   document.body.classList.add('print-record-only');
+  let done = false;
+  let failsafe = 0;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    window.clearTimeout(failsafe);
+    window.removeEventListener('afterprint', cleanup);
+    document.body.classList.remove('print-record-only');
+  };
+  window.addEventListener('afterprint', cleanup);
+  failsafe = window.setTimeout(cleanup, 60_000);
+
   try {
     window.print();
-  } finally {
-    document.body.classList.remove('print-record-only');
+  } catch {
+    // print() itself threw (blocked/unsupported) — afterprint will never fire.
+    cleanup();
   }
 };
