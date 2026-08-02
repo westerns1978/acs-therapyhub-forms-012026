@@ -496,13 +496,24 @@ recorded as §10b. **⚠️ But it is NOT yet confirmed working in production �
 live test on 2026-08-01 produced zero audit rows from two prints.** Do not treat reprint
 provenance as answerable until §10c is resolved.
 
-**Live confirmation of the §10a fix itself is PENDING (next-day reprint).** The record
-used for the live test (Bela Lugosi, `emergency-contact`, submission
-`725cc235-afa5-455c-ac47-61f6b2dcaebb`) was committed 2026-08-01 23:15 UTC and reprinted
-the same day. A same-day reprint **cannot distinguish the fixed code from the buggy
-code**: `committedAt` and `new Date()` are both today, so both versions render identical
-dates. Backdating `submitted_at` was explicitly declined — the record is not to be
-mutated. A reprint on 2026-08-02 or later is the live check.
+**Live confirmation of the §10a fix itself is PENDING, and the 2026-08-01 attempt did not
+exercise it at all.** Two separate reasons, both now understood:
+
+1. **The signature block never rendered.** The witness signature was left blank on the
+   test submission, and that block is gated on `staffSignature || witnessSignature` being
+   truthy — so `SYSTEM TIMESTAMPED`, the line the fix changes, **was not printed**. The
+   test could not have confirmed or refuted anything.
+2. **Same-day reprint cannot distinguish fixed from buggy** even when the block does
+   render: `committedAt` and `new Date()` are both today, so both versions emit identical
+   dates — the same masking that made the `committedAt` fixture necessary.
+
+The record (Bela Lugosi, `emergency-contact`,
+`725cc235-afa5-455c-ac47-61f6b2dcaebb`) was committed 2026-08-01 23:15 UTC. Backdating
+`submitted_at` was explicitly declined — the record is not to be mutated.
+
+**The live check therefore requires BOTH conditions: a reprint on 2026-08-02 or later,
+AND a witness or staff signature filled in** so the block renders. Either alone proves
+nothing.
 
 **Until then the `committedAt` fixture is the authoritative proof.**
 `printpreview-consent-treatment-reprint-committedat` pins a record date (2026-05-11)
@@ -603,7 +614,54 @@ request becomes an auditable server event) or accepting that the ledger covers
 The second is the honest, cheap position and is what the system claims today.
 
 
-### 10c. OPEN DEFECT — `form.printed` wrote nothing in production
+### 10c. RESOLVED — `form.printed` wrote nothing in production (stale bundle)
+
+**Found 2026-08-01, resolved 2026-08-02. Root cause: a stale loaded SPA bundle — not a
+code defect.** Hypothesis 1 confirmed: after a hard reload (Ctrl+Shift+R), a print from
+the Client Forms tab wrote the expected row immediately:
+
+```
+id          8c45c261-32f7-41a6-b542-e1f550d3cb3f
+user_id     cbb1da1e-9043-43bd-ab31-31132b898d20      populated, staff actor
+entity_id   725cc235-afa5-455c-ac47-61f6b2dcaebb      correct submission
+details     { form_id: "emergency-contact", client_id: "43f6a849-…",
+              form_name: "Emergency Contact", reprint: true,
+              committed_at: "Sat Aug 01 2026 18:15:02 GMT-0500 (Central Daylight Time)" }
+created_at  2026-08-02 00:16:43.644+00
+```
+
+`user_id`, `entity_id`, and four of five `details` keys are exactly as intended. Two
+notes below.
+
+**⚠️ THIS WILL RECUR ON EVERY DEPLOY, and nothing currently prevents it.** A tab opened
+before a deploy keeps running the old JS forever: `index.html` is `no-cache` but a
+*loaded* SPA never re-fetches it, asset filenames are content-hashed so the old chunks
+stay valid, and `public/sw.js` is a deliberate kill-switch (it unregisters and clears
+caches — it does not check for new versions). There is **no** version check, no update
+banner, no forced reload. The practical consequence is not limited to audit: any user
+with a tab open across a deploy is running old code with no signal, and the first
+symptom here was a *silently missing compliance record*. Worth a version-check + "a new
+version is available, reload" prompt before ACS is doing real work in long-lived tabs.
+
+**⚠️ `details.committed_at` is stored in the wrong format — NEW DEFECT, not fixed.**
+It reads `"Sat Aug 01 2026 18:15:02 GMT-0500 (Central Daylight Time)"` — a JS
+`Date.toString()`, not ISO 8601. Cause: `ClientFormsTab` passes
+`String(submission.submittedAt)` where `submittedAt` is a `Date`
+([ClientFormsTab.tsx:234](../../components/clients/ClientFormsTab.tsx)), so `String()`
+yields the locale/timezone-formatted human string. **The two call sites disagree:**
+`ClientSubmissionsPanel` passes `selectedSubmission.submitted_at`, a raw ISO string from
+Supabase, so the same field would be stored in a different format depending on which
+button was used. In an append-only ledger that is not sortable, not comparable, and
+embeds the printing machine's locale. Fix is to normalize to ISO at the boundary; the
+rows already written cannot be corrected (no UPDATE policy, by design).
+
+**Still unverified live: the `ClientSubmissionsPanel` call site.** It has never produced
+a row — the only successful print came from `ClientFormsTab`. Its instrumentation is
+identical in shape, but "identical in shape" is what was believed about both sites
+before the first test returned zero.
+
+<details>
+<summary>Original report, retained for the record</summary>
 
 **Found 2026-08-01 by live test. Not diagnosed to root cause; NOT fixed in this pass.**
 
@@ -648,6 +706,66 @@ reconciliation. Worth deciding when 10c is fixed, not later.
 
 **Consequence:** §10a's audit-gap closure is provisional. Print provenance is NOT yet
 answerable in production.
+
+</details>
+
+### 10d. OPEN — no guard covers print CSS, fonts, or pagination
+
+**Logged 2026-08-02 after garbled output was found on a live printed PDF (§10e).**
+
+Gate 3's fixtures compare `renderToStaticMarkup` output — an **HTML string**. That is a
+genuinely strong guard for *what content is emitted*, and it caught a real 290-char
+regression. But it is structurally blind to everything that happens after HTML:
+
+| Not covered | Why the fixtures cannot see it |
+|---|---|
+| `@media print` rules (`public/index.css`) | No CSS is ever applied; the fixture is unstyled markup |
+| Font loading, embedding, substitution | No font engine, no rasterization |
+| Pagination / page breaks / `@page` margins | No layout engine; the fixture has no pages |
+| Print isolation (`print-record-only` toggling `#root` vs `#record-print-root`) | Depends on a runtime class toggle and CSS, neither of which exists in a string render |
+| Anything in the browser's print pipeline | Out of process entirely |
+
+**So a defect that makes a court-bound document unreadable can ship with every gate
+green** — which is exactly what happened in §10e. This is not a gap in the fixtures'
+execution; it is the boundary of the technique.
+
+Closing it needs a different instrument: a headless-Chrome print-to-PDF of a known
+record, compared against a reference (text extraction for content, or a rasterized
+image diff for layout). That is a real piece of infrastructure — a browser in CI — and
+should be scoped deliberately rather than bolted on. Until it exists, **print output is
+verified by a human looking at a PDF, and that fact should be stated rather than
+assumed.**
+
+### 10e. OPEN DEFECT — garbled text on printed output (UNDER INVESTIGATION)
+
+**Reported 2026-08-02 from a live print. Root cause NOT established; nothing changed.**
+
+Symptoms on the printed PDF of Bela Lugosi's Emergency Contact record:
+- a block of unreadable mojibake at the bottom of **both** pages,
+- a stray **pink** icon glyph beside the DATE label on page 2.
+
+This reaches courts and probation officers, so it is treated as severity-high.
+
+**What the source rules out.** The record layout itself cannot produce either symptom:
+`PrintPreview` renders text, one `<img>`, and no icons or emoji at all — verifiable in
+the committed fixture baselines. The print-isolation CSS is also correct as written
+(`#record-print-root { display: none }` at rest; in print with `print-record-only`,
+`#root` hidden and the portal shown). No `@font-face` or icon font is declared in
+`public/index.css` or `index.html`.
+
+**Leading hypothesis: print isolation released too early, so the APP printed rather than
+(or alongside) the record.** `printRecord()` removes `print-record-only` in a `finally`
+immediately after `window.print()`. If `window.print()` returns before rasterization —
+which it can, notably on the Save-as-PDF path — the class is gone while the page is
+still being captured, `#root` becomes visible again, and app chrome is what lands on
+paper. This would explain a *pink lucide icon* (there are none in the record layout, many
+in the app) and repeating page-bottom content. It does not yet explain mojibake
+specifically, which is why this is a hypothesis and not a finding.
+
+**Not diagnosable from source alone.** Confirming it needs the artifact: the PDF itself,
+or the browser's print preview with `print-record-only` held on. Requested from Dan.
+Recording the hypothesis here so it is not silently re-derived, and to keep it clearly
+marked as unconfirmed.
 
 ## 11. Decisions taken, and what's still open
 
