@@ -808,6 +808,45 @@ Fixed in `bb08a4c` (render the email row only when a value is present; Client Na
 stays unconditional by deliberate asymmetry — see §11 and the comment at the render
 site). Coverage raised from 8 fixtures to 11 in `68f6898`.
 
+### 10d-ii. Sparse-vs-complete is a coverage dimension, independent of form count
+
+**Established 2026-08-02 by building one deliberately sparse fixture (`196bd81`).**
+
+Fixture coverage was being counted in one dimension — *how many forms are pinned*. That
+number can rise indefinitely without buying any coverage of what an **incompletely
+filled** record prints, because fixture data authored alongside a form is naturally
+**complete**: populating every field is the natural way to write an example. Twelve
+fully-populated fixtures across ten forms had **zero** coverage of absent-value paths.
+
+The two dimensions are independent:
+
+| | Complete data | Sparse data |
+|---|---|---|
+| **Pins** | every row populated; labels, values, ordering | N/A rows, omitted rows, absent blocks, hidden-and-empty conditionals |
+| **Blind to** | anything that only appears when a value is missing | nothing about how a full record reads |
+
+**Adding more fully-populated fixtures does not move the second column.** That is not a
+theory — it is what happened twice:
+
+1. The `CLIENT EMAIL / N/A` header defect (§10d-i) shipped to printed clinical records
+   with every gate green. Eight fixtures existed. None was sparse in the one place that
+   mattered, and it was caught by accident.
+2. Building the first deliberately sparse fixture immediately exposed **two more**
+   defects that twelve complete fixtures had not: each CRP question printing four times
+   (`02a2993` — a fixture built one phase earlier had pinned that output without anyone
+   noticing, including the author) and counselor signatures rendering as plain text
+   rows (`950d357`).
+
+**The practical rule: a form's coverage is not "has a fixture" but "has a fixture at
+each end of its fill spectrum"** — at minimum for forms with many optional fields.
+`recovery-plan` (13 of 44 optional) now has both; every other form has only the
+complete end.
+
+**Order matters when a sparse fixture finds something.** Both defects above were fixed
+*before* the sparse baseline was committed. A fixture that pins bad output is worse than
+no fixture: it converts a defect into an expectation, and the next person to see the
+output assumes it was intended. Establish the render is *correct*, then pin it.
+
 ### 10e. Printed-output findings — one operational, one still open
 
 **Reported 2026-08-02 from a live print; PDF analysed by Dan. The two symptoms turned
@@ -1022,6 +1061,20 @@ recording their group schedule?
 2026-08-02 (`bb08a4c`), no input needed.** David said delete the field and it still
 printed; that is a defect, not a question. The email row now renders only when a value
 is present. Client Name deliberately stays unconditional. Gap class recorded as §10d-i.
+
+**D-i. Every signature prints TWICE on the committed record.** Once as an ordinary
+field row from `fieldDefinitions`, and again in the attestation block — verified on
+telehealth-consent ("Staff signature: Fixture QMHP" *and* "Staff Verification") and on
+hipaa-ack for the client side. Pre-existing, systemic, and affects both the client and
+counter signatures on essentially every form. Fixing it means skipping signature fields
+in the print loop, which moves ~12 baselines and is a print-layout decision rather than
+a defect fix — so it was reported, not changed, during 1c.
+
+**D-j. Four field names mean "counter-signature".** `staffSignature`,
+`counselorSignature`, `therapistSignature`, `witnessSignature` across seven forms. The
+rendering asymmetry this caused is fixed (`950d357`), but consolidating the ids is a
+data-shape change touching every definition, its type, and every committed row. Worth
+doing deliberately rather than at the next place it bites.
 
 **D-h. Meeting type prints raw storage keys on the committed record.** The Support
 Group Meeting Report shows `aa, discussion, bigBook, open` where it should read
