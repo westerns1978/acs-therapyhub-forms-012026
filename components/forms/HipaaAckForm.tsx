@@ -27,7 +27,7 @@ export const HIPAA_ACK_DEFINITION: FormDefinition<HipaaAckData> = {
   },
   fieldDefinitions: [
     { id: 'clientName', label: 'Client name', type: 'text', required: true },
-    { id: 'acknowledgesNotice', label: 'I acknowledge that I have received ACS’s HIPAA Notice of Privacy Practices, with an effective date of January 2025.', type: 'boolean', required: true },
+    { id: 'acknowledgesNotice', label: 'I acknowledge that I have received or been advised of ACS’s HIPAA Notice of Privacy Practices.', type: 'boolean', required: true },
     { id: 'clientSignature', label: 'Client signature (type your full legal name)', type: 'text', required: true },
     { id: 'signatureDate', label: 'Date', type: 'date', required: false },
   ],
