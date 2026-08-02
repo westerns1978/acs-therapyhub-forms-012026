@@ -347,6 +347,27 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     covers: 'the R·R·R·O numbered-line pattern across 7 questions; visibleWhen VISIBLE (clearOnDosing shown because prescribedMedications=true); a `static` field on a committed record; empty optional lines rendering as N/A',
   },
   {
+    // THE SPARSE FIXTURE (Phase 1c). Deliberately populates ONLY required fields —
+    // every optional one is empty. This is a COVERAGE AXIS, not a second example of
+    // the same form: §10d-i established that fixture data authored alongside a form is
+    // naturally COMPLETE, and complete data cannot exercise absent-value paths. The
+    // "CLIENT EMAIL / N/A" defect shipped precisely because no fixture was sparse in
+    // the right place, and was caught only by accident.
+    //
+    // recovery-plan is the right carrier: 13 of its 44 fields are optional (the highest
+    // in the catalog), a minimally-completed plan is the LIKELIEST real record, and it
+    // is the very document David's revisions exist to stop being one-word thin.
+    //
+    // prescribedMedications=false makes clearOnDosing hidden AND empty — the
+    // visibleWhen branch no other fixture reaches (discharge-summary covers visible,
+    // and hidden-with-a-legacy-value, but not hidden-and-genuinely-empty).
+    slug: 'recovery-plan (SPARSE — required fields only)',
+    def: RECOVERY_PLAN_DEFINITION,
+    data: 'scripts/fixtures/print-recovery-plan-sparse-minimum.json',
+    baseline: 'scripts/fixtures/printpreview-recovery-plan-sparse-minimum.baseline.html',
+    covers: 'what a MINIMALLY-completed record prints: 7 empty optional lines and 6 empty referral fields as N/A, and a hidden-and-empty conditional (clearOnDosing) correctly not printing at all',
+  },
+  {
     // THE §10a REGRESSION GUARD. committedAt is deliberately a DIFFERENT instant from
     // the frozen clock (2026-05-11 vs the harness's 2026-07-16), which is the only way
     // to tell a correct render from the bug: when both dates are "now" they are
