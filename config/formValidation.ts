@@ -20,6 +20,7 @@
 import type { FieldDefinition } from '../types';
 import { resolveFieldValue } from './fieldPath';
 import { isFieldVisible } from './fieldVisibility';
+import { editorKindFor } from './fieldInput';
 
 export const requiredFieldErrors = (
   fieldDefinitions: FieldDefinition[],
@@ -74,6 +75,76 @@ export const requiredFieldErrors = (
         empty = String(v ?? '').trim() === '';
     }
     if (empty) errs[field.id] = 'Required.';
+  }
+  return errs;
+};
+
+/**
+ * Generic min/max enforcement, derived from fieldDefinitions[].min / .max —
+ * P0/D2 (2026-08-02). Composed in BaseFormTemplate.handleSubmit alongside
+ * requiredFieldErrors, BEFORE the form's own validateStep, so validateStep can
+ * still override the message but can no longer be the only thing standing
+ * between a declared constraint and the database.
+ *
+ * WHY THIS EXISTS. `authorization-release` declared
+ * `{ id:'ssn', label:'SSN (last 4 digits)', type:'text', min:4, max:4 }` and
+ * stored a full nine-digit SSN. Nothing enforced it:
+ *
+ *   • the renderer passed min/max through to the <input>, where they are INERT
+ *     on type="text" — they apply only to number/date/range (hence the measured
+ *     `maxLength = -1`);
+ *   • BaseFormTemplate has no <form> element and submits from onClick, so native
+ *     constraint validation never runs for anything;
+ *   • the form's own rule was a floor (`length < 4`), which nine digits passes.
+ *
+ * So the label promised last-4 and the record kept the whole identifier, on a
+ * 42 CFR Part 2 chart. See docs/qa/e2e-smoke-2026-08.md, D-5.
+ *
+ * THE TYPE RULE: min/max mean STRING LENGTH on the text family (text, textarea,
+ * tel, email, password, date) and VALUE BOUNDS on the numeric family (number,
+ * rating). Same declaration, different meaning per editor — which is why this
+ * reads the editor family from the one shared source (config/fieldInput.ts)
+ * rather than re-deciding it.
+ *
+ * REJECT, NEVER TRUNCATE. A client typing nine digits is told; their input is
+ * not silently edited underneath them.
+ */
+export const lengthFieldErrors = (
+  fieldDefinitions: FieldDefinition[],
+  data: any,
+): Record<string, string> => {
+  const errs: Record<string, string> = {};
+  for (const field of fieldDefinitions) {
+    if (field.type === 'static') continue;
+    if (field.min == null && field.max == null) continue;
+    if (!isFieldVisible(field, data)) continue;
+
+    const v = resolveFieldValue(data, field.id);
+    const kind = editorKindFor(field, v);
+
+    if (kind === 'numeric') {
+      // Bounds. Required-ness (and the rating floor) is requiredFieldErrors' job;
+      // this adds the ceiling nothing enforced, and the floor for optional answers.
+      if (typeof v !== 'number' || Number.isNaN(v)) continue;
+      if (field.max != null && v > field.max) errs[field.id] = `Enter ${field.min ?? 0}–${field.max}.`;
+      else if (field.min != null && v < field.min) errs[field.id] = `Enter ${field.min}–${field.max ?? '∞'}.`;
+      continue;
+    }
+    if (kind !== 'text') continue; // boolean / select / checkbox-group / readonly have no length
+
+    // An empty optional field is not a length violation — that distinction
+    // belongs to `required`, and doubling up would make every blank optional
+    // field with a min unsubmittable.
+    const s = String(v ?? '');
+    if (s.length === 0) continue;
+
+    if (field.min != null && field.max != null && field.min === field.max) {
+      if (s.length !== field.min) errs[field.id] = `Enter exactly ${field.min} characters.`;
+    } else if (field.max != null && s.length > field.max) {
+      errs[field.id] = `Enter at most ${field.max} characters.`;
+    } else if (field.min != null && s.length < field.min) {
+      errs[field.id] = `Enter at least ${field.min} characters.`;
+    }
   }
   return errs;
 };

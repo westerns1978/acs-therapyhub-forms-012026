@@ -99,7 +99,12 @@ export const AUTHORIZATION_RELEASE_DEFINITION: FormDefinition<AuthorizationForRe
     if (!data.authorizeRevenue) errs.authorizeRevenue = 'Required — authorizes the DOR completion notice (driving privileges).';
     if (!data.acknowledgesFederalRegulations) errs.acknowledgesFederalRegulations = 'Please acknowledge.';
     if (!data.clientSignature) errs.clientSignature = 'Signature is required.';
-    if (!data.ssn || data.ssn.length < 4) errs.ssn = 'Last 4 digits of SSN required.';
+    // P0/D2: this was `length < 4` — a FLOOR. Nine digits passed it, and the row
+    // kept a full SSN on a 42 CFR Part 2 chart while the label promised last-4.
+    // The generic rule in config/formValidation.ts now enforces min/max for every
+    // field; this keeps the field-specific wording, which wins on message.
+    if (!data.ssn) errs.ssn = 'Last 4 digits of SSN required.';
+    else if (!/^\d{4}$/.test(data.ssn)) errs.ssn = 'Enter the LAST 4 DIGITS only — not the full Social Security number.';
 
     return errs;
   },

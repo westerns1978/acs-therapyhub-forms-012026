@@ -68,7 +68,7 @@
 process.env.TZ = 'America/Chicago';
 
 import React from 'react';
-import { requiredFieldErrors } from '../config/formValidation';
+import { requiredFieldErrors, lengthFieldErrors } from '../config/formValidation';
 import { resolveFieldValue, setByPath } from '../config/fieldPath';
 import { editorKindFor, coerceTextInput, isBooleanMap } from '../config/fieldInput';
 import { isFieldVisible, visibilityCapViolations } from '../config/fieldVisibility';
@@ -101,8 +101,12 @@ const ALL: any[] = [
 let failures = 0;
 const fail = (msg: string) => { failures++; console.error('FAIL  ' + msg); };
 
+// Must stay identical to BaseFormTemplate.handleSubmit's composition — the gate
+// models the REAL check, not a subset of it. lengthFieldErrors joined the
+// composition in P0/D2 (min/max enforcement).
 const compose = (def: any, data: any): Record<string, string> => ({
   ...requiredFieldErrors(def.fieldDefinitions, data),
+  ...lengthFieldErrors(def.fieldDefinitions, data),
   ...def.validateStep(data),
 });
 
@@ -132,7 +136,18 @@ const producibleValues = (field: FieldDefinition, initialValue: any): any[] => {
     }
     case 'readonly': return [];                                                   // no editor — nothing producible
     case 'static': return [];                                                     // document prose — no value exists
-    default: return [coerceTextInput(kind, 'test value 1234')];                   // text family → coerceTextInput
+    default: {                                                                    // text family → coerceTextInput
+      // P0/D2: the renderer now caps text-family keystrokes at maxLength, so a
+      // length-constrained field CANNOT produce a longer string — modelling an
+      // over-length candidate would report an unsatisfiable field the real editor
+      // satisfies fine. Two candidates, because a single prose sample cannot clear
+      // a digits-only rule (`ssn` is min:4 max:4 AND /^\d{4}$/): both are things a
+      // person can genuinely type into this control.
+      const cap = (s: string) => (field.max != null ? s.slice(0, field.max) : s);
+      const pad = (s: string) => (field.min != null && s.length < field.min ? s.padEnd(field.min, '0') : s);
+      const candidates = [pad(cap('test value 1234')), pad(cap('1234567890'))];
+      return Array.from(new Set(candidates)).map((s) => coerceTextInput(kind, s));
+    }
   }
 };
 

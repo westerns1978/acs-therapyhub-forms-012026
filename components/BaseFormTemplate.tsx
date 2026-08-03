@@ -8,7 +8,7 @@ import { PrintPreview } from './PrintPreview';
 import { supabase } from '../services/supabase';
 import { usePortalClient } from '../hooks/usePortalClient';
 import { resolveFieldValue, setByPath } from '../config/fieldPath';
-import { requiredFieldErrors } from '../config/formValidation';
+import { requiredFieldErrors, lengthFieldErrors } from '../config/formValidation';
 import { editorKindFor, coerceTextInput, inputTypeFor, isBooleanMap } from '../config/fieldInput';
 import { isFieldVisible, stripHiddenValues } from '../config/fieldVisibility';
 import { CheckboxGroup } from './CheckboxGroup';
@@ -176,8 +176,14 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
     // composed with the form's own validateStep. validateStep ADDS rules (format,
     // must-be-true, cross-field) and WINS on message; it is no longer the only
     // source of required-ness. Boolean rule: required = ANSWERED, not true.
+    // P0/D2: lengthFieldErrors enforces the declared min/max. Before it, a field
+    // could state a constraint in its own label ("SSN (last 4 digits)") and in its
+    // definition (min:4, max:4) and have nothing behind either — the renderer's
+    // min/max attributes are inert on a text input, and there is no <form> here to
+    // run native constraint validation.
     const allErrors = {
       ...requiredFieldErrors(formDefinition.fieldDefinitions, formData),
+      ...lengthFieldErrors(formDefinition.fieldDefinitions, formData),
       ...formDefinition.validateStep(formData),
     } as FormErrors<T>;
     setErrors(allErrors);
@@ -387,13 +393,24 @@ export const BaseFormTemplate = <T extends object>({ formDefinition, onBackToLib
                                     // text / numeric family — coerceTextInput is the shared
                                     // emission fn (numeric → parseInt-or-''); the gate models
                                     // the exact same call.
+                                    //
+                                    // P0/D2: min/max were emitted for BOTH families. On a
+                                    // type="text" input they are inert — HTML applies them only
+                                    // to number/date/range — so `SSN (last 4 digits)` reported
+                                    // maxLength = -1 and took nine. The length constraint for the
+                                    // text family is maxLength; min/max stay for the numeric one.
+                                    // Neither attribute is load-bearing: there is no <form> here,
+                                    // so nothing native validates on submit. lengthFieldErrors()
+                                    // is what actually enforces this — the attribute is only so
+                                    // the control stops accepting keystrokes past the limit.
                                     <input
                                         type={inputType}
                                         id={field.id}
                                         value={displayValue}
                                         onChange={(e) => setFormData(setByPath(formData, field.id, coerceTextInput(kind, e.target.value)))}
-                                        min={field.min}
-                                        max={field.max}
+                                        maxLength={kind === 'text' ? field.max : undefined}
+                                        min={kind === 'numeric' ? field.min : undefined}
+                                        max={kind === 'numeric' ? field.max : undefined}
                                         className={INPUT_BASE_CLASSES}
                                     />
                                 )}
