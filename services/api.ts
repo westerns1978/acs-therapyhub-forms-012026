@@ -2543,6 +2543,29 @@ export const completeClient = async (
     return { completedAt: row?.completed_at, signoffNoteId: row?.signoff_note_id };
 };
 
+/**
+ * Return a completed client to active.
+ *
+ * Not a status edit — an audited event. The RPC is clinician-only, requires a
+ * reason, and writes an append-only `audit_logs` row naming the actor, the reason
+ * and the prior `completed_at`. `completed_at` itself is PRESERVED on the row: the
+ * completion was recorded, on a date, on a document a court may already hold, and
+ * a reopen does not make that untrue. The completion attestation is immutable and
+ * is never retracted.
+ */
+export const reopenClient = async (
+    clientId: string,
+    reason: string,
+): Promise<{ priorCompletedAt: string | null }> => {
+    const { data, error } = await supabase.rpc('reopen_client', {
+        p_client_id: clientId,
+        p_reason: reason,
+    });
+    if (error) throw new Error(error.message);
+    const row = Array.isArray(data) ? data[0] : data;
+    return { priorCompletedAt: row?.prior_completed_at ?? null };
+};
+
 // ────────────────────────────────────────────────────────────────────────────
 // Treatment Plans (Phase F2)
 // ────────────────────────────────────────────────────────────────────────────
