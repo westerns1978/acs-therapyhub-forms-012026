@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { updateClient, getCounselors } from '../../services/api';
+import { updateClient, getCounselors, getClient, reopenClient } from '../../services/api';
 import type { Counselor } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Client, ClientStatus } from '../../types';
@@ -9,6 +9,16 @@ import { X, User, Shield, CreditCard, CheckCircle, Loader2, AlertTriangle, Lock 
 
 // Canonical program options for the edit dropdown (value = stored vocab; label = friendly).
 const PROGRAM_OPTIONS = CANONICAL_PROGRAMS.map(p => ({ value: p, label: PROGRAM_LABELS[p] }));
+
+/** Statuses an EDIT may legitimately set — value = stored lifecycle token, label =
+ *  what staff read. 'completed' is absent by design (P0/D1): it is produced only by
+ *  complete_client() after the gate passes, and cleared only by reopen_client().
+ *  Value and label are separate here precisely because conflating them is what
+ *  made a completed client unreachable (P0/D3). */
+const EDITABLE_STATUS_OPTIONS: { value: ClientStatus; label: string }[] = [
+    { value: 'active', label: CLIENT_STATUS_LABELS.active },
+    { value: 'archived', label: CLIENT_STATUS_LABELS.archived },
+];
 
 interface EditClientModalProps {
     isOpen: boolean;
@@ -44,6 +54,12 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
     });
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // P0/D3 — reopening a completed client: an audited event with a required
+    // reason, not a status pick.
+    const [reopening, setReopening] = useState(false);
+    const [reopenReason, setReopenReason] = useState('');
+    const [reopenBusy, setReopenBusy] = useState(false);
+    const isCompleted = formData.status === 'completed';
     // L4: Primary Counselor picker — the active roster. Empty on failure (honest).
     const [counselors, setCounselors] = useState<Counselor[]>([]);
     useEffect(() => {
@@ -80,6 +96,27 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
 
     const setField = (field: keyof typeof formData, value: string | number) => {
         setFormData(prev => ({ ...prev, [field]: value as any }));
+    };
+
+    const MIN_REOPEN_REASON = 10; // kept in step with reopen_client()'s own minimum
+
+    const handleReopen = async () => {
+        if (!client || reopenReason.trim().length < MIN_REOPEN_REASON) return;
+        setReopenBusy(true);
+        setError(null);
+        try {
+            await reopenClient(client.id, reopenReason.trim());
+            // Re-read rather than patching local state: completed_at is deliberately
+            // preserved on the row, so the caller must see the real post-reopen record.
+            const fresh = await getClient(client.id);
+            setReopening(false);
+            setReopenReason('');
+            if (fresh) { onSaved(fresh); onClose(); }
+        } catch (e: any) {
+            setError(e?.message || 'Could not reopen this client.');
+        } finally {
+            setReopenBusy(false);
+        }
     };
 
     const handleSubmit = async () => {
@@ -232,10 +269,90 @@ const EditClientModal: React.FC<EditClientModalProps> = ({ isOpen, onClose, clie
                             <Select value={formData.program} onChange={v => setField('program', v)} disabled={!canEditClinical} options={PROGRAM_OPTIONS} />
                         </FieldLabel>
                         <FieldLabel label="Status">
-                            {/* Lifecycle ONLY (DB CHECK-enforced): active | completed | archived.
-                                Compliance standing (compliant/warrant/…) is engine-computed at
-                                render and is deliberately NOT a settable value here. */}
-                            <Select value={CLIENT_STATUS_LABELS[formData.status as ClientStatus] ?? 'Active'} onChange={v => setField('status', v.toLowerCase())} disabled={!canEditClinical} options={['Active', 'Completed', 'Archived']} />
+                            {/* Lifecycle ONLY (DB CHECK-enforced). Compliance standing
+                                (compliant/warrant/…) is engine-computed at render and is
+                                deliberately NOT a settable value here.
+
+                                P0/D1: "Completed" is GONE from this list. Completion is an
+                                event with preconditions and a signer, not an attribute an edit
+                                form can set — it goes through the attestation flow
+                                (CompleteClientModal → complete_client), which the Postgres
+                                gate enforces regardless of what this form sends.
+
+                                P0/D3: driven by the STORED VALUE with value/label pairs, the
+                                way the Program Select two rows up already worked. It used to be
+                                `value={CLIENT_STATUS_LABELS[status]}` over label-only options —
+                                and 'completed' maps to "Successful Dx", which was not an
+                                option, so a completed client rendered as "Active", re-picking
+                                "Active" fired no change event, and no transition out of
+                                completed could ever be written. */}
+                            {isCompleted ? (
+                                <div className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-100 dark:bg-slate-800/60 flex items-center justify-between gap-3">
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                                        {CLIENT_STATUS_LABELS.completed}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setReopening(true)}
+                                        disabled={!canEditClinical}
+                                        className="text-xs font-bold uppercase tracking-wider text-primary hover:underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                                    >
+                                        Reopen client
+                                    </button>
+                                </div>
+                            ) : (
+                                <Select
+                                    value={formData.status}
+                                    onChange={v => setField('status', v)}
+                                    disabled={!canEditClinical}
+                                    options={EDITABLE_STATUS_OPTIONS}
+                                />
+                            )}
+                            {isCompleted && !reopening && (
+                                <p className="text-[11px] text-slate-500 leading-relaxed pt-1">
+                                    Completion is a recorded event, not a field. Reopening is a separate
+                                    audited action that requires a reason.
+                                </p>
+                            )}
+                            {isCompleted && reopening && (
+                                <div className="mt-3 p-4 rounded-xl border border-amber-300 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/15 space-y-3">
+                                    <p className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                                        Reopen {client.name}
+                                    </p>
+                                    <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 leading-relaxed">
+                                        This records an audit entry naming you, your reason and the date the
+                                        completion was originally recorded. The completion date and the
+                                        clinician&rsquo;s attestation are kept — reopening does not retract them.
+                                    </p>
+                                    <textarea
+                                        value={reopenReason}
+                                        onChange={e => setReopenReason(e.target.value)}
+                                        disabled={reopenBusy}
+                                        rows={3}
+                                        placeholder="Why is this completion being reopened?"
+                                        className="w-full p-3 text-sm border border-amber-300 dark:border-amber-800/60 rounded-lg bg-white dark:bg-slate-900 outline-none focus:ring-2 focus:ring-amber-400/30 disabled:opacity-60"
+                                    />
+                                    <div className="flex items-center justify-end gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setReopening(false); setReopenReason(''); }}
+                                            disabled={reopenBusy}
+                                            className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg disabled:opacity-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleReopen}
+                                            disabled={reopenBusy || reopenReason.trim().length < MIN_REOPEN_REASON}
+                                            className="px-4 py-1.5 text-xs font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                        >
+                                            {reopenBusy && <Loader2 className="animate-spin" size={12} />}
+                                            {reopenBusy ? 'Reopening…' : 'Reopen client'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </FieldLabel>
                     </section>
                 </div>

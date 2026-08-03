@@ -1,0 +1,35 @@
+-- ============================================================================
+-- P0 PREFLIGHT — verbatim snapshot of the `clinical_notes` RLS policies as they
+-- stood on production (ldzzlndsspkyohvzfiiu) BEFORE any P0 migration was applied.
+--
+-- THIS FILE IS THE ROLLBACK SOURCE OF TRUTH. Not anybody's memory of what the
+-- policy used to be. Captured 2026-08-02T23:42Z from pg_policies; the query and
+-- its exact output are reproduced below so the reconstruction can be checked
+-- against the raw catalogue rather than trusted.
+--
+-- This file is a RECORD. It contains no DDL that runs — the executable restore
+-- is 20260802_p0_1_rollback_clinical_notes_policy.sql.
+--
+--   select schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check
+--     from pg_policies where schemaname='public' and tablename='clinical_notes'
+--    order by policyname;
+--
+--   schemaname | tablename      | policyname               | permissive | roles           | cmd | qual                    | with_check
+--   -----------+----------------+--------------------------+------------+-----------------+-----+-------------------------+------------------------
+--   public     | clinical_notes | staff_all_clinical_notes | PERMISSIVE | {authenticated} | ALL | private.is_clinician()  | private.is_clinician()
+--
+--   (exactly one row — one FOR ALL policy, granted to `authenticated`, with the
+--    same predicate in USING and WITH CHECK.)
+--
+-- Reconstructed statement, for reference only:
+--
+--   create policy staff_all_clinical_notes on public.clinical_notes
+--     as permissive for all to authenticated
+--     using       (private.is_clinician())
+--     with check  (private.is_clinician());
+--
+-- Table state at snapshot time: RLS enabled; 12 rows; no other policy.
+-- ============================================================================
+
+-- Intentionally empty of executable statements.
+select 1 where false;

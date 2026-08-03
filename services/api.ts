@@ -2415,11 +2415,26 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
     // (Pre-existing: every EditClientModal save for a dob-less client 400'd.)
     if (row.dob === '') row.dob = null;
 
+    // P0/D1: completion is an EVENT WITH PRECONDITIONS, not an attribute an edit
+    // form can set. This path used to write status='completed' + completed_at with
+    // no reference to the gate at all — a client was recorded as having completed a
+    // state-mandated programme at 9/10 hours with a required document unsigned
+    // (docs/qa/e2e-smoke-2026-08.md, D-1). Completion now goes through
+    // completeClient() → the SECURITY DEFINER complete_client() RPC, which
+    // re-derives every gate in SQL. The DB trigger trg_clients_guard_completion
+    // refuses this write regardless; refusing it here too means a staff member
+    // gets a sentence they can act on instead of a Postgres exception.
+    if (row.status === 'completed' || row.completed_at !== undefined) {
+        throw new Error(
+            'A client cannot be marked completed from the edit form. Use “Complete client”, ' +
+            'which checks the hours, balance and required-forms gates and records the ' +
+            'clinician’s attestation.',
+        );
+    }
+
     // Audit v1, events 2/3: snapshot pre-update values for every column this call
     // may touch (including the two lifecycle stamps, which aren't in `row` yet)
-    // so we can (a) diff against the post-update row to skip logging a no-op
-    // re-save, and (b) — reusing the same read — check completed_at for the
-    // 'active' transition below instead of a second round-trip.
+    // so we can diff against the post-update row and skip logging a no-op re-save.
     const beforeCols = Array.from(new Set([...Object.keys(row), 'archived_at', 'completed_at']));
     const { data: before, error: beforeErr } = await supabase
         .from('clients').select(beforeCols.join(',')).eq('id', id).maybeSingle();
@@ -2427,20 +2442,22 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
 
     // Lifecycle transition stamps (migration 20260611). Callers send `status`
     // only when it actually changed (EditClientModal diffs), so a stamp here
-    // means a real transition. Completing a program is a HISTORICAL FACT:
-    // completed_at survives archive/unarchive — only archived_at clears on
-    // reactivation, and unarchiving a client who had completed restores them
-    // to 'completed', not 'active'.
+    // means a real transition.
+    //
+    // P0/D1 decision 4: the `completed_at ⇒ status='completed'` coercion that used
+    // to live on the 'active' branch is GONE. It silently rewrote 'active' back to
+    // 'completed' for any client carrying a completed_at, which (a) made reopening a
+    // completed client impossible through any path (D-2/D3) and (b) was a back door
+    // where archive → unarchive reversed a completion outside the audited
+    // reopen_client() flow. Status is never inferred from a timestamp now: the only
+    // writer of 'completed' is complete_client(), and the only writer of 'active'
+    // over a completion is reopen_client().
     let isArchiving = false;
     if (row.status !== undefined) {
         if (row.status === 'archived') {
             row.archived_at = new Date().toISOString();
             isArchiving = true;
-        } else if (row.status === 'completed') {
-            row.completed_at = new Date().toISOString();
-            row.archived_at = null;
         } else if (row.status === 'active') {
-            if ((before as any)?.completed_at) row.status = 'completed';
             row.archived_at = null;
         }
     }
@@ -2475,6 +2492,78 @@ export const updateClient = async (id: string, changes: Record<string, any>): Pr
     }
 
     return mapClientToApp(data);
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Completion — a gated event, not an editable field (P0/D1)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** The canonical attestation the qualified professional affirms. It is stored
+ *  VERBATIM on the record together with the clinician's own statement, so the
+ *  note says what was affirmed, not merely that something was.
+ *  `{client}` / `{program}` are filled by the caller. */
+export const COMPLETION_ATTESTATION_PREAMBLE =
+    'I am the qualified professional responsible for this client\'s care. I have reviewed ' +
+    '{client}\'s record and I attest that they have completed the requirements of ' +
+    '{program}. I understand this attestation is recorded permanently against my name ' +
+    'and cannot afterwards be edited or deleted.';
+
+export const completionAttestationPreamble = (clientName: string, programLabel: string): string =>
+    COMPLETION_ATTESTATION_PREAMBLE
+        .replace('{client}', clientName)
+        .replace('{program}', programLabel);
+
+/**
+ * Record a client as having completed their programme.
+ *
+ * The ONLY completion path. Everything that decides whether a client MAY be
+ * completed lives in the `complete_client` SECURITY DEFINER RPC, which re-derives
+ * the hours / balance / required-forms / determination gates in SQL from
+ * `client_accrued_hours`, `clients.balance`, `form_submissions` and
+ * `placement_determinations`, and raises naming each failing gate. A client-side
+ * check would be a suggestion: `trg_clients_guard_completion` refuses the row
+ * write for every role, service_role included.
+ *
+ * `attestation` is the clinician's affirmative statement. There is no default and
+ * the RPC refuses a token string — passing the gate does not produce the
+ * attestation, and the attestation is what the record carries.
+ */
+export const completeClient = async (
+    clientId: string,
+    attestation: string,
+): Promise<{ completedAt: string; signoffNoteId: string }> => {
+    const { data, error } = await supabase.rpc('complete_client', {
+        p_client_id: clientId,
+        p_attestation: attestation,
+    });
+    // The RPC's message IS the staff-facing sentence — it names the failing gates
+    // with their real numbers. Never replace it with a generic string.
+    if (error) throw new Error(error.message);
+    const row = Array.isArray(data) ? data[0] : data;
+    return { completedAt: row?.completed_at, signoffNoteId: row?.signoff_note_id };
+};
+
+/**
+ * Return a completed client to active.
+ *
+ * Not a status edit — an audited event. The RPC is clinician-only, requires a
+ * reason, and writes an append-only `audit_logs` row naming the actor, the reason
+ * and the prior `completed_at`. `completed_at` itself is PRESERVED on the row: the
+ * completion was recorded, on a date, on a document a court may already hold, and
+ * a reopen does not make that untrue. The completion attestation is immutable and
+ * is never retracted.
+ */
+export const reopenClient = async (
+    clientId: string,
+    reason: string,
+): Promise<{ priorCompletedAt: string | null }> => {
+    const { data, error } = await supabase.rpc('reopen_client', {
+        p_client_id: clientId,
+        p_reason: reason,
+    });
+    if (error) throw new Error(error.message);
+    const row = Array.isArray(data) ? data[0] : data;
+    return { priorCompletedAt: row?.prior_completed_at ?? null };
 };
 
 // ────────────────────────────────────────────────────────────────────────────

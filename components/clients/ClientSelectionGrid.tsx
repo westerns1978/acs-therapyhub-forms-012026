@@ -14,6 +14,8 @@ import ClientAvatar from './ClientAvatar';
 import { Search, UserPlus, LayoutGrid, List, CheckCircle2, Archive, ArrowUpDown, AlertTriangle } from 'lucide-react';
 import { normalizeProgram, programLabel, isSatopProgram } from '../../config/programVocab';
 import ClientTypeBadge from './ClientTypeBadge';
+import CompleteClientModal from './CompleteClientModal';
+import { useAuth } from '../../contexts/AuthContext';
 
 const programDisplayLabel = (program: Client['program']) => programLabel(program);
 
@@ -285,6 +287,7 @@ const loadViewPref = (): 'cards' | 'list' => {
 };
 
 const ClientSelectionGrid: React.FC = () => {
+    const { user } = useAuth();
     const [clients, setClients] = useState<Client[]>([]);
     const [progressById, setProgressById] = useState<Map<string, ClientProgress>>(new Map());
     const [counts, setCounts] = useState<Record<ClientStatus, number> | null>(null);
@@ -300,6 +303,8 @@ const ClientSelectionGrid: React.FC = () => {
     // the seed, so the chip row stays a no-op until David's categories land — placeholders for
     // now: 'All' plus whatever distinct client_type values actually exist in the loaded set.
     const [typeFilter, setTypeFilter] = useState('All');
+    // P0/D1 — the client whose completion attestation is being taken (null = closed).
+    const [completing, setCompleting] = useState<Client | null>(null);
     const location = useLocation();
 
     // Distinct, non-empty client_type values present in the current (status-filtered) set.
@@ -390,12 +395,16 @@ const ClientSelectionGrid: React.FC = () => {
     };
 
     const handleNudge = async (client: Client, kind: 'complete' | 'archive') => {
-        const message = kind === 'complete'
-            ? `Mark ${client.name} as Completed?\n\nEvery completion gate passes for this client (hours, balance, clinician sign-off, required forms). This records the lifecycle transition and stamps completed_at. Reversible from Edit Client.`
-            : `Archive ${client.name}?\n\nCompleted more than 18 months ago. Archiving removes them from active lists only — every record is retained and this is reversible from Edit Client.`;
-        if (!window.confirm(message)) return;
+        // P0/D1: completing is no longer a window.confirm over a status write. It
+        // opens the attestation modal — a clinician must affirm in their own words,
+        // and the Postgres gate re-derives every criterion before the row moves.
+        if (kind === 'complete') { setCompleting(client); return; }
+
+        if (!window.confirm(
+            `Archive ${client.name}?\n\nCompleted more than 18 months ago. Archiving removes them from active lists only — every record is retained, and it is reversible from Edit Client.`,
+        )) return;
         try {
-            await updateClient(client.id, { status: kind === 'complete' ? 'completed' : 'archived' });
+            await updateClient(client.id, { status: 'archived' });
             setReloadKey(k => k + 1); // refetch the set + counts
         } catch (e: any) {
             alert(e?.message || 'Could not update the client status.');
@@ -606,6 +615,15 @@ const ClientSelectionGrid: React.FC = () => {
                     <p className="text-sm">No clients match the current filter.</p>
                 </div>
             )}
+
+            <CompleteClientModal
+                isOpen={!!completing}
+                client={completing}
+                signerName={user?.name}
+                signerRole={user?.role}
+                onClose={() => setCompleting(null)}
+                onCompleted={() => setReloadKey(k => k + 1)}
+            />
         </div>
     );
 };
