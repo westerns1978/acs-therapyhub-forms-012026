@@ -21,7 +21,7 @@ Gates: `npm run lint`, `npm run check:forms`, `npm run check:gate` — all exit 
 | | |
 |---|---|
 | **Applied to `ldzzlndsspkyohvzfiiu`** | `20260802_p0_1_completion_gate.sql`, `20260802_p0_3_reopen_client.sql` |
-| **Awaiting Dan's approval** | `20260802_p0_2_ssn_last4_remediation.sql` — **0 rows affected**, see D2 |
+| **Applied** | `20260802_p0_2_ssn_last4_remediation.sql` — applied 2026-08-03, **0 rows**, see D2 |
 | **Rollbacks, committed first** | `20260802_p0_1_rollback_clinical_notes_policy.sql`, `20260802_p0_3_rollback_reopen_client.sql` |
 | **PITR** | **NOT enabled.** Daily physical backups, 7-day retention, most recent 2026-08-02 09:49:03Z ⇒ ~14h restore granularity. Dan proceeded on that basis. |
 
@@ -383,10 +383,10 @@ been written from memory.
 
 # What the fix does NOT cover
 
-1. **The attestation modal was not click-tested in the browser.** `CompleteClientModal` calls the
-   same `complete_client` RPC that is proved end-to-end above, and the app was verified to render
-   with zero console errors, but the click-through of the attestation UI was not exercised. The
-   enforcement is in Postgres; the modal is thin UI over it.
+1. ~~The attestation modal was not click-tested.~~ **Done 2026-08-03** — driven end to end through
+   the authenticated UI, including the refusal case, and re-verified on the live site after deploy.
+   See "The attestation modal, click-tested" below. Screenshots could not be captured (the Browser
+   pane was not compositing); rendered DOM text was substituted.
 2. **Anyone who can drop the trigger can still write `status='completed'`.** A superuser, or
    `session_replication_role='replica'`. This is a guarantee against the application and against
    `service_role`, not against someone with the keys to the database.
@@ -412,6 +412,92 @@ been written from memory.
 
 ---
 
+# The attestation modal, click-tested (2026-08-03)
+
+The only piece of this fix a human touches. Driven end to end through the authenticated UI as a
+Therapist against `dc100001` (`is_demo=true`), with real mouse and keyboard input.
+
+**Screenshots could not be captured** — the Browser pane was not compositing frames, so
+`computer{action:"screenshot"}` timed out every attempt. Substituted rendered DOM text captured from
+the live page, which is more checkable than an image, but it is a substitution and worth saying so.
+
+| # | Case | Result |
+|---|---|---|
+| 1 | Modal opens from the completion nudge | Renders portalled to `body`, titled "Attest to completion", showing the attestation prose, the 9 CSR 30-3.206(13) citation, and "Signing as Karen Ventimiglia · Therapist" |
+| 2 | Submit with no attestation text | **Refused** — "Sign and complete" is `disabled`, with "20 more character(s) required — there is no default text." |
+| 3 | Submit with attestation, client fails a gate | **Refused, with the real numbers** (below) |
+| 4 | Submit with attestation, client passes | **Completed** — attestation recorded, grid flipped to "Successful Dx" |
+| 5 | Admin | **0 nudges rendered**, and the RPC refuses regardless |
+
+**Case 3 is the interesting one.** The modal is only reachable *from* the nudge, and the nudge only
+appears when the client is already eligible — so a clinician can normally only open it on a client
+who passes. To exercise the refusal I removed a required form **while the modal was open**, which is
+exactly the race the server-side gate exists for: the UI decided eligibility at render, the data
+changed, and the clinician pressed submit. What they saw, in the modal:
+
+```
+Completion refused — 1 gate(s) not met:
+  • Required forms: 1 of 6 required form(s) unsigned (emergency-contact).
+```
+
+The modal stays open with the typed statement preserved. Restoring the form and pressing submit
+again completed the client, recording:
+
+```
+signed_by_name : Karen Ventimiglia
+signed_by_role : Therapist
+signed_at      : 2026-08-03T00:18:17.656702+00:00
+narrative      : I am the qualified professional responsible for this client's care. I have
+                 reviewed Marcus Reyes's record and I attest that they have completed the
+                 requirements of SATOP. I understand this attestation is recorded permanently
+                 against my name and cannot afterwards be edited or deleted.
+
+                 Reviewed the attendance ledger and the signed required-forms set for this
+                 client before attesting.
+```
+
+**On the Admin result, precisely:** the nudge is not offered because the eligibility probe calls
+`fetchCompletionSignoff`, which reads `clinical_notes` — a table Admin cannot read — so the probe
+returns false and the client is never marked eligible. That is *incidental* rather than an explicit
+role check on the nudge, but it fails **closed**, and `complete_client` refuses an Admin on its own
+terms anyway. Worth knowing the reason rather than assuming the UI is role-gated here.
+
+No UI defects were found; nothing needed fixing at that layer.
+
+---
+
+# Post-deploy verification against the live site
+
+Deployed with `npm run deploy` (never a bare `firebase deploy`). The predeploy guard confirmed the
+target before upload:
+
+```
+[predeploy-guard] OK — DEPLOY_TARGET + firebase.json both 'acs-therapyhub'.
++ hosting[acs-therapyhub]: release complete
+Hosting URL: https://acs-therapyhub.web.app
+```
+
+All four checks run against **`https://acs-therapyhub.web.app`**, signed in through the app's own
+login form as `demo.therapist@acs-therapyhub.com` (the demo account is not iVALT-enrolled, so the
+phone step never fires). Served bundle: `/assets/index-a9gP9Cq9.js`.
+
+| Check | Result |
+|---|---|
+| Attestation modal renders | **Yes** — full attestation prose, signer line, submit `disabled` with no text |
+| "Completed" gone from the Edit Client status Select | **Yes** — options are exactly `[{active, "Active"}, {archived, "Archived"}]`; value/label pairs, not labels |
+| An ordinary clinical note still saves | **Yes** — `POST /clinical_notes` `note_type='Session'` → **201**, from the live origin with the session the live app itself established. Probe deleted (200). |
+| A forged attestation is still refused from the live origin | **403** — `new row violates row-level security policy for table "clinical_notes"` |
+
+The full clinician daily-path suite was also re-run against production: read 25 notes, write, persist,
+sign, Admin sees zero, Admin cannot insert, probe deleted. **7 of 7 PASS.**
+
+One thing to know: the live site had **demo data hidden** for this browser profile
+(`acs-show-demo-rows:<uid>` unset, default OFF), so only the 2 real clients showed until I enabled it.
+That is correct behaviour, not a defect — but it means the demo clients are invisible on a fresh
+browser until Settings → Show demo data is turned on.
+
+---
+
 # Named debt — decision 6, `program_end_date`
 
 `completed_at` is authoritative. `program_end_date` was **not** written in this pass, per your
@@ -426,6 +512,43 @@ ruling. Recording the debt so it is not rediscovered:
      measures to *now* rather than to the completion date.
 - The new SQL gate deliberately does **not** read it: `complete_client` measures duration to `now()`,
   because a client being completed today ends today.
+
+# Named debt — `archived_at` is only half-orthogonal
+
+Decision 4 had two clauses. The second is fully met, the first is not.
+
+- **Met:** the `completed_at ⇒ status='completed'` coercion is deleted, status is never inferred from
+  a timestamp, and the archive → unarchive back door is closed — the trigger now refuses any exit
+  from `completed` that did not come through `reopen_client()`, and refuses erasing `completed_at`
+  outright.
+- **Not met:** `status='archived'` remains the storage representation of "archived", so archiving
+  still writes `status`. Making `archived_at` a genuinely independent axis reaches `getClients`
+  (which filters `status='archived'` query-side and is the single choke-point every picker inherits),
+  the six lifecycle filter chips, `ClientList`'s status dropdown, and the badge palettes in
+  `ClientProfileHeader` and `ClientSelectionGrid`. That is a lifecycle-vocabulary change, not a P0
+  fix, and it was not attempted here.
+
+---
+
+# Attesta fork — does it carry the same fixture SSN?
+
+**No. Checked read-only; nothing in that repo was changed.**
+
+`C:\Users\dlwes\Documents\WestFlow\attesta` @ `9c3ba7c`:
+
+| Check | Result |
+|---|---|
+| `scripts/fixtures/` — the ground-truth file, `row-47431370.json`, the PrintPreview baseline | **Absent.** No fixture files tracked at all. |
+| Any `NNN-NN-NNNN`-shaped literal in any tracked file | **None.** |
+| Commit `5dba765` (which introduced the fixture here, 2026-07-16) | **Not in Attesta's history** — the fork point predates it. |
+
+So the fork does **not** inherit the value, and the scrub not reaching it costs nothing.
+
+**But it does inherit the defect.** `components/forms/AuthorizationForReleaseForm.tsx:133` in Attesta
+still declares `{ id: 'ssn', label: 'SSN (last 4 digits)', type: 'text', required: true, min: 4, max: 4 }`
+with, presumably, the same inert enforcement — so its SSN field will accept nine digits exactly as
+this one did, on its own Supabase project. **Reported, not touched.** Porting D2 there is a decision
+for whoever owns Attesta.
 
 ---
 
