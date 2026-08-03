@@ -1,7 +1,9 @@
 # P0 completion-gate fixes — what changed, and the proof
 
-**Branch:** `fix/completion-gate-p0`, cut from `main` @ `c54d45b`. **Not merged. Not deployed.**
-**Date:** 2026-08-02
+**Branch:** `fix/completion-gate-p0`, cut from `main` @ `c54d45b`.
+**Merged** into `main` 2026-08-03 as `67192b0` (`--no-ff`, five commits preserved as the audit trail)
+and **deployed** to `https://acs-therapyhub.web.app` via `npm run deploy`.
+**Date:** 2026-08-02 / 2026-08-03
 **Source:** `docs/qa/e2e-smoke-2026-08.md` (on `test/e2e-smoke` @ `0ee9363`)
 **Design:** [`p0-gate1-recon.md`](p0-gate1-recon.md), approved with six rulings.
 
