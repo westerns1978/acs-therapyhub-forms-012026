@@ -34,8 +34,8 @@ const PROTOCOL_LABEL: Record<ScannerProtocol, string> = {
   twainDirect: 'TWAIN Direct',
 };
 
-// FlowHub Bridge (Gemynd Scan) Windows installer. 0.1.4 HTTP-default build.
-// Single-line change when the bridge version bumps.
+// FlowHub Bridge (Gemynd Scan) Windows installer. Stable `latest/` pointer —
+// the version served is whatever was last published, so no bump belongs here.
 import { INSTALLER_URL as BRIDGE_INSTALLER_URL } from '../config/installer';
 
 const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
