@@ -9,6 +9,7 @@ import { fetchGreenRoomSession, type GreenRoomData, type GreenRoomAttendee, type
 import { distributeGroupNote } from '../services/api';
 import { daysSince, plural } from '../config/format';
 import { useAuth } from '../contexts/AuthContext';
+import ClientAvatar from '../components/clients/ClientAvatar';
 
 /* ── time helpers ───────────────────────────────────────────────────────────── */
 const fmtTime = (iso: string) =>
@@ -160,7 +161,16 @@ const ClientCard: React.FC<{ a: GreenRoomAttendee; defaultOpen: boolean }> = ({ 
   return (
     <div className="border border-border/60 dark:border-slate-700/50 rounded-2xl my-2 overflow-hidden">
       <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 p-3.5 text-left hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition">
-        <span className={`w-9 h-9 rounded-lg grid place-items-center text-sm font-black shrink-0 ${established ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-400 dark:bg-slate-800'}`}>{a.initials}</span>
+        {/* Was a hand-rolled square tile coloured by `established` — an identity
+            mark that actually encoded a status, so the same client read as a
+            different person here than on their own chart. The established /
+            not-established signal is unchanged and still carried by the chips
+            directly below. Identity now comes from the one shared component,
+            keyed on the same client id as everywhere else. */}
+        <ClientAvatar
+          client={{ id: a.clientId, name: a.name, initials: a.initials }}
+          className="w-9 h-9 text-sm shrink-0"
+        />
         <span className="flex-1 min-w-0">
           <span className="block font-bold text-[15px] truncate">{a.name}</span>
           <span className="block text-xs text-slate-500 truncate">{a.programLabel}</span>

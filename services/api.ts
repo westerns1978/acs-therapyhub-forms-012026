@@ -129,9 +129,10 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
         probation_officer: c.probationOfficer ?? c.probation_officer ?? null,
         billing_type: c.billingType ?? c.billing_type ?? null,
         primary_counselor_id: c.primaryCounselorId ?? c.primary_counselor_id ?? null,
-        avatar_url: c.avatarUrl
-            ?? c.avatar_url
-            ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Client')}&background=8B1E24&color=fff`,
+        // Only a REAL photo is persisted. This used to fall back to a generated
+        // ui-avatars.com URL, which is how 4 client rows ended up carrying one.
+        // See mapClientToApp below for why that was wrong twice over.
+        avatar_url: c.avatarUrl ?? c.avatar_url ?? null,
     };
 
     // Drop nulls so DB defaults (status='active', etc.)
@@ -178,7 +179,19 @@ const mapClientToApp = (c: any): Client => {
         programType: c.programType ?? c.program_type ?? program,
         referralSource: c.referralSource ?? c.referral_source ?? '',
         billingType: c.billingType ?? c.payment_type ?? c.billing_type ?? 'Court Mandate',
-        avatarUrl: c.avatar_url ?? c.avatarUrl ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=8B1E24&color=fff`,
+        // No synthesized avatar. This used to mint
+        //   ui-avatars.com/api/?name=<CLIENT NAME>&background=8B1E24
+        // for EVERY client that lacked a photo, which did two bad things:
+        //  1. It set avatarUrl on all of them, and ClientAvatar prefers avatarUrl
+        //     over its identity palette — so the id-keyed colour was dead code on
+        //     every surface fed by this mapper, and all clients rendered the same
+        //     flat #8B1E24. Surfaces NOT fed by this mapper (Green Room, the group
+        //     roster) kept their own look, which is the inconsistency reported.
+        //  2. It sent the client's full name to a third-party host in a URL query
+        //     string on every render. These are 42 CFR Part 2 clients.
+        // A real uploaded photo still wins; absent one, ClientAvatar's shared
+        // id-keyed mark is the answer everywhere.
+        avatarUrl: c.avatar_url ?? c.avatarUrl ?? undefined,
         missingDocuments: c.missingDocuments || [],
         gamification: c.gamification || { points: 0, badges: [] },
         attendanceHistory: c.attendanceHistory || [],
