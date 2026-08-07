@@ -922,3 +922,55 @@ a client with a recent/same-day completed appointment, offer to attach the note 
 that client's recent sessions), defaulting to unlinked rather than guessing. The
 appointment-scoped entry points (`AppointmentStatusModal` → Start transcribed session, and the
 group note) already link correctly and are unaffected.
+
+## 45. CALENDAR SYNC REMOVED — REBUILD AS AN ACS SERVICE ACCOUNT, OR NOT AT ALL (decision pending, 2026-08-07)
+
+**What was removed.** `ScheduleSessionModal`'s Google Calendar write-through and its
+`isGoogleCalendarLinked()` gate, plus both rows in `public.user_integrations`.
+`services/googleCalendar.ts`, the four `google-calendar-*` / `google-oauth-exchange`
+edge functions, the `user_integrations` TABLE, and the Settings connect/disconnect
+cards are all **deliberately left in place** so this can be rebuilt.
+
+**Why it went.** It had been dead for months and the failure was silent by design
+(a calendar error must not block a booking, so the catch only warned):
+
+- `user_integrations.user_id` is `text`, and the Google row was keyed on the legacy
+  string `staff-david-yoder` (from the pre-Supabase-auth AuthContext, per the
+  20260416 migration's own comment: *"Keyed by app-level user id (from AuthContext
+  sessionStorage), not Supabase Auth"*). The booking call sends a Supabase auth
+  **uuid**. The lookup could never match.
+- Measured before removal: **0 of 100** appointments carried a `google_event_id`,
+  and **no appointment with a real client ever did**. The only 6 that ever existed
+  were clientless test rows, deleted 2026-08-07.
+- The stored refresh token authorized **dan.western@gemyndflow.com** — a personal
+  account — and carried **36 scopes** including full Gmail (read/send/modify/settings),
+  Drive, Contacts, Chat, Classroom and Apps Script, against an app that requests
+  only `calendar.events` + `userinfo.email`. Plaintext `text` column, in the shared
+  multi-tenant project. RLS was correct (`USING(false)` for anon+authenticated,
+  service-role only), so it was never client-reachable — but it should not have
+  been sitting in ACS's database at all. Tokens revoked at Google separately by Dan.
+- The Zoom row (`u1`, dan.western@gmail.com) was dead the same way and went with it.
+  Verified it broke nothing: all 8 appointments carrying a `zoom_meeting_id` use one
+  of 4 ids that map **exactly** to a counselor's permanent room
+  (`counselors.zoom_meeting_id`, WS6 inheritance). Zero were Zoom-API-created.
+- Also removed with the call: `attendees.push(client.email)`. The edge function calls
+  Google with `sendUpdates=all`, so a real client would have been emailed a calendar
+  invite titled e.g. "SATOP Group" — a 42 CFR Part 2 disclosure routed through a
+  third party. It never fired, but it was loaded and pointed at the client.
+
+**The three options, with costs.**
+
+| option | cost | fits when |
+|---|---|---|
+| **No sync** (current state) | Zero. Already done. | Nobody relies on it — which is factually true today. |
+| **One ACS shared calendar via service account** | Moderate: a Google Workspace service account owned by ACS, calendar shared to staff, `user_integrations` retired entirely. **No personal credential is ever stored** and there is no per-user OAuth to maintain. | ACS wants a practice-wide calendar. Recommended if sync is wanted at all. |
+| **Per-counselor, keyed on auth uuid** | Highest: migrate `user_integrations.user_id` text→uuid FK to `auth.users`, re-consent every counselor, tighten the OAuth client to calendar-only scopes, encrypt tokens at rest, and replace the `isGoogleCalendarLinked()` localStorage gate with a DB-backed check (it is per-browser today, not per-account). | Each counselor needs events on their own calendar. |
+
+**If it is rebuilt, these are non-negotiable regardless of option:** scopes limited to
+`calendar.events`; no personal account tokens; the link state read from the database,
+not `localStorage`; and client email addresses **never** sent as Google attendees while
+`sendUpdates=all` is in play.
+
+**Left behind, harmless but worth knowing:** the Settings → Google Calendar card still
+offers Connect. With both rows gone and no booking-time caller, connecting now stores a
+token that nothing reads. If the decision is "no sync", that card should be removed too.

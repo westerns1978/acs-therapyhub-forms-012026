@@ -2,9 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Client, Appointment } from '../../types';
 import { SERVICE_TYPES, SESSION_TYPES, sessionTypesForService, sessionTypeById, durationForSessionType, ServiceType } from '../../config/sessionTaxonomy';
-import { addAppointment, updateAppointment, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
+// `updateAppointment` dropped from this import 2026-08-07: its only caller here
+// was the Google Calendar write-through's follow-up write (persisting the event
+// id back onto the row), which went with it.
+import { addAppointment, getGroupsWithCounselor, getTherapistAppointments, createRecurringSeries, getCounselors, Counselor } from '../../services/api';
 import { counselorsForSessionType, qualifiedCounselorsFor } from '../../config/sessionTaxonomy';
-import { isGoogleCalendarLinked, createGoogleCalendarEvent } from '../../services/googleCalendar';
+// Google Calendar import removed 2026-08-07 — see the write-through note in
+// handleSave. services/googleCalendar.ts is kept (Settings still owns the OAuth
+// connect/disconnect UI), it is simply no longer called from a booking.
 import { isZoomLinked, createZoomMeeting } from '../../services/zoom';
 import { generateWeeklyOccurrences, detectOverlaps } from '../../services/recurrence';
 import { formatTime12, parseTimeToMinutes, minutesToTimeLabel, toLocalYMD } from '../../config/time';
@@ -344,50 +349,39 @@ const ScheduleSessionModal: React.FC<ScheduleSessionModalProps> = ({ isOpen, onC
 
         const savedAppointment = await addAppointment({ ...newAppointmentData, zoomMeetingId });
 
-        // Best-effort Google Calendar write-through. Appointment is already
-        // in Supabase; calendar failure must not block the user flow. If the
-        // push succeeds, we attach the returned event id/link so the UI can
-        // render a Synced indicator and later delete/update can target it.
-        let googleEventId: string | undefined;
-        let googleEventLink: string | undefined;
-        if (user?.id && isGoogleCalendarLinked()) {
-            try {
-                const startIso = new Date(`${date}T${startTime}:00`).toISOString();
-                const endIso = new Date(`${date}T${endTime}:00`).toISOString();
-                const attendees: string[] = [];
-                if (!isGroup && client?.email) attendees.push(client.email);
-                const result = await createGoogleCalendarEvent(String(user.id), {
-                    summary: newAppointmentData.title,
-                    description: newAppointmentData.zoomLink
-                        ? `Zoom: ${newAppointmentData.zoomLink}`
-                        : undefined,
-                    startIso,
-                    endIso,
-                    timezone: 'America/Chicago',
-                    attendees: attendees.length ? attendees : undefined,
-                });
-                googleEventId = result.eventId;
-                googleEventLink = result.htmlLink;
-            } catch (err) {
-                console.warn('[ScheduleSessionModal] Google Calendar push failed:', err);
-            }
-        }
-
-        // If the Google push succeeded, persist the event id/link on the row so
-        // refresh preserves the Synced badge and future update/delete can target it.
-        if (googleEventId) {
-            try {
-                await updateAppointment(savedAppointment.id, { googleEventId, googleEventLink });
-            } catch (err) {
-                console.warn('[ScheduleSessionModal] failed to persist google event id:', err);
-            }
-        }
-
+        /* GOOGLE CALENDAR WRITE-THROUGH REMOVED (2026-08-07, Dan's call).
+         *
+         * A best-effort push used to run here, gated on `isGoogleCalendarLinked()`
+         * — a localStorage flag, per-browser, not per-account — and called
+         * createGoogleCalendarEvent(user.id, …). It had been DEAD for months and
+         * nobody noticed, because the failure is silent by design (the catch just
+         * warns, since a calendar error must not block a booking).
+         *
+         * Why it was dead: user_integrations.user_id is `text` and the one Google
+         * row was keyed on the legacy string 'staff-david-yoder' (from the
+         * pre-Supabase-auth AuthContext), while this call sends a Supabase auth
+         * UUID. The lookup could never match, so every booking 404'd and swallowed
+         * it. Measured before removal: 0 of 100 appointments carried a
+         * google_event_id, and NO appointment with a real client ever did.
+         *
+         * Why it was worse than dead: the only 6 events it ever created landed on
+         * dan.western@gemyndflow.com — a personal Google account whose stored
+         * refresh token also granted Gmail, Drive and Contacts. Deleting the call
+         * and the two user_integrations rows in one commit removes dead code and a
+         * live personal credential together.
+         *
+         * Also removed with it: `attendees.push(client.email)`. The edge function
+         * calls Google with sendUpdates=all, so a real client would have been
+         * emailed a calendar invite titled e.g. "SATOP Group" — a 42 CFR Part 2
+         * disclosure via a third party. It never fired, but it was loaded.
+         *
+         * The edge functions and the user_integrations table are intentionally
+         * LEFT IN PLACE; Dan may rebuild this as an ACS service account. Options
+         * and costs are in DEFERRED.md (#45).
+         */
         onSave({
             ...savedAppointment,
             date: new Date(savedAppointment.date),
-            googleEventId,
-            googleEventLink,
         });
         onClose();
         } catch (err) {
