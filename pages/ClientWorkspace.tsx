@@ -539,24 +539,22 @@ const ClientWorkspace: React.FC = () => {
                         Scan / Photo, each wired to its existing path. Hand-rolled off the
                         header's + Schedule pattern: useState(open) + absolute div.
 
-                        Emphasis, in three steps. It was solid ACS red (bg-primary), which
-                        put a second primary on the same page as the client header's
-                        "Start typed or dictated note". Making it a plain neutral outline
-                        (earlier 2026-08-07) over-corrected: Capture is the only INPUT
-                        affordance on a row of output actions, and it stopped reading as
-                        actionable at all.
-
-                        Now a tinted red outline — primary border, primary label, faint
-                        primary wash. Distinct from both its neutral neighbours (Status
-                        Report / Completion Certificate / Record Packet) and from the one
-                        solid-red primary, which stays "Start typed or dictated note".
-                        The dropdown's primary/10 icon tiles are unchanged. */}
+                        Solid ACS red fill (2026-08-07, reverted back after two wrong
+                        stops — neutral, then a tinted outline). Two solid-red buttons on
+                        this surface is correct: Capture and the header's "Start typed or
+                        dictated note" are the two actions a counselor actually takes here
+                        (write a note, get a document in). Status Report / Completion
+                        Certificate / Record Packet stay neutral outlines — those are
+                        outputs, not actions. Same fill classes as "Start typed or
+                        dictated note" (ClientProfileHeader.tsx): bg-primary text-white,
+                        hover:bg-primary-focus. The dropdown's primary/10 icon tiles are
+                        unchanged. */}
                     <div className="relative pl-2 ml-1 border-l border-hairline dark:border-white/10" ref={captureMenuRef}>
                         <button
                             onClick={() => setCaptureMenuOpen(o => !o)}
                             aria-haspopup="menu"
                             aria-expanded={captureMenuOpen}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-primary/5 dark:bg-primary/10 border border-primary/40 dark:border-primary/50 text-primary text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:bg-primary/10 dark:hover:bg-primary/20 hover:border-primary/60 hover:scale-[1.02] active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:bg-primary-focus hover:scale-[1.02] active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
                         >
                             <Upload size={14} /> Capture <ChevronDown size={14} className={`transition-transform ${captureMenuOpen ? 'rotate-180' : ''}`} />
                         </button>

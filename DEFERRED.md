@@ -1000,3 +1000,57 @@ exactly what a rebuild would re-point, and deleting it would throw away the shap
 that the WS6 standing-group branch above it is unaffected and is where all real Zoom
 links come from (`counselors.zoom_meeting_id`); group sessions were never dependent on
 this integration.
+
+**CORRECTION 2026-08-07 — Zoom's id mismatch is a regression, not a design flaw that was
+always dead.** Git history (`services/zoom.ts`, one commit ever: `828a090`, 2026-04-17;
+`user_integrations` migration: `20260416`) shows the keying **worked** from 2026-04-16
+until 2026-06-02: `AuthContext` was still the pre-Supabase sessionStorage stub (literal
+demo ids, e.g. `'u1'`, from the 2026-01-20 initial commit), matching the migration's own
+text-keyed design. It broke in `8c68024` ("real Supabase Auth sessions for counselor
+app, replaces sessionStorage stub", 2026-06-02), which switched `user.id` to a Supabase
+auth uuid everywhere **except** the already-written `user_integrations` rows, which were
+never re-keyed. Nobody reconnected in the two months since, so the break was silent.
+
+This also lowers the rebuild cost the table above states for the "per-counselor" option.
+As of today both call sites — `OAuthCallback.tsx` (`completeZoomOAuth`) and
+`ScheduleSessionModal.tsx` (`createZoomMeeting`) — already read `user.id` from the same
+real Supabase Auth session, so **a fresh OAuth connection today would key correctly with
+no migration needed.** What's actually missing is narrower than "migrate text→uuid FK":
+(1) a connect entry point, since no UI can call `beginZoomOAuth()` anymore, and (2) a
+DB-backed link check to replace the per-browser `localStorage` `isZoomLinked()` flag
+(item 3 in the non-negotiables list above already called for this on the Google side —
+same fix applies here). The edge functions (`zoom-oauth-exchange`, `zoom-create-meeting`)
+are still deployed and ACTIVE, untouched since 2026-04-17 — the Zoom app credentials
+they depend on are unverified, and the mint step has **zero confirmed successes** even
+during the window when the id keying matched (see #46, #47).
+
+## 46. APPOINTMENT LIFECYCLE HAS NO AUDIT TRAIL (2026-08-07)
+
+`audit_logs` has no `appointment.created` or `appointment.deleted` event type — the only
+appointment action wired is `appointment.rescheduled`. `appointments` has no soft-delete
+column (`deleted_at` / `is_deleted` — neither exists). A hard-deleted appointment leaves
+**zero trace** anywhere in this database: not in the table, not in the log.
+
+Found while trying to determine whether a Zoom-API-created meeting ever existed on a
+now-deleted appointment (#45 recon) — the question was unanswerable from the data. The
+live rows are clean (all 8 `zoom_meeting_id` values trace to a counselor's permanent
+room), but nothing rules out a past row that didn't.
+
+On its own, separate from Zoom: this is a compliance product recording clinical session
+scheduling, and a row can vanish with no record that it existed, who removed it, or why.
+Same shape as the gap #6/#25 audit-logging work has been closing elsewhere
+(`clinical_notes` signing, `placement_determinations`) — appointments were left out.
+
+## 47. SILENT-CATCH INVENTORY (recon only, 2026-08-07)
+
+`createZoomMeeting` failures are caught and swallowed with `console.warn` only
+(`ScheduleSessionModal.tsx:289`) — no audit entry, no user-facing signal. That is exactly
+why the Zoom integration's death (#45) was indistinguishable from "never used" for two
+months: a broken write and an intentionally-skipped one produce identical observable
+state.
+
+**Task, not a fix:** find every `try/catch` on a write path in this app that swallows a
+failure the same way, and report which ones hide a real outcome from the user or from
+the record (as opposed to catches that are fine to swallow — e.g. genuinely optional,
+non-authoritative side effects). Do not fix any of them; this entry is the list request,
+triage comes after.
