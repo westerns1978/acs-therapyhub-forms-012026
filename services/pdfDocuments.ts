@@ -17,7 +17,47 @@ import type { CompletionAssessment, RuleVerdict } from './complianceEngine';
 import type { ClientProgress } from './displayProgress';
 import { supabase } from './supabase';
 import { STORAGE_BUCKET } from './storageService';
-import type { DocumentFile } from '../types';
+import type { DocumentFile, FormSubmission } from '../types';
+
+// Certificate fields sourced from the client's own SATOP Registration Form
+// submission (form_submissions, not the clients table). The certificate never
+// invents these — a client with no registration on file, or a field the form
+// itself never asked for, stays null and renders blank, same as any other
+// unknown field on the form (2026-08-07).
+export interface CertificateRegistrationFields {
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  sex: string | null;
+  driversLicense: string | null;
+  driversLicenseState: string | null;
+}
+
+/**
+ * Pulls the latest satop-registration submission's captured intake fields for
+ * the certificate. The registration form has exactly one "State" field, used
+ * here for both the mailing address and the driver's license issuer — the
+ * form never asked the client's state of residence and DL-issuing state as
+ * two separate facts, so this doesn't invent a second one.
+ */
+export function extractRegistrationFields(formSubmissions: FormSubmission[]): CertificateRegistrationFields | null {
+  const regs = (formSubmissions || []).filter((f) => f.formId === 'satop-registration' && f.data);
+  if (!regs.length) return null;
+  const latest = regs.reduce((a, b) =>
+    new Date(b.submittedAt || 0).getTime() > new Date(a.submittedAt || 0).getTime() ? b : a,
+  );
+  const d = latest.data || {};
+  return {
+    address: d.address || null,
+    city: d.city || null,
+    state: d.state || null,
+    zip: d.zip || null,
+    sex: d.sex || null,
+    driversLicense: d.driversLicense || null,
+    driversLicenseState: d.state || null,
+  };
+}
 
 // Shared jsPDF "kit" — brand palette + letter geometry. Exported so a separate
 // renderer (e.g. services/paymentReceipt.ts) can reuse the SAME plumbing instead
@@ -123,7 +163,7 @@ function kv(doc: jsPDF, label: string, value: string, y: number): number {
 // Builds the certificate jsPDF. The completion GATE lives here, so every path
 // (direct download AND the record packet) reuses the engine's verdict and can
 // never fabricate a completion.
-export function buildCompletionCertificateDoc(client: any, completion: CompletionAssessment): jsPDF {
+export function buildCompletionCertificateDoc(client: any, completion: CompletionAssessment, registration?: CertificateRegistrationFields | null): jsPDF {
   if (!completion.eligible) {
     throw new Error(`Completion certificate blocked — criteria not met: ${completion.unmetReasons.join('; ')}`);
   }
@@ -183,25 +223,36 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   const provider = 'Assessment & Counseling Solutions';
   const dob: string | null = client.dob ?? null;
   const phone: string | null = client.primary_phone ?? client.phone ?? null;
-  // No new Date() fallback: an unrecorded completion date prints BLANK, like every
-  // other unknown field on this form. It previously fell back to today, which put a
-  // fabricated completion date on a state form for the 17 of 19 non-demo clients
-  // whose program_end_date is null.
-  const completionDate: string | null = client.program_end_date ?? client.programEndDate ?? null;
+  // Was client.program_end_date — a column complete_client() never writes, so this
+  // rendered blank even for a genuinely completed client. clients.completed_at is
+  // the real timestamp complete_client() sets the moment the gate passes, on the
+  // same row (2026-08-07 fix). No new Date() fallback either way: an unrecorded
+  // completion date prints BLANK, like every other unknown field on this form.
+  const completionDate: string | null = client.completed_at ?? client.completedAt ?? null;
+  // clients.case_number — real, staff-enterable at intake (CreateClientModal),
+  // just never read here before (2026-08-07 fix).
+  const caseNumber: string | null = client.case_number ?? client.caseNumber ?? null;
+  const reg = registration ?? null;
+  const driversLicenseField = reg?.driversLicense
+    ? reg.driversLicenseState ? `${reg.driversLicense} / ${reg.driversLicenseState}` : reg.driversLicense
+    : null;
   const half = CONTENT_W / 2;
   const third = CONTENT_W / 3;
 
   // I. OFFENDER INFORMATION
   y = section('I.  Offender Information', y);
   field('Name (Last, First, MI)', client.name || null, MARGIN, y, CONTENT_W); y += 28;
-  field('Street Address', null, MARGIN, y, CONTENT_W); y += 28;
-  field('City', null, MARGIN, y, third - 8);
-  field('State', null, MARGIN + third, y, third - 8);
-  field('Zip', null, MARGIN + 2 * third, y, third); y += 28;
+  field('Street Address', reg?.address ?? null, MARGIN, y, CONTENT_W); y += 28;
+  field('City', reg?.city ?? null, MARGIN, y, third - 8);
+  field('State', reg?.state ?? null, MARGIN + third, y, third - 8);
+  field('Zip', reg?.zip ?? null, MARGIN + 2 * third, y, third); y += 28;
   field('Date of Birth', dob ? fmtDate(dob) : null, MARGIN, y, third - 8);
-  field('Sex', null, MARGIN + third, y, third - 8);
+  field('Sex', reg?.sex ?? null, MARGIN + third, y, third - 8);
   field('Phone', phone, MARGIN + 2 * third, y, third); y += 28;
-  field("Driver's License No. & State", null, MARGIN, y, half - 8);
+  field("Driver's License No. & State", driversLicenseField, MARGIN, y, half - 8);
+  // Still always blank — the registration form only ever captures the last 4
+  // digits (a partial value by the form's own design), never a full SSN, so
+  // this field has no real source to pull from regardless of wiring.
   field('Social Security Number', null, MARGIN + half, y, half); y += 30;
 
   // II. OFFENDER MANAGEMENT UNIT CERTIFYING COMPLETION
@@ -229,7 +280,7 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   // V. COURT INFORMATION (IF APPLICABLE)
   y = section('V.  Court Information (If Applicable)', y);
   field('Court / Circuit Name', null, MARGIN, y, CONTENT_W); y += 28;
-  field('Case Number', null, MARGIN, y, half - 8);
+  field('Case Number', caseNumber, MARGIN, y, half - 8);
   field('Date of Conviction / Disposition', null, MARGIN + half, y, half); y += 26;
 
   // Provenance note + official form identifiers.
@@ -250,8 +301,8 @@ export function buildCompletionCertificateDoc(client: any, completion: Completio
   return doc;
 }
 
-export function downloadCompletionCertificate(client: any, completion: CompletionAssessment): void {
-  buildCompletionCertificateDoc(client, completion).save(`SATOP_Completion_Certificate_${safeName(client)}.pdf`);
+export function downloadCompletionCertificate(client: any, completion: CompletionAssessment, registration?: CertificateRegistrationFields | null): void {
+  buildCompletionCertificateDoc(client, completion, registration).save(`SATOP_Completion_Certificate_${safeName(client)}.pdf`);
 }
 
 // ── 2. Status / Progress Report ──────────────────────────────────────────────
@@ -386,6 +437,7 @@ export async function downloadClientRecordPacket(
   completion: CompletionAssessment,
   documents: DocumentFile[] = [],
   progress?: ClientProgress | null,
+  registration?: CertificateRegistrationFields | null,
 ): Promise<{ embedded: number; listed: number; complete: boolean }> {
   const zip = new JSZip();
   const complete = completion.eligible;
@@ -395,7 +447,7 @@ export async function downloadClientRecordPacket(
 
   // 2. Completion Certificate — ONLY when the engine confirms eligibility.
   if (complete) {
-    zip.file('SATOP_Completion_Certificate.pdf', buildCompletionCertificateDoc(client, completion).output('blob'));
+    zip.file('SATOP_Completion_Certificate.pdf', buildCompletionCertificateDoc(client, completion, registration).output('blob'));
   }
 
   // 3. Stored documents → fetch from public URLs, folder by real category.

@@ -30,7 +30,7 @@ import { normalizeProgram, programLabel as canonicalProgramLabel } from '../conf
 import { buildClientSummaryPrompt } from '../services/claraPrompts';
 import { composeProgress } from '../services/displayProgress';
 import { composePacketReadiness } from '../services/packetReadiness';
-import { downloadClientRecordPacket } from '../services/pdfDocuments';
+import { downloadClientRecordPacket, extractRegistrationFields } from '../services/pdfDocuments';
 import DocumentPreviewModal, { PreviewKind } from '../components/clients/DocumentPreviewModal';
 import BillingLedger from '../components/billing/BillingLedger';
 import AssessmentTab from '../components/clients/AssessmentTab';
@@ -321,6 +321,11 @@ const ClientWorkspace: React.FC = () => {
     // no extra fetch, never the neutralized client.completionPercentage.
     const clientProgress = composeProgress(clientDeterminedLevel, clientAccrual);
 
+    // Certificate fields the SATOP Registration Form actually captured (address/
+    // city/state/zip/sex/DL#) — derived from the SAME formSubmissions already
+    // loaded above, no extra fetch. Null when no registration is on file.
+    const registrationFields = extractRegistrationFields(formSubmissions);
+
     // Contextual Clara — the one high-value, one-tap action: open Clara and seed a summary
     // built ONLY from the facts already on this page (services/claraPrompts). She phrases
     // real data; she invents nothing. No new query, no auto-open. Clinical staff only.
@@ -516,7 +521,7 @@ const ClientWorkspace: React.FC = () => {
                             if (isCompiling) return;
                             setIsCompiling(true);
                             try {
-                                await downloadClientRecordPacket(client, assessment.verdicts, assessment.completion, documents, clientProgress);
+                                await downloadClientRecordPacket(client, assessment.verdicts, assessment.completion, documents, clientProgress, registrationFields);
                             } catch (e) {
                                 alert('Could not compile the record packet: ' + (e as Error).message);
                             } finally {
@@ -604,6 +609,7 @@ const ClientWorkspace: React.FC = () => {
                     verdicts={assessment.verdicts}
                     completion={assessment.completion}
                     progress={clientProgress}
+                    registration={registrationFields}
                 />
             )}
 

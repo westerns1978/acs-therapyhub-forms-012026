@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, Download, ShieldCheck, AlertTriangle, Award, FileText, Receipt, FileCheck } from 'lucide-react';
 import type { jsPDF } from 'jspdf';
-import { buildCompletionCertificateDoc, buildStatusReportDoc } from '../../services/pdfDocuments';
+import { buildCompletionCertificateDoc, buildStatusReportDoc, type CertificateRegistrationFields } from '../../services/pdfDocuments';
 import type { CompletionAssessment, RuleVerdict } from '../../services/complianceEngine';
 import type { ClientProgress } from '../../services/displayProgress';
 
@@ -23,6 +23,9 @@ interface CertStatusProps extends CommonProps {
   /** WS-DisplayTruth: the gate-sourced hours (composeProgress) for the status report's
    *  "Clinical hours" line — the static columns it used to read were dropped (#10a). */
   progress?: ClientProgress | null;
+  /** Certificate only — real fields captured on the client's SATOP Registration
+   *  Form (address/city/state/zip/sex/DL#). Never invented; absent = blank. */
+  registration?: CertificateRegistrationFields | null;
 }
 
 interface GenericDocProps extends CommonProps {
@@ -90,7 +93,7 @@ const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = (props) => {
         const doc = isGenericProps(props)
           ? props.build()
           : props.kind === 'certificate'
-            ? buildCompletionCertificateDoc(props.client, props.completion)
+            ? buildCompletionCertificateDoc(props.client, props.completion, props.registration)
             : buildStatusReportDoc(props.client, props.verdicts, props.completion, props.progress);
         docRef.current = doc;
         url = URL.createObjectURL(doc.output('blob'));

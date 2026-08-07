@@ -1,6 +1,6 @@
 # Demo Cohort — Build Report
 
-**Built:** 2026-08-07, branch `feat/registration-forms`. Not deployed, not merged, not committed to git as of this report.
+**Built:** 2026-08-07, branch `feat/registration-forms`. Landed in 4 commits (UI fixes, this report + certificate, the completion-button fix, the certificate field wiring). Not deployed, not merged.
 
 Two fictional clients, built end to end through the real app to prove (or disprove) the front-door-to-certificate path for a real David demo. Client A completes clean. Client B proves the completion gate refuses a genuinely unready client. Both are `is_demo: true`, `@example.com`, collision-checked by name against every existing client (live and demo) before creation — no collision found. **Bela Lugosi and James West were not touched** — verified by id, not name, before any write in this session.
 
@@ -84,35 +84,35 @@ This single hardcoded literal is used for **both** Section II "Corporate Name" (
 
 ## 4. Certificate vs. MO 650-7743 — every field named
 
-Generated for Client A: [`docs/demo-cohort-artifacts/nolan-cross-completion-certificate.pdf`](demo-cohort-artifacts/nolan-cross-completion-certificate.pdf) (9.2KB, real output of `buildCompletionCertificateDoc()`, `services/pdfDocuments.ts:126-251`). No external reference copy of MO 650-7743 could be confirmed online — Missouri DMH's site kept surfacing a *different* form (MO 650-8997, the SATOP Comparable Program Completion form) instead. This comparison is grounded in the app's own generated layout, which reproduces the form's section structure and field labels verbatim, cross-checked against generator source.
+Generated for Client A: [`docs/demo-cohort-artifacts/nolan-cross-completion-certificate.pdf`](demo-cohort-artifacts/nolan-cross-completion-certificate.pdf) (regenerated post-fix, 9.8KB, real output of `buildCompletionCertificateDoc()`, `services/pdfDocuments.ts`). No external reference copy of MO 650-7743 could be confirmed online — Missouri DMH's site kept surfacing a *different* form (MO 650-8997, the SATOP Comparable Program Completion form) instead. This comparison is grounded in the app's own generated layout, which reproduces the form's section structure and field labels verbatim, cross-checked against generator source.
 
-Every populated/blank/hardcoded classification below is cited to a source line, not inferred from the PDF alone.
+State reflects the fix landed in this session (§6 has the before/after). Every classification is cited to a source line, not inferred from the PDF alone.
 
 | # | Field | Renders as | Source |
 |---|---|---|---|
-| I | Name (Last, First, MI) | **Nolan Cross** | Real — `client.name`, line 196 |
-| I | Street Address | blank | Hardcoded `null`, line 197 — **captured** on the SATOP Registration Form (`data.address`) but never read here |
-| I | City / State / Zip | blank | Hardcoded `null`, lines 198-200 — **captured** on the registration form, never read |
-| I | Date of Birth | **March 14, 1990** | Real — `client.dob`, line 184/201 |
-| I | Sex | blank | Hardcoded `null`, line 202 — **captured** on the registration form (`data.sex`), never read |
-| I | Phone | **314-555-0212** | Real — `client.primary_phone`, line 185/203 |
-| I | Driver's License No. & State | blank | Hardcoded `null`, line 204 — **captured** on the registration form (`data.driversLicense`, `data.state`), never read |
-| I | Social Security Number | blank | Hardcoded `null`, line 205 — and even if wired, the form only ever captures the **last 4 digits** (`data.ssn`), never a full SSN, so this field can never be fully populated by design |
-| II | Corporate Name | **Assessment & Counseling Solutions** | **Hardcoded literal**, line 183/209 — no org/settings table backs this |
-| II | Address | blank | Hardcoded `null`, line 210 — no ACS org-address concept exists anywhere in the schema |
-| II | Qualified Professional | blank | Hardcoded `null`, line 211 — the real signer (David Yoder, Director, `placement_determinations.determined_by`) exists and is never wired here |
-| II | Phone | blank | Hardcoded `null`, line 212 |
-| II | Certificate Number | blank | Hardcoded `null` **by design** — code comment: "a real certificate number is assigned by the certifying OMU, never by this app" (lines 213-216) |
-| III | Program Was Required Due To | blank | Hardcoded `null`, line 220 — genuinely uncaptured anywhere; closest adjacent fact is `referredBy` on the registration form, which is a different concept (who referred, not the legal mandate reason) |
-| IV | Program Completed | **SATOP — Offender Education Program (OEP, Level I)** | Real — derived from the signed determination, line 224 |
-| IV | Provider Site | **Assessment & Counseling Solutions** | Same hardcoded literal as Corporate Name, line 183/225 — confirms both-at-once above |
-| IV | Completion Date | blank | **Reads the wrong column.** Line 190: `client.program_end_date ?? client.programEndDate` — a column `complete_client()` never writes. The real timestamp, `clients.completed_at` (populated `2026-08-07T16:10:05.996` for Nolan, in the same row), sits unused. This is a known, previously-flagged issue — `docs/qa/p0-gate1-recon.md` already recommends `completed_at` as authoritative and calls `program_end_date` a stale denormalized mirror. Not fixed in this pass. **One-line fix, real bug, not a capture gap.** |
+| I | Name (Last, First, MI) | **Nolan Cross** | Real — `client.name` |
+| I | Street Address | **2210 S Grand Blvd** | Real — SATOP Registration Form (`data.address`), via `extractRegistrationFields()` |
+| I | City / State / Zip | **St. Louis / MO / 63104** | Real — registration form (`data.city/state/zip`) |
+| I | Date of Birth | **March 14, 1990** | Real — `client.dob` |
+| I | Sex | **Male** | Real — registration form (`data.sex`) |
+| I | Phone | **314-555-0212** | Real — `client.primary_phone` |
+| I | Driver's License No. & State | **C7714402 / MO** | Real — registration form (`data.driversLicense` + `data.state`) |
+| I | Social Security Number | blank | Still hardcoded `null` — the registration form only ever captures the **last 4 digits** (`data.ssn`), never a full SSN, so this field has no real source to pull regardless of wiring |
+| II | Corporate Name | **Assessment & Counseling Solutions** | **Hardcoded literal** (unchanged, report-only — §6) |
+| II | Address | blank | Hardcoded `null` — no ACS org-address concept exists anywhere in the schema |
+| II | Qualified Professional | blank | Hardcoded `null` — the real signer (David Yoder, Director, `placement_determinations.determined_by`) exists but isn't wired here (out of scope this pass — not one of the 8) |
+| II | Phone | blank | Hardcoded `null` |
+| II | Certificate Number | blank | Hardcoded `null` **by design** — code comment: "a real certificate number is assigned by the certifying OMU, never by this app" |
+| III | Program Was Required Due To | blank | Hardcoded `null` — genuinely uncaptured anywhere; closest adjacent fact is `referredBy` on the registration form, which is a different concept (who referred, not the legal mandate reason) |
+| IV | Program Completed | **SATOP — Offender Education Program (OEP, Level I)** | Real — derived from the signed determination |
+| IV | Provider Site | **Assessment & Counseling Solutions** | Same hardcoded literal as Corporate Name — confirms both-at-once, §6 |
+| IV | Completion Date | **August 7, 2026** | Real (fixed) — was reading `client.program_end_date` (a column `complete_client()` never writes); now reads `client.completed_at`, the real timestamp set the moment the gate passed |
 | IV | Other Approved Program (Non-SATOP) | blank | Correctly blank — N/A for a SATOP-track client |
-| V | Court / Circuit Name | blank | Hardcoded `null`, line 231 — closest existing fact is `courtHandlingDWI` on the registration form ("St. Louis County Circuit Court" for Nolan), unwired, and it's not certain that's the same "sentencing court" this section means |
-| V | Case Number | blank | Hardcoded `null`, line 232 — **the headline finding.** `clients.case_number` is real, staff-enterable (§3), and populated right now (`DEMO-2026-0201`) in the same row the rest of this certificate pulls from. The generator simply never reads it. **One-line fix.** |
-| V | Date of Conviction / Disposition | blank | Hardcoded `null`, line 233 — genuinely never captured anywhere; the registration form's arrest/BAC/offense-count fields feed the placement algorithm, not a conviction date |
+| V | Court / Circuit Name | blank | Hardcoded `null` — closest existing fact is `courtHandlingDWI` on the registration form ("St. Louis County Circuit Court" for Nolan), left unwired: it's not certain that's the same "sentencing court" this section means, so it stayed out of the 8 rather than guess |
+| V | Case Number | **DEMO-2026-0201** | Real (fixed) — `clients.case_number`, real and staff-enterable at intake (§3), now read here |
+| V | Date of Conviction / Disposition | blank | Hardcoded `null` — genuinely never captured anywhere; the registration form's arrest/BAC/offense-count fields feed the placement algorithm, not a conviction date |
 
-**Net: 6 of 21 fields are real. 2 more (Completion Date, Case Number) are one-line fixes — the data already exists in the same row. 6 more exist in `form_submissions` but the generator never reaches them. The rest (OMU identity, certificate number, mandate reason, conviction date) aren't captured anywhere in the system today.**
+**Net: 10 of 21 fields are now real (up from 4 before this session). 8 were newly wired (Case Number, Completion Date, and the 6 from the SATOP Registration Form). 2 (Corporate Name, Provider Site) are a deliberate hardcode — §6, report-only, not touched. The remaining 9 stay blank: 5 because nothing in the system captures them at all (SSN beyond last-4, OMU address/phone, certificate number, mandate reason, conviction date), 2 (Qualified Professional, Court/Circuit Name) because an adjacent fact exists but wasn't confidently the same concept — left unwired rather than guessed — and 1 (Other Approved Program) is correctly blank, N/A for a SATOP-track client.**
 
 ---
 
@@ -120,13 +120,17 @@ Every populated/blank/hardcoded classification below is cited to a source line, 
 
 Ranked by how much it matters for a live David demo.
 
-### 5.1 Structural bug: "Mark completed" cannot render for a first-time completion (real product bug)
+### 5.1 Structural bug: "Mark completed" cannot render for a first-time completion — FIXED
 
-`ClientSelectionGrid.tsx`'s nudge chip calls `assessClient()` (`services/complianceEngine.ts`), whose "signoff" gate is `passed: facts.completionSignedOff === true` — it requires a **pre-existing signed `completion_signoff` clinical note**. But that note type can only be inserted by `complete_client()` itself; `clinical_notes_insert_staff` RLS explicitly excludes it from any manual insert. **The button that's supposed to trigger the first completion requires proof a completion already happened.** Both Client A's and Client B's completion attempts had to call the real `completeClient()` service function directly (same function, same RLS, same gate logic the button would call) because the button itself cannot appear. This needs a real fix before David clicks anything.
+`ClientSelectionGrid.tsx`'s nudge chip called `assessClient()` (`services/complianceEngine.ts`), whose "signoff" gate required a **pre-existing signed `completion_signoff` clinical note**. That note type can only be inserted by `complete_client()` itself — `clinical_notes_insert_staff` RLS explicitly excludes it from any manual insert — so the button that's supposed to trigger the *first* completion required proof a completion had already happened. Both Client A's and Client B's completion attempts had to call the real `completeClient()` service function directly because the button itself could never appear.
 
-### 5.2 Certificate: 2 one-line fixes, 6 unwired-but-captured fields, 1 identity conflation
+**Fixed.** `CompletionAssessment` now exposes `readyToComplete` — every precondition gate (hours/duration/balance/forms) with sign-off excluded, since sign-off is `complete_client()`'s OUTPUT, not a precondition a client can satisfy in advance. `ClientSelectionGrid`'s nudge pre-check reads `readyToComplete` instead of `eligible`, and no longer fetches the sign-off note at all. `eligible` (sign-off included) is untouched and still gates the certificate/status-report output — a certificate still only renders for a client actually completed.
 
-Full detail in §4. The two one-line fixes (Case Number, Completion Date) should ship before any demo where David looks closely at the PDF.
+**Witnessed live**, not just unit-reasoned: built a fresh SATOP client ("Witness Fixchip") through the real UI — create client, sign a Level I determination on the Assessment tab, 10 real completed appointments, all 6 required forms. The "Mark completed" chip rendered on the Clients list, opened the real `CompleteClientModal`, and completing succeeded end to end through the UI — no console, no service-function shortcut. `services/complianceEngine.ts`, `components/clients/ClientSelectionGrid.tsx`. Witness Fixchip is left in the DB as `is_demo: true` scratch data (`status: completed`) — harmless, but worth knowing it's there.
+
+### 5.2 Certificate: 8 fields wired, 1 identity conflation flagged (not changed)
+
+8 fields — Case Number, Completion Date, and the 6 captured on the SATOP Registration Form (address, city, state, zip, sex, DL#+state) — are now pulled from the real record. Full before/after in §4 and §6. The OMU/provider-site hardcode is a judgment call for David, not a bug — reported in §6, not touched.
 
 ### 5.3 Clinical notes on individual sessions required a console call, not the UI
 
@@ -144,15 +148,37 @@ The only real, app-writable charge type outside SATOP program fees is a late-can
 
 Flagged honestly in §2 — the 4 backing appointment rows exist and the real accrual view/gate both correctly read them, but I don't have full certainty on whether they were entered via the real scheduling UI. Worth a follow-up spot-check before relying on this as a template for future demo builds.
 
-### 5.7 Two small UI fixes (requested, done, not committed)
+### 5.7 Two small UI fixes (requested, done)
 
-- **Admin/Clinical Documents tabs** now use distinct icons (`ClipboardList` / `Stethoscope` instead of both `FileText`) — [`pages/ClientWorkspace.tsx:378-379`](../pages/ClientWorkspace.tsx).
+- **Admin/Clinical Documents tabs** now use distinct icons (`ClipboardList` / `Stethoscope` instead of both `FileText`) — `pages/ClientWorkspace.tsx`.
 - **Portal progress bars** (`PortalDashboard.tsx`, `PortalCompliance.tsx`) no longer render a red-leaning gradient at every fill level — both now use `bg-success-500`, matching the staff-side fix already applied to `ClientOverviewTab`/`ClientSelectionGrid`.
-
-Both are uncommitted working-tree changes as of this report (`git status`: 3 modified files, 1 new `docs/demo-cohort-artifacts/` directory).
 
 ---
 
-## No deploy, no merge, no commit
+## 6. Report only — not changed
 
-Per instruction: this report is the checkpoint. Nothing in this build has been committed, merged, or deployed.
+### The OMU/provider-site hardcode
+
+`services/pdfDocuments.ts`:
+```ts
+const provider = 'Assessment & Counseling Solutions';
+```
+Used verbatim for both Section II "Corporate Name" (the Offender Management Unit certifying completion) and Section IV "Provider Site" (where treatment happened). On the real MO 650-7743 these are two different organizations in the general case — the OMU is the entity certifying to DMH that the program was completed; the provider site is wherever the client actually attended. ACS may in fact be both for every client it serves today, or it may not (e.g. a referral/subcontract arrangement) — that's a fact about ACS's business relationship with the state, not something derivable from this codebase, so it's David's answer, not ours.
+
+What it would take to make Section II data-driven: there is no organization/settings concept anywhere in this schema today (no `organizations` table, no ACS profile row) — this isn't a one-line fix like Case Number was. It would need: (1) a place to record the OMU's corporate name, address, phone, and DMH-issued qualified-professional/certificate-number identity (likely a new small settings table, since none of `clients`, `counselors`, or any config file models "ACS as an entity" today), and (2) a decision on whether "provider site" is ever a *different* value than "OMU" for any ACS client — if never, one field suffices and the current hardcode is directionally correct, just not sourced from real data; if sometimes, they need to be two independently-editable fields.
+
+### Certificate fields with no capture point anywhere
+
+The list to hand David — these aren't wiring gaps, nothing in ACS TherapyHub asks for them today:
+
+- **Program Was Required Due To** (Section III) — the legal-mandate reason/type (e.g. "Administrative DWI"). The registration form's `referredBy` is adjacent (who referred the client) but is a different fact.
+- **Date of Conviction / Disposition** (Section V) — the registration form captures arrest/BAC/offense-count facts for the placement algorithm, never a conviction date.
+- **Certificate Number** (Section II) — by design; this is DMH/OMU-assigned, and the code deliberately never fabricates one.
+- **Qualified Professional's name/phone + OMU address/phone** (Section II) — see above; needs the organization concept, not a client-record field.
+- **Full Social Security Number** (Section I) — only the last 4 digits are ever captured, by the registration form's own design; a full SSN has no source regardless of wiring.
+
+---
+
+## No deploy, no merge
+
+Per instruction: stopped after commit 4. Nothing in this build has been deployed.
