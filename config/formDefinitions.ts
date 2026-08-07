@@ -27,8 +27,10 @@ import { SESSION_ATTENDANCE_DEFINITION } from '../components/forms/SessionAttend
 import { HIPAA_ACK_DEFINITION } from '../components/forms/HipaaAckForm';
 import { TELEHEALTH_CONSENT_DEFINITION } from '../components/forms/TelehealthConsentForm';
 import { LATE_CANCELLATION_DEFINITION } from '../components/forms/LateCancellationForm';
+import { SATOP_REGISTRATION_DEFINITION } from '../components/forms/SatopRegistrationForm';
 
 export const FORM_DEFINITION_BY_ID: Record<string, FormDefinition<any>> = {
+  'satop-registration': SATOP_REGISTRATION_DEFINITION,
   'satop-intake': SATOP_INTAKE_DEFINITION,
   'recovery-plan': RECOVERY_PLAN_DEFINITION,
   'consent-treatment': CONSENT_FORM_DEFINITION,

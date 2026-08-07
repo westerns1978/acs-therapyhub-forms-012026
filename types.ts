@@ -234,6 +234,51 @@ export interface RecoveryPlanData {
   counselorSignature: string; counselorDate: string;
 }
 
+/**
+ * SATOP REGISTRATION FORM — the first and base form for a new SATOP client
+ * (David, Forms.docx 2026-08-05). Digitized from ACS's paper sheet (footer 08/20).
+ *
+ * EVERY FIELD IS MANDATORY by David's explicit instruction, so there are no
+ * optional members here except `veteranStatus`, which is conditional rather than
+ * optional — required whenever `veteran === 'Yes'`, not enforced otherwise.
+ *
+ * Struck from the paper per his markup and therefore absent by design, not by
+ * oversight: Date of Appointment, and the whole Probation-Officer / Attorney
+ * contact block (officer name + phone, attorney name + phone, fax/email, and the
+ * "You must provide us with your attorney's contact information" line).
+ */
+export interface SatopRegistrationData {
+  clientName: string;
+  date: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  primaryPhone: string;
+  email: string;
+  dob: string;
+  age: number | '';
+  sex: string;
+  maritalStatus: string;
+  race: string;
+  ssn: string;
+  driversLicense: string;
+  referredBy: string;
+  bac: string;
+  veteran: string;
+  veteranStatus: string;
+  lastSchoolAttended: string;
+  lastGradeCompleted: string;
+  employed: string;
+  annualIncome: string;
+  occupation: string;
+  numberInHousehold: number | '';
+  otherAlcoholArrest: string;
+  trafficTickets: number | '';
+  drugRelatedArrests: number | '';
+  countyOfArrestDWI: string;
+  courtHandlingDWI: string;
+}
 
 export interface ConsentForTreatmentData {
   clientName: string;
