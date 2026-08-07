@@ -172,8 +172,13 @@ const GroupNoteModal: React.FC<GroupNoteModalProps> = ({ isOpen, onClose, group,
                             <ul className="space-y-1">
                                 {existing.attendees.map(a => (
                                     <li key={a.clientId} className="text-sm text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                                        {/* David, 8/5 markup: drop the "makeup" designation — present
+                                            or absent is all he needs. Everyone credited on this note
+                                            reads the same. The attendees.source column still records
+                                            how the seat arose (standing roster vs added here), which
+                                            is a factual audit detail; it is simply not a label the
+                                            clinician is shown or has to reason about. */}
                                         <Users size={13} className="text-slate-400" /> {a.clientName}
-                                        {a.source === 'makeup' && <span className="text-[10px] font-bold uppercase text-indigo-500">makeup</span>}
                                     </li>
                                 ))}
                             </ul>
@@ -234,7 +239,7 @@ const GroupNoteModal: React.FC<GroupNoteModalProps> = ({ isOpen, onClose, group,
                                 Attendees <span className="text-rose-500">*</span> — {attendees.length} of {roster.length + makeups.length} listed
                             </p>
                             {roster.length === 0 && makeups.length === 0 && (
-                                <p className="text-xs text-slate-400 italic mb-2">No clients are assigned to this group yet. Assign clients from their client page, or add a makeup below.</p>
+                                <p className="text-xs text-slate-400 italic mb-2">No clients are assigned to this group yet. Assign clients from their client page, or add one below.</p>
                             )}
                             <ul className="space-y-1.5">
                                 {roster.map(r => {
@@ -250,16 +255,18 @@ const GroupNoteModal: React.FC<GroupNoteModalProps> = ({ isOpen, onClose, group,
                                         </li>
                                     );
                                 })}
+                                {/* Same neutral treatment as a standing-roster row — no indigo
+                                    "makeup" styling, no badge. An added client is just present. */}
                                 {makeups.map(m => (
-                                    <li key={m.clientId} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-indigo-200 dark:border-indigo-800/50 bg-indigo-50/50 dark:bg-indigo-900/10">
-                                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{m.clientName} <span className="text-[10px] font-bold uppercase text-indigo-500 ml-1">makeup</span></span>
+                                    <li key={m.clientId} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
+                                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{m.clientName}</span>
                                         <button type="button" onClick={() => setMakeups(ms => ms.filter(x => x.clientId !== m.clientId))}
                                             className="text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-rose-600">Remove</button>
                                     </li>
                                 ))}
                             </ul>
                             <div className="mt-2">
-                                <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1 flex items-center gap-1"><UserPlus size={11} /> Add makeup (this session only)</label>
+                                <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1 flex items-center gap-1"><UserPlus size={11} /> Add a client to this session</label>
                                 <ClientTypeAhead clients={allClients} value={makeupPick} onChange={addMakeup} />
                             </div>
                         </div>
