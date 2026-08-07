@@ -161,8 +161,6 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
 
     const timeToDeadline = client.nextDeadline ? Math.max(0, Math.ceil((new Date(client.nextDeadline).getTime() - new Date().getTime()) / (1000 * 3600 * 24))) : null;
 
-    const badgeCount = client?.gamification?.badges?.length || 0;
-
     const [payments, setPayments] = useState<PaymentRow[]>([]);
     const [notes, setNotes] = useState<NoteRow[]>([]);
     const [csrAlerts, setCsrAlerts] = useState<ComplianceEvent[]>([]);
@@ -394,8 +392,16 @@ const ClientOverviewTab: React.FC<ClientOverviewTabProps> = ({ client, sropData,
                         {/* "Missing Documents" StatCard retired (Build 1): it read
                             client.missingDocuments, which no DB column feeds — permanently 0,
                             phantom-shaped reassurance. The Packet Readiness checklist's
-                            per-form rows are the real replacement. */}
-                        <StatCard label="Achievements" value={badgeCount} icon={Award} />
+                            per-form rows are the real replacement.
+                            "Achievements" StatCard retired the same way (2026-08-07): it read
+                            client.gamification.badges.length, and services/api.ts's
+                            mapClientToApp always synthesizes gamification as
+                            { points: 0, badges: [] } — no clients column ever feeds it, so
+                            this card could never show anything but 0 (recon backlog #24).
+                            The gamification field itself, and the 'Achievement' member of
+                            ClientActivity['type'] used by the Recent Activity feed's icon
+                            map above, are left untouched — this removes the one dead render
+                            site, not the vocabulary. */}
                     </div>
                 </Card>
 

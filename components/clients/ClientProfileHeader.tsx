@@ -180,7 +180,15 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
               </span>
           </div>
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm font-bold text-slate-500 uppercase tracking-widest">
-              <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> ID: {client.caseNumber}</span>
+              {/* client.caseNumber has no data source for every client — mapClientToApp
+                  defaults it to '' when clients.case_number is null (services/api.ts),
+                  which is common (e.g. Bela Lugosi carries no case number). This used to
+                  render unconditionally, so an unset case number printed a bare "ID:"
+                  label with nothing after it. Same pattern as phone/email below: no
+                  value, no row — an orphaned label is not an honest empty state. */}
+              {client.caseNumber && (
+                <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> ID: {client.caseNumber}</span>
+              )}
               {client.phone && (
                 <a href={`tel:${client.phone}`} className="flex items-center gap-1.5 normal-case tracking-normal font-medium text-slate-500 hover:text-primary transition-colors">
                   <Phone size={13} className="shrink-0" /> {client.phone}
