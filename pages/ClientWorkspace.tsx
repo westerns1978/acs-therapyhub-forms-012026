@@ -538,17 +538,25 @@ const ClientWorkspace: React.FC = () => {
                         output actions above by a hairline divider. Consolidates Upload /
                         Scan / Photo, each wired to its existing path. Hand-rolled off the
                         header's + Schedule pattern: useState(open) + absolute div.
-                        Was solid ACS red (bg-primary) — a second primary competing with
-                        the client header's "Start typed or dictated note" on the same
-                        page (2026-08-07). Neutral outline now; the dropdown's own menu
-                        items keep their primary/10 icon tiles, which is decoration inside
-                        an open menu, not a second persistent brand mark on the surface. */}
+
+                        Emphasis, in three steps. It was solid ACS red (bg-primary), which
+                        put a second primary on the same page as the client header's
+                        "Start typed or dictated note". Making it a plain neutral outline
+                        (earlier 2026-08-07) over-corrected: Capture is the only INPUT
+                        affordance on a row of output actions, and it stopped reading as
+                        actionable at all.
+
+                        Now a tinted red outline — primary border, primary label, faint
+                        primary wash. Distinct from both its neutral neighbours (Status
+                        Report / Completion Certificate / Record Packet) and from the one
+                        solid-red primary, which stays "Start typed or dictated note".
+                        The dropdown's primary/10 icon tiles are unchanged. */}
                     <div className="relative pl-2 ml-1 border-l border-hairline dark:border-white/10" ref={captureMenuRef}>
                         <button
                             onClick={() => setCaptureMenuOpen(o => !o)}
                             aria-haspopup="menu"
                             aria-expanded={captureMenuOpen}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-border dark:border-dark-border text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-primary/5 dark:bg-primary/10 border border-primary/40 dark:border-primary/50 text-primary text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:bg-primary/10 dark:hover:bg-primary/20 hover:border-primary/60 hover:scale-[1.02] active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
                         >
                             <Upload size={14} /> Capture <ChevronDown size={14} className={`transition-transform ${captureMenuOpen ? 'rotate-180' : ''}`} />
                         </button>
