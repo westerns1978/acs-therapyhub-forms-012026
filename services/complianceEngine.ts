@@ -681,7 +681,17 @@ export interface CompletionAssessment {
   program: string;
   programLabel: string;
   hasCriteria: boolean;          // false when no completion rules are wired for this program/level
-  eligible: boolean;             // true ONLY if every gate passes (rules MET + balance 0 + signed)
+  eligible: boolean;             // true ONLY if every gate passes, INCLUDING sign-off — gates the
+                                  // certificate/status-report output. A signed completion_signoff
+                                  // note is proof a real completion already happened, so this is
+                                  // never true before complete_client() has run.
+  readyToComplete: boolean;      // true when every PRECONDITION gate passes (hours/duration/
+                                  // balance/forms) — sign-off excluded. This is what "is this
+                                  // client ready to complete" should check: sign-off is the
+                                  // OUTCOME complete_client() writes, not a precondition, so a
+                                  // pre-check gated on it can never be satisfied for a first-time
+                                  // completion. Use this (not `eligible`) to decide whether to
+                                  // surface the completion action.
   gates: CompletionGate[];       // hours · [duration] · payment · sign-off — for the viewer
   gatingVerdicts: RuleVerdict[]; // the underlying rule verdicts (hours/duration)
   unmetReasons: string[];        // human-readable reasons any gate is not satisfied
@@ -714,6 +724,7 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
       programLabel,
       hasCriteria: false,
       eligible: false,
+      readyToComplete: false,
       gates: [],
       gatingVerdicts: [],
       unmetReasons: [
@@ -791,12 +802,16 @@ export function evaluateProgramCompletion(facts: ClientFacts, nowMs: number = Da
   }
 
   const unmet = gates.filter((g) => !g.passed);
+  // Preconditions only: sign-off is complete_client()'s OUTPUT, not an input a
+  // client can satisfy in advance, so it's excluded from readiness on purpose.
+  const unmetPreconditions = unmet.filter((g) => g.key !== 'signoff');
 
   return {
     program: facts.program,
     programLabel,
     hasCriteria: true,
     eligible: unmet.length === 0,
+    readyToComplete: unmetPreconditions.length === 0,
     gates,
     gatingVerdicts,
     unmetReasons: unmet.map((g) => `${g.label}: ${g.detail}`),

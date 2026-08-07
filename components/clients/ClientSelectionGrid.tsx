@@ -6,7 +6,7 @@ import { fetchAllClientProgress, type ClientProgress } from '../../services/disp
 import {
     fetchClientProgramCardState, type ProgramCardState,
     fetchClientAccrual, fetchClientDetermination, fetchClientSignedForms,
-    fetchCompletionSignoff, assessClient,
+    assessClient,
 } from '../../services/complianceEngine';
 import { Client, ClientStatus, CLIENT_STATUS_LABELS, needsStatusReview } from '../../types';
 import LoadingSpinner from '../ui/LoadingSpinner';
@@ -353,11 +353,18 @@ const ClientSelectionGrid: React.FC = () => {
         fetchClients();
     }, [statusFilter, reloadKey]);
 
-    // Completion-nudge eligibility — the REAL cert gate (assessClient: hours +
-    // balance + sign-off + forms), run only for the cheap candidate set: active
-    // SATOP clients whose batched authoritative progress is already ≥100%. The
-    // hours gate is necessary for eligibility, so anyone below it needs no
-    // per-client queries. The engine decides; a staff member confirms.
+    // Completion-nudge READINESS — the real precondition gates (hours + balance +
+    // forms), run only for the cheap candidate set: active SATOP clients whose
+    // batched authoritative progress is already ≥100%. The hours gate is necessary
+    // for eligibility, so anyone below it needs no per-client queries. The engine
+    // decides; a staff member confirms.
+    //
+    // Uses completion.readyToComplete, NOT completion.eligible. `eligible` also
+    // requires a signed completion_signoff note — but that note is the OUTPUT of
+    // complete_client(), written only after completion, so `eligible` can never be
+    // true before a client's first completion has already happened. That made this
+    // nudge, and the "Mark completed" action it unlocks, permanently unreachable
+    // (2026-08-07 fix). No fetchCompletionSignoff() call needed here as a result.
     useEffect(() => {
         let cancelled = false;
         const run = async () => {
@@ -369,14 +376,13 @@ const ClientSelectionGrid: React.FC = () => {
             if (!candidates.length) { if (!cancelled) setEligibleById(new Map()); return; }
             const entries = await Promise.all(candidates.map(async (c) => {
                 try {
-                    const [accrual, determinedLevel, signedFormIds, completionSignedOff] = await Promise.all([
+                    const [accrual, determinedLevel, signedFormIds] = await Promise.all([
                         fetchClientAccrual(c.id),
                         fetchClientDetermination(c.id),
                         fetchClientSignedForms(c.id),
-                        fetchCompletionSignoff(c.id),
                     ]);
-                    const { completion } = assessClient(c, { accrual, determinedLevel, signedFormIds, completionSignedOff });
-                    return [c.id, completion.eligible] as const;
+                    const { completion } = assessClient(c, { accrual, determinedLevel, signedFormIds });
+                    return [c.id, completion.readyToComplete] as const;
                 } catch {
                     return [c.id, false] as const; // fail closed — no nudge on unknown
                 }
