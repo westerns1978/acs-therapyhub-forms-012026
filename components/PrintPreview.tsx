@@ -186,6 +186,10 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
    * applied, not two conventions. */
   const declaredIds = new Set(formDefinition.fieldDefinitions.map((f) => f.id));
 
+  /* Declaration-or-value — see the header comment at the render site for why this
+   * is no longer unconditional, and why clientEmail deliberately does NOT match it. */
+  const showClientName = Boolean(formData.clientName) || declaredIds.has('clientName');
+
   const clientSignature = CLIENT_SIGNATURE_IDS.map((id) => formData[id]).find(Boolean);
   const declaresClientSignature = CLIENT_SIGNATURE_IDS.some((id) => declaredIds.has(id));
   const showClientCertificate = Boolean(clientSignature) || declaresClientSignature;
@@ -243,31 +247,44 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
         </div>
       </div>
 
-      {/* THE ASYMMETRY HERE IS DELIBERATE — do not "fix" it into symmetry.
+      {/* TWO DIFFERENT GATES, AND THE DIFFERENCE IS DELIBERATE — do not flatten them
+       * into one rule.
        *
-       * Client Name is UNCONDITIONAL: if a committed clinical record somehow has no
-       * client name on it, that must print loudly as N/A, not vanish. An absent name
-       * is alarming; silently omitting the row would hide the alarm.
+       * Client Name: DECLARATION-OR-VALUE. It was unconditional until 2026-08-07, on
+       * the reasoning that an absent name is ALARMING and must print loudly as N/A
+       * rather than vanish. That reasoning was sound and still holds — but it rested
+       * on a premise that stopped being true: that every definition declares
+       * clientName. The outpatient Registration Form does not, because ACS's paper
+       * splits the name into legalFirstName / legalMiddleInitial / legalLastName, and
+       * adding a fourth clientName field would duplicate that and let the two copies
+       * drift. So an unconditional header printed "CLIENT NAME / N/A" at the top of a
+       * court-bound record whose name is right there three rows down.
        *
-       * Client Email renders ONLY when a value is present. Nine of the fourteen forms
-       * do not declare a clientEmail field at all (authorization-release stopped
-       * declaring it in 5535f0c, per David), and this header sits OUTSIDE the
-       * fieldDefinitions loop — so every one of those records printed "CLIENT EMAIL /
-       * N/A" on a document that goes to courts and POs.
+       * The gate is now the SAME test, evaluated per form rather than per catalog —
+       * exactly the move already made for the client-certificate block below: where
+       * the form ASKS for a client name, an empty one still prints N/A and keeps its
+       * alarm; where the form never asks, the row is not a missing name, it is a
+       * question the document never posed. This is the §10d-i gap class
+       * (docs/design/forms-revision-080126.md).
        *
-       * WHY NOT GATE ON "the definition declares the field" instead — the tidier-looking
-       * option: because it would stop printing FOUR real stored emails, including row
-       * 47431370's legacy TBecker@gomail.com. Removing a field from a form does NOT
-       * remove it from rows already committed, and this codebase already settled that
-       * principle in shouldPrintField (config/fieldVisibility.ts): the committed record
-       * must show what is actually IN the record — censoring a legacy value at print
-       * would make the paper disagree with the JSONB. Value-presence honours that;
-       * field-presence violates it.
+       * Client Email: VALUE ONLY, unchanged. Its absence asserts nothing, so there is
+       * no alarm to preserve. It deliberately does NOT gain the declaration half:
+       * that would stop printing FOUR real stored emails, including row 47431370's
+       * legacy TBecker@gomail.com. Removing a field from a definition does not remove
+       * it from rows already committed, and shouldPrintField
+       * (config/fieldVisibility.ts) already settled that the record must show what is
+       * actually IN it — censoring a legacy value would make the paper disagree with
+       * the JSONB.
+       *
+       * The wrapper is suppressed when NEITHER renders, so a form with neither field
+       * does not print an empty grey box where the client identification belongs.
        */}
+      {(showClientName || formData.clientEmail) && (
       <div className="grid grid-cols-2 gap-x-12 mb-10 p-6 bg-gray-50 rounded-2xl border border-gray-100">
-        <PrintField label="Client Name" value={formData.clientName} />
+        {showClientName ? <PrintField label="Client Name" value={formData.clientName} /> : null}
         {formData.clientEmail ? <PrintField label="Client Email" value={formData.clientEmail} /> : null}
       </div>
+      )}
 
       <div className="space-y-6">
         {formDefinition.fieldDefinitions.map(field => {

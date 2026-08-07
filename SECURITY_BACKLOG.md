@@ -827,3 +827,59 @@ is append-only by design, so its write cannot be rolled back at all — loud
 failure is the only available posture there. Also unfixed: `audit_logs` has no
 `client_id` column, so per-client audit reporting depends on callers putting
 `client_id` in `details` (all new events below do).
+
+---
+
+## 22. `private.is_staff()` is CASE-SENSITIVE, and a live admin account fails it (2026-08-07)
+
+**LOG-ONLY — found while witnessing the registration forms, not fixed here. Wrong
+commit for it; it needs its own change with its own verification.**
+
+`private.is_staff()` is the predicate every staff RLS policy on this project is
+built on. It tests the role string by exact match:
+
+```sql
+CREATE OR REPLACE FUNCTION private.is_staff() RETURNS boolean
+ LANGUAGE sql STABLE SET search_path TO ''
+AS $function$
+  select coalesce((auth.jwt() -> 'app_metadata' ->> 'role') in ('Director','Therapist','Admin'), false);
+$function$
+```
+
+**Live evidence (read-only, `auth.users` joined to the predicate):** roles in this
+project are not written to one convention. Capitalised — `Director`, `Therapist`,
+`Admin`, `Client`. Lowercase — `admin` (×2: `dan.western@gemyndflow.com`,
+`ben.philpot@pdscopiers.com`), `service` (×10), `sales` (×1). Eight users carry
+`role = null` entirely.
+
+**So `dan.western@gemyndflow.com` — an account whose role reads `admin` — is NOT
+staff by RLS**, because `'admin' <> 'Admin'`. It matched a `clients` row by email
+during this session's witness and was therefore treated as a *client* by
+`private.my_client_ids()`. Nothing failed loudly; it simply has client-shaped
+access.
+
+**Why this is worth fixing deliberately rather than quickly.** The direction of
+the bug decides the risk, and it currently points the safe way:
+
+- **Today it FAILS CLOSED.** A lowercase-role admin is denied staff access. That
+  is an access-denied bug, not an exposure — annoying, not dangerous.
+- **A careless fix inverts that.** Lowering both sides (`lower(role) in
+  ('director','therapist','admin')`) would immediately GRANT staff access —
+  including to `public.clients`, `clinical_notes`, `form_submissions` and
+  `appointments` — to every account currently carrying a lowercase `admin`. One
+  of those two accounts belongs to another product's user
+  (`ben.philpot@pdscopiers.com`, a PDS Copiers address on this shared multi-app
+  project). **Normalising the comparison without first auditing who holds which
+  role would hand a non-ACS user a staff view of 42 CFR Part 2 records.**
+
+**Therefore the fix is a data question before it is a code question:** decide the
+one canonical casing, audit and rewrite every `raw_app_meta_data->>'role'` value
+to it (including the 8 nulls and the 11 `service`/`sales` values, which are
+another app's vocabulary sharing this `auth.users` table), and only then make the
+predicate strict-or-normalised to match. There is also no CHECK, no enum, and no
+server-side setter for roles anywhere — roles are set by hand — so nothing
+prevents the next drift. See `[[project_staff_provisioning_recon]]`.
+
+**Not scoped, not scheduled.** Recorded so the null result of "why can't this
+admin see staff pages?" has an answer on file, and so the obvious one-line fix is
+not applied without the audit that must precede it.
