@@ -830,56 +830,104 @@ failure is the only available posture there. Also unfixed: `audit_logs` has no
 
 ---
 
-## 22. `private.is_staff()` is CASE-SENSITIVE, and a live admin account fails it (2026-08-07)
+## 22. `private.is_staff()` resolves a role string that is NOT ACS-scoped, on a shared multi-product `auth.users` (2026-08-07)
 
-**LOG-ONLY — found while witnessing the registration forms, not fixed here. Wrong
-commit for it; it needs its own change with its own verification.**
+**LOG-ONLY — found while witnessing the registration forms; deliberately not
+fixed here. `is_staff()` is unchanged. The safe fix is not a code change.**
 
-`private.is_staff()` is the predicate every staff RLS policy on this project is
-built on. It tests the role string by exact match:
+`private.is_staff()` is the predicate every staff RLS policy on the ACS tables is
+built on. It resolves one bare string:
 
 ```sql
-CREATE OR REPLACE FUNCTION private.is_staff() RETURNS boolean
- LANGUAGE sql STABLE SET search_path TO ''
-AS $function$
-  select coalesce((auth.jwt() -> 'app_metadata' ->> 'role') in ('Director','Therapist','Admin'), false);
-$function$
+select coalesce((auth.jwt() -> 'app_metadata' ->> 'role') in ('Director','Therapist','Admin'), false);
 ```
 
-**Live evidence (read-only, `auth.users` joined to the predicate):** roles in this
-project are not written to one convention. Capitalised — `Director`, `Therapist`,
-`Admin`, `Client`. Lowercase — `admin` (×2: `dan.western@gemyndflow.com`,
-`ben.philpot@pdscopiers.com`), `service` (×10), `sales` (×1). Eight users carry
-`role = null` entirely.
+**THE STRUCTURAL PROBLEM: that string has no tenant.** `auth.users` on this
+project is shared across multiple Gemynd products, and it carries **at least two
+disjoint role vocabularies** that were never reconciled. `role` is a free string
+with no CHECK, no enum, and no server-side setter — it is set by hand
+(`[[project_staff_provisioning_recon]]`). Nothing in the predicate, or anywhere
+else, records which application a role was issued by. **`admin` is a genuine
+collision token: it means "ACS administrator" in one vocabulary and a dealer
+administrator in another.**
 
-**So `dan.western@gemyndflow.com` — an account whose role reads `admin` — is NOT
-staff by RLS**, because `'admin' <> 'Admin'`. It matched a `clients` row by email
-during this session's witness and was therefore treated as a *client* by
-`private.my_client_ids()`. Nothing failed loudly; it simply has client-shaped
-access.
+**Role distribution, witnessed read-only 2026-08-07 (32 users).** Deliberately
+aggregate — the finding is structural and no individual is relevant to it:
 
-**Why this is worth fixing deliberately rather than quickly.** The direction of
-the bug decides the risk, and it currently points the safe way:
+| role value | users | carries an `org` key |
+|---|---|---|
+| `Director` / `Therapist` / `Admin` / `Client` | 5 | no — none |
+| `admin` (lowercase) | 2 | yes — all |
+| `service` | 11 | yes — all |
+| `sales` | 1 | yes — all |
+| no `role` key at all | 13 | mixed |
 
-- **Today it FAILS CLOSED.** A lowercase-role admin is denied staff access. That
-  is an access-denied bug, not an exposure — annoying, not dangerous.
-- **A careless fix inverts that.** Lowering both sides (`lower(role) in
-  ('director','therapist','admin')`) would immediately GRANT staff access —
-  including to `public.clients`, `clinical_notes`, `form_submissions` and
-  `appointments` — to every account currently carrying a lowercase `admin`. One
-  of those two accounts belongs to another product's user
-  (`ben.philpot@pdscopiers.com`, a PDS Copiers address on this shared multi-app
-  project). **Normalising the comparison without first auditing who holds which
-  role would hand a non-ACS user a staff view of 42 CFR Part 2 records.**
+**Casing is not a convention — it correlates perfectly with the originating
+application.** Every account in the ACS vocabulary is capitalised and has NO
+`org` key; every account in the other vocabulary is lowercase and carries the
+SAME single non-ACS `org` uuid. The split is an artefact of two products writing
+their own conventions into one table, not a rule anyone applied.
 
-**Therefore the fix is a data question before it is a code question:** decide the
-one canonical casing, audit and rewrite every `raw_app_meta_data->>'role'` value
-to it (including the 8 nulls and the 11 `service`/`sales` values, which are
-another app's vocabulary sharing this `auth.users` table), and only then make the
-predicate strict-or-normalised to match. There is also no CHECK, no enum, and no
-server-side setter for roles anywhere — roles are set by hand — so nothing
-prevents the next drift. See `[[project_staff_provisioning_recon]]`.
+**THE FAILURE IS CURRENTLY CLOSED, AND THAT IS LOAD-BEARING.** Today `'admin'`
+does not equal `'Admin'`, so the lowercase population is denied. That is an
+access-denied bug — inconvenient, not an exposure.
 
-**Not scoped, not scheduled.** Recorded so the null result of "why can't this
-admin see staff pages?" has an answer on file, and so the obvious one-line fix is
-not applied without the audit that must precede it.
+**The obvious one-line fix inverts it into an exposure.** Lowering both sides
+(`lower(role) in ('director','therapist','admin')`) takes the population passing
+`is_staff()` from **3 to 5** — a 67% increase, and **every added account belongs
+to another application's org with no ACS relationship whatsoever**. `is_staff()`
+grants full read/write across `clients`, `clinical_notes`, `form_submissions`,
+`appointments`, `treatment_plans` and `placement_determinations`, so that edit
+would hand non-ACS role holders a staff view of 42 CFR Part 2 records. The
+collision is specifically on `admin`; `service` and `sales` do not match either
+casing, which is luck, not design.
+
+### REQUIRED BEFORE ANY FIX — reported, not actioned
+
+**Q1. Does the role check need an ACS tenant scope? YES.** Role alone cannot be
+made safe by normalising it, because the ambiguity is not in the casing — it is
+in the absence of a tenant. Two products legitimately use the token `admin`;
+whichever casing rule is chosen, the predicate still cannot tell them apart. The
+check needs to answer "is this an ACS staff member?", and today it can only
+answer "does this string look like a staff role somewhere?"
+
+**Q2. Is there an existing tenant/app column to scope on? NO — not a usable
+one.** All three candidates were checked and all three fail:
+
+1. **`auth.users.raw_app_meta_data->>'org'`** — exists, but is populated for the
+   non-ACS org ONLY (14 of 32 users, all one uuid). **Every ACS account has no
+   `org` key at all.** So it can NEGATIVELY exclude the other product but cannot
+   POSITIVELY identify ACS, and a scope built on the ABSENCE of a value is
+   fragile by construction: the next application that also omits `org` silently
+   joins the ACS staff set. Scoping on a null is not scoping.
+2. **`public.organizations`** — a real tenant table (4 rows, with `org_code`),
+   and **none of the rows is ACS**. The org referenced by every populated `org`
+   key belongs to a different industry vertical entirely. There is no ACS tenant
+   record to point a scope at.
+3. **`counselors.auth_user_id`** — the only ACS-NATIVE link from a staff person
+   to an auth identity, and the strongest anchor in principle. Two problems
+   today: it is populated on **2 of 7** counselor rows, and it models
+   *clinicians*, not all staff — an administrative/front-desk account is staff
+   but is not a counselor, so this alone would lock out a role ACS actually uses.
+
+**And none of the ACS tables carry a tenant column of their own.** Verified
+across `clients`, `counselors`, `appointments`, `form_submissions`,
+`clinical_notes`, `audit_logs`, `treatment_plans`, `groups`,
+`group_enrollments`, `placement_determinations`, `payments`, `charges`: zero have
+`org_id` / `app_id` / `tenant` / `organization_id`. Other products' tables on
+this same project do (`uploaded_files`, `documents`, `events`, the `flowvault_*`
+and `flowhub_*` families all carry `app_id`). ACS is the tenant-less neighbour in
+a project where tenancy is otherwise modelled.
+
+**So the prerequisite is that an ACS tenant identity does not exist in this
+database yet and has to be created before the predicate can be scoped.** That is
+a schema and data-model decision — an ACS org row plus a durable staff↔ACS
+membership fact, or an ACS-scoped staff table — and it must land *before* any
+change to the comparison. Normalising the casing first would remove the accident
+that is currently holding the boundary.
+
+**Not scoped, not scheduled.** Recorded so that "why can't this admin see staff
+pages?" has an answer on file, and so the one-line fix is never applied without
+the tenant work that must precede it. Related: `[[project_compliance_recon_day30]]`
+(shared DB, no BAA), and the 68 RLS-disabled neighbour tables in
+`RECON-acs-2026-07-27.md` §5.
