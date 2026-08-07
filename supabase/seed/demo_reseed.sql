@@ -101,7 +101,16 @@ insert into public.clients
 -- REAL client's name. Re-collision-checked before use — 0 hits on exact/surname/
 -- first-name vs is_demo=false, and vs the counselor roster.
 values
-  ('dc100001-0000-4000-8000-000000000001','Marcus Reyes','marcus.reyes@example.com','314-555-0101','SATOP','SROP','active','DEMO-2026-0101','St. Louis',true),
+  -- EMAIL IS LOAD-BEARING FOR THIS ONE ROW (2026-08-07). private.my_client_ids()
+  -- resolves the portal client by lower(clients.email) = lower(auth jwt email), and
+  -- usePortalClient does the same lookup — so a demo Client login only reaches a
+  -- chart when some clients row carries that exact address. It did not: the demo
+  -- auth users are marcus.reyes.demo@/pat.novak.demo@gemyndflow.com while every seed
+  -- row used @example.com, so BOTH demo Client accounts resolved to null and
+  -- /portal/forms/* rendered a blank page. Marcus is pointed at the real demo login
+  -- so the client portal is exercisable at all. Change this address only together
+  -- with the auth user's — they are one key.
+  ('dc100001-0000-4000-8000-000000000001','Marcus Reyes','marcus.reyes.demo@gemyndflow.com','314-555-0101','SATOP','SROP','active','DEMO-2026-0101','St. Louis',true),
   ('dc100002-0000-4000-8000-000000000002','Emma Reeves','emma.reeves@example.com','314-555-0102','SATOP','CIP','active','DEMO-2026-0102','St. Louis',true),
   ('dc100003-0000-4000-8000-000000000003','Curtis Lane','curtis.lane@example.com','636-555-0103','SATOP','OP','active','DEMO-2026-0103','Jefferson',true),
   ('dc100004-0000-4000-8000-000000000004','Denise Park','denise.park@example.com','314-555-0104','SATOP','EAP','active','DEMO-2026-0104','St. Louis',true),
