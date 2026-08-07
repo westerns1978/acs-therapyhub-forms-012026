@@ -40,22 +40,21 @@ import { FormDefinition, RegistrationData, FormErrors } from '../../types';
  * clients.client_type (decision D5) is a separate pass. Pre-profile submission is
  * likewise not built; this is a standard client-scoped form.
  *
- * OPEN QUESTIONS FOR DAVID (flagged, not decided):
- *   Q1 "Referred by" — read as R. The mark is present but small on the scan.
- *   Q2 Section 6 signature — read as O, on the reading that the mark applies to the
- *      insurance block as a whole. If the authorization is meant to be signed by
- *      every client regardless of insurance, it is one `required` flag to flip.
- *   Q3 `legalMiddleInitial` is required by his section-1 marks, which blocks a
- *      client who has no middle name. Confirm, or make it optional.
- *   Q4 `state` — the SATOP Registration sheet specifies a 2-character state and this
- *      one does not, so this field is unconstrained free text. Same field, same
- *      practice, two rules; confirm whether both should be 2-char.
- *   Q5 PrintPreview's fixed header prints "CLIENT NAME" from a `clientName` field.
- *      This form has no such field — the paper splits the name into First/MI/Last —
- *      so a committed record prints "CLIENT NAME / N/A". This is the §10d-i gap
- *      class and it is NOT fixed here: the header is unconditional by a documented
- *      decision (an absent name must print loudly, not vanish), and reversing that
- *      for every form is not a change to make silently inside a new form's commit.
+ * RESOLVED 2026-08-07 (Dan), recorded so the readings are not re-litigated:
+ *   Q1 "Referred by" — REQUIRED, as built. The small mark reads R. No change.
+ *   Q2 Section 6 signature — OPTIONAL, as built. No change. STILL GOING TO DAVID:
+ *      that block is a financial-responsibility attestation ("I understand that I
+ *      am financially responsible for charges not paid…"), and Dan wants him to say
+ *      out loud that a client may leave it blank. One `required` flag if he doesn't.
+ *   Q3 `legalMiddleInitial` — now OPTIONAL. Requiring it blocked anyone who has no
+ *      middle name, which is a real population, not an edge case.
+ *   Q4 `state` — now carries the SATOP sheet's {min:2, max:2} PLUS a two-letter
+ *      format rule, and that rule was added to the SATOP sheet in the same commit.
+ *      Dan: "Same field, same practice, same rule." Parity is the point, so the
+ *      constraint is identical on both forms rather than merely similar.
+ *   Q5 The CLIENT NAME print header — fixed separately (declaration-aware header),
+ *      NOT by adding a clientName field here: that would duplicate the paper's
+ *      split First/MI/Last and the two copies would drift.
  */
 
 const initialState: RegistrationData = {
@@ -134,6 +133,12 @@ export const REGISTRATION_DEFINITION: FormDefinition<RegistrationData> = {
     if (data.ssn && !/^\d{4}$/.test(data.ssn)) {
       errs.ssn = 'Enter the LAST 4 DIGITS only — not the full Social Security number.';
     }
+    // Identical to the SATOP Registration sheet's rule (Dan 2026-08-07, Q4). The
+    // generic min/max already blocks the wrong LENGTH; this blocks the wrong SHAPE,
+    // which "Enter exactly 2 characters" does not say.
+    if (data.state && !/^[A-Za-z]{2}$/.test(data.state)) {
+      errs.state = 'Enter the 2-letter state abbreviation (e.g. MO).';
+    }
     // The generic boolean rule is ANSWERED, not true — deliberately, since "No" is a
     // valid answer to most questions. This one is an acknowledgement of receipt, so
     // an explicit false must not pass as a completed acknowledgement.
@@ -147,11 +152,12 @@ export const REGISTRATION_DEFINITION: FormDefinition<RegistrationData> = {
     { id: 'initialContactDate', label: 'Initial contact date', type: 'date', required: true },
     { id: 'serviceNeeded', label: 'Service needed', type: 'text', required: true },
     { id: 'legalFirstName', label: 'Legal first name', type: 'text', required: true },
-    { id: 'legalMiddleInitial', label: 'Legal middle initial', type: 'text', required: true },
+    // OPTIONAL (Dan 2026-08-07, Q3) — required blocked anyone with no middle name.
+    { id: 'legalMiddleInitial', label: 'Legal middle initial', type: 'text', required: false },
     { id: 'legalLastName', label: 'Legal last name', type: 'text', required: true },
     { id: 'address', label: 'Address', type: 'text', required: true },
     { id: 'city', label: 'City', type: 'text', required: true },
-    { id: 'state', label: 'State', type: 'text', required: true },
+    { id: 'state', label: 'State', type: 'text', required: true, min: 2, max: 2 },
     { id: 'zip', label: 'Zip', type: 'text', required: true },
     { id: 'phone', label: 'Phone', type: 'tel', required: true },
     { id: 'email', label: 'Email', type: 'email', required: true },

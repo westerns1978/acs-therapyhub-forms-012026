@@ -93,6 +93,12 @@ export const SATOP_REGISTRATION_DEFINITION: FormDefinition<SatopRegistrationData
     if (data.ssn && !/^\d{4}$/.test(data.ssn)) {
       errs.ssn = 'Enter the LAST 4 DIGITS only — not the full Social Security number.';
     }
+    // Added 2026-08-07 (Dan, Q4) so this sheet and the outpatient Registration Form
+    // carry the IDENTICAL state rule, not merely a similar one. min/max already
+    // blocks the wrong length; this blocks the wrong shape ("12" was passing).
+    if (data.state && !/^[A-Za-z]{2}$/.test(data.state)) {
+      errs.state = 'Enter the 2-letter state abbreviation (e.g. MO).';
+    }
     return errs;
   },
   fieldDefinitions: [
