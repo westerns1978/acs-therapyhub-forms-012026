@@ -39,6 +39,27 @@ const allForms = (Object.keys(FORM_DEFINITION_BY_ID) as View[])
     view: id as View,
   }));
 
+/**
+ * How many of the forms ON THIS PAGE are cert-gate items, resolved through the
+ * REGISTRY (`requiredForCompletion`) rather than counted by hand.
+ *
+ * Counted over `allForms`, NOT over the whole registry, so the number can never
+ * describe forms this page does not show. That distinction is not academic —
+ * the two catalogs genuinely disagree (DEFERRED #36, still open):
+ *
+ *   FORM_DEFINITION_BY_ID   16 keys  ->  14 after the 2 retirements  = cards rendered
+ *   FORM_REGISTRY (live)    15
+ *   the difference          `treatment-plan` is live in the registry but has NO
+ *                           definition, so it cannot render a card here.
+ *
+ * The old subtitle said "14 forms available" — which was right about the cards —
+ * but the raw 16 keys and the registry's 15 are both floating around, and none of
+ * the three numbers was sourced. This one is.
+ */
+const REQUIRED_ON_THIS_PAGE = allForms
+  .filter(f => FORM_REGISTRY_BY_ID[f.id]?.requiredForCompletion)
+  .length;
+
 // Category badge colors — off-red on purpose (2026-08-07). Every category except
 // Legal used to fall through to `bg-primary` (ACS red), so a grid of a dozen cards
 // showed a wall of solid red pills with no connection to the ONE thing red is meant
@@ -262,54 +283,74 @@ export const FormLibrary: React.FC<FormLibraryProps> = ({ onSelectForm }) => {
   }, [searchQuery, activeCategory, favorites]);
 
   return (
-    <div className="space-y-12 pb-20 animate-fade-in-up">
-      <header className="flex flex-col md:flex-row justify-between items-center gap-8 border-b border-black/5 dark:border-white/5 pb-12">
-          <div className="max-w-2xl text-center md:text-left">
-              <div className="flex items-center gap-3 justify-center md:justify-start mb-4">
-                  <div className="bg-primary/10 p-3 rounded-2xl"><ShieldCheck className="text-primary" size={32}/></div>
-                  <span className="text-xs font-black uppercase tracking-[0.5em] text-slate-400">ACS Clinical Forms</span>
+    <div className="space-y-8 pb-20 animate-fade-in-up">
+      {/* ONE ROW (2026-08-07). The card work shipped earlier; this is the layout
+          half that did not. What it replaces: a 6xl "Forms Library" wordmark with
+          a 0.5em-tracked eyebrow and a 32px icon tile in its own full-width block
+          (pb-12, space-y-12), then a SECOND full-width sticky bar below it holding
+          a text-lg py-5 search input — roughly 340px of chrome before the first
+          card on a 900px-tall screen.
+
+          Now: identity, count, search and filters on a single sticky row. The row
+          keeps `sticky top-20` because filtering a long grid while scrolled is the
+          actual job; it is just no longer two stacked bars to do it.
+
+          The subtitle no longer says "HIPAA-compliant". Nothing on this page
+          verifies that, and the app is currently on a shared multi-tenant database
+          with no BAA (SECURITY_BACKLOG) — the same honesty class as the print
+          attestations, which say what was actually checked and nothing more.
+          "Auto-save enabled" also went: it described the form runner, not the
+          library, and this row is now a control strip rather than ad copy. */}
+      <header className="sticky top-20 z-30 flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-2xl border border-border dark:border-slate-800 shadow-card">
+          <div className="flex items-center gap-3 shrink-0 pl-1">
+              <div className="bg-primary/10 p-2 rounded-xl shrink-0"><ShieldCheck className="text-primary" size={20}/></div>
+              <div className="min-w-0">
+                  <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white leading-none">
+                    Forms <span className="text-primary">Library</span>
+                  </h1>
+                  {/* Both numbers are DERIVED, not typed. `allForms` is the cards
+                      actually rendered (definitions minus retirements); the required
+                      count resolves each of those ids through FORM_REGISTRY. */}
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {allForms.length} forms · {REQUIRED_ON_THIS_PAGE} required for completion
+                  </p>
               </div>
-              <h1 className="text-6xl font-black tracking-tighter text-slate-900 dark:text-white leading-tight">Forms <span className="text-primary">Library</span></h1>
-              <p className="mt-4 text-lg text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-                Browse and complete HIPAA-compliant clinical forms. Auto-save enabled.
-                <span className="text-slate-400 dark:text-slate-500"> · {allForms.length} forms available.</span>
-              </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:justify-end min-w-0 flex-1">
+            <div className="relative group w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={16} />
+              <input
+                id="form-search"
+                type="text"
+                placeholder="Search forms…  /"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-800 border border-border dark:border-dark-border rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-1 p-1 bg-black/5 dark:bg-white/5 rounded-xl border border-black/5 dark:border-white/5">
+              {categories.map(category => (
+                <button
+                  key={category}
+                  onClick={() => setActiveCategory(category)}
+                  // Solid ACS red for the active chip, not a red-tinted-white pill — now
+                  // that no card badge is red by default (see CATEGORY_BADGE_CLASS), this
+                  // is the ONE solid-red element in the filter bar, so "active" reads
+                  // unambiguously instead of competing with a dozen red category badges.
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-[0.15em] transition-all ${
+                    activeCategory === category
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
           </div>
       </header>
-
-      <div className="sticky top-20 z-30 p-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-3xl rounded-[3rem] border border-border dark:border-slate-800 shadow-2xl flex flex-col md:flex-row gap-4 items-center">
-          <div className="relative flex-1 group w-full">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-all group-focus-within:scale-110" size={20} />
-            <input
-              id="form-search"
-              type="text"
-              placeholder="Search forms... (Press '/' to search)"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-16 pr-8 py-5 bg-white/50 dark:bg-slate-800/50 border-none rounded-3xl text-slate-900 dark:text-white placeholder:text-slate-500 focus:ring-4 focus:ring-primary/10 transition-all font-bold tracking-tight shadow-inner text-lg"
-            />
-          </div>
-          
-          <div className="flex flex-wrap gap-2 justify-center p-1 bg-black/5 dark:bg-white/5 rounded-[2rem] border border-black/5">
-            {categories.map(category => (
-              <button
-                key={category}
-                onClick={() => setActiveCategory(category)}
-                // Solid ACS red for the active chip, not a red-tinted-white pill — now
-                // that no card badge is red by default (see CATEGORY_BADGE_CLASS), this
-                // is the ONE solid-red element in the filter bar, so "active" reads
-                // unambiguously instead of competing with a dozen red category badges.
-                className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-                  activeCategory === category
-                    ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105'
-                    : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800'
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {filteredForms.length > 0 ? (
