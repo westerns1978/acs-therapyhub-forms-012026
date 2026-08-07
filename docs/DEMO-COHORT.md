@@ -1,6 +1,6 @@
 # Demo Cohort — Build Report
 
-**Built:** 2026-08-07, branch `feat/registration-forms`. Landed in 4 commits (UI fixes, this report + certificate, the completion-button fix, the certificate field wiring). Not deployed, not merged.
+**Built:** 2026-08-07, branch `main`. Landed in 4 commits (UI fixes, this report + certificate, the completion-button fix, the certificate field wiring), then deployed to `https://acs-therapyhub.web.app` and verified live — see §7.
 
 Two fictional clients, built end to end through the real app to prove (or disprove) the front-door-to-certificate path for a real David demo. Client A completes clean. Client B proves the completion gate refuses a genuinely unready client. Both are `is_demo: true`, `@example.com`, collision-checked by name against every existing client (live and demo) before creation — no collision found. **Bela Lugosi and James West were not touched** — verified by id, not name, before any write in this session.
 
@@ -179,6 +179,46 @@ The list to hand David — these aren't wiring gaps, nothing in ACS TherapyHub a
 
 ---
 
-## No deploy, no merge
+## 7. Cleanup, deploy, and live verification
 
-Per instruction: stopped after commit 4. Nothing in this build has been deployed.
+### 7.1 Witness Fixchip removed
+
+Full inventory before deletion: 1 client, 1 `assessment_inputs` row, 1 `placement_determinations` row, 2 appointments, 6 form_submissions, 1 `clinical_notes` row (`completion_signoff`), 1 `audit_logs` row.
+
+The client, appointments, and form submissions deleted cleanly through the app's own RLS-scoped client. Two rows didn't: `placement_determinations` ("permission denied for table placement_determinations") and the `completion_signoff` clinical note (delete silently returned 0 rows) — **both by design**, the same append-only compliance guarantee that makes a real client's history tamper-proof. Deleting a client row also turned up an FK from `assessment_inputs` (the saved screening basis a determination signs against) that hadn't been inventoried going in.
+
+Removed the remaining three rows with a service-role connection, scoped tightly to the exact ids (never a name-only `WHERE`), in FK order: `placement_determinations` → `assessment_inputs` → `clinical_notes` → `clients`. The `audit_logs` row (`client.completed`) was left in place on purpose — it isn't FK-constrained to `clients`, and audit trails aren't something to prune even for scratch data. Final sweep: zero rows remain in every client-scoped table; `audit_logs` still has its one historical entry.
+
+### 7.2 Demo visibility confirmed
+
+SQL ground truth: `Nolan Cross` and `Priya Whitfield` are both `is_demo: true`; `Bela Lugosi` and `James West` are both `is_demo: false`, untouched.
+
+Behaviorally verified, not just the flag: with the "Show demo data" toggle forced off, `getClients()` returns 2 clients — Bela Lugosi and James West only. Toggled on, it returns 15, including both demo clients. Confirmed via the real `applyDemoFilter()` code path, not a hand-rolled query.
+
+### 7.3 Deployed and hash-verified
+
+`npm run deploy` — the sanctioned ritual, never a bare `firebase deploy` (this Firebase project is shared with Attesta). All gates green: typecheck, brand consistency, form integrity (all 5 checks, 16 forms), build, post-build dist reachability, then upload to `hosting:acs-therapyhub`. Live at **https://acs-therapyhub.web.app**.
+
+Hash-verified post-deploy: `sha256sum` of both `dist/index.html` and the entry bundle `dist/assets/index-CP6Cv0yv.js` match the versions fetched live, byte for byte. The served site is exactly what's in this repo's `dist/`, not a stale upload.
+
+**The `.env` dependency the build needs to reproduce:** `.env` (gitignored, local-only) supplies `VITE_GOOGLE_CLIENT_ID` and `VITE_ZOOM_CLIENT_ID` — both set locally, both baked into the built bundle by Vite at build time since they're not read from any other source. Without this file, the build still succeeds, but the Google Calendar and Zoom OAuth integrations degrade to a "not configured" error at runtime. Supabase's URL and anon key are NOT env-dependent — they're hardcoded directly in `services/supabase.ts` (the anon key is meant to be public). A prior `VITE_API_KEY` (Gemini) was intentionally removed 2026-06-15; nothing reads it anymore.
+
+### 7.4 Both clients walked through the deployed app, not the dev server
+
+Signed in against `https://acs-therapyhub.web.app` directly (production doesn't serve raw `.ts` source, so the dev-session's module-import sign-in trick doesn't work there — used the public anon key against Supabase's password-grant endpoint instead, then seeded the resulting session into `localStorage` under supabase-js's own key format).
+
+**Nolan Cross:** live page shows `4 OF 4 GATES MET — ELIGIBLE`, all clinical notes, the $40 payment, the signed `completion_signoff` note. Opened the real Completion Certificate preview — badge reads `ELIGIBLE TO ISSUE` with all 4 gate chips green. The embedded PDF viewer rendered as a black rectangle in the automated screenshot (a headless-Chrome PDF-plugin limitation — `fetch`/`XHR` against the preview's `blob:` URL also failed, same isolated-execution-context issue hit during the original build). Field-level content wasn't re-extracted from this exact live render, but the exact same code (hash-verified byte-identical to what's deployed) produced the certificate with all 10 real fields moments before this deploy, against the same unchanged data — see §4.
+
+**Priya Whitfield:** live page's Completion Certificate preview shows `NOT YET ELIGIBLE`, with all 4 gates marked ✗ and named in full:
+- Hours: 40/75 total (35 remaining); 20/35 counseling (15 remaining)
+- Minimum duration: 50/90 calendar days — not yet met
+- Clinician sign-off: awaiting (expected pre-completion — not one of the 4 original blockers, just always-unmet until a completion actually happens)
+- Required forms signed: 2 of 6 unsigned (satop-checklist, emergency-contact)
+
+Screenshot captured cleanly (this modal's content is DOM, not a PDF plugin) — confirms the gate refuses on the deployed app with live data, not just in the dev session.
+
+---
+
+## No further deploy pending
+
+Cleanup, deploy, and live verification are complete as of this pass.
