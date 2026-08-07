@@ -88,6 +88,7 @@ import { DISCHARGE_SUMMARY_DEFINITION } from '../components/forms/DischargeSumma
 import { CHART_CHECKLIST_DEFINITION } from '../components/forms/ChartChecklistForm';
 import { SESSION_ATTENDANCE_DEFINITION } from '../components/forms/SessionAttendanceForm';
 import { SATOP_REGISTRATION_DEFINITION } from '../components/forms/SatopRegistrationForm';
+import { REGISTRATION_DEFINITION } from '../components/forms/RegistrationForm';
 import { FORM_REGISTRY } from '../config/formRegistry';
 import groundTruth from './fixtures/form-submissions-ground-truth.json';
 
@@ -97,7 +98,7 @@ const ALL: any[] = [
   SATOP_INTAKE_DEFINITION, RECOVERY_PLAN_DEFINITION, TELEHEALTH_FEEDBACK_DEFINITION,
   LATE_CANCELLATION_DEFINITION, MEETING_REPORT_DEFINITION, DISCHARGE_SUMMARY_DEFINITION,
   CHART_CHECKLIST_DEFINITION, SESSION_ATTENDANCE_DEFINITION,
-  SATOP_REGISTRATION_DEFINITION,
+  SATOP_REGISTRATION_DEFINITION, REGISTRATION_DEFINITION,
 ];
 
 let failures = 0;

@@ -280,6 +280,68 @@ export interface SatopRegistrationData {
   courtHandlingDWI: string;
 }
 
+/**
+ * REGISTRATION FORM (outpatient) — the first and base form for a new OP client
+ * (David, Forms.docx 2026-08-05). Digitized from ACS's paper "DEMOGRAPHICS" sheet,
+ * whose printed title he struck and replaced with "Registration Form".
+ *
+ * MIXED R/O, transcribed from his per-field pencil marks (design doc §7), not
+ * assumed uniform: section 1 is required except `race`; sections 4, 5 and 6 are
+ * wholly optional because the paper itself says to leave them blank when they do
+ * not apply.
+ *
+ * `relatedCharges` is conditional, not optional — required whenever
+ * `isLegalRequirement === 'Yes'`.
+ */
+export interface RegistrationData {
+  // Section 1 — client information
+  initialContactDate: string;
+  serviceNeeded: string;
+  legalFirstName: string;
+  legalMiddleInitial: string;
+  legalLastName: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  phone: string;
+  email: string;
+  ssn: string;
+  referredBy: string;
+  dob: string;
+  age: number | '';
+  gender: string;
+  maritalStatus: string;
+  race: string;
+  employer: string;
+  occupation: string;
+  // Section 2 — David's addition (the circled "ADD HERE", above the HIPAA line)
+  isLegalRequirement: string;
+  relatedCharges: string;
+  // Section 3 — HIPAA acknowledgement
+  hipaaReceived: boolean | null;
+  clientSignature: string;
+  hipaaDate: string;
+  // Section 4 — "if applicable", all optional
+  probationOfficerName: string;
+  probationOfficerEmail: string;
+  probationOfficerPhone: string;
+  caseworkerAgencyName: string;
+  caseworkerAgencyEmail: string;
+  caseworkerAgencyPhone: string;
+  attorneyLawFirmName: string;
+  attorneyLawFirmEmail: string;
+  attorneyLawFirmPhone: string;
+  // Section 5 — insurance, all optional
+  nameOfInsured: string;
+  insuranceCompany: string;
+  relationshipToInsured: string;
+  dobOfInsured: string;
+  // Section 6 — insurance authorization, optional
+  authorizationSignature: string;
+  authorizationDate: string;
+}
+
 export interface ConsentForTreatmentData {
   clientName: string;
   clientEmail: string;

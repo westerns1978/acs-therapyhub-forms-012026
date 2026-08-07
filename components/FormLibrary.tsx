@@ -18,7 +18,7 @@ import { FORM_DEFINITION_BY_ID } from '../config/formDefinitions';
 // with no pdfSlug, simply renders no link.
 import { FORM_REGISTRY_BY_ID, pdfUrlFor, isRetiredForm } from '../config/formRegistry';
 
-export type View = 'library' | 'satop-registration' | 'satop-intake' | 'recovery-plan' | 'consent-treatment' | 'meeting-report' | 'emergency-contact' | 'discharge-summary' | 'telehealth-feedback' | 'satop-checklist' | 'authorization-release' | 'chart-checklist' | 'session-attendance' | 'hipaa-ack' | 'telehealth-consent' | 'late-cancellation';
+export type View = 'library' | 'satop-registration' | 'registration' | 'satop-intake' | 'recovery-plan' | 'consent-treatment' | 'meeting-report' | 'emergency-contact' | 'discharge-summary' | 'telehealth-feedback' | 'satop-checklist' | 'authorization-release' | 'chart-checklist' | 'session-attendance' | 'hipaa-ack' | 'telehealth-consent' | 'late-cancellation';
 
 interface FormLibraryProps {
   onSelectForm: (form: View) => void;

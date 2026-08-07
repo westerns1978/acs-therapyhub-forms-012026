@@ -40,6 +40,33 @@ const COUNTER_SIGNATURE_BLOCKS = [
 const COUNTER_SIGNATURE_IDS = COUNTER_SIGNATURE_BLOCKS.map((b) => b.id);
 
 /**
+ * A SECOND CLIENT SIGNATURE, for a distinct authorization — not a counter-signature.
+ *
+ * Added 2026-08-05 for the outpatient Registration Form, whose paper carries TWO
+ * signature lines the same person signs for two different purposes: the HIPAA
+ * acknowledgement (which uses `clientSignature`, the form's primary attestation) and
+ * this one, an insurance billing authorization the client signs only when ACS will
+ * bill their insurer.
+ *
+ * WHY IT IS NOT ADDED TO CLIENT_SIGNATURE_IDS. That list is a precedence chain —
+ * `.map(...).find(Boolean)` — so a second id there would collapse into the same
+ * block and only ONE of the two would print. They are separate attestations to
+ * separate paragraphs, and a record showing one signature where the client gave two
+ * misstates what was agreed to.
+ *
+ * ITS OWN BLOCK, deliberately spare: heading plus the signature rule, and nothing
+ * else. It carries NO "ELECTRONICALLY COMMITTED VIA THERAPYHUB AUTH" line and no
+ * timestamp — the first is a claim about the auth path that this block has no more
+ * standing to make than the client one does, and the second is the §10a defect class
+ * (a date printed under a signature heading reads as when it was witnessed).
+ *
+ * BLAST RADIUS: none. No existing definition declares this id and no committed row
+ * carries the key, so every prior baseline renders byte-identically — verified by
+ * gate 3 on the commit that added it.
+ */
+const AUTHORIZATION_SIGNATURE_ID = 'authorizationSignature';
+
+/**
  * Field ids the ATTESTATION BLOCKS at the foot of the document render. They are
  * skipped in the field loop so a signature appears ONCE, as a signature — previously
  * every signature printed TWICE, once as an ordinary answer row and again in its
@@ -62,6 +89,7 @@ const COUNTER_SIGNATURE_IDS = COUNTER_SIGNATURE_BLOCKS.map((b) => b.id);
 export const SIGNATURE_FIELD_IDS: ReadonlySet<string> = new Set<string>([
   ...CLIENT_SIGNATURE_IDS,
   ...COUNTER_SIGNATURE_IDS,
+  AUTHORIZATION_SIGNATURE_ID,
 ]);
 
 const PrintField: React.FC<{ label: string; value: any, type?: string, options?: { value: string; label: string }[] }> = ({ label, value, type, options }) => {
@@ -190,6 +218,14 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
   const counterBlock = counterSigned ?? counterDeclared;
   const showCounterSignature = Boolean(counterBlock);
 
+  /* Declaration-or-value, the same rule as the two blocks above and for the same
+   * reason: on a form that ASKS for this authorization, an unsigned one is
+   * information the reader needs, and on a form that never asks it is not a missing
+   * signature at all. See AUTHORIZATION_SIGNATURE_ID. */
+  const authorizationSignature = formData[AUTHORIZATION_SIGNATURE_ID];
+  const showAuthorizationSignature =
+    Boolean(authorizationSignature) || declaredIds.has(AUTHORIZATION_SIGNATURE_ID);
+
   return (
     <div className="p-12 bg-white text-black font-sans min-h-screen">
       <div className="flex justify-between items-start mb-10 border-b-2 border-gray-900 pb-6">
@@ -255,7 +291,7 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
           otherwise a document with no signatures of any kind (meeting-report,
           satop-intake, telehealth-feedback) ends in a bare horizontal rule over five
           rems of empty page, which reads as a signature area someone left blank. */}
-      {(showClientCertificate || showCounterSignature) && (
+      {(showClientCertificate || showCounterSignature || showAuthorizationSignature) && (
       <div className="mt-20 pt-10 border-t-2 border-gray-100 grid grid-cols-2 gap-x-12">
         {showClientCertificate && (
         <div className="space-y-4">
@@ -298,6 +334,18 @@ export const PrintPreview: React.FC<PrintPreviewProps> = ({ formData, formDefini
             {counterSigned && (
             <p className="text-[9px] text-gray-400 font-bold uppercase">SYSTEM TIMESTAMPED: {recordDate.toLocaleString()}</p>
             )}
+          </div>
+        )}
+        {/* The insurance-billing authorization — a SECOND client signature, not a
+         *  counter-signature. Heading and rule only: no auth claim, no timestamp.
+         *  See AUTHORIZATION_SIGNATURE_ID for why it is not folded into the client
+         *  certificate block above. */}
+        {showAuthorizationSignature && (
+          <div className="space-y-4">
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-gray-500">Insurance Authorization</h2>
+            <div className="border-b-2 border-gray-900 pb-2">
+              <p className="font-serif text-2xl italic">{authorizationSignature || 'N/A'}</p>
+            </div>
           </div>
         )}
       </div>

@@ -106,6 +106,10 @@ export const FORM_REGISTRY: FormRegistryEntry[] = [
   // David did not ask for. "First and base" = auto-assignment on client creation keyed
   // off clients.client_type (decision D5) — deliberately NOT wired in this commit.
   { id: 'satop-registration',    title: 'SATOP Registration Form',               category: 'Intake',    audience: 'client', requiredForCompletion: false, description: 'Registration details ACS collects when a client enters the SATOP program.' },
+  // NEW 2026-08-05 — David: "ADD – Registration Form … this is the first and base
+  // form for new OP (outpatient) clients." Same posture as satop-registration: not a
+  // cert-gate item, and base-form auto-assignment is a separate pass.
+  { id: 'registration',          title: 'Registration Form',                     category: 'Intake',    audience: 'client', requiredForCompletion: false, description: 'Registration details ACS collects when a client enters outpatient services.' },
   { id: 'satop-intake',          title: 'SATOP Client Intake',                   category: 'Intake',    audience: 'client', requiredForCompletion: false },
   { id: 'recovery-plan',         title: 'Continuing Recovery Plan',              category: 'Treatment', audience: 'client', requiredForCompletion: false },
   { id: 'telehealth-feedback',   title: 'Telehealth Session Feedback',           category: 'Clinical',  audience: 'client', requiredForCompletion: false },

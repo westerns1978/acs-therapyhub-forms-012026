@@ -22,6 +22,7 @@ import { HIPAA_ACK_DEFINITION } from '../components/forms/HipaaAckForm';
 import { TELEHEALTH_CONSENT_DEFINITION } from '../components/forms/TelehealthConsentForm';
 import { LATE_CANCELLATION_DEFINITION } from '../components/forms/LateCancellationForm';
 import { SATOP_REGISTRATION_DEFINITION } from '../components/forms/SatopRegistrationForm';
+import { REGISTRATION_DEFINITION } from '../components/forms/RegistrationForm';
 import { FileText, Inbox } from 'lucide-react';
 
 type Tab = 'library' | 'submissions';
@@ -76,6 +77,8 @@ const Forms: React.FC = () => {
             switch (currentView) {
                 case 'satop-registration':
                     return <BaseFormTemplate formDefinition={SATOP_REGISTRATION_DEFINITION} onBackToLibrary={handleBack} clientId={clientId} />;
+                case 'registration':
+                    return <BaseFormTemplate formDefinition={REGISTRATION_DEFINITION} onBackToLibrary={handleBack} clientId={clientId} />;
                 case 'satop-intake':
                     return <BaseFormTemplate formDefinition={SATOP_INTAKE_DEFINITION} onBackToLibrary={handleBack} clientId={clientId} />;
                 case 'recovery-plan':

@@ -18,6 +18,7 @@ import { TELEHEALTH_CONSENT_DEFINITION } from '../../components/forms/Telehealth
 import { LATE_CANCELLATION_DEFINITION } from '../../components/forms/LateCancellationForm';
 import { MEETING_REPORT_DEFINITION } from '../../components/forms/MeetingReportForm';
 import { SATOP_REGISTRATION_DEFINITION } from '../../components/forms/SatopRegistrationForm';
+import { REGISTRATION_DEFINITION } from '../../components/forms/RegistrationForm';
 
 const PortalFormPage: React.FC = () => {
   const { formId } = useParams<{ formId: string }>();
@@ -31,6 +32,7 @@ const PortalFormPage: React.FC = () => {
     'recovery-plan': RECOVERY_PLAN_DEFINITION,
     'telehealth-feedback': TELEHEALTH_FEEDBACK_DEFINITION,
     'satop-registration': SATOP_REGISTRATION_DEFINITION,
+    'registration': REGISTRATION_DEFINITION,
     'satop-intake': SATOP_INTAKE_DEFINITION,
     'satop-checklist': SATOP_CHECKLIST_DEFINITION,
     'authorization-release': AUTHORIZATION_RELEASE_DEFINITION,
