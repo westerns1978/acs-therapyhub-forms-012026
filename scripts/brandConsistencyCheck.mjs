@@ -80,13 +80,38 @@ expectHex('WebsitePortalBridge var(--brand) fallback', 'pages/WebsitePortalBridg
 expectHex('WebsitePortalBridge var(--brand-focus) fallback', 'pages/WebsitePortalBridge.tsx',
   /var\(--brand-focus,\s*(#[0-9A-Fa-f]{6})\)/g, FOCUS);
 
-// ui-avatars takes a bare hex (no '#') in a URL param.
+/* RETIRED 2026-08-07 — this assertion was ENFORCING A PRIVACY DEFECT.
+ *
+ * It asserted that GlobalHeader's ui-avatars.com URL carried background=C62828,
+ * i.e. that the brand hex on a THIRD-PARTY image service matched BRAND.DEFAULT.
+ * What it actually guaranteed was that the URL kept existing — and that URL was
+ *   https://ui-avatars.com/api/?name=<SIGNED-IN STAFF NAME>&background=C62828
+ * so every page render shipped a real staff member's name to an external host in
+ * a query string. `fail(... pattern matched nothing (site moved?))` meant that
+ * DELETING the leak would have broken the gate. The gate held it in place.
+ *
+ * The <img> is gone (GlobalHeader now renders the shared local ClientAvatar), so
+ * there is no longer a third-party brand copy to keep in sync. Removing the
+ * assertion weakens NOTHING real: it only ever covered a colour on a remote
+ * service, never a pixel this app serves. Every brand copy that actually ships —
+ * manifest.json, index.css, WebsitePortalBridge, pdfDocuments MAROON — still has
+ * its own assertion above, and the --dist reachability pass below still proves
+ * #C62828 is present in the shipped JS and in the generated PDFs.
+ *
+ * Replaced by the inverse assertion: the leak must not come back.
+ */
 {
-  const found = [...(read('components/ui/GlobalHeader.tsx') ?? '').matchAll(/background=([0-9A-Fa-f]{6})/g)]
-    .map((m) => '#' + m[1].toUpperCase());
-  if (!found.length) fail('GlobalHeader ui-avatars background — pattern matched nothing (site moved?)');
-  else if (found.some((h) => h !== DEFAULT)) fail(`GlobalHeader ui-avatars background — ${found.join(', ')}, expected ${DEFAULT}`);
-  else ok(`GlobalHeader ui-avatars background (${found.length}x ${DEFAULT} as bare hex)`);
+  // Comments stripped first: the file explains the retired leak in prose, and a
+  // gate that cannot tell a warning about a defect from the defect itself is a
+  // gate that punishes documenting it.
+  const HEADER = (read('components/ui/GlobalHeader.tsx') ?? '')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:"'`\\])\/\/[^\n]*/g, '$1 ');
+  if (/ui-avatars\.com/.test(HEADER)) {
+    fail('GlobalHeader references ui-avatars.com again — that URL puts the signed-in staff member\'s name on a third-party host on every render. Render the avatar locally (components/clients/ClientAvatar).');
+  } else {
+    ok('GlobalHeader no longer calls ui-avatars.com (staff name stays on-origin)');
+  }
 }
 
 // jsPDF wants an [r, g, b] triple, not a hex.

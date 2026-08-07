@@ -68,6 +68,13 @@ run('checking brand consistency (npm run check:brand)', 'npm', ['run', 'check:br
 //    or a drifted committed-record render can be caught before it ships.
 run('checking form integrity (npm run check:forms)', 'npm', ['run', 'check:forms']);
 
+// 3b. Outbound identity. Two shipped avatar URLs put a client's — and then the
+//     signed-in staff member's — real name on ui-avatars.com in a query string,
+//     on every render, for 42 CFR Part 2 records. Neither was caught by review,
+//     and check:brand was asserting on one of them, so the gate held the leak in
+//     place. This blocks the shape from coming back. See scripts/identityLeakCheck.mjs.
+run('checking for outbound identity leaks (npm run check:privacy)', 'npm', ['run', 'check:privacy']);
+
 // 4. Build. Must succeed, or we never reach the upload.
 run('building dist/ from the current working tree', 'npm', ['run', 'build']);
 

@@ -9,6 +9,64 @@ enters this database. The remaining items are smaller follow-ups.
 
 ---
 
+## OUTBOUND IDENTITY — third-party avatar URLs built from names (2026-08-07) — ✅ SOURCE FIXED, ⚠️ RUNTIME COVERAGE OPEN
+
+Two shipped code paths put a real person's name on a third-party host, in a URL query
+string, on every render:
+
+| where | whose name | scope |
+|---|---|---|
+| `services/api.ts` `mapClientToApp` | every **client** lacking a photo | all client avatars, all surfaces |
+| `components/ui/GlobalHeader.tsx` | the signed-in **staff** member | every page, every render |
+
+Both were `https://ui-avatars.com/api/?name=<NAME>&background=…`. For 42 CFR Part 2
+records the *fact of being an ACS client* is itself protected, and a URL leaks on the
+wire, in the third party's access logs, and via `Referer` — with no request body to
+inspect and nothing in the UI to suggest it. 4 client rows had also **persisted** such
+a URL into `clients.avatar_url`.
+
+**Fixed:** both fallbacks removed; avatars render locally through the one shared
+`ClientAvatar`, keyed on id. `ClientAvatar` also ignores any already-persisted
+`ui-avatars.com` URL, so the 4 stored rows are inert without a data migration.
+
+**`check:brand` was enforcing the leak.** It asserted GlobalHeader's ui-avatars URL
+carried `background=C62828`, and `fail(... pattern matched nothing (site moved?))`
+meant *deleting the leak broke the build*. That assertion is retired and replaced by
+its inverse — the URL must **not** reappear. Removing it weakened nothing real: it only
+ever covered a colour on a remote service, never a pixel this app serves, and every
+brand copy that actually ships still has its own assertion plus the `--dist`
+reachability pass.
+
+**New gate:** `npm run check:privacy` (`scripts/identityLeakCheck.mjs`), wired into the
+deploy chain between `check:forms` and the build. Fails when an absolute URL to a
+non-allowlisted host is built from an identity-bearing expression, by `${}`
+interpolation or by concatenation. Negative-control verified: reintroducing both
+historical leaks produces exactly 2 failures at their real line numbers and exit 1.
+
+### ⚠️ Open — what this gate deliberately does NOT cover
+
+It is a **static** check over first-party source, so it cannot see:
+
+1. **Identity in a request BODY** rather than a URL — a `fetch(thirdParty, {body: JSON.stringify({name})})` passes.
+2. **A host assembled at runtime** from a variable, config value, or env var.
+3. **Third-party scripts** — anything in `node_modules`, or a tag injected at runtime.
+4. **`supabase/functions/*`** — excluded on purpose. Those run server-side and
+   legitimately hold PHI while talking to Stripe/Zoom/Gemini.
+5. **Anything on the allowlist** — `supabase`, `google`, `firebase`, `zoom.us`,
+   `stripe.com`, `anthropic.com`. If one of those ever receives identity it should
+   not, this gate is silent by construction.
+
+**Why not a runtime check.** The honest version intercepts `fetch`/`XHR`/image loads in
+a real browser and asserts on outbound hosts — that catches (1), (2) and (3), which the
+static one cannot. It needs a headless browser driving authenticated app routes in CI:
+Playwright or a CDP harness, a seeded login, and a route-walk. There is no browser in
+this repo's CI today and no test runner at all (`lint` + three bespoke `check:*` scripts
+are the whole gate suite), so standing that up is its own build, not a step in a
+wrap-up pass. **Logged rather than attempted.** Until then the static gate covers the
+exact shape that shipped twice, which is also the shape a hurried edit reintroduces.
+
+---
+
 ## PHI STORAGE — ACS client documents moved to the private bucket (2026-06-08/09) — ✅ RESOLVED for ACS (anon + authed-cross-client both closed; non-PHI cleanup pending Dan)
 
 ACS client documents (incl. a court order, compliance PDFs) were in **public** buckets (`client-documents`,

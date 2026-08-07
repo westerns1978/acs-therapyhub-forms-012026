@@ -73,6 +73,31 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
     [clients, selectedClientId]
   );
 
+  const effectiveClientName = selectedClientName || selectedClient?.name || "their";
+
+  // Reset state when opened.
+  //
+  // MUST stay declared BEFORE the initial-file effect below. React runs effects in
+  // declaration order within a commit, and this one calls setActiveFile(null). When
+  // it ran second (as it did until 2026-08-07) the grid drag-drop path went:
+  //   1. initial-file effect  → handleFile(file) → setActiveFile(file), classify…
+  //   2. reset effect         → setActiveFile(null)
+  //   3. classify resolves    → setPending(...), setPhase('confirm_category')
+  // leaving the dialog on the category step with activeFile === null. The filename
+  // line rendered empty and handleConfirmCategory's `if (!activeFile) return` fired
+  // silently, so Save did nothing at all — drag-drop could never file a document.
+  // Ordering it first means reset clears, then handleFile populates.
+  useEffect(() => {
+    if (!isOpen) return;
+    setError(null);
+    setActiveFile(null);
+    setPending(null);
+    setChosenType("");
+    setSelectedClientId(presetClientId || "");
+    setSelectedClientName(presetClientName || "");
+    setPhase(presetClientId ? "pick_file" : "pick_client");
+  }, [isOpen, presetClientId, presetClientName]);
+
   // Auto-run classification when a file is handed in (grid drag-drop), so it flows
   // straight into the category-confirm step instead of the pick-a-file screen.
   const initialFileProcessed = React.useRef(false);
@@ -84,20 +109,6 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialFile, presetClientId, selectedClientId]);
-
-  const effectiveClientName = selectedClientName || selectedClient?.name || "their";
-
-  // Reset state when opened
-  useEffect(() => {
-    if (!isOpen) return;
-    setError(null);
-    setActiveFile(null);
-    setPending(null);
-    setChosenType("");
-    setSelectedClientId(presetClientId || "");
-    setSelectedClientName(presetClientName || "");
-    setPhase(presetClientId ? "pick_file" : "pick_client");
-  }, [isOpen, presetClientId, presetClientName]);
 
   // ESC. The body scroll lock moved to ModalPortal, which ref-counts it — this
   // dialog can be stacked under the scanner/photo flow, and two call sites each

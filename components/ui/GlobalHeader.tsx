@@ -5,6 +5,7 @@ import AcsTherapyHubLogo from './AcsTherapyHubLogo';
 import ThemeToggle from './ThemeToggle';
 import { Search, Plus, Bell, LogOut, Settings, UserPlus, CalendarPlus, FilePlus, Menu, FlaskConical } from 'lucide-react';
 import { useDemoVisibility } from '../../hooks/useDemoVisibility';
+import ClientAvatar from '../clients/ClientAvatar';
 
 // Clara's avatar — same image the portal floating bubble uses, for one identity across surfaces.
 const CLARA_AVATAR_URL = '/branding/clara.png';
@@ -155,9 +156,22 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({ onCommandPaletteToggle, onS
 
                     <div className="relative ml-1">
                         <button onClick={() => setProfileOpen(prev => !prev)} className="flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 p-1.5 rounded-2xl transition-colors">
-                            {/* BRAND-STATIC-COPY: ui-avatars takes a bare hex in a URL param,
-                                so it cannot read --brand. Must track BRAND.DEFAULT (no '#'). */}
-                            <img src={`https://ui-avatars.com/api/?name=${user?.name || 'User'}&background=C62828&color=fff`} alt="User" className="w-8 h-8 rounded-xl" />
+                            {/* Was an <img> pointing at
+                                  ui-avatars.com/api/?name=<STAFF NAME>&background=C62828
+                                which sent the signed-in staff member's real name to a
+                                third-party host, in a URL query string, on every single
+                                render of every page. Same defect class as the client-avatar
+                                leak removed the same day (services/api.ts) — this one just
+                                happened to be a staff name rather than a client's. Removed
+                                2026-08-07; nothing about ACS identity leaves the origin now.
+
+                                Rendered locally through the ONE shared avatar component,
+                                keyed on the user's id, so staff and clients use the same
+                                identity mark and the same hue function. */}
+                            <ClientAvatar
+                                client={{ id: user?.id || 'unknown', name: user?.name || 'User' }}
+                                className="w-8 h-8 text-xs"
+                            />
                         </button>
                         
                         {isProfileOpen && (
