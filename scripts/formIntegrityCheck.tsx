@@ -471,6 +471,53 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     committedAt: '2026-05-11T15:30:00.000Z',
     covers: '§10a — a REPRINT must stamp the record date, not today. Header AND signature block must both read 5/11/2026 despite the frozen clock being 7/16/2026',
   },
+  {
+    // THE DECLARATION-AWARE CLIENT NAME HEADER (1024b10) had ZERO coverage before this.
+    // Every one of the seventeen fixtures above renders a form that DECLARES clientName,
+    // so all of them exercise the same side of the gate and the new branch moved no
+    // baseline at all — exactly the blind spot §10d-i describes. registration is the
+    // first and only definition that declares no clientName (its paper splits the name
+    // into legalFirstName/MI/legalLastName), so it is the sole carrier for "header
+    // correctly ABSENT". Pair it with the maximal fixture below: this one is the sparse
+    // end of the same form, per §10d-ii.
+    slug: 'registration (MINIMAL — required only; no clientName header; unsigned insurance auth)',
+    def: REGISTRATION_DEFINITION,
+    data: 'scripts/fixtures/print-registration-minimal.json',
+    baseline: 'scripts/fixtures/printpreview-registration-minimal.baseline.html',
+    covers: 'declaration-aware header: a form declaring NO clientName must print no CLIENT NAME row (and no empty header box) while the legal name still prints in the body; sparse end — every optional block blank; hidden-and-empty conditional (isLegalRequirement=No → relatedCharges absent); authorizationSignature DECLARED but unsigned (the new block\'s alarm branch); static prose emitting no value row',
+  },
+  {
+    // The maximal end of the same form, and the only fixture with TWO client-side
+    // attestation blocks in one footer (Client Digital Certificate + Insurance
+    // Authorization). The insurance block is a second signature by the SAME person for
+    // a different purpose, so it is deliberately not a counter-signature and cannot be
+    // covered by any of the staff/witness fixtures above.
+    slug: 'registration (MAXIMAL — every optional filled; insurance auth SIGNED)',
+    def: REGISTRATION_DEFINITION,
+    data: 'scripts/fixtures/print-registration-maximal.json',
+    baseline: 'scripts/fixtures/printpreview-registration-maximal.baseline.html',
+    covers: 'authorizationSignature SIGNED — the new Insurance Authorization block\'s value branch, and the only footer carrying TWO client-side attestation blocks; conditional VISIBLE (isLegalRequirement=Yes → relatedCharges prints); every optional block populated (probation/caseworker/attorney/insurance)',
+  },
+  {
+    // satop-registration is the first form in the catalog to use type:'number' at all,
+    // so a numeric value on a committed record had never been pinned. It also declares
+    // clientName, which pins the OTHER side of the declaration-aware header against the
+    // registration fixtures above.
+    //
+    // ⚠ ZERO IS DELIBERATELY ABSENT FROM THIS FIXTURE. PrintField's fallback is
+    // `value || 'N/A'`, so a legitimate numeric 0 prints as "N/A" — an answered
+    // question rendering as unanswered on a court-bound record. Witnessed on the real
+    // persisted row (drugRelatedArrests: 0 → "N/A"). That is a DEFECT, not a branch to
+    // pin: §10d-ii is explicit that establishing the render is correct must come before
+    // pinning it, because a fixture over bad output converts a defect into an
+    // expectation. Reported, not fixed here. When it is fixed, add a companion fixture
+    // whose numerics are 0 — that is the fixture that will hold the fix in place.
+    slug: 'satop-registration (numeric fields + veteran conditional VISIBLE)',
+    def: SATOP_REGISTRATION_DEFINITION,
+    data: 'scripts/fixtures/print-satop-registration-veteran-conditional.json',
+    baseline: 'scripts/fixtures/printpreview-satop-registration-veteran-conditional.baseline.html',
+    covers: "type:'number' on a committed record (age/numberInHousehold/trafficTickets/drugRelatedArrests) — a field type no pre-existing form uses; select option→label on required Yes/No fields; visibleWhen VISIBLE via a SELECT controller (veteran=Yes → veteranStatus prints); clientName DECLARED, pinning the other side of the declaration-aware header",
+  },
 ];
 
 /**
