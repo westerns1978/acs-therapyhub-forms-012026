@@ -30,7 +30,14 @@
         });
       }
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind is compiled at BUILD time (2026-08-07). The Play CDN runtime
+         compiler that used to load here — <script src="cdn.tailwindcss.com"> —
+         was a render-blocking third-party request that recompiled the whole
+         design system in the browser on every page load, and left the app
+         completely unstyled if it was unreachable. The config moved verbatim to
+         /tailwind.config.js; the directives live in /styles/tailwind.css,
+         imported from index.tsx. Do not reintroduce the CDN tag: check:privacy
+         and check:brand both assert against it. -->
     <script>
       /* ══════════════════════════════════════════════════════════════════════
        * LAYER 1 — BRAND.  ***ATTESTA OVERRIDES THIS BLOCK.***
@@ -88,7 +95,17 @@
        * │   public/index.css    var() fallbacks x3               #RRGGBB
        * │   pages/WebsitePortalBridge.tsx  var() fallbacks x2     #RRGGBB
        * │   services/pdfDocuments.ts  MAROON                      [r, g, b]
-       * │   components/ui/GlobalHeader.tsx  ui-avatars URL param  RRGGBB (no '#')
+       * │   tailwind.config.js  BRAND object                     #RRGGBB
+       * │
+       * │ RETIRED 2026-08-07: components/ui/GlobalHeader.tsx carried a sixth copy
+       * │ as a ui-avatars.com URL param. That <img> is gone — it put the signed-in
+       * │ staff member's NAME on a third-party host every render — so the brand
+       * │ copy went with it. check:brand now asserts the URL stays absent.
+       * │
+       * │ ADDED 2026-08-07: tailwind.config.js. Tailwind moved from the Play CDN
+       * │ runtime compiler to a build-time dependency, and a build-time config
+       * │ cannot read the JS object below, so BRAND is declared in both files.
+       * │ check:brand asserts the two agree.
        * │
        * │ ENFORCED: `npm run check:brand` parses BRAND.DEFAULT from this block and
        * │ asserts every site above matches it in its own notation. It runs in the
@@ -143,269 +160,27 @@
       // block above — do not re-tint either red to widen the gap.
       // Still clearly redder + darker than the HIGH-tier terracotta (#9C5A2B).
       // 400 lightened for K1 (#CB7A5F measured 4.37:1 on the raised dark card #2C2B29).
-      const BRICK = { 50:'#FBF3F0', 100:'#F6E3DD', 200:'#ECC7BC', 300:'#DDA28F', 400:'#D08163', 500:'#B95A3D', 600:'#A63A22', 700:'#8B2F1B', 800:'#712818', 900:'#5A2215', 950:'#31110A' };
-      // 600/700 darkened when the page warmed (#A16207 measured 4.12:1 on the old
-      // parchment); re-verified on the K1 page #F5F3EF — 600 now 5.0:1 there.
-      const OCHRE = { 50:'#FCF8EE', 100:'#F7EED4', 200:'#EEDCA8', 300:'#E0C173', 400:'#CDA345', 500:'#B4841F', 600:'#955B06', 700:'#7A4A08', 800:'#6B410B', 900:'#56350C', 950:'#2F1C05' };
-      const SAGE  = { 50:'#F3F6F3', 100:'#E3EBE4', 200:'#C7D8CA', 300:'#A3BCA8', 400:'#7A9A81', 500:'#5F7F66', 600:'#4D6A52', 700:'#405845', 800:'#354739', 900:'#2C3A2F', 950:'#171F19' };
-      // 500 darkened twice from stock #78716C: it carries the small uppercase meta
-      // labels, and each page-background warm-up lowered its ratio. #635C57 clears
-      // AA on the K1 page #F5F3EF with margin (5.9:1).
-      const STONE = { 50:'#FAFAF9', 100:'#F5F5F4', 200:'#E7E5E4', 300:'#D6D3D1', 400:'#A8A29E', 500:'#635C57', 600:'#57534E', 700:'#44403C', 800:'#292524', 900:'#1C1917', 950:'#0C0A09' };
-      // Terracotta sits between ochre and brick for the HIGH alert tier, so the
-      // 4-tier ladder stays legible without reintroducing a saturated orange.
-      // 600 nudged for the parchment page (stock #9C5A2B measured 4.49:1 there).
-      const TERRA = { 50:'#FCF6F1', 100:'#F7E9DC', 200:'#EDD2B9', 300:'#DFB28C', 400:'#CB8D5D', 500:'#B36F3C', 600:'#955528', 700:'#7D4522', 800:'#683A20', 900:'#54301C', 950:'#2E180D' };
-
-      const STATUS_RAMPS = {
-        // Raw family names stay pinned so the ~1,000 not-yet-renamed call sites
-        // re-tone with everything else — the same lever as the slate override below.
-        red:     BRICK,
-        rose:    BRICK,   // error cards used rose; same ink as danger, on purpose
-        amber:   OCHRE,
-        emerald: SAGE,
-        green:   SAGE,    // both greens were in use; they must not diverge
-        orange:  TERRA,
-      };
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontSize: {
-              'h1': ['2.25rem', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
-            },
-            colors: {
-              // Label-contrast fix (ui-elevate-p1, 2026-07-21): darken the two grays the
-              // uppercase meta labels (TIME/MODALITY/STATUS, section headings) actually use.
-              // Overridden at the token so the ~625 raw text-slate-400/500 sites move at once
-              // WITHOUT a per-component sweep. Both clear AA (≥4.5:1) on cream #F8F7F4.
-              // Value text stays on slate-700/800 (already ~7:1) — untouched by design.
-              /* K1 SPLIT RAMP (2026-07-28): the J4 single warm repoint was right for
-                 SURFACES and wrong for TYPE — warm surfaces + warm text read as mud
-                 in dark mode. The one slate key now carries TWO ramps:
-                 · SURFACE slots (600–950, literal hex): stay warm but chroma-cut —
-                   dark:bg-slate-900 card #232221, 800 raised #2C2B29, 700 border
-                   #383633, all heavy opacity-modifier users so they must stay
-                   parseable hexes.
-                 · TEXT slots (400/500, mode-flipping rgb vars): light keeps the
-                   contrast-raised meta grays; dark flips to near-neutral warm gray
-                   (#A8A4A0 / #9B9792) so the 92 dark:text-slate-4/500 sites and the
-                   unprefixed strays (guardrail citations etc.) stop rendering
-                   #6E6862 brown-on-charcoal (~2.5:1). <alpha-value> keeps
-                   ring-slate-500/20-style modifiers working. Vars live in the
-                   :root/.dark block below. */
-              slate: {
-                50: '#FAFAF9',
-                100: '#F5F5F4',
-                200: '#E7E5E4',
-                300: '#D3D0CD',
-                400: 'rgb(var(--th-slate-400) / <alpha-value>)',
-                500: 'rgb(var(--th-slate-500) / <alpha-value>)',
-                600: '#474441',
-                700: '#383633',
-                800: '#2C2B29',
-                900: '#232221',
-                950: '#141312',
-              },
-              // In-card / between-row hairline (ui-elevate-p1). Warm tan-gray that reads as
-              // structure without competing with the Card border (#D6CFC2, left alone).
-              /* K1 CHROMA BUDGET (light, 2026-07-28): the J4 page #F0EAE1 was
-                 nameable — "beige" — and at viewport scale read as aged paper.
-                 RULE: if a page background can be NAMED as a color, it is over
-                 budget; warmth should be detectable, not nameable. Page chroma cut
-                 ~65% to #F5F3EF (card stays #FFFFFF). The lost page-to-card ratio
-                 (1.20 → 1.11) is recovered by the border (#DFD9D1) and the
-                 shadow-whisper token on flat surface-1 tiles — NOT by
-                 re-saturating the page. Hairline desaturated with it. */
-              hairline: {
-                DEFAULT: '#E7E3DC',
-              },
-              /* K5 GRID LINES (2026-07-28). A DATA GRID needs more structure than a
-                 card edge, so it must not share a token with the card border /
-                 hairline — K1 softened those and the calendar inherited the loss.
-                 Measured before this change: the hour rules were slate-50 #FAFAF9
-                 at 1.04:1 and slate-100 #F5F5F4 at 1.09:1 on the white card. That
-                 - not the day columns (1.40:1) - is what erased the grid.
-                   grid-line        hour rows + day columns   1.88:1 light / 1.87 dark
-                   grid-line-strong counselor separators,
-                                    header underline, gutter  3.04:1 light / 3.23 dark
-                 grid-line-strong MEETS the 3:1 non-text floor. grid-line is
-                 deliberately BELOW it: it repeats 16x per column x 7 columns, and
-                 at 3:1 (~#9A938A) the board becomes a spreadsheet mesh that fights
-                 the appointment cards. One hex here raises it if that call is wrong.
-                 Dark is NOT milder than light - it measured WORSE (hour rules
-                 1.04:1, lane dividers 1.14:1) because the /30-/60 alpha borders
-                 composite almost into the card. Dark is pinned to the same ratios
-                 as light rather than the same alphas. */
-              'grid-line': {
-                DEFAULT: '#C6BCAD',
-                strong:  '#9A938A',
-              },
-              // BRAND (layer 1) — sourced from the BRAND object above so the Attesta
-              // fork changes ONE literal, not scattered hexes.
-              primary: {
-                DEFAULT: BRAND.DEFAULT,
-                focus: BRAND.focus,
-                content: BRAND.content
-              },
-              /* J4c - STRAYS RETIRED (2026-07-28). `secondary` (#4F46E5 indigo)
-                 and `accent` (#06B6D4 cyan) were leftover-template hues against an
-                 institutional maroon. Both now route to BRAND so any un-migrated
-                 call site renders on-brand instead of indigo/cyan. Deprecated: use
-                 `primary`, a status token, or blue (the non-status lane) in new
-                 code. */
-              secondary: {
-                DEFAULT: BRAND.DEFAULT,
-                focus: BRAND.focus,
-                content: BRAND.content
-              },
-              accent: {
-                DEFAULT: BRAND.DEFAULT,
-                content: BRAND.content
-              },
-              background: {
-                DEFAULT: '#F5F3EF',
-              },
-              surface: {
-                DEFAULT: '#FFFFFF',        // opaque: translucent white blurred into the parchment
-                raised: '#FFFFFF',         // surface-2 differs by shadow, not hue
-                content: '#292524',        // warm near-black (was cool #0F172A)
-                // Darkened from #64748B (ui-elevate-p1) — the drill-in label token
-                // (text-surface-secondary, ~44 sites) failed AA on cream at the old value.
-                secondary: '#475569'
-              },
-              // DEFERRED #24 fix (2026-07-28): these four names were referenced 122×
-              // across 31 files but never defined — the classes compiled to NOTHING and
-              // the text inherited its parent color (the root cause of washed-out
-              // secondary labels). Defined as CSS variables (declared in the <style>
-              // block below) so the ~71 call sites WITHOUT an explicit dark: sibling
-              // still flip correctly in dark mode; sites WITH a dark: pair keep it
-              // (the .dark-prefixed utility wins on specificity). No opacity modifiers
-              // are used on these classes (verified), so plain var() is safe.
-              'on-surface': {
-                DEFAULT: 'var(--th-on-surface)',
-                secondary: 'var(--th-on-surface-secondary)',
-              },
-              'surface-secondary-content': 'var(--th-on-surface-secondary)',
-              // Explicit dark-pair partner used as `dark:text-dark-surface-secondary-content`.
-              // K1: was cool slate #94A3B8 — now the near-neutral dark secondary.
-              'dark-surface-secondary-content': '#A8A4A0',
-              // ── Semantic status tokens ───────────────────────────────────────
-              // The app's tone grammar. Status-grammar call sites use THESE names.
-              //   success  — met / paid / signed / resolved      → sage
-              //   warning  — advisory / pending / due            → ochre
-              //   danger   — violation / critical / error        → brick
-              //   neutral  — zero, passive, already-handled, N/A → warm stone
-              // There is deliberately NO info/blue tier: an ACTIONABLE state takes
-              // BRAND (text-primary / border-primary), a PASSIVE one takes neutral.
-              success: SAGE,
-              warning: OCHRE,
-              danger:  BRICK,
-              neutral: STONE,
-              // DEPRECATED alias. `info` used to mean blue; blue left the status
-              // system (see the note above), so it now resolves to the passive
-              // neutral. Kept only so un-migrated `info-*` call sites still compile
-              // and render sensibly — do not use it in new code.
-              info:    STONE,
-              // Raw families pinned to the same ramps (the slate-override move):
-              // un-renamed sites re-tone with everything else, one file.
-              red:     STATUS_RAMPS.red,
-              rose:    STATUS_RAMPS.rose,
-              amber:   STATUS_RAMPS.amber,
-              emerald: STATUS_RAMPS.emerald,
-              green:   STATUS_RAMPS.green,
-              orange:  STATUS_RAMPS.orange,
-              // `blue` carries NO status meaning (see the layer-2 note) — it is the
-              // utility lane for telehealth/Zoom cues, the calendar "today"
-              // highlight, AI-provenance panels and file-type chips. K1: stock
-              // Tailwind blue ran noticeably hotter than everything around it in
-              // dark mode (dark:text-blue-400 #60A5FA against the quiet warm
-              // ramps), so the family is re-toned to an institutional steel blue —
-              // still unmistakably blue, now in chroma range with the rest. Full
-              // scale spelled out because extend replaces a color family wholesale.
-              blue: {
-                50:  '#F0F5F9',
-                100: '#DEE9F2',
-                200: '#C2D7E7',
-                300: '#9DBCD8',
-                400: '#7FA2C0',   // dark ink slot — 5.3:1 on raised #2C2B29
-                500: '#47719A',   // light text slot (CaseloadChart) — 5.1:1 on card
-                600: '#3D6485',
-                700: '#35566F',
-                800: '#2C475C',
-                900: '#24394A',
-                950: '#1A2833',
-              },
-              border: {
-                DEFAULT: '#DFD9D1',
-              },
-              /* K1 ELEVATION (dark, 2026-07-28): chroma-cut from the J4 browns —
-                 page #191817 / card #232221 / raised #2C2B29 / border #383633.
-                 Warm, but no longer nameable as brown. Text is DECOUPLED from
-                 surface warmth: content #EDEBE8 / secondary #A8A4A0 are
-                 near-neutral warm gray, not the surface hue. */
-              dark: {
-                primary: {
-                  DEFAULT: BRAND.dark,
-                  focus: BRAND.darkFocus,
-                },
-                // DEPRECATED — indigo secondary retired (J4c); routes to brand.
-                secondary: {
-                  DEFAULT: BRAND.dark,
-                },
-                background: {
-                  DEFAULT: '#191817',
-                },
-                surface: {
-                  DEFAULT: '#232221',
-                  raised: '#2C2B29',
-                  content: '#EDEBE8',
-                  secondary: '#A8A4A0'
-                },
-                border: {
-                    DEFAULT: '#383633',
-                },
-                // K5 — dark grid lines, pinned to the same RATIOS as the light
-                // pair (not the same alphas, which is how they got lost).
-                'grid-line': {
-                  DEFAULT: '#514C45',
-                  strong:  '#767065',
-                }
-              }
-            },
-            keyframes: {
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(15px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              aurora: {
-                '0%': { backgroundPosition: '0% 50%' },
-                '50%': { backgroundPosition: '100% 50%' },
-                '100%': { backgroundPosition: '0% 50%' },
-              }
-            },
-            animation: {
-              'fade-in-up': 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-              'aurora': 'aurora 30s ease infinite', 
-            },
-            backdropBlur: {
-              'xl': '24px',
-            },
-            boxShadow: {
-              // K1: whisper shadow for FLAT surface-1 tiles (stat tiles etc.) —
-              // recovers the page-to-card separation the chroma cut spent,
-              // without re-saturating the page. Cards proper keep shadow-card.
-              'whisper': '0 1px 2px rgba(0, 0, 0, 0.04)',
-              // Layered soft shadow so cards lift off the page (tight + wide). Strengthened
-              // in polish-v2 for clearer definition against the warm bg.
-              'card': '0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.08)',
-              'card-hover': '0 1px 3px rgba(0, 0, 0, 0.08), 0 10px 24px rgba(0, 0, 0, 0.12)',
-              'card-dark': '0 1px 2px rgba(0, 0, 0, 0.40), 0 6px 16px rgba(0, 0, 0, 0.50)',
-              'card-hover-dark': '0 1px 3px rgba(0, 0, 0, 0.45), 0 12px 30px rgba(0, 0, 0, 0.60)',
-            }
-          },
-        },
-      }
+      /* ── STATUS RAMPS + TAILWIND CONFIG MOVED OUT (2026-08-07) ──────────────
+       * The BRICK / OCHRE / SAGE / STONE / TERRA ladders and the whole
+       * `tailwind.config = { … }` object that used to sit here now live in
+       * /tailwind.config.js, ported VERBATIM. They had to move because Tailwind
+       * is no longer compiled in the browser: the Play CDN runtime compiler was
+       * replaced by a build-time dependency, and a build-time config cannot be
+       * declared in a <script> tag.
+       *
+       * The design rationale for those ramps — the measured AA contrast ratios,
+       * the K1 chroma budget, the deliberate absence of a blue/info status tier,
+       * the K5 grid-line floors — moved with them and is preserved in comments
+       * there. Read /tailwind.config.js before re-toning anything.
+       *
+       * WHAT STAYS HERE, and why:
+       *   · the BRAND object + the three setProperty calls above — those are CSS
+       *     custom properties consumed by public/index.css at runtime, not
+       *     Tailwind config. BRAND is now a BRAND-STATIC-COPY in TWO files and
+       *     scripts/brandConsistencyCheck.mjs asserts both agree.
+       *   · the <style> block below declaring --th-slate-400/500 and
+       *     --th-on-surface*, which tailwind.config.js references by var().
+       * ────────────────────────────────────────────────────────────────────── */
     </script>
     <style>
       /* Theme variables backing the on-surface tokens above (DEFERRED #24, 2026-07-28).

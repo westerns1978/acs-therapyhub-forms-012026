@@ -1,0 +1,15 @@
+/**
+ * Tailwind entry — added 2026-08-07 with the Play CDN → build-time port.
+ *
+ * Imported from index.tsx so Vite compiles it through postcss.config.js and
+ * emits a hashed stylesheet into dist/assets/. This replaces the runtime
+ * compilation that `https://cdn.tailwindcss.com` used to do in the browser.
+ *
+ * This file intentionally contains NOTHING but the three directives. The
+ * app's own CSS — the :root/.dark custom properties the config's color slots
+ * reference by var(), and the focus-visible ring — stays in public/index.css,
+ * served verbatim via a <link> in index.html.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

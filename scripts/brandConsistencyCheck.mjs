@@ -68,6 +68,33 @@ expectHex('index.html <meta theme-color>', 'index.html',
 expectHex('manifest.json theme_color', 'public/manifest.json',
   /"theme_color":\s*"(#[0-9A-Fa-f]{6})"/g, DEFAULT);
 
+/* tailwind.config.js — a NEW blessed copy as of 2026-08-07. Tailwind moved from
+   the Play CDN runtime compiler (where the config was a <script> in index.html
+   and could read the BRAND object directly) to a build-time dependency, whose
+   config file cannot. So BRAND is declared twice and must agree. All three slots
+   are asserted, not just DEFAULT — `focus` and `dark` feed primary-focus and the
+   whole dark: ramp, and a half-updated brand change there is exactly the failure
+   this gate exists to stop. */
+expectHex('tailwind.config.js BRAND.DEFAULT', 'tailwind.config.js',
+  /DEFAULT:\s*'(#[0-9A-Fa-f]{6})',\s*\/\/ the ACS mark red/g, DEFAULT);
+expectHex('tailwind.config.js BRAND.focus', 'tailwind.config.js',
+  /focus:\s*'(#[0-9A-Fa-f]{6})',\s*\/\/ pressed/g, FOCUS);
+expectHex('tailwind.config.js BRAND.dark', 'tailwind.config.js',
+  /dark:\s*'(#[0-9A-Fa-f]{6})',\s*\/\/ legible/g, DARK);
+
+/* The Play CDN must stay gone. It was a render-blocking third-party script that
+   compiled the design system in the browser; if it is reintroduced the app is
+   one CDN outage away from rendering unstyled, and no CSP can be tightened
+   around it. Asserted here rather than in check:privacy because this is a
+   styling-integrity fact, not an identity leak. */
+{
+  const cdnInHtml = (read('index.html') ?? '')
+    .replace(/<!--[\s\S]*?-->/g, ' ')            // the retirement note names the tag
+    .includes('cdn.tailwindcss.com');
+  if (cdnInHtml) fail('index.html loads cdn.tailwindcss.com again — the Play CDN runtime compiler was retired 2026-08-07 in favour of build-time Tailwind (tailwind.config.js + styles/tailwind.css). Reintroducing it makes the app depend on a third party to render at all.');
+  else ok('Play CDN absent — Tailwind is compiled at build time');
+}
+
 expectHex('index.css var(--brand) fallback', 'public/index.css',
   /var\(--brand,\s*(#[0-9A-Fa-f]{6})\)/g, DEFAULT);
 
@@ -130,7 +157,8 @@ expectHex('WebsitePortalBridge var(--brand-focus) fallback', 'pages/WebsitePorta
 const CHECKED_FILES = new Set([
   'index.html', 'public/manifest.json', 'public/index.css',
   'pages/WebsitePortalBridge.tsx', 'services/pdfDocuments.ts',
-  'components/ui/GlobalHeader.tsx',
+  'components/ui/GlobalHeader.tsx',   // now asserted NEGATIVELY (no ui-avatars URL)
+  'tailwind.config.js',               // added 2026-08-07 with the Play CDN port
 ]);
 {
   // index.html carries the marker only inside its documentation block, not as a copy.
