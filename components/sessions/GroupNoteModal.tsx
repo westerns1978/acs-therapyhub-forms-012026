@@ -8,8 +8,9 @@ import { GROUP_DECLARED_TYPES, declaredTypeById, defaultDeclaredTypeFor } from '
 import {
     WeeklyGroup, GroupEnrollmentRow, GroupSessionRecord,
     getGroupRoster, getGroupSession, getClients, submitGroupSession,
+    getGroupAttendanceDraft, saveGroupAttendanceDraft,
 } from '../../services/api';
-import { Users, Loader2, CheckCircle2, UserMinus, UserPlus, FileSignature } from 'lucide-react';
+import { Users, Loader2, CheckCircle2, UserMinus, UserPlus, FileSignature, Save } from 'lucide-react';
 
 // L2 GROUP NOTE (David 7/15 + 7/28). The counselor clicks the weekly block →
 // this note, pre-populated with every ASSIGNED client. Adding a makeup or
@@ -51,6 +52,10 @@ const GroupNoteModal: React.FC<GroupNoteModalProps> = ({ isOpen, onClose, group,
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showMissing, setShowMissing] = useState(false);
+    // B1: save who showed up NOW, write the narrative later. A separate,
+    // deliberate action from Submit — never autosave, never required-gated.
+    const [isSavingAttendance, setIsSavingAttendance] = useState(false);
+    const [attendanceSaved, setAttendanceSaved] = useState(false);
 
     // Load roster + any already-submitted note whenever the modal opens.
     useEffect(() => {
@@ -61,6 +66,7 @@ const GroupNoteModal: React.FC<GroupNoteModalProps> = ({ isOpen, onClose, group,
         setAbsent(new Set());
         setMakeups([]);
         setMakeupPick(undefined);
+        setAttendanceSaved(false);
         setTimeStarted(hhmm(group.startLocal));
         setTimeEnded(hhmm(group.endLocal));
         setUnits('');
@@ -73,13 +79,43 @@ const GroupNoteModal: React.FC<GroupNoteModalProps> = ({ isOpen, onClose, group,
             getGroupSession(group.id, sessionDate),
             getGroupRoster(group.id, sessionDate),
             getClients().catch(() => [] as Client[]),
-        ]).then(([sess, ros, cls]) => {
+            getGroupAttendanceDraft(group.id, sessionDate),
+        ]).then(([sess, ros, cls, draft]) => {
             setExisting(sess);
             setRoster(ros);
             setAllClients(cls);
+            // Restore a saved-but-not-submitted attendance mark. Skipped when the
+            // note is already submitted (`sess` truthy) — the real attendee list
+            // takes over and any leftover draft is stale, ignorable clutter.
+            if (!sess && draft.length) {
+                setAbsent(new Set(draft.filter(d => d.source === 'standing').map(d => d.clientId)));
+                const makeupIds = new Set(draft.filter(d => d.source === 'makeup').map(d => d.clientId));
+                setMakeups(cls.filter(c => makeupIds.has(c.id)).map(c => ({ clientId: c.id, clientName: c.name })));
+            }
         }).catch(e => setError(e?.message || 'Could not load the group roster.'))
           .finally(() => setLoading(false));
     }, [isOpen, group?.id, sessionDate]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Any attendance edit after a save invalidates the "Saved" confirmation.
+    useEffect(() => { setAttendanceSaved(false); }, [absent, makeups]);
+
+    const handleSaveAttendance = async () => {
+        if (!group) return;
+        setIsSavingAttendance(true);
+        setError(null);
+        try {
+            const entries = [
+                ...Array.from(absent).map(clientId => ({ clientId, source: 'standing' as const })),
+                ...makeups.map(m => ({ clientId: m.clientId, source: 'makeup' as const })),
+            ];
+            await saveGroupAttendanceDraft(group.id, sessionDate, entries);
+            setAttendanceSaved(true);
+        } catch (e: any) {
+            setError(e?.message || 'Failed to save attendance.');
+        } finally {
+            setIsSavingAttendance(false);
+        }
+    };
 
     useEffect(() => { if (user?.name) setStaffName(prev => prev || user.name); }, [user?.name]);
 
@@ -268,6 +304,22 @@ const GroupNoteModal: React.FC<GroupNoteModalProps> = ({ isOpen, onClose, group,
                             <div className="mt-2">
                                 <label className="block text-[10px] font-bold uppercase text-gray-500 tracking-wider mb-1 flex items-center gap-1"><UserPlus size={11} /> Add a client to this session</label>
                                 <ClientTypeAhead clients={allClients} value={makeupPick} onChange={addMakeup} />
+                            </div>
+                            {/* B1: mark who showed up now, write the narrative later — persists
+                                independently of Submit below, which still needs every required
+                                field filled. Reopening this occurrence restores these marks. */}
+                            <div className="mt-3 flex items-center gap-3">
+                                <button type="button" onClick={handleSaveAttendance} disabled={isSavingAttendance}
+                                    title="Save who's here — the note itself can wait"
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-60">
+                                    {isSavingAttendance ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                                    {isSavingAttendance ? 'Saving…' : 'Save attendance'}
+                                </button>
+                                {attendanceSaved && (
+                                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                        <CheckCircle2 size={13} /> Saved — write the note whenever you're ready
+                                    </span>
+                                )}
                             </div>
                         </div>
 

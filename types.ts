@@ -465,7 +465,11 @@ export interface SatopChecklistData {
   signatureDate: string;
 }
 
-interface ContactInfo { name: string; address: string; city: string; state: string; zip: string; phone: string; }
+// address→email (2026-08-07, David's markup — B6): a released party is reached by
+// email now, not mailed. state/zip dropped in the same pass — dead since this type
+// was written (ContactFields below never rendered them; fieldDefinitions never
+// declared them).
+interface ContactInfo { name: string; email: string; city: string; phone: string; }
 
 export interface AuthorizationForReleaseData {
   clientName: string;

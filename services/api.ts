@@ -787,6 +787,55 @@ export const getGroupSession = async (groupId: string, sessionDate: string): Pro
     };
 };
 
+export interface GroupAttendanceDraftRow {
+    clientId: string;
+    source: 'standing' | 'makeup';
+}
+
+/** B1: who's been marked present/absent for a group occurrence BEFORE the note
+ *  is submitted — a delta from the standing roster, not a snapshot. Read on
+ *  modal open to restore the counselor's marks; group_sessions/group_session_attendees
+ *  cannot hold this (born-signed, NOT NULL narrative/units/etc — see the
+ *  20260807_b1 migration header for why this is a separate table). */
+export const getGroupAttendanceDraft = async (groupId: string, sessionDate: string): Promise<GroupAttendanceDraftRow[]> => {
+    const { data, error } = await supabase
+        .from('group_session_attendance_drafts')
+        .select('client_id, source')
+        .eq('group_id', groupId)
+        .eq('session_date', sessionDate);
+    if (error) { console.warn('[api] getGroupAttendanceDraft failed:', error.message); return []; }
+    return (data || []).map((r: any) => ({ clientId: r.client_id, source: r.source }));
+};
+
+/** Full-replace save — the counselor clicks "Save attendance", not autosave on
+ *  every toggle. Deletes this occurrence's prior draft rows and re-inserts the
+ *  current delta (absences off the standing roster + makeup adds) in one pass. */
+export const saveGroupAttendanceDraft = async (groupId: string, sessionDate: string, entries: GroupAttendanceDraftRow[]): Promise<void> => {
+    const { error: delErr } = await supabase
+        .from('group_session_attendance_drafts')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('session_date', sessionDate);
+    if (delErr) throw new Error(delErr.message || 'Failed to save attendance');
+    if (!entries.length) return;
+    const { error: insErr } = await supabase
+        .from('group_session_attendance_drafts')
+        .insert(entries.map(e => ({ group_id: groupId, session_date: sessionDate, client_id: e.clientId, source: e.source })));
+    if (insErr) throw new Error(insErr.message || 'Failed to save attendance');
+};
+
+/** Cleanup once the real note is submitted — a leftover draft is dead weight,
+ *  never read once `getGroupSession` finds a real row. Best-effort: a failure
+ *  here must never block or roll back the note that just posted successfully. */
+const clearGroupAttendanceDraft = async (groupId: string, sessionDate: string): Promise<void> => {
+    const { error } = await supabase
+        .from('group_session_attendance_drafts')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('session_date', sessionDate);
+    if (error) console.warn('[api] clearGroupAttendanceDraft failed (non-blocking):', error.message);
+};
+
 export interface SubmitGroupSessionInput {
     group: WeeklyGroup;
     sessionDate: string;      // 'YYYY-MM-DD'
@@ -908,6 +957,7 @@ export const submitGroupSession = async (input: SubmitGroupSessionInput): Promis
     if (seatErrors.length) {
         throw new Error(`Group note saved, but ${seatErrors.length} seat(s) failed and were NOT credited: ${seatErrors.join(', ')}. Reopen the block to see who is recorded.`);
     }
+    void clearGroupAttendanceDraft(input.group.id, input.sessionDate);
     return { sessionId: session.id, seats };
 };
 

@@ -4,7 +4,7 @@ import { FormDefinition, AuthorizationForReleaseData, FormErrors, FormSectionPro
 import { FormField } from '../FormField';
 import { Checkbox } from '../Checkbox';
 
-const initialContact = { name: '', address: '', city: '', state: '', zip: '', phone: '' };
+const initialContact = { name: '', email: '', city: '', phone: '' };
 
 const initialState: AuthorizationForReleaseData = {
   clientName: '', authorizeDMH: false, authorizeRevenue: false,
@@ -34,7 +34,7 @@ const ContactFields = ({ label, data, onChange }: { label: string, data: any, on
   <div className="space-y-4 p-6 bg-slate-50 dark:bg-slate-950/30 rounded-3xl border border-black/5 dark:border-white/5">
     <h4 className="text-xs font-black uppercase tracking-widest text-primary mb-4">{label} contact</h4>
     <FormField id="name" label="Name/agency" value={data.name} onChange={(e) => onChange('name', e.target.value)} required={false} />
-    <FormField id="address" label="Address" value={data.address} onChange={(e) => onChange('address', e.target.value)} required={false} />
+    <FormField id="email" label="Email" value={data.email} onChange={(e) => onChange('email', e.target.value)} required={false} />
     <div className="grid grid-cols-2 gap-4">
       <FormField id="city" label="City" value={data.city} onChange={(e) => onChange('city', e.target.value)} required={false} />
       <FormField id="phone" label="Phone" value={data.phone} onChange={(e) => onChange('phone', e.target.value)} required={false} />
@@ -113,19 +113,19 @@ export const AUTHORIZATION_RELEASE_DEFINITION: FormDefinition<AuthorizationForRe
     { id: 'authorizeDMH', label: 'I authorize ACS to send my program completion notice to the Missouri Department of Mental Health (DMH).', type: 'boolean', required: true },
     { id: 'authorizeRevenue', label: 'I authorize ACS to send my program completion notice to the Missouri Department of Revenue (DOR) — the basis for reinstating my driving privileges.', type: 'boolean', required: true },
     { id: 'courtInfo.name', label: 'Court name/agency', type: 'text', required: false },
-    { id: 'courtInfo.address', label: 'Court address', type: 'text', required: false },
+    { id: 'courtInfo.email', label: 'Court email', type: 'text', required: false },
     { id: 'courtInfo.city', label: 'Court city', type: 'text', required: false },
     { id: 'courtInfo.phone', label: 'Court phone', type: 'tel', required: false },
     { id: 'attorneyInfo.name', label: 'Attorney name/agency', type: 'text', required: false },
-    { id: 'attorneyInfo.address', label: 'Attorney address', type: 'text', required: false },
+    { id: 'attorneyInfo.email', label: 'Attorney email', type: 'text', required: false },
     { id: 'attorneyInfo.city', label: 'Attorney city', type: 'text', required: false },
     { id: 'attorneyInfo.phone', label: 'Attorney phone', type: 'tel', required: false },
     { id: 'probationOfficerInfo.name', label: 'Probation officer name/agency', type: 'text', required: false },
-    { id: 'probationOfficerInfo.address', label: 'Probation officer address', type: 'text', required: false },
+    { id: 'probationOfficerInfo.email', label: 'Probation officer email', type: 'text', required: false },
     { id: 'probationOfficerInfo.city', label: 'Probation officer city', type: 'text', required: false },
     { id: 'probationOfficerInfo.phone', label: 'Probation officer phone', type: 'tel', required: false },
     { id: 'otherInfo.name', label: 'Other facility name/agency', type: 'text', required: false },
-    { id: 'otherInfo.address', label: 'Other facility address', type: 'text', required: false },
+    { id: 'otherInfo.email', label: 'Other facility email', type: 'text', required: false },
     { id: 'otherInfo.city', label: 'Other facility city', type: 'text', required: false },
     { id: 'otherInfo.phone', label: 'Other facility phone', type: 'tel', required: false },
     { id: 'acknowledgesFederalRegulations', label: 'I authorize according to 42 CFR Part 2 federal regulations.', type: 'boolean', required: true },

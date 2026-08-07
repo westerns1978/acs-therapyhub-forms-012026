@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addClient, findDuplicateClients, DuplicateClientMatch } from '../../services/api';
+import { addClient, findDuplicateClients, DuplicateClientMatch, getCounselors } from '../../services/api';
+import type { Counselor } from '../../services/api';
 import { X, User, Shield, CreditCard, CheckCircle, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
 import { CLIENT_TYPES, CLIENT_TYPE_LABELS } from '../../config/clientType';
 import { baseRegistrationFormFor, FORM_REGISTRY_BY_ID } from '../../config/formRegistry';
@@ -23,8 +24,15 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
         // '' = untagged (stored as NULL). No default guess — client_type drives
         // both the scheduling funnel and the base registration form, and neither
         // should be inferred from a dropdown the user never touched.
-        clientType: ''
+        clientType: '',
+        // '' = unassigned. Same "no default guess" rule as clientType above.
+        primaryCounselorId: ''
     });
+    // Primary Counselor picker — the active roster (mirrors EditClientModal's field).
+    const [counselors, setCounselors] = useState<Counselor[]>([]);
+    useEffect(() => {
+        if (isOpen) getCounselors().then(setCounselors).catch(() => setCounselors([]));
+    }, [isOpen]);
 
     const handleChange = (field: string, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -48,6 +56,7 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                 billingType: formData.billingType,
                 county: formData.county,
                 probationOfficer: formData.probationOfficer,
+                primaryCounselorId: formData.primaryCounselorId || undefined,
             });
             onClose();
             // Land the user on the new client's workspace so the create is
@@ -269,6 +278,13 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                             <div className="space-y-1">
                                 <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Probation Officer</label>
                                 <input className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" value={formData.probationOfficer} onChange={e => handleChange('probationOfficer', e.target.value)} placeholder="Name of PO" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Primary Counselor</label>
+                                <select className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" value={formData.primaryCounselorId} onChange={e => handleChange('primaryCounselorId', e.target.value)}>
+                                    <option value="">— None assigned —</option>
+                                    {counselors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
                             </div>
                         </div>
                     )}

@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { generateSoapNoteFromTranscript, saveClinicalNote, getClients } from '../../services/api';
-import { Client } from '../../types';
+import { generateSoapNoteFromTranscript, saveClinicalNote, getClients, getClientAppointments } from '../../services/api';
+import { Client, Appointment } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
-import { toLocalYMD } from '../../config/time';
-import { Sparkles, Loader2, Mic, MicOff, Eraser, FileText, CheckCircle, ChevronDown, ChevronUp, FileSignature } from 'lucide-react';
+import { toLocalYMD, formatTime12 } from '../../config/time';
+import { Sparkles, Loader2, Mic, MicOff, Eraser, FileText, CheckCircle, ChevronDown, ChevronUp, FileSignature, Link2 } from 'lucide-react';
 
 interface SmartNoteImporterProps {
     onNoteGenerated: (note: string) => void;
@@ -78,6 +78,42 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
     // misattribution, which is worse than exposure: nothing looks wrong afterward.
     const targetClientId = initialId || selectedClientId;
 
+    // ── DEFERRED #44: header-written notes never linked to a session ───────────
+    // The header's "Start typed or dictated note" button (initialId set, no
+    // appointment in scope) is the one entry point that can silently orphan a
+    // note — no star on the calendar, no unit precedence, a duplicate Services
+    // row. Fix shape (DEFERRED.md #44): offer to attach to a recent/same-day
+    // appointment, default UNLINKED — never guess. Appointment-scoped entry
+    // points (Start transcribed session, group note) already pass an
+    // appointmentId and don't need this picker.
+    const [recentAppointments, setRecentAppointments] = useState<Appointment[]>([]);
+    const [attachAppointmentId, setAttachAppointmentId] = useState('');
+
+    useEffect(() => {
+        if (!initialId) { setRecentAppointments([]); setAttachAppointmentId(''); return; }
+        let cancelled = false;
+        (async () => {
+            try {
+                const appts = await getClientAppointments(initialId);
+                const todayYMD = toLocalYMD(new Date());
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - 3);
+                const cutoffYMD = toLocalYMD(cutoff);
+                const recent = appts
+                    .filter(a => a.status !== 'Canceled')
+                    .filter(a => {
+                        const ymd = toLocalYMD(new Date(a.date));
+                        return ymd >= cutoffYMD && ymd <= todayYMD;
+                    })
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                if (!cancelled) { setRecentAppointments(recent); setAttachAppointmentId(''); }
+            } catch (e) {
+                if (!cancelled) { setRecentAppointments([]); setAttachAppointmentId(''); }
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [initialId]);
+
     useEffect(() => {
         const load = async () => {
             const data = await getClients();
@@ -123,6 +159,7 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
         staffName: staffName.trim() || undefined,
         staffCredentials: staffCredentials.trim() || undefined,
         therapistId: user?.id ? String(user.id) : undefined,
+        appointmentId: attachAppointmentId || undefined,
     });
 
     const handleSave = async () => {
@@ -197,6 +234,27 @@ const SmartNoteImporter: React.FC<SmartNoteImporterProps> = ({ onNoteGenerated, 
                     <div className="flex items-center gap-2 px-2 min-w-0">
                         <span className="text-sm font-bold text-gray-500 uppercase tracking-wide">Record For:</span>
                         <span className="font-bold text-primary truncate">{clients.find(c => c.id === initialId)?.name}</span>
+                    </div>
+                )}
+                {/* DEFERRED #44 fix: only offered when opened without an appointment
+                    already in scope (initialId + recent sessions found), and only ever
+                    an offer — "Not linked" is the default, never a guess. */}
+                {initialId && recentAppointments.length > 0 && (
+                    <div className="flex items-center gap-2 min-w-0 px-2">
+                        <Link2 size={14} className="text-gray-400 flex-shrink-0" />
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide whitespace-nowrap">Attach to session:</label>
+                        <select
+                            value={attachAppointmentId}
+                            onChange={e => setAttachAppointmentId(e.target.value)}
+                            className="p-1.5 text-xs border border-gray-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 max-w-[220px] truncate"
+                        >
+                            <option value="">Not linked — standalone note</option>
+                            {recentAppointments.map(a => (
+                                <option key={a.id} value={a.id}>
+                                    {toLocalYMD(new Date(a.date)) === toLocalYMD(new Date()) ? 'Today' : new Date(a.date).toLocaleDateString()} {formatTime12(a.startTime)} · {a.type} ({a.status})
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 )}
 
