@@ -39,6 +39,22 @@ const allForms = (Object.keys(FORM_DEFINITION_BY_ID) as View[])
     view: id as View,
   }));
 
+// Category badge colors — off-red on purpose (2026-08-07). Every category except
+// Legal used to fall through to `bg-primary` (ACS red), so a grid of a dozen cards
+// showed a wall of solid red pills with no connection to the ONE thing red is meant
+// to mean on this page: the active filter chip below, and each card's own "Start /
+// Continue" affordance. Five distinct non-red hues (Legal's indigo already existed
+// and is kept) so a glance at the filter bar's solid-red chip is unambiguous about
+// what "active" means, instead of competing with a card's own decoration.
+const CATEGORY_BADGE_CLASS: Record<string, string> = {
+  Legal: 'bg-indigo-500 text-white',
+  Intake: 'bg-blue-500 text-white',
+  Assessment: 'bg-teal-500 text-white',
+  Treatment: 'bg-violet-500 text-white',
+  Clinical: 'bg-cyan-600 text-white',
+  default: 'bg-slate-500 text-white',
+};
+
 const FormCard: React.FC<{
   form: { definition: FormDefinition<any>; view: View };
   onSelect: (form: View) => void;
@@ -62,6 +78,13 @@ const FormCard: React.FC<{
   // pdfSlug → no action rendered at all; there is no disabled/greyed state, because a
   // link to a file that does not exist would return Firebase's 200 + SPA shell.
   const pdfSlug = FORM_REGISTRY_BY_ID[definition.id]?.pdfSlug;
+  // Required-for-certification (the 3.206(13)(F) cert-gate set) — a NEW signal on
+  // this card (2026-08-07). The card previously showed no compliance signal at all;
+  // this reads the SAME registry field the completion gate itself uses, so the badge
+  // can never say "required" when the gate doesn't agree. Amber, never red — red is
+  // reserved for the primary action on this card, and required-ness is a status, not
+  // a call to action.
+  const isRequired = FORM_REGISTRY_BY_ID[definition.id]?.requiredForCompletion === true;
   const [copied, setCopied] = useState(false);
   const copyPdfLink = async () => {
     if (!pdfSlug) return;
@@ -82,12 +105,20 @@ const FormCard: React.FC<{
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -5, scale: 1.01 }}
       transition={{ delay: index * 0.05, duration: 0.3 }}
-      className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-border dark:border-slate-700 rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col group h-full hover:shadow-2xl"
+      // Brand pass (2026-08-07): hover used to re-color the WHOLE border, which read
+      // as too much red across a grid of a dozen cards at once. Only the left edge
+      // (a 4px rule, not the full ring) now carries the interaction color, and ONLY
+      // for non-required cards — a required card's amber left rule is a standing
+      // compliance signal, not a hover state, and must not flicker to red when a
+      // counselor merely moves the mouse over it.
+      className={`bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border border-border dark:border-slate-700 border-l-4 ${
+        isRequired ? 'border-l-warning-500 dark:border-l-warning-500' : 'border-l-transparent group-hover:border-l-primary transition-colors'
+      } rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col group h-full hover:shadow-2xl`}
     >
       <div className="p-8 flex-grow">
         <div className="flex justify-between items-start mb-6">
              <div className="flex items-center gap-2">
-                 <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-lg ${definition.category === 'Legal' ? 'bg-indigo-500 text-white' : 'bg-primary text-white'}`}>{definition.category}</span>
+                 <span className={`px-3 py-1 text-[9px] font-black uppercase tracking-widest rounded-lg ${CATEGORY_BADGE_CLASS[definition.category] ?? CATEGORY_BADGE_CLASS.default}`}>{definition.category}</span>
                  {definition.isNew && <span className="px-3 py-1 bg-accent text-white text-[9px] font-black uppercase tracking-widest rounded-lg">New</span>}
              </div>
              <button 
@@ -133,9 +164,13 @@ const FormCard: React.FC<{
       </div>
       
       <div className="p-6 bg-slate-50/50 dark:bg-slate-950/50 border-t border-black/5 dark:border-white/5 mt-auto flex gap-3">
+        {/* The card's "Open" affordance — the ONE persistent (non-hover) brand mark
+            per card, per the one-solid-red-per-surface rule (2026-08-07). Was solid
+            black (bg-slate-900 dark:bg-white), a color language that appeared on this
+            card and nowhere else in the app's action grammar. */}
         <button
           onClick={() => onSelect(view)}
-          className="flex-1 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 group active:scale-95"
+          className="flex-1 py-4 bg-primary hover:bg-primary-focus text-white font-black text-[10px] uppercase tracking-widest rounded-2xl shadow-xl transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2 group active:scale-95"
         >
           {progress > 0 ? <Zap size={14} fill="currentColor" className="animate-pulse"/> : <Play size={14} fill="currentColor" />}
           {progress > 0 ? 'Continue' : 'Start'}
@@ -260,9 +295,13 @@ export const FormLibrary: React.FC<FormLibraryProps> = ({ onSelectForm }) => {
               <button
                 key={category}
                 onClick={() => setActiveCategory(category)}
+                // Solid ACS red for the active chip, not a red-tinted-white pill — now
+                // that no card badge is red by default (see CATEGORY_BADGE_CLASS), this
+                // is the ONE solid-red element in the filter bar, so "active" reads
+                // unambiguously instead of competing with a dozen red category badges.
                 className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all ${
-                  activeCategory === category 
-                    ? 'bg-white dark:bg-slate-700 text-primary shadow-lg scale-105 border-2 border-primary/20' 
+                  activeCategory === category
+                    ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800'
                 }`}
               >
