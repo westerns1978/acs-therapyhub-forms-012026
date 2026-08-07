@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ModalPortal from './ModalPortal';
 
 const DownloadIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
 
@@ -24,6 +25,7 @@ const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({ isOpen, onClose
     if (!isOpen) return null;
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in-up" style={{ animationDuration: '0.3s'}}>
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[90vh]">
                 <header className="flex justify-between items-center p-4 border-b border-black/10 dark:border-white/10 flex-shrink-0">
@@ -49,6 +51,7 @@ const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({ isOpen, onClose
                 </footer>
             </div>
         </div>
+        </ModalPortal>
     );
 };
 

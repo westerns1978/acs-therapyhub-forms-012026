@@ -5,6 +5,7 @@ import { storageService, ocrFormTypeToDocType } from '../../services/storageServ
 import { useAuth } from '../../contexts/AuthContext';
 import CategoryPicker from '../documents/CategoryPicker';
 import { isCategorizable } from '../../config/recordCategory';
+import ModalPortal from '../ui/ModalPortal';
 
 type SupportedMime = 'image/jpeg' | 'image/png' | 'image/webp';
 
@@ -43,7 +44,22 @@ const CONFIDENCE_STYLES: Record<string, { bg: string; text: string; label: strin
   low:    { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-400', label: 'Low' },
 };
 
-export default function MobileDocumentUpload({ clientId, onComplete, onClose, initialImage, selectCategory }: MobileDocumentUploadProps) {
+/**
+ * Portal wrapper. This flow has six full-screen `fixed inset-0` return branches
+ * and is opened from ClientWorkspace, which sits under two ancestors carrying a
+ * persisted fadeInUp transform — so "full screen" was really "as tall as the
+ * page, starting where the page starts". Wrapping once here covers every branch;
+ * see components/ui/ModalPortal.tsx.
+ */
+export default function MobileDocumentUpload(props: MobileDocumentUploadProps) {
+  return (
+    <ModalPortal>
+      <MobileDocumentUploadFlow {...props} />
+    </ModalPortal>
+  );
+}
+
+function MobileDocumentUploadFlow({ clientId, onComplete, onClose, initialImage, selectCategory }: MobileDocumentUploadProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<Step>('capture');
   const [imageFile, setImageFile] = useState<File | null>(null);

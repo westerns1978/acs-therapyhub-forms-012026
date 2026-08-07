@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Appointment, Client, Attendee } from '../../types';
 import SignaturePad from '../ui/SignaturePad';
 import { programLabel } from '../../config/programVocab';
+import ModalPortal from '../ui/ModalPortal';
 
 const CheckCircleIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
 const AlertTriangleIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>;
@@ -72,6 +73,7 @@ const ManageAttendeesModal: React.FC<ManageAttendeesModalProps> = ({ isOpen, onC
     if (!isOpen) return null;
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in-up" style={{ animationDuration: '0.3s' }}>
             <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col h-[90vh]">
                 <header className="flex justify-between items-center p-4 border-b border-black/10 dark:border-white/10 flex-shrink-0">
@@ -148,6 +150,7 @@ const ManageAttendeesModal: React.FC<ManageAttendeesModalProps> = ({ isOpen, onC
                 </main>
             </div>
         </div>
+        </ModalPortal>
     );
 };
 

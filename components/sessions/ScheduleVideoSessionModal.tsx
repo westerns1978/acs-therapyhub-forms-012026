@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Client, User, VideoSession } from '../../types';
 import { addVideoSession } from '../../services/api';
 import { X } from 'lucide-react';
+import ModalPortal from '../ui/ModalPortal';
 
 interface ScheduleVideoSessionModalProps {
     isOpen: boolean;
@@ -55,14 +56,15 @@ const ScheduleVideoSessionModal: React.FC<ScheduleVideoSessionModalProps> = ({ i
     if (!isOpen) return null;
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-background dark:bg-dark-surface rounded-lg shadow-xl w-full max-w-md">
-                <form onSubmit={handleSubmit}>
-                    <header className="flex justify-between items-center p-4 border-b">
+            <div className="bg-background dark:bg-dark-surface rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+                <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+                    <header className="flex justify-between items-center p-4 border-b flex-shrink-0">
                         <h3 className="text-lg font-semibold">Schedule Video Session</h3>
                         <button type="button" onClick={onClose}><X size={24} /></button>
                     </header>
-                    <main className="p-6 space-y-4">
+                    <main className="p-6 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
                         <div>
                             <label className="block text-sm font-medium mb-1">Client</label>
                             <select value={clientId} onChange={e => setClientId(e.target.value)} required className="w-full p-2 border rounded-md">
@@ -78,7 +80,7 @@ const ScheduleVideoSessionModal: React.FC<ScheduleVideoSessionModalProps> = ({ i
                             <input type="number" value={durationMinutes} onChange={e => setDurationMinutes(Number(e.target.value))} required className="w-full p-2 border rounded-md" />
                         </div>
                     </main>
-                    <footer className="p-4 border-t flex justify-end">
+                    <footer className="p-4 border-t flex justify-end flex-shrink-0">
                         <button type="submit" disabled={isSubmitting} className="bg-primary text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50">
                             {isSubmitting ? 'Scheduling...' : 'Schedule Session'}
                         </button>
@@ -86,6 +88,7 @@ const ScheduleVideoSessionModal: React.FC<ScheduleVideoSessionModalProps> = ({ i
                 </form>
             </div>
         </div>
+        </ModalPortal>
     );
 };
 

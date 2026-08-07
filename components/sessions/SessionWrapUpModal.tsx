@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Client } from '../../types';
 import { addClientAssignment, saveClinicalNote } from '../../services/api';
+import ModalPortal from '../ui/ModalPortal';
 
 // Icons
 const CheckCircleIcon = (props: React.ComponentProps<'svg'>) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
@@ -150,6 +151,7 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
     if (!isOpen) return null;
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in-up">
             <div className="bg-background dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col">
                 <header className="p-4 border-b border-border dark:border-slate-800 text-center relative">
@@ -190,6 +192,7 @@ const SessionWrapUpModal: React.FC<SessionWrapUpModalProps> = ({ isOpen, onClose
                 </footer>
             </div>
         </div>
+        </ModalPortal>
     );
 };
 

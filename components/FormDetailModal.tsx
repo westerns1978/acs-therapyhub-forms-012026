@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FormDefinition } from '../types';
 import { Clock, BarChart, Info, X, Shield, Zap } from 'lucide-react';
+import ModalPortal from './ui/ModalPortal';
 
 interface FormDetailModalProps {
   form: FormDefinition<any>;
@@ -26,16 +27,17 @@ export const FormDetailModal: React.FC<FormDetailModalProps> = ({ form, onClose 
   };
 
   return (
+    <ModalPortal>
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md" onClick={onClose}>
         <motion.div
           initial={{ opacity: 0, y: 50, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden border border-white/20 dark:border-slate-800"
+          className="bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden border border-white/20 dark:border-slate-800 max-h-[90vh] flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          <header className="p-8 bg-gradient-to-br from-primary/5 to-transparent border-b border-black/5 dark:border-white/5 flex justify-between items-start">
+          <header className="p-8 bg-gradient-to-br from-primary/5 to-transparent border-b border-black/5 dark:border-white/5 flex justify-between items-start flex-shrink-0">
             <div>
               <span className="text-[10px] font-black uppercase text-primary tracking-[0.3em]">{form.category}</span>
               <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white mt-2">{form.title}</h2>
@@ -45,7 +47,7 @@ export const FormDetailModal: React.FC<FormDetailModalProps> = ({ form, onClose 
             </button>
           </header>
 
-          <div className="p-8">
+          <div className="p-8 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
             <p className="text-slate-600 dark:text-slate-300 font-medium leading-relaxed">{form.description}</p>
 
             <div className="mt-10 flex gap-4">
@@ -65,11 +67,12 @@ export const FormDetailModal: React.FC<FormDetailModalProps> = ({ form, onClose 
             </div>
           </div>
           
-          <footer className="p-8 border-t border-black/5 dark:border-white/5 bg-slate-50/50 dark:bg-slate-950/50">
+          <footer className="p-8 border-t border-black/5 dark:border-white/5 bg-slate-50/50 dark:bg-slate-950/50 flex-shrink-0">
              <button onClick={onClose} className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl hover:scale-[1.02] transition-all">Acknowledge</button>
           </footer>
         </motion.div>
       </div>
     </AnimatePresence>
+    </ModalPortal>
   );
 };

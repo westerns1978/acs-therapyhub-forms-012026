@@ -5,6 +5,7 @@ import { approveFormSubmission } from '../../services/api';
 import { X, CheckCircle, AlertCircle, FileText, ExternalLink, Loader2 } from 'lucide-react';
 import { SignedFileLink } from '../ui/SignedFile';
 import { dbForms } from '../../data/database';
+import ModalPortal from '../ui/ModalPortal';
 
 interface FormReviewModalProps {
     submission: FormSubmission;
@@ -34,6 +35,7 @@ const FormReviewModal: React.FC<FormReviewModalProps> = ({ submission, clientNam
     };
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
             <div className="bg-background dark:bg-dark-surface rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                 <header className="flex justify-between items-center p-6 border-b">
@@ -112,6 +114,7 @@ const FormReviewModal: React.FC<FormReviewModalProps> = ({ submission, clientNam
                 </footer>
             </div>
         </div>
+        </ModalPortal>
     );
 };
 

@@ -12,6 +12,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Phone, MessageSquare, Mail, FileText, CalendarPlus, Shield, CheckSquare, Loader2 } from 'lucide-react';
 import { logOutreach, createTask, type ClientAlert } from '../services/alertsService';
+import ModalPortal from './ui/ModalPortal';
 
 interface Props {
   alert: ClientAlert | null;
@@ -123,6 +124,7 @@ const OutreachModal: React.FC<Props> = ({ alert, onClose, onActionComplete }) =>
   }[alert.tier];
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <header className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between">
@@ -288,6 +290,7 @@ const OutreachModal: React.FC<Props> = ({ alert, onClose, onActionComplete }) =>
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

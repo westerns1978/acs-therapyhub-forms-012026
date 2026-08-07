@@ -14,6 +14,7 @@ import Modal from '../ui/Modal';
 import { SubmissionViewer, RecordPrintRoot, printRecord } from '../forms/SubmissionViewer';
 import { definitionForSubmission, submissionTitle, FORM_DEFINITION_BY_ID } from '../../config/formDefinitions';
 import { FORM_REGISTRY } from '../../config/formRegistry';
+import ModalPortal from '../ui/ModalPortal';
 
 interface ClientFormsTabProps {
   client: Client;
@@ -85,9 +86,10 @@ const ReviewSubmissionModal: React.FC<{
     };
 
     return (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-background dark:bg-dark-surface rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col">
-                <header className="flex justify-between items-center p-6 border-b bg-slate-50 dark:bg-slate-900/50">
+            <div className="bg-background dark:bg-dark-surface rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <header className="flex justify-between items-center p-6 border-b bg-slate-50 dark:bg-slate-900/50 flex-shrink-0">
                     <div>
                         <h3 className="text-xl font-black tracking-tight">Review Paper Submission</h3>
                         <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">{submissionTitle(formTitle, clientName)}</p>
@@ -95,7 +97,7 @@ const ReviewSubmissionModal: React.FC<{
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-all"><X size={24} /></button>
                 </header>
                 
-                <main className="flex-1 p-8 overflow-y-auto space-y-8">
+                <main className="flex-1 min-h-0 p-8 overflow-y-auto space-y-8">
                     {/* AI Analysis Section */}
                     <div className="p-6 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-3xl space-y-4">
                         <div className="flex items-center gap-3">
@@ -154,7 +156,7 @@ const ReviewSubmissionModal: React.FC<{
                         <span className="text-xs font-bold leading-relaxed">{approveError}</span>
                     </div>
                 )}
-                <footer className="p-6 border-t bg-slate-50 dark:bg-slate-900/50 flex gap-4">
+                <footer className="p-6 border-t bg-slate-50 dark:bg-slate-900/50 flex gap-4 flex-shrink-0">
                     <button 
                         onClick={onClose}
                         className="flex-1 py-4 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 transition-all"
@@ -172,6 +174,7 @@ const ReviewSubmissionModal: React.FC<{
                 </footer>
             </div>
         </div>
+        </ModalPortal>
     );
 };
 

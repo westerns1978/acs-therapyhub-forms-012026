@@ -6,6 +6,7 @@
 
 import React, { useEffect } from "react";
 import { X, ExternalLink, Download, FileQuestion } from "lucide-react";
+import ModalPortal from "../ui/ModalPortal";
 
 interface DocumentViewerModalProps {
   isOpen: boolean;
@@ -35,10 +36,10 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
+    // Scroll lock moved to ModalPortal (ref-counted) — this viewer opens on top
+    // of other dialogs and its cleanup used to release the lock for all of them.
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
     };
   }, [isOpen, onClose]);
 
@@ -49,6 +50,7 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   const isImage = resolvedMime.startsWith("image/");
 
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 z-[60] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in-up"
       onClick={onClose}
@@ -142,6 +144,7 @@ const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         </footer>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

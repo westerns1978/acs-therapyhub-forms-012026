@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import ModalPortal from './ModalPortal';
 
 interface ModalProps {
   isOpen: boolean;
@@ -22,6 +23,13 @@ interface ModalProps {
  *    aria-labelledby at).
  *  - The icon-only close button announced as just "button".
  *  - Focus was never moved in, and never restored to the trigger on close.
+ *
+ * Positioning fixed 2026-08-07: the overlay now renders through ModalPortal (see
+ * that file for the persisted-transform containing-block explanation). Before
+ * this, every consumer of this shell — AppointmentStatusModal among them —
+ * centered itself inside the page's box rather than the viewport, which put it
+ * below the fold on any tall page. ModalPortal also owns the body scroll lock,
+ * which this shell previously did not take at all.
  *
  * NOTE on `if (!isOpen) return null` (kept): that is NOT an unmount for consumers
  * that stay mounted — MainLayout deliberately conditional-renders CreateClientModal
@@ -88,6 +96,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, classNa
   if (!isOpen) return null;
 
   return (
+    <ModalPortal>
     <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in-up"
         style={{ animationDuration: '0.25s' }}
@@ -115,11 +124,12 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, classNa
                 </button>
             </header>
         )}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
             {children}
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

@@ -15,6 +15,7 @@ import { extractFromFile, fileSizeError, isSupportedFile, ACCEPT_ATTRIBUTE } fro
 import { storageService } from "../../services/storageService";
 import CategoryPicker from "./CategoryPicker";
 import { isCategorizable } from "../../config/recordCategory";
+import ModalPortal from "../ui/ModalPortal";
 
 interface Client {
   id: string;
@@ -98,7 +99,9 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
     setPhase(presetClientId ? "pick_file" : "pick_client");
   }, [isOpen, presetClientId, presetClientName]);
 
-  // ESC + body scroll lock
+  // ESC. The body scroll lock moved to ModalPortal, which ref-counts it — this
+  // dialog can be stacked under the scanner/photo flow, and two call sites each
+  // blanking body.overflow on cleanup released the lock while one was still open.
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -107,10 +110,8 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
       }
     };
     window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
     };
   }, [isOpen, onClose, phase]);
 
@@ -215,15 +216,16 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
   const isWorking = phase === "uploading" || phase === "extracting" || phase === "saving";
 
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={() => !isWorking && onClose()}
     >
       <div
-        className="w-full max-w-lg bg-stone-50 dark:bg-slate-900 rounded-3xl shadow-2xl border border-stone-200 dark:border-slate-700 overflow-hidden"
+        className="w-full max-w-lg bg-stone-50 dark:bg-slate-900 rounded-3xl shadow-2xl border border-stone-200 dark:border-slate-700 overflow-hidden max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between px-6 py-4 border-b border-stone-200 dark:border-slate-800">
+        <header className="flex items-center justify-between px-6 py-4 border-b border-stone-200 dark:border-slate-800 flex-shrink-0">
           <div>
             <h3 className="text-base font-black text-slate-900 dark:text-white">Upload a document</h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -243,7 +245,11 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
           )}
         </header>
 
-        <div className="p-6 min-h-[16rem]">
+        {/* flex-1 + overflow-y-auto: the panel is capped at 90vh, so on a short
+            window the body scrolls internally and the footer/action buttons in
+            each phase stay reachable. min-h-[16rem] (well under 90vh) keeps the
+            resting size stable across phases. */}
+        <div className="p-6 min-h-[16rem] flex-1 overflow-y-auto custom-scrollbar">
           {phase === "pick_client" && (
             <div className="space-y-5">
               <label className="block">
@@ -379,6 +385,7 @@ const StaffDocumentUpload: React.FC<StaffDocumentUploadProps> = ({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

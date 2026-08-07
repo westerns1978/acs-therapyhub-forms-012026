@@ -37,6 +37,7 @@ const PROTOCOL_LABEL: Record<ScannerProtocol, string> = {
 // FlowHub Bridge (Gemynd Scan) Windows installer. Stable `latest/` pointer —
 // the version served is whatever was last published, so no bump belongs here.
 import { INSTALLER_URL as BRIDGE_INSTALLER_URL } from '../config/installer';
+import ModalPortal from './ui/ModalPortal';
 
 const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
   isOpen,
@@ -165,6 +166,7 @@ const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
     phase === 'scan_error';
 
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in-up"
       role="dialog"
@@ -365,6 +367,7 @@ const ScannerPickerModal: React.FC<ScannerPickerModalProps> = ({
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 };
 
