@@ -57,8 +57,11 @@ const PortalCompliance: React.FC = () => {
                             <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Overall Progress</p>
                             <p className="text-4xl font-black text-primary">{progress?.established ? `${progress.progressPct ?? 0}%` : '—'}</p>
                         </div>
+                        {/* Same fix as PortalDashboard.tsx / the staff-side Hours bar
+                            (2026-08-07): was a red-via-red-to-indigo gradient at every fill
+                            level. Progress toward a goal is positive, not a failure. */}
                         <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-6 overflow-hidden shadow-inner">
-                            <div className="bg-gradient-to-r from-primary via-accent to-indigo-500 h-full transition-all duration-1000" style={{ width: `${progress?.established ? (progress.progressPct ?? 0) : 0}%` }}></div>
+                            <div className="bg-success-500 h-full transition-all duration-1000" style={{ width: `${progress?.established ? (progress.progressPct ?? 0) : 0}%` }}></div>
                         </div>
                         <div className="mt-8">
                             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">

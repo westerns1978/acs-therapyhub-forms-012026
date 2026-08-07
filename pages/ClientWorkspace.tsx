@@ -17,7 +17,7 @@ import ScannerPickerModal from '../components/ScannerPickerModal';
 import MobileDocumentUpload from '../components/portal/MobileDocumentUpload';
 import RequestUploadLinkModal from '../components/clients/RequestUploadLinkModal';
 import Card from '../components/ui/Card';
-import { FileText, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Camera, ScanLine, Send, ChevronDown, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
+import { FileText, ClipboardList, Stethoscope, Video, ShieldCheck, AlertTriangle, BrainCircuit, TrendingDown, TrendingUp, Zap, Upload, Camera, ScanLine, Send, ChevronDown, Target, Award, Archive, CreditCard, Gauge } from 'lucide-react';
 import DispatcherChat from '../components/DispatcherChat';
 import { supabase } from '../services/supabase';
 import { TRIAL_HIDE_CLIENT_SCHEDULING_TAB } from '../config/trialMode';
@@ -370,8 +370,13 @@ const ClientWorkspace: React.FC = () => {
         // config/formRecordCategory.ts, uploads via config/recordCategory.ts; unmapped
         // items render in BOTH tabs (never hidden). The underlying facts stay two
         // lanes (SIGNATURE vs DOCUMENT) — see DEFERRED #17.
-        { id: 'admin-docs', label: 'Admin Documents', icon: FileText },
-        { id: 'clinical-docs', label: 'Clinical Documents', icon: FileText },
+        // Distinct icons (2026-08-07) — both tabs rendered FileText, so the tab
+        // strip gave no visual cue that these are two different record lanes
+        // beyond the label text. ClipboardList (administrative paperwork) vs
+        // Stethoscope (clinical documentation) — matches the Admin/Clinical
+        // split itself, not an arbitrary pairing.
+        { id: 'admin-docs', label: 'Admin Documents', icon: ClipboardList },
+        { id: 'clinical-docs', label: 'Clinical Documents', icon: Stethoscope },
         { id: 'sessions', label: 'Services', icon: Video },
         // Assessment (placement engine) — all staff (is_staff), mirrors assessment_inputs RLS.
         ...(canAssess ? [{ id: 'assessment', label: 'Assessment', icon: Gauge }] : []),

@@ -299,8 +299,14 @@ const PortalDashboard: React.FC = () => {
                              <span className="text-sm font-bold text-slate-500 uppercase tracking-widest">Overall Progress</span>
                              <span className="text-4xl font-black text-primary">{progress?.established ? `${progress.progressPct ?? 0}%` : '—'}</span>
                         </div>
+                        {/* Same fix as the staff-side Hours bar (2026-08-07): was a red-to-red
+                            gradient (accent routes to BRAND too) at every fill level, including
+                            partial progress — red means failure everywhere else in this app, and
+                            this is the CLIENT's own progress bar, so it read as their own progress
+                            reads as a problem. Progress toward a goal is positive; fills success/
+                            green now, red stays reserved for something actually wrong. */}
                         <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-4 overflow-hidden mb-6">
-                            <div className="bg-gradient-to-r from-primary to-accent h-full transition-all duration-1000" style={{ width: `${progress?.established ? (progress.progressPct ?? 0) : 0}%` }}></div>
+                            <div className="bg-success-500 h-full transition-all duration-1000" style={{ width: `${progress?.established ? (progress.progressPct ?? 0) : 0}%` }}></div>
                         </div>
                         <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex justify-around">
                             <div className="text-center">
