@@ -518,6 +518,19 @@ const PRINT_FIXTURES: { slug: string; def: any; data: string; baseline: string; 
     baseline: 'scripts/fixtures/printpreview-satop-registration-veteran-conditional.baseline.html',
     covers: "type:'number' on a committed record (age/numberInHousehold/trafficTickets/drugRelatedArrests) — a field type no pre-existing form uses; select option→label on required Yes/No fields; visibleWhen VISIBLE via a SELECT controller (veteran=Yes → veteranStatus prints); clientName DECLARED, pinning the other side of the declaration-aware header",
   },
+  {
+    // THE ZERO-BUG FIX, PINNED (section C, 2026-08-07). Companion to the fixture
+    // above, per its own comment: PrintField's fallback used to be `value || 'N/A'`,
+    // so a legitimate numeric 0 printed as "N/A" — an answered question rendering as
+    // unanswered on a court-bound record (witnessed live: drugRelatedArrests: 0 →
+    // "N/A"). trafficTickets and drugRelatedArrests are both 0 here; if the fallback
+    // regresses to truthiness, this baseline goes red.
+    slug: 'satop-registration (ZERO — numeric fields answered 0, not empty)',
+    def: SATOP_REGISTRATION_DEFINITION,
+    data: 'scripts/fixtures/print-satop-registration-zero-numerics.json',
+    baseline: 'scripts/fixtures/printpreview-satop-registration-zero-numerics.baseline.html',
+    covers: "type:'number' fields answered 0 (trafficTickets, drugRelatedArrests) must print '0', not 'N/A' — the fallback-truthiness defect fixed 2026-08-07",
+  },
 ];
 
 /**

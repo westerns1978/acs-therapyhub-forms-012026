@@ -123,7 +123,13 @@ const PrintField: React.FC<{ label: string; value: any, type?: string, options?:
     displayValue = Object.keys(value).filter(k => value[k])
       .map(k => options?.find(o => o.value === k)?.label ?? k).join(', ');
   } else {
-    displayValue = value || 'N/A';
+    // A legitimate numeric 0 (or a boolean-false-shaped string, if one ever
+    // lands here) is an ANSWERED question, not an absent one — `value ||
+    // 'N/A'` printed 0 as "N/A" on a committed record (witnessed:
+    // drugRelatedArrests: 0 → "N/A", the two registration forms' type:'number'
+    // fields are the first reachable path). Only null/undefined/'' mean
+    // nothing was entered.
+    displayValue = (value === null || value === undefined || value === '') ? 'N/A' : String(value);
   }
 
   return (
