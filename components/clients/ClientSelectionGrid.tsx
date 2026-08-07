@@ -27,10 +27,16 @@ const timelineTone = (status: ProgramCardState['status']) =>
     : 'text-slate-400';
 
 // Lifecycle badge — same palette as ClientProfileHeader (post status-normalization).
+// FIX (2026-08-07): completed/successful_dx rendered BLUE here while
+// ClientProfileHeader.tsx's getStatusColor rendered the identical status
+// success/green — the "same palette" comment above was aspirational, not true.
+// Blue carries no status meaning in this app (index.html's status-token block is
+// explicit: blue left the status system entirely) and a finished program is a
+// resolved good outcome, so it takes success like its header sibling.
 const lifecycleBadgeClass = (status: Client['status']) => {
     switch (status) {
         case 'active': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-        case 'completed': case 'successful_dx': return 'bg-blue-100 text-blue-800 border-blue-200';
+        case 'completed': case 'successful_dx': return 'bg-success-100 text-success-800 border-success-200';
         case 'archived': return 'bg-slate-100 text-slate-600 border-slate-200';
         case 'prospect': return 'bg-amber-100 text-amber-800 border-amber-200';
         case 'paused': return 'bg-orange-100 text-orange-800 border-orange-200';
@@ -109,8 +115,14 @@ const ClientCard: React.FC<{
                 // muted footnote instead of an empty 0% bar + loud "Not yet established" filler.
                 progress?.established ? (
                     <>
+                        {/* Was bg-primary (ACS red) at every fill level, including 30% — red
+                            reads as failure/violation everywhere else in this app, and
+                            partial progress toward a program is not a failure. Progress
+                            toward a goal is a positive metric, so it fills success/green
+                            (2026-08-07); red stays reserved for bars that represent
+                            something actually wrong. */}
                         <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-1.5 mt-3 mb-1.5">
-                            <div className="bg-primary h-1.5 rounded-full" style={{ width: `${pct}%` }}></div>
+                            <div className="bg-success-500 h-1.5 rounded-full" style={{ width: `${pct}%` }}></div>
                         </div>
                         <p className="text-xs text-surface-secondary-content">Progress: <span className="font-semibold">{progress.progressPct ?? 0}%</span></p>
                     </>

@@ -94,10 +94,15 @@ const ReadinessRowItem: React.FC<{ row: ReadinessRow; progress: ClientProgress |
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{row.detail}</p>
                     {/* The hours gate keeps the progress bar (the old scorecard's survivor) —
-                        progressPct is the ONLY percentage on this card (hours-denominated). */}
+                        progressPct is the ONLY percentage on this card (hours-denominated).
+                        Fill was bg-primary (ACS red) at every percentage, including 30%
+                        (2026-08-07 fix) — red means failure everywhere else in this app,
+                        and partial progress toward a program is not a failure. Progress
+                        toward a goal is a positive metric, so it fills success/green; red
+                        stays reserved for bars that represent something actually wrong. */}
                     {row.id === 'hours' && progress?.established && (
                         <div className="mt-2">
-                            <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2"><div className="bg-primary h-2 rounded-full" style={{ width: `${progress.progressPct ?? 0}%` }}></div></div>
+                            <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2"><div className="bg-success-500 h-2 rounded-full" style={{ width: `${progress.progressPct ?? 0}%` }}></div></div>
                             <p className="text-[10px] text-slate-400 mt-1">{progress.progressPct ?? 0}% of required hours{progress.isSrop ? ` · counseling ${progress.counselingCompleted} / ${progress.counselingRequired} hrs` : ''}</p>
                         </div>
                     )}

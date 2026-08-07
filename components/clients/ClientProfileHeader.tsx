@@ -157,7 +157,10 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
   return (
     <div className="bg-white dark:bg-slate-900 border border-hairline dark:border-slate-700/60 rounded-2xl shadow-card p-8 relative">
       <div className="flex flex-col lg:flex-row items-center lg:items-start gap-10">
-        <ClientAvatar client={client} className="w-32 h-32 text-5xl border-4 border-white dark:border-slate-800 shadow-card" />
+        {/* Sized down (2026-08-07) — this was the single largest element on the page,
+            competing with the client's own name for attention. w-20 keeps it clearly
+            legible and still the header's visual anchor, just not its dominant one. */}
+        <ClientAvatar client={client} className="w-20 h-20 text-2xl border-4 border-white dark:border-slate-800 shadow-card" />
 
         <div className="flex-1 text-center lg:text-left">
           <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-3">
@@ -254,10 +257,16 @@ const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({ client, deter
                 {/* J5 hierarchy: ONE primary per row - the daily clinical action,
                     starting a note. Everything else demotes to bordered secondary.
                     Sentence case throughout (uppercase tracking read as shouting). */}
+                {/* One-solid-red-per-surface rule (2026-08-07): "Start typed or dictated
+                    note" below is the header's one primary action — the thing a
+                    counselor is there to do. This button used to carry a red border +
+                    red text, a second brand mark competing with it. Neutral outline now,
+                    same as Schedule/Groups/Edit; Clara's own avatar image is still the
+                    thing that makes this unmistakably hers. */}
                 {onAskClara && (
                     <button
                         onClick={onAskClara}
-                        className="flex items-center gap-2.5 bg-transparent border border-primary text-primary dark:border-dark-primary dark:text-dark-primary pl-2 pr-5 py-2 rounded-xl font-semibold text-sm hover:bg-primary/5 dark:hover:bg-dark-primary/10 transition-colors"
+                        className="flex items-center gap-2.5 bg-transparent border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 pl-2 pr-5 py-2 rounded-xl font-semibold text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
                         <img src={CLARA_AVATAR_URL} alt="" className="w-7 h-7 rounded-full object-cover" />
                         Summarize with Clara

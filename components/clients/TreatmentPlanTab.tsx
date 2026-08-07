@@ -264,7 +264,11 @@ const HistoryRow: React.FC<{
     <div className="border border-slate-100 dark:border-slate-800 rounded-2xl">
         <button onClick={onToggle} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-2xl transition-colors">
             <div className="flex items-center gap-3 text-left">
-                <span className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded ${plan.status === 'Archived' ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                {/* Was blue for every non-Archived status (2026-08-07 fix) — blue carries
+                    no status meaning in this app. A non-Archived plan is the active,
+                    current one, which is a positive/resolved state, so it takes success
+                    like every other "current and good" status chip. */}
+                <span className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded ${plan.status === 'Archived' ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-success-100 text-success-700 border border-success-200'}`}>
                     {plan.status}
                 </span>
                 <div>

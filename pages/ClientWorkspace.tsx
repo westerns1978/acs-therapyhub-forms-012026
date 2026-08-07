@@ -484,17 +484,28 @@ const ClientWorkspace: React.FC = () => {
                     >
                         <FileText size={14} /> Status Report
                     </button>
+                    {/* One-solid-red-per-surface rule (2026-08-07): the header's
+                        "Start typed or dictated note" is this surface's one primary
+                        action. This button used to switch to a solid emerald fill when
+                        eligible — a second loud color competing for attention, and one
+                        that read as a status claim on what is really a preview/download
+                        action. Neutral outline now regardless of eligibility; the
+                        eligible-vs-not distinction still lives in the title tooltip and,
+                        more importantly, in the Packet Readiness gate chips themselves
+                        (components/clients/ClientOverviewTab.tsx), which is the correct
+                        single place for that signal to live. */}
                     <button
                         onClick={() => setPreview('certificate')}
                         title={assessment.completion.eligible
                             ? 'Preview the SATOP completion certificate, then create the PDF'
                             : `Preview the completion gates — ${assessment.completion.unmetReasons[0] || 'criteria not yet met'}`}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 ${assessment.completion.eligible
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-border dark:border-dark-border hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-border dark:border-dark-border text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95"
                     >
                         <Award size={14} /> Completion Certificate
                     </button>
+                    {/* Was solid black (bg-slate-900 dark:bg-white) — a color language
+                        that appeared on this button and nowhere else in the app's action
+                        grammar. Retired to the same neutral outline as its neighbors. */}
                     <button
                         onClick={async () => {
                             if (isCompiling) return;
@@ -509,20 +520,25 @@ const ClientWorkspace: React.FC = () => {
                         }}
                         disabled={isCompiling}
                         title="Compile a downloadable record packet (ZIP): summary, completion certificate if eligible, and the client's documents by category"
-                        className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-border dark:border-dark-border text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-60"
                     >
                         <Archive size={14} /> {isCompiling ? 'Compiling…' : 'Record Packet'}
                     </button>
                     {/* Capture ▾ — single input control (P2), grouped apart from the
                         output actions above by a hairline divider. Consolidates Upload /
                         Scan / Photo, each wired to its existing path. Hand-rolled off the
-                        header's + Schedule pattern: useState(open) + absolute div. */}
+                        header's + Schedule pattern: useState(open) + absolute div.
+                        Was solid ACS red (bg-primary) — a second primary competing with
+                        the client header's "Start typed or dictated note" on the same
+                        page (2026-08-07). Neutral outline now; the dropdown's own menu
+                        items keep their primary/10 icon tiles, which is decoration inside
+                        an open menu, not a second persistent brand mark on the surface. */}
                     <div className="relative pl-2 ml-1 border-l border-hairline dark:border-white/10" ref={captureMenuRef}>
                         <button
                             onClick={() => setCaptureMenuOpen(o => !o)}
                             aria-haspopup="menu"
                             aria-expanded={captureMenuOpen}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-focus text-white text-xs font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-border dark:border-dark-border text-slate-700 dark:text-slate-200 text-xs font-black uppercase tracking-widest rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
                         >
                             <Upload size={14} /> Capture <ChevronDown size={14} className={`transition-transform ${captureMenuOpen ? 'rotate-180' : ''}`} />
                         </button>

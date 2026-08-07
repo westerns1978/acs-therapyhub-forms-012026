@@ -11,9 +11,16 @@ const VERDICT_LABEL: Record<'warning' | 'violation', string> = { warning: 'Warni
 /**
  * Restructured 2026-07-28: neutral surface + hairline, colour as a 3px left rule,
  * and the rule appears only when the count is non-zero AND the metric is one the
- * Director must act on. "Met" and "Not yet verifiable" are informational totals —
- * they never take an accent, so a compliant practice reads calm instead of being
- * congratulated in green.
+ * Director must act on.
+ *
+ * REVISED 2026-08-07: "Met" now takes success/green, per the project-wide rule
+ * that a met/complete state must be visibly positive everywhere it appears —
+ * the earlier "calm, uncongratulated" choice meant a MET count and a genuinely
+ * unmeasured one (below) rendered identically, so "met" was invisible as a
+ * status rather than merely quiet. "Not yet verifiable" keeps NO accent: it is
+ * not a status on the success/warning/danger spectrum at all — it means the
+ * system lacks the data to evaluate the gate, which is a data gap, not an
+ * outcome, and must not borrow a color that implies one.
  */
 const StatTile: React.FC<{ label: string; value: number; rule?: string; ink?: string }> = ({ label, value, rule, ink }) => {
   const live = value > 0 && !!rule;
@@ -90,7 +97,7 @@ const ComplianceReadiness: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatTile label="Violations" value={counts.violation} rule="bg-danger-600 dark:bg-danger-400" ink="text-danger-700 dark:text-danger-400" />
         <StatTile label="Warnings" value={counts.warning} rule="bg-warning-600 dark:bg-warning-400" ink="text-warning-700 dark:text-warning-400" />
-        <StatTile label="Met" value={counts.met} />
+        <StatTile label="Met" value={counts.met} rule="bg-success-600 dark:bg-success-400" ink="text-success-700 dark:text-success-400" />
         <StatTile label="Not yet verifiable" value={counts.not_enforceable} />
       </div>
 

@@ -119,7 +119,12 @@ const ReviewSubmissionModal: React.FC<{
                                 ))}
                             </div>
 
-                            <div className={`flex items-center gap-3 p-3 rounded-2xl border ${data.is_signed ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
+                            {/* Normalized to the semantic tokens (2026-08-07) — raw
+                                green-/red- literals happened to re-tone to the same SAGE/
+                                BRICK ramps as success/danger, so this was not visibly wrong,
+                                but it could silently drift if the raw Tailwind families are
+                                ever unpinned from the status ramps in index.html. */}
+                            <div className={`flex items-center gap-3 p-3 rounded-2xl border ${data.is_signed ? 'bg-success-50 border-success-100 text-success-700' : 'bg-danger-50 border-danger-100 text-danger-700'}`}>
                                 {data.is_signed ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
                                 <span className="text-xs font-bold">
                                     {data.is_signed ? 'AI Verified: Signature Detected' : 'AI Warning: No Signature Detected'}
