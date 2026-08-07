@@ -1054,3 +1054,33 @@ failure the same way, and report which ones hide a real outcome from the user or
 the record (as opposed to catches that are fine to swallow — e.g. genuinely optional,
 non-authoritative side effects). Do not fix any of them; this entry is the list request,
 triage comes after.
+
+## 48. "SESSION CATEGORY" REMOVAL — BLOCKED, TWO CANDIDATES DISAGREE (2026-08-07)
+
+David's Aug-5 markup asked to remove "session category" from the scheduling box (section
+B3 of the Aug-7 build list). Two different controls both have a claim on that name, and
+they point in opposite directions — words vs. location:
+
+1. **The literal label match — appointment DETAIL box's "Session category" select**
+   ([AppointmentStatusModal.tsx:541-555](components/sessions/AppointmentStatusModal.tsx)),
+   the `service_type` picker (counseling / education / rehabilitative_support / other).
+   This is the ONLY place the exact phrase "Session category" renders in the app. It is
+   **required to Mark Completed** (`:583` disables the button until set) and it is the
+   sole source of WS3 categorized-hours accrual for individual sessions — group sessions
+   get `service_type` from the note's declared type instead, but individual sessions have
+   no other source today. Removing it with no replacement breaks completion + accrual.
+2. **The location match — booking modal's type selects**
+   ([ScheduleSessionModal.tsx:436-480](components/sessions/ScheduleSessionModal.tsx)),
+   "Service type" / "Session type" / "Type (funnel)" — a different taxonomy (client-type
+   funnel + display taxonomy), not accrual-gating, not labeled "session category"
+   anywhere. David said "scheduling box," which reads as the booking modal; the literal
+   phrase lives on the appointment detail box instead — a different surface entirely
+   (opened from Mark Completed on an existing appointment, not from booking a new one).
+
+**Not acted on — do not guess.** Removing #1 outright silently breaks the completion gate
+for every individual session; removing #2 does nothing David actually asked for (it isn't
+called "session category" and carries no accrual risk, but also isn't the control the
+literal words point at). Blocked on David: show him both boxes, confirm which one, and if
+it's #1, agree a replacement accrual source before removing the control. Collision:
+DEFERRED #10 (units-vs-duration completion rule) — whatever replaces #1 needs an answer
+to the same question.
