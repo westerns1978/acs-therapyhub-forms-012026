@@ -9,7 +9,7 @@ import {
   TreatmentPlan, TreatmentPlanContent, TreatmentPlanStatus, AppointmentSeries, AuditLog
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { FORM_REGISTRY } from '../config/formRegistry';
+import { FORM_REGISTRY, baseRegistrationFormFor } from '../config/formRegistry';
 import { fetchClientDetermination } from './complianceEngine';
 import { programForLevel } from '../config/programVocab';
 import { LATE_CANCELLATION_FEE } from '../config/satopFees';
@@ -122,6 +122,11 @@ const mapAppToClientRow = (c: any): Record<string, any> => {
         email: c.email ?? null,
         primary_phone: c.phone ?? c.primary_phone ?? null,
         program_type: c.program ?? c.program_type ?? null,
+        // OPERATIONAL axis, distinct from program_type above. Was not mapped at
+        // all, so anything the UI collected was silently dropped and every
+        // created client landed untagged (null). CHECK-enforced by the DB, so an
+        // unknown token is rejected rather than stored.
+        client_type: c.clientType ?? c.client_type ?? null,
         status: c.status ?? 'active',
         case_number: c.caseNumber ?? c.case_number ?? null,
         dob: c.dob || null,
@@ -2375,6 +2380,54 @@ export const findDuplicateClients = async (name: string, phone: string): Promise
         }));
 };
 
+/**
+ * Assign the "first and base" registration form for a client's client_type.
+ * FORM_REGISTRY's satop-registration / registration entries have carried the note
+ * "auto-assignment on client creation keyed off clients.client_type (decision D5)
+ * — deliberately NOT wired in this commit" since 2026-08-05; this is that wiring.
+ *
+ * IDEMPOTENT: checks for an existing form_submissions row on (client_id, form_id)
+ * first, so a retried create, a re-run, or a second call can never produce two
+ * copies of the same registration form in a client's portal.
+ *
+ * NON-FATAL by design. It runs after the client row already exists, so throwing
+ * here would report failure for a client that was in fact created — and the
+ * caller would have no way to tell the two apart. A failure leaves the client
+ * present with no auto-assigned form, which staff can assign by hand from the
+ * client's Admin Documents tab. Returns the assigned form id, or null.
+ */
+export const ensureBaseRegistrationForm = async (
+    clientId: string,
+    clientType: string | null | undefined,
+): Promise<string | null> => {
+    const formId = baseRegistrationFormFor(clientType);
+    if (!clientId || !formId) return null;
+    try {
+        const { data: existing, error: checkError } = await supabase
+            .from('form_submissions')
+            .select('id')
+            .eq('client_id', clientId)
+            .eq('form_id', formId)
+            .limit(1);
+        // A failed CHECK must not fall through to an insert — that is the one way
+        // this could double-assign.
+        if (checkError) throw checkError;
+        if (existing && existing.length > 0) return null;
+
+        const due = new Date();
+        due.setDate(due.getDate() + REGISTRATION_FORM_DUE_DAYS);
+        await assignForm(formId, [clientId], due);
+        return formId;
+    } catch (e) {
+        console.error('[api] ensureBaseRegistrationForm failed:', e);
+        return null;
+    }
+};
+
+/** Matches AssignFormModal's default due window, so a hand-assigned and an
+ *  auto-assigned registration form read the same in the portal. */
+const REGISTRATION_FORM_DUE_DAYS = 7;
+
 export const addClient = async (clientData: any): Promise<Client> => {
     const row = mapAppToClientRow(clientData);
     if (!row.name || !row.primary_phone) {
@@ -2386,6 +2439,12 @@ export const addClient = async (clientData: any): Promise<Client> => {
         .select()
         .single();
     if (error) throw error;
+
+    // The base registration form lands in the new client's portal immediately.
+    // Keyed on client_type as stored, read back from the inserted row rather than
+    // from clientData, so it reflects what the DB actually holds.
+    await ensureBaseRegistrationForm(data.id, data.client_type);
+
     return mapClientToApp(data);
 };
 

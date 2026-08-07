@@ -164,3 +164,30 @@ export const REQUIRED_FORMS_BY_LEVEL: Record<SatopLevel, string[]> = {
   III: CORE_REQUIRED_FORM_IDS,
   IV: CORE_REQUIRED_FORM_IDS,
 };
+
+/**
+ * The "first and base" form a new client gets automatically, keyed on the
+ * OPERATIONAL axis `clients.client_type` (config/clientType.ts) — never on the
+ * clinical `program_type`, which is set later from a signed determination and is
+ * not known at creation time.
+ *
+ * David, 2026-08-05, on each entry above:
+ *   satop-registration — "this is the first and base form for new SATOP clients."
+ *   registration       — "this is the first and base form for new OP (outpatient) clients."
+ *
+ * Deliberately only those two tokens. `RELAPSE_PREVENTION` and `RP` also carry
+ * "Outpatient" in their labels, but David named OP specifically and no row should
+ * be assigned a form by inference — adding them is one line here once he says so.
+ * Any other client_type (and an untagged null) gets nothing, which is the correct
+ * no-op rather than a guess.
+ *
+ * Neither form is a completion-gate item; see their FORM_REGISTRY entries.
+ */
+export const BASE_REGISTRATION_FORM_BY_CLIENT_TYPE: Record<string, string> = {
+  SATOP: 'satop-registration',
+  OP: 'registration',
+};
+
+/** The base registration form id for a client_type, or null when none applies. */
+export const baseRegistrationFormFor = (clientType: string | null | undefined): string | null =>
+  (clientType && BASE_REGISTRATION_FORM_BY_CLIENT_TYPE[clientType]) || null;

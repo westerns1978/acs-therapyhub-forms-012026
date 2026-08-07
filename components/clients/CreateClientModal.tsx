@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addClient, findDuplicateClients, DuplicateClientMatch } from '../../services/api';
 import { X, User, Shield, CreditCard, CheckCircle, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
+import { CLIENT_TYPES, CLIENT_TYPE_LABELS } from '../../config/clientType';
+import { baseRegistrationFormFor, FORM_REGISTRY_BY_ID } from '../../config/formRegistry';
 
 interface CreateClientModalProps {
     isOpen: boolean;
@@ -17,7 +19,11 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
     const [formData, setFormData] = useState({
         firstName: '', lastName: '', email: '', phone: '', dob: '',
         program: 'SROP', caseNumber: '', county: 'St. Louis', probationOfficer: '',
-        billingType: 'Self-Pay'
+        billingType: 'Self-Pay',
+        // '' = untagged (stored as NULL). No default guess — client_type drives
+        // both the scheduling funnel and the base registration form, and neither
+        // should be inferred from a dropdown the user never touched.
+        clientType: ''
     });
 
     const handleChange = (field: string, value: string) => {
@@ -35,6 +41,9 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                 phone: formData.phone,
                 dob: formData.dob,
                 program: formData.program,
+                // '' → undefined so mapAppToClientRow's drop-nulls pass leaves the
+                // column unset rather than writing an empty string the CHECK rejects.
+                clientType: formData.clientType || undefined,
                 caseNumber: formData.caseNumber,
                 billingType: formData.billingType,
                 county: formData.county,
@@ -209,6 +218,39 @@ const CreateClientModal: React.FC<CreateClientModalProps> = ({ isOpen, onClose }
                                     <option value="SATOP">SATOP (level set by determination)</option>
                                     <option value="ANGER_MANAGEMENT">Anger Management</option>
                                 </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold uppercase text-gray-500 tracking-wider">Client Type</label>
+                                {/* The OPERATIONAL / scheduling axis — distinct from Program Track
+                                    above, which is the CLINICAL placement. This modal never
+                                    collected it, so every client created here landed untagged and
+                                    the client_type badge was always blank. Tokens are
+                                    CLIENT_TYPES (config/clientType.ts) and the DB CHECK rejects
+                                    anything else; '' stores NULL, which stays valid (untagged).
+
+                                    It also decides the base registration form the new client is
+                                    auto-assigned — SATOP and OP are the two David named. The
+                                    helper text says so, because a field that silently assigns
+                                    paperwork should admit it. */}
+                                <select
+                                    className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-xl bg-gray-50 dark:bg-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                                    value={formData.clientType}
+                                    onChange={e => handleChange('clientType', e.target.value)}
+                                >
+                                    <option value="">— Not set —</option>
+                                    {CLIENT_TYPES.map(t => (
+                                        <option key={t} value={t}>{CLIENT_TYPE_LABELS[t]}</option>
+                                    ))}
+                                </select>
+                                {baseRegistrationFormFor(formData.clientType) && (
+                                    <p className="text-[11px] text-slate-500 pt-1">
+                                        Sends the{' '}
+                                        <strong>
+                                            {FORM_REGISTRY_BY_ID[baseRegistrationFormFor(formData.clientType)!]?.title}
+                                        </strong>{' '}
+                                        to this client's portal on creation.
+                                    </p>
+                                )}
                             </div>
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="space-y-1">
