@@ -966,11 +966,37 @@ cards are all **deliberately left in place** so this can be rebuilt.
 | **One ACS shared calendar via service account** | Moderate: a Google Workspace service account owned by ACS, calendar shared to staff, `user_integrations` retired entirely. **No personal credential is ever stored** and there is no per-user OAuth to maintain. | ACS wants a practice-wide calendar. Recommended if sync is wanted at all. |
 | **Per-counselor, keyed on auth uuid** | Highest: migrate `user_integrations.user_id` text→uuid FK to `auth.users`, re-consent every counselor, tighten the OAuth client to calendar-only scopes, encrypt tokens at rest, and replace the `isGoogleCalendarLinked()` localStorage gate with a DB-backed check (it is per-browser today, not per-account). | Each counselor needs events on their own calendar. |
 
-**If it is rebuilt, these are non-negotiable regardless of option:** scopes limited to
-`calendar.events`; no personal account tokens; the link state read from the database,
-not `localStorage`; and client email addresses **never** sent as Google attendees while
-`sendUpdates=all` is in play.
+**If it is rebuilt, these are non-negotiable regardless of option:**
 
-**Left behind, harmless but worth knowing:** the Settings → Google Calendar card still
-offers Connect. With both rows gone and no booking-time caller, connecting now stores a
-token that nothing reads. If the decision is "no sync", that card should be removed too.
+1. Scopes limited to `calendar.events`. Nothing else. The token that was here carried 36.
+2. No personal-account tokens, ever. A service account or nothing.
+3. Link state read from the **database**, not `localStorage` — the old gate was
+   per-browser, so it could be true for a signed-out user and false for a signed-in one.
+4. **A client email address is NEVER sent as a calendar attendee — under ANY
+   `sendUpdates` value, including `none`.** This is not a setting to get right; the
+   attendee field itself is the disclosure. Putting a client on a Google Calendar event
+   tells Google that person is in SUD treatment at ACS, and it persists in that
+   attendee's own calendar and in Google's logs regardless of whether an email is sent.
+   `sendUpdates=all` additionally mails them an invite titled with the session — e.g.
+   "SATOP Group" — which discloses to anyone with access to their inbox. This was
+   **loaded and aimed** in `ScheduleSessionModal` before we caught it
+   (`attendees.push(client.email)` with the edge function calling `sendUpdates=all`); it
+   never fired only because the integration was already dead. 42 CFR Part 2 disclosure
+   through a third party, and the closest this codebase has come to shipping one.
+   If a counselor's own calendar needs the client's name, it belongs in a field ACS
+   controls — not in an attendee slot that hands it to Google and emails the client.
+
+**UPDATE 2026-08-07 — both connect cards removed.** The Settings → Google Calendar and
+Zoom cards were deleted the same day. The Zoom card was checked first and had the
+*identical* shape: `isZoomLinked()` is a localStorage flag, `createZoomMeeting()` sends
+a Supabase auth uuid, and its row was keyed on the legacy `u1`. Connecting either would
+have stored a credential nothing could read. The "External Integrations" section now
+states the real position instead of offering a control that lies.
+
+**Still live, deliberately left alone:** the ad-hoc Zoom mint at
+`ScheduleSessionModal:269`. It is gated on `isZoomLinked()`, which nothing can set now
+that the card is gone, so it is **unreachable rather than removed** — that call site is
+exactly what a rebuild would re-point, and deleting it would throw away the shape. Note
+that the WS6 standing-group branch above it is unaffected and is where all real Zoom
+links come from (`counselors.zoom_meeting_id`); group sessions were never dependent on
+this integration.

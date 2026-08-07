@@ -3,140 +3,48 @@ import React, { useState, useEffect } from 'react';
 import Card from '../components/ui/Card';
 import { checkSupabaseConnection } from '../services/api';
 import { TRIAL_HIDE_SETTINGS_MANUAL_CONFIG } from '../config/trialMode';
-import {
-    beginGoogleOAuth,
-    isGoogleOAuthConfigured,
-    isGoogleCalendarLinked,
-    clearGoogleCalendarLink,
-    getConnectedGoogleAccountEmail,
-} from '../services/googleCalendar';
-import {
-    beginZoomOAuth,
-    isZoomOAuthConfigured,
-    isZoomLinked,
-    clearZoomLink,
-    getConnectedZoomAccountEmail,
-} from '../services/zoom';
-import { Loader2, Check, Wifi, WifiOff, Terminal, Video, FlaskConical } from 'lucide-react';
+// googleCalendar / zoom imports removed 2026-08-07 with the connect cards. Both
+// service modules are kept on disk for a service-account rebuild (DEFERRED #45);
+// this page simply no longer offers a button that stores an unreadable token.
+import { Loader2, Wifi, WifiOff, Terminal, Video, FlaskConical } from 'lucide-react';
 import { useDemoVisibility } from '../hooks/useDemoVisibility';
 
-// NOTE (pre-provisioning honesty pass, 2026-06-11): a dead `IntegrationCard`
-// component used to live here — a setTimeout-driven fake OAuth ("Verifying
-// Credentials… → Connection Successful!") that earned nothing. It was never
-// rendered anywhere; deleted rather than flag-hidden. The two cards below are
-// the real integrations: PKCE OAuth + edge-function token exchange, and their
-// "Active" chips are set only after a successful exchange.
-const GoogleCalendarCard: React.FC = () => {
-    const configured = isGoogleOAuthConfigured();
-    const [linked, setLinked] = useState<boolean>(isGoogleCalendarLinked());
-    const [email, setEmail] = useState<string | null>(getConnectedGoogleAccountEmail());
-    const [isConnecting, setIsConnecting] = useState(false);
-
-    const handleConnect = async () => {
-        try {
-            setIsConnecting(true);
-            await beginGoogleOAuth(); // redirects — no code after this runs
-        } catch (e: any) {
-            setIsConnecting(false);
-            alert(e?.message || 'Could not start Google connection.');
-        }
-    };
-
-    const handleDisconnect = () => {
-        if (!window.confirm('Disconnect Google Calendar? New sessions will no longer be pushed to your calendar. (Existing events are not removed.)')) return;
-        clearGoogleCalendarLink();
-        setLinked(false);
-        setEmail(null);
-    };
-
-    return (
-        <div className="flex items-center justify-between p-4 bg-surface dark:bg-slate-800/50 rounded-lg border border-border dark:border-slate-700 transition-all hover:border-primary/50">
-            <div>
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                    Google Calendar
-                    {linked && <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center gap-1"><Check size={10}/> Active</span>}
-                    {!configured && <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Not configured</span>}
-                </h3>
-                <p className="text-sm text-on-surface-secondary">
-                    {linked && email
-                        ? `Sessions will be pushed to ${email}.`
-                        : 'Push new sessions to your Google Calendar automatically.'}
-                </p>
-                {!configured && (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                        Set <code>VITE_GOOGLE_CLIENT_ID</code> and deploy the
-                        <code> google-oauth-exchange</code> edge function to enable.
-                    </p>
-                )}
-            </div>
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={linked ? handleDisconnect : handleConnect}
-                    disabled={!configured || isConnecting}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold text-white transition-all min-w-[120px] flex justify-center items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${linked ? 'bg-white text-red-600 border border-red-200 hover:bg-red-50' : 'bg-primary hover:bg-primary-focus'}`}
-                >
-                    {isConnecting ? <Loader2 size={16} className="animate-spin"/> : linked ? 'Disconnect' : 'Connect'}
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const ZoomCard: React.FC = () => {
-    const configured = isZoomOAuthConfigured();
-    const [linked, setLinked] = useState<boolean>(isZoomLinked());
-    const [email, setEmail] = useState<string | null>(getConnectedZoomAccountEmail());
-    const [isConnecting, setIsConnecting] = useState(false);
-
-    const handleConnect = async () => {
-        try {
-            setIsConnecting(true);
-            await beginZoomOAuth(); // redirects — no code after this runs
-        } catch (e: any) {
-            setIsConnecting(false);
-            alert(e?.message || 'Could not start Zoom connection.');
-        }
-    };
-
-    const handleDisconnect = () => {
-        if (!window.confirm('Disconnect Zoom? New telehealth sessions will fall back to a manual link.')) return;
-        clearZoomLink();
-        setLinked(false);
-        setEmail(null);
-    };
-
-    return (
-        <div className="flex items-center justify-between p-4 bg-surface dark:bg-slate-800/50 rounded-lg border border-border dark:border-slate-700 transition-all hover:border-primary/50">
-            <div>
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                    Zoom Meetings
-                    {linked && <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full flex items-center gap-1"><Check size={10}/> Active</span>}
-                    {!configured && <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Not configured</span>}
-                </h3>
-                <p className="text-sm text-on-surface-secondary">
-                    {linked && email
-                        ? `Telehealth sessions auto-create Zoom meetings on ${email}.`
-                        : 'Auto-create a secure Zoom meeting for every telehealth session.'}
-                </p>
-                {!configured && (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                        Set <code>VITE_ZOOM_CLIENT_ID</code> and deploy the
-                        <code> zoom-oauth-exchange</code> edge function to enable.
-                    </p>
-                )}
-            </div>
-            <div className="flex items-center gap-4">
-                <button
-                    onClick={linked ? handleDisconnect : handleConnect}
-                    disabled={!configured || isConnecting}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold text-white transition-all min-w-[120px] flex justify-center items-center shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${linked ? 'bg-white text-red-600 border border-red-200 hover:bg-red-50' : 'bg-primary hover:bg-primary-focus'}`}
-                >
-                    {isConnecting ? <Loader2 size={16} className="animate-spin"/> : linked ? 'Disconnect' : 'Connect'}
-                </button>
-            </div>
-        </div>
-    );
-};
+/* INTEGRATION CONNECT CARDS REMOVED (2026-08-07).
+ *
+ * A dead `IntegrationCard` (a setTimeout-driven fake OAuth) was deleted here in
+ * the 2026-06-11 honesty pass. GoogleCalendarCard and ZoomCard replaced it and
+ * were real PKCE OAuth — but they have now gone the same way, for the same
+ * reason: they were buttons that appeared to work and did nothing.
+ *
+ * Both wrote a token to public.user_integrations keyed on the id the caller
+ * passed, and BOTH read paths were broken in the same way. That table's
+ * `user_id` is `text`, and its two rows were keyed on legacy app-level ids
+ * ('staff-david-yoder', 'u1') from the pre-Supabase-auth AuthContext, while
+ * every caller now sends a Supabase auth UUID. The lookup could never match, and
+ * both call sites swallow failure by design (a calendar or Zoom error must not
+ * block a booking), so it failed silently for months.
+ *
+ * Measured before removal: 0 of 100 appointments carried a google_event_id, and
+ * all 8 carrying a zoom_meeting_id got it from the WS6 standing-group branch
+ * (counselors.zoom_meeting_id, which never touches this integration) — zero were
+ * created through the Zoom API. Both user_integrations rows are deleted; the
+ * Google write-through is gone from ScheduleSessionModal.
+ *
+ * Connecting today would store a credential nothing can read. For Google that
+ * credential was a personal account token carrying 36 scopes including Gmail and
+ * Drive. Offering the button again without fixing the id mismatch would invite
+ * exactly that.
+ *
+ * services/googleCalendar.ts, services/zoom.ts and all the edge functions are
+ * LEFT IN PLACE for a service-account rebuild. See DEFERRED #45 for the three
+ * options and the non-negotiables.
+ *
+ * STILL LIVE, deliberately untouched: the ad-hoc Zoom mint branch at
+ * ScheduleSessionModal:269. It is gated on isZoomLinked() (a localStorage flag)
+ * which nothing can set now that this card is gone, so it is unreachable rather
+ * than removed — that call site is the thing a rebuild would re-point, and
+ * deleting it would throw away the shape. Recorded in DEFERRED #45.
+ */
 
 const DatabaseHealthCard = () => {
     const [status, setStatus] = useState<{connected: boolean, latency: number, message?: string} | null>(null);
@@ -241,11 +149,16 @@ const Settings: React.FC = () => {
         <div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="space-y-6">
-                    <Card title="External Integrations" subtitle="Connect your workflow tools.">
-                        <div className="space-y-4">
-                            <GoogleCalendarCard />
-                            <ZoomCard />
-                        </div>
+                    <Card title="External Integrations" subtitle="No calendar or meeting sync is connected.">
+                        {/* The Google Calendar and Zoom connect buttons lived here until
+                            2026-08-07. Both stored a credential nothing could read — see
+                            the block comment at the top of this file. Rather than leave a
+                            control that lies, the section states the actual position. */}
+                        <p className="text-sm text-on-surface-secondary">
+                            Sessions are not pushed to an external calendar. Group sessions
+                            reuse each counselor&rsquo;s permanent Zoom room, which is set on
+                            the counselor record — not through an integration here.
+                        </p>
 
                         {/* Manual Configuration (Zoom PMI) — TRIAL-HIDDEN: `zoom_pmi`
                             has zero readers in the app, so "Save Configurations" stored
