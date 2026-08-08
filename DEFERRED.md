@@ -1084,3 +1084,45 @@ literal words point at). Blocked on David: show him both boxes, confirm which on
 it's #1, agree a replacement accrual source before removing the control. Collision:
 DEFERRED #10 (units-vs-duration completion rule) — whatever replaces #1 needs an answer
 to the same question.
+
+## 49. TREATMENT-PLAN PROBLEM IDS MUST BE LINEAGE IDS — NON-NEGOTIABLE (2026-08-07)
+
+**This is a constraint on whoever writes the D5 migration, not a deferred fix.** Read it
+before designing the schema; it cannot be added afterward.
+
+**The rule:** when treatment-plan problems get stable identity, that id is a **lineage
+id** — assigned once, **copied forward unchanged** into every subsequent plan version,
+**never regenerated**. This holds whichever shape wins (a normalized
+`treatment_plan_problems` child table, or a uuid stamped into each `content.problems[]`
+object). A normalized table needs BOTH: a per-version row `id` and a `lineage_id` that
+survives versions. Notes link to the **lineage**, never to the per-version row.
+
+**Why.** A plan "update" is a new `treatment_plans` row that deep-copies the whole
+`content` blob, with the prior row left byte-for-byte untouched and archived
+(`applyTreatmentPlanUpdate`, [services/api.ts:2788-2812](services/api.ts); schema
+`20260728_l5_treatment_plan_updates.sql`). That copy is what makes history immutable —
+and it is clean today *precisely because* problems have no identity. Add identity
+naively and you get per-version ids: a note linked to v1's "Problem A" does not link to
+v2's "Problem A", so David's actual question — "show me every note that addressed this
+problem" — breaks at every single plan update. The feature would ship already broken,
+and look fine until the first plan review.
+
+**Why now.** `treatment_plans` is EMPTY in production (0 rows, 0 clients, 0 versions —
+witnessed 2026-08-07). There is no history to reconcile, so lineage costs nothing beyond
+one extra column and a copy-forward in the update writer. Once real plans exist and have
+been signed, retrofitting means **inventing** lineage across versions that were already
+authored and signed by a clinician — matching problems across versions by title text,
+after titles have been edited, on records that are immutable by design. That is not a
+migration, it's a guess with a signature on it.
+
+**Concretely, whoever builds it must:**
+- carry `lineage_id` forward in `applyTreatmentPlanUpdate`'s copy, not regenerate it;
+- ensure the editor (`CustomizeTreatmentPlanModal.tsx`) preserves the id on an unchanged
+  problem and only mints one on genuine "add problem" — note it currently mutates the
+  array purely by index (`:142,:148`), so there is nothing to preserve today;
+- point the note→problem reference (a join table — David's "problem number(**s**)" is
+  plural) at the lineage id.
+
+Full cost analysis, options A/B, and blast radius:
+[docs/SCOPE-D5-problem-identity-2026-08-07.md](docs/SCOPE-D5-problem-identity-2026-08-07.md).
+Open questions gating the build: [docs/DAVID-QUESTIONS-2026-08-11.md](docs/DAVID-QUESTIONS-2026-08-11.md).
